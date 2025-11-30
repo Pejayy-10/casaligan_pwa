@@ -22,7 +22,7 @@ A trusted gig platform connecting housekeepers with house owners in the Philippi
 - **SQLAlchemy** - ORM for database operations
 - **PostgreSQL** - Database (Supabase)
 - **JWT** - Authentication
-- **Cloudinary** - Image uploads
+- **Alembic** - Database migrations
 
 ### Frontend
 - **React 18** - UI library
@@ -118,9 +118,6 @@ Frontend will run at: **http://localhost:5173**
 ```env
 DATABASE_URL=postgresql://username:password@host:port/database
 JWT_SECRET=your-super-secret-jwt-key
-CLOUDINARY_CLOUD_NAME=your-cloudinary-cloud
-CLOUDINARY_API_KEY=your-api-key
-CLOUDINARY_API_SECRET=your-api-secret
 ```
 
 ### Frontend (`frontend/.env`)
@@ -128,6 +125,22 @@ CLOUDINARY_API_SECRET=your-api-secret
 ```env
 VITE_API_BASE_URL=http://localhost:8000
 ```
+
+## 🗄️ Database Setup
+
+If you're setting up a new database (e.g., on Supabase), run the schema script:
+
+```bash
+# Option 1: Using psql
+psql -h your-host -U your-username -d your-database -f database/schema.sql
+
+# Option 2: On Supabase
+# 1. Go to SQL Editor in Supabase Dashboard
+# 2. Copy contents of database/schema.sql
+# 3. Run the query
+```
+
+The script creates all tables, enums, and indexes needed for the app.
 
 ## 📱 Mobile Development (Capacitor)
 
