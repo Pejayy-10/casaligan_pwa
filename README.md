@@ -1,200 +1,224 @@
-# Casaligan - Gig Platform for Housekeepers
+# 🏠 Casaligan - Home Services Platform
 
-A trusted gig platform connecting housekeepers with house owners in the Philippines.
+A trusted gig platform connecting housekeepers with house owners in the Philippines. Built as a Progressive Web App (PWA) with mobile-first design.
 
-## Tech Stack
+## ✨ Features
+
+- **Multi-role System** - Users can be both house owners and housekeepers
+- **Direct Hiring** - Browse worker profiles and hire directly
+- **Job Posting** - Create job listings for housekeeping services
+- **Real-time Messaging** - In-app chat between owners and workers
+- **Package System** - Workers can create service packages with pricing
+- **Ratings & Reviews** - 5-star rating system with text reviews
+- **Progress Tracking** - Track job status from accepted to paid
+- **Payment Verification** - Upload payment proofs (GCash, bank transfer)
+- **Notifications** - Real-time notifications for job updates
+- **Mobile-First Design** - Optimized for mobile with Capacitor support
+
+## 🛠 Tech Stack
 
 ### Backend
 - **FastAPI** - Modern Python web framework
 - **SQLAlchemy** - ORM for database operations
-- **PostgreSQL** - Database (hosted on Supabase)
+- **PostgreSQL** - Database (Supabase)
 - **JWT** - Authentication
-- **Pydantic** - Data validation
+- **Cloudinary** - Image uploads
 
 ### Frontend
-- **React** - UI library
+- **React 18** - UI library
 - **TypeScript** - Type-safe JavaScript
 - **Vite** - Build tool
 - **Tailwind CSS v4** - Styling
-- **React Router** - Navigation
-- **Axios** - HTTP client
-- **Konsta UI** - Mobile-friendly components
+- **React Router v6** - Navigation
+- **Capacitor** - Native mobile app support
+- **Lucide React** - Icons
 
-## Project Structure
+## 📋 Prerequisites
 
-```
-casaligan_capacitor/
-├── backend/
-│   ├── app/
-│   │   ├── main.py              # FastAPI app entry point
-│   │   ├── config.py            # Configuration settings
-│   │   ├── db.py                # Database connection
-│   │   ├── security.py          # Auth & JWT utilities
-│   │   ├── models/              # SQLAlchemy models
-│   │   │   ├── user.py
-│   │   │   ├── address.py
-│   │   │   └── document.py
-│   │   ├── schemas/             # Pydantic schemas
-│   │   │   ├── user.py
-│   │   │   ├── auth.py
-│   │   │   ├── address.py
-│   │   │   └── document.py
-│   │   └── routers/             # API routes
-│   │       └── auth.py
-│   ├── .env                     # Environment variables
-│   ├── requirements.txt         # Python dependencies
-│   └── venv/                    # Virtual environment
-│
-├── frontend/
-│   ├── src/
-│   │   ├── App.tsx              # Main app with routing
-│   │   ├── config.ts            # API configuration
-│   │   ├── types/               # TypeScript types
-│   │   ├── services/            # API services
-│   │   │   ├── api.ts           # Axios client
-│   │   │   ├── auth.ts          # Auth service
-│   │   │   └── psgc.ts          # Philippines address API
-│   │   ├── components/
-│   │   │   └── ProtectedRoute.tsx
-│   │   └── pages/
-│   │       ├── LandingPage.tsx
-│   │       ├── LoginPage.tsx
-│   │       ├── RegisterStep1Page.tsx
-│   │       ├── RegisterStep2AddressPage.tsx
-│   │       ├── RegisterStep3DocumentsPage.tsx
-│   │       └── DashboardPage.tsx
-│   ├── .env                     # Environment variables
-│   ├── package.json
-│   └── vite.config.ts
-│
-└── Docs/
-    ├── CASALIGAN_CONTEXT.md
-    ├── CODING_RULES.md
-    └── PHASES.md
-```
+Before you begin, ensure you have installed:
 
-## Setup Instructions
+- **Python 3.11+** - [Download Python](https://www.python.org/downloads/)
+- **Node.js 18+** - [Download Node.js](https://nodejs.org/)
+- **pnpm** - Package manager for frontend
 
-### Backend Setup
+### Installing pnpm
 
-1. Navigate to backend folder:
 ```bash
+# Using npm (comes with Node.js)
+npm install -g pnpm
+
+# Or using Corepack (recommended, comes with Node.js 16.13+)
+corepack enable
+corepack prepare pnpm@latest --activate
+
+# Verify installation
+pnpm --version
+```
+
+## 🚀 Getting Started
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/Pejayy-10/casaligan_pwa.git
+cd casaligan_pwa
+```
+
+### 2. Backend Setup
+
+```bash
+# Navigate to backend folder
 cd backend
-```
 
-2. Install Python dependencies:
-```bash
+# Create virtual environment (recommended)
+python -m venv venv
+
+# Activate virtual environment
+# On Windows:
+venv\Scripts\activate
+# On macOS/Linux:
+source venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
-```
 
-3. Configure `.env` file (already set up):
-```env
-DATABASE_URL="postgresql://..."
-JWT_SECRET="your-secret-key"
-```
+# Create .env file with your database credentials
+# (see Environment Variables section below)
 
-4. Run the backend:
-```bash
+# Run the backend server
 python -m uvicorn app.main:app --reload --port 8000
 ```
 
-Backend will run at: http://127.0.0.1:8000
+Backend will run at: **http://localhost:8000**
 
-### Frontend Setup
+API Documentation: **http://localhost:8000/docs**
 
-1. Navigate to frontend folder:
+### 3. Frontend Setup
+
 ```bash
+# Navigate to frontend folder (from project root)
 cd frontend
-```
 
-2. Install dependencies:
-```bash
+# Install dependencies using pnpm (NOT npm or yarn!)
 pnpm install
-```
 
-3. Configure `.env` file (already set up):
-```env
-VITE_API_BASE_URL=http://127.0.0.1:8000
-```
+# Create .env file
+# (see Environment Variables section below)
 
-4. Run the frontend:
-```bash
+# Run the development server
 pnpm dev
 ```
 
-Frontend will run at: http://localhost:5173
+Frontend will run at: **http://localhost:5173**
 
-## Features Implemented (Phase 0-4)
+## 🔐 Environment Variables
 
-### ✅ Authentication & Authorization
-- User registration (multi-step)
-- Login with JWT tokens
-- Protected routes
-- Password hashing with bcrypt
+### Backend (`backend/.env`)
 
-### ✅ User Management
-- User roles (Owner/Housekeeper)
-- Role switching capability
-- User profiles with personal info
+```env
+DATABASE_URL=postgresql://username:password@host:port/database
+JWT_SECRET=your-super-secret-jwt-key
+CLOUDINARY_CLOUD_NAME=your-cloudinary-cloud
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+```
 
-### ✅ Address System
-- Philippines PSGC integration
-- Cascading dropdowns (Region → Province → City → Barangay)
-- Complete address data capture
+### Frontend (`frontend/.env`)
 
-### ✅ Document Verification
-- Document upload system
-- Multiple document types supported
-- Verification status tracking
+```env
+VITE_API_BASE_URL=http://localhost:8000
+```
 
-### ✅ Dashboard
-- Role-based dashboards
-- Owner dashboard with job management placeholders
-- Housekeeper dashboard with job board placeholders
+## 📱 Mobile Development (Capacitor)
 
-## API Endpoints
+```bash
+cd frontend
+
+# Build the web app
+pnpm build
+
+# Sync with native projects
+pnpm cap sync
+
+# Open in Android Studio
+pnpm cap open android
+
+# Or run directly on device
+pnpm cap run android
+```
+
+## 📁 Project Structure
+
+```
+casaligan_pwa/
+├── backend/
+│   ├── app/
+│   │   ├── main.py              # FastAPI entry point
+│   │   ├── config.py            # Configuration
+│   │   ├── db.py                # Database connection
+│   │   ├── security.py          # JWT & auth utilities
+│   │   ├── models_v2/           # SQLAlchemy models
+│   │   ├── schemas/             # Pydantic schemas
+│   │   ├── routers/             # API routes
+│   │   └── services/            # Business logic
+│   └── requirements.txt
+│
+├── frontend/
+│   ├── src/
+│   │   ├── pages/               # Page components
+│   │   ├── components/          # Reusable components
+│   │   ├── services/            # API services
+│   │   └── types/               # TypeScript types
+│   ├── android/                 # Capacitor Android project
+│   └── package.json
+│
+└── README.md
+```
+
+## 🔌 API Endpoints
 
 ### Authentication
 - `POST /auth/register` - Register new user
-- `POST /auth/login` - Login and get JWT token
-- `GET /auth/me` - Get current user profile
-- `POST /auth/register/address` - Add/update user address
-- `POST /auth/register/documents` - Upload document
-- `GET /auth/documents` - Get user documents
-- `POST /auth/switch-role` - Switch between owner/housekeeper roles
+- `POST /auth/login` - Login
+- `GET /auth/me` - Get current user
+- `POST /auth/switch-role` - Switch role
 
-### Health Check
-- `GET /` - API status
-- `GET /health` - Health check
+### Jobs
+- `GET /jobs` - List jobs
+- `POST /jobs` - Create job
+- `POST /jobs/{id}/apply` - Apply to job
 
-## Development Status
+### Direct Hires
+- `POST /direct-hires` - Create direct hire
+- `GET /direct-hires` - List hires
+- `POST /direct-hires/{id}/accept` - Accept hire
 
-**Completed:** Phases 0-4
-- ✅ Backend structure with FastAPI
-- ✅ Database models (User, Address, Document)
-- ✅ Authentication with JWT
-- ✅ Frontend structure with React + Vite
-- ✅ Tailwind CSS v4 integration
-- ✅ All registration pages (3 steps)
-- ✅ Login page
-- ✅ Role-based dashboards
-- ✅ PSGC address integration
+### Messaging
+- `GET /messages/conversations` - List conversations
+- `POST /messages/conversations` - Start conversation
+- `GET /messages/conversations/{id}/messages` - Get messages
+- `POST /messages/conversations/{id}/messages` - Send message
 
-**Next Steps:** Phases 5-9
-- Job board and matching system
-- Messaging and notifications
-- Payment and subscriptions
-- Admin panel
-- Deployment and production setup
+### Ratings
+- `POST /ratings` - Submit rating
+- `GET /ratings/worker/{id}` - Get worker ratings
 
-## Notes
+## 🤝 Contributing
 
-- All users start as **house owners** by default
-- Housekeepers require additional verification and admin approval
-- The frontend uses localStorage for token management
-- PSGC API provides Philippines address data (regions, provinces, cities, barangays)
-- Database tables are auto-created on backend startup
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## Package Manager
+## 📄 License
 
-Always use `pnpm` for frontend operations (never npm or yarn).
+This project is for educational purposes.
+
+## 👥 Authors
+
+- **Pejayy-10** - Initial work
+
+---
+
+⭐ Star this repo if you find it helpful!
