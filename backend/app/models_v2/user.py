@@ -38,7 +38,7 @@ class User(Base):
     is_owner = Column(Boolean, default=True, nullable=False)
     is_housekeeper = Column(Boolean, default=False, nullable=False)
     active_role = Column(SQLEnum(UserRole, native_enum=False, values_callable=lambda x: [e.value for e in x]), default=UserRole.OWNER, nullable=False)
-    status = Column(SQLEnum(UserStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), default=UserStatus.PENDING, nullable=False)
+    status = Column(SQLEnum(UserStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), default=UserStatus.ACTIVE, nullable=False)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())

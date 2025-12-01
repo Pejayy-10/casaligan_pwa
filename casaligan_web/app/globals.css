@@ -3,13 +3,20 @@
 /* Centralize colors and fonts in theme.css */
 @import "./theme.css";
 
+/* Import react-datepicker styles globally */
+@import "react-datepicker/dist/react-datepicker.css";
+
 body {
-  background: var(--color-background);
-  color: var(--color-foreground);
+  background: var(--color-background) !important;
+  color: var(--color-foreground) !important;
   --font-sans: var(--font-karla);
   --font-heading: var(--font-spectral);
   font-family: var(--font-sans);
   font-size: 16px; /* global body font size */
+}
+
+html {
+  background: var(--color-background) !important;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -45,4 +52,40 @@ button, input, select, textarea {
 .text-body {
   font-size: 16px;
   line-height: 1.5;
+}
+
+/* Override react-datepicker styles to respect theme */
+.react-datepicker {
+  background-color: var(--color-muted) !important;
+  border-color: var(--color-border) !important;
+  color: var(--color-foreground) !important;
+}
+
+.react-datepicker__header {
+  background-color: var(--color-muted) !important;
+  border-bottom-color: var(--color-border) !important;
+}
+
+.react-datepicker__current-month,
+.react-datepicker__day-name {
+  color: var(--color-foreground) !important;
+}
+
+.react-datepicker__day {
+  color: var(--color-foreground) !important;
+}
+
+.react-datepicker__day:hover {
+  background-color: var(--color-primary) !important;
+  color: white !important;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--in-range {
+  background-color: var(--color-primary) !important;
+  color: white !important;
+}
+
+.react-datepicker__day--disabled {
+  color: var(--color-foreground-muted) !important;
 }

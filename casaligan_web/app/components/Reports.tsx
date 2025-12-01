@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import "@/app/theme.css";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import { getReportAnalytics } from "@/lib/supabase/reportsqueriesSimplified";
 

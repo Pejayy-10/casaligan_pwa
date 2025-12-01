@@ -34,20 +34,33 @@ export default function MessagesPage() {
 		if (data) {
 			const rows = data.map((convo: any) => {
 				const participants = convo.conversation_participants || [];
-				const employer = participants.find((p: any) => p.users?.role === "employer");
-				const worker = participants.find((p: any) => p.users?.role === "worker");
+				const employer = participants.find((p: any) => p.users?.active_role === "owner" || p.role === "owner");
+				const worker = participants.find((p: any) => p.users?.active_role === "housekeeper" || p.role === "housekeeper");
+				
+				// Format user names
+				const employerName = employer?.users 
+					? `${employer.users.first_name || ''} ${employer.users.last_name || ''}`.trim() 
+					: "N/A";
+				const workerName = worker?.users 
+					? `${worker.users.first_name || ''} ${worker.users.last_name || ''}`.trim() 
+					: "N/A";
 				
 				return {
 					id: convo.conversation_id,
-					employer: employer?.users?.name || "N/A",
-					employerId: employer?.users?.user_id,
-					worker: worker?.users?.name || "N/A",
-					workerId: worker?.users?.user_id,
+					employer: employerName,
+					employerId: employer?.users?.id,
+					worker: workerName,
+					workerId: worker?.users?.id,
 					lastMessage: convo.last_message || "No messages yet",
 					lastMessageAt: convo.last_message_at || convo.created_at,
 					status: convo.status,
 					isRestricted: convo.status === "restricted",
-					participants: participants.map((p: any) => p.users),
+					participants: participants.map((p: any) => ({
+						...p.users,
+						user_id: p.users?.id,
+						name: p.users ? `${p.users.first_name || ''} ${p.users.last_name || ''}`.trim() : 'N/A',
+						role: p.users?.active_role || p.role
+					})),
 				};
 			});
 			setConversations(rows);

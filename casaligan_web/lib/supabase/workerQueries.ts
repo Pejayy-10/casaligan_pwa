@@ -374,29 +374,53 @@ export async function getWorkerActivityStats(startDate?: Date, endDate?: Date) {
     .gte('created_at', lastMonthStart.toISOString())
     .lte('created_at', lastMonthEnd.toISOString())
 
-  // Get bookings received count (through schedules/packages)
-  const { count: thisMonthBookings } = await supabase
-    .from('bookings')
-    .select('booking_id, schedules!inner(package_id, packages!inner(worker_id))', { count: 'exact', head: true })
-    .gte('booking_date', thisMonthStart.toISOString())
-    .lte('booking_date', thisMonthEnd.toISOString())
+  // Get bookings received count (from contracts and direct_hires tables used by mobile app)
+  const { count: thisMonthContracts } = await supabase
+    .from('contracts')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', thisMonthStart.toISOString())
+    .lte('created_at', thisMonthEnd.toISOString())
   
-  const { count: lastMonthBookings } = await supabase
-    .from('bookings')
-    .select('booking_id, schedules!inner(package_id, packages!inner(worker_id))', { count: 'exact', head: true })
-    .gte('booking_date', lastMonthStart.toISOString())
-    .lte('booking_date', lastMonthEnd.toISOString())
+  const { count: thisMonthDirectHires } = await supabase
+    .from('direct_hires')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', thisMonthStart.toISOString())
+    .lte('created_at', thisMonthEnd.toISOString())
+  
+  const { count: lastMonthContracts } = await supabase
+    .from('contracts')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', lastMonthStart.toISOString())
+    .lte('created_at', lastMonthEnd.toISOString())
+  
+  const { count: lastMonthDirectHires } = await supabase
+    .from('direct_hires')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', lastMonthStart.toISOString())
+    .lte('created_at', lastMonthEnd.toISOString())
+  
+  const thisMonthBookings = (thisMonthContracts || 0) + (thisMonthDirectHires || 0)
+  const lastMonthBookings = (lastMonthContracts || 0) + (lastMonthDirectHires || 0)
 
-  // Get messages sent by workers
+  // Get messages sent by workers (proper join with workers table)
+  // First get all worker user_ids
+  const { data: workerUsers } = await supabase
+    .from('workers')
+    .select('user_id')
+  
+  const workerUserIds = workerUsers?.map(w => w.user_id) || []
+  
   const { count: thisMonthMessages } = await supabase
     .from('messages')
-    .select('message_id, users!messages_sender_user_id_fkey!inner(user_id, workers!inner(worker_id))', { count: 'exact', head: true })
+    .select('*', { count: 'exact', head: true })
+    .in('sender_id', workerUserIds)
     .gte('sent_at', thisMonthStart.toISOString())
     .lte('sent_at', thisMonthEnd.toISOString())
   
   const { count: lastMonthMessages } = await supabase
     .from('messages')
-    .select('message_id, users!messages_sender_user_id_fkey!inner(user_id, workers!inner(worker_id))', { count: 'exact', head: true })
+    .select('*', { count: 'exact', head: true })
+    .in('sender_id', workerUserIds)
     .gte('sent_at', lastMonthStart.toISOString())
     .lte('sent_at', lastMonthEnd.toISOString())
 

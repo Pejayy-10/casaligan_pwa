@@ -67,8 +67,10 @@ export default function VerificationPage() {
 	});
 
 	const handleAction = async (action: "view" | "ban" | "restrict" | "unban" | "unrestrict", row: any) => {
+		console.log('Action triggered:', action, 'Row:', row);
 		// Find the full verification data
 		const verification = verifications.find(v => v.verification_id === row.verification_id);
+		console.log('Found verification:', verification);
 		
 		if (action === "view") {
 			setSelectedVerification(verification || row);
@@ -220,7 +222,7 @@ export default function VerificationPage() {
 								<div>
 									<p className="text-sm text-muted-foreground">Status</p>
 									<span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-										selectedVerification.status === 'accepted' ? 'bg-green-100 text-green-800' :
+										selectedVerification.status === 'approved' ? 'bg-green-100 text-green-800' :
 										selectedVerification.status === 'rejected' ? 'bg-red-100 text-red-800' :
 										selectedVerification.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
 										'bg-gray-100 text-gray-800'

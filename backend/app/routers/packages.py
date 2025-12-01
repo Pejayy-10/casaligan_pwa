@@ -71,11 +71,13 @@ def create_package(
     
     package = WorkerPackage(
         worker_id=worker.worker_id,
-        name=package_data.name,
+        title=package_data.name,  # Use name as title
+        name=package_data.name,   # Also set name for mobile compatibility
         description=package_data.description,
         price=package_data.price,
         duration_hours=package_data.duration_hours,
         services=package_data.services,
+        status='active',  # Auto-activate for now
         is_active=True
     )
     

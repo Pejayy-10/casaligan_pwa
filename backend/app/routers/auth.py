@@ -42,7 +42,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
             detail="Phone number already registered"
         )
     
-    # Create new user
+    # Create new user - owners are active by default, housekeepers need approval
     db_user = User(
         email=user_data.email,
         phone_number=user_data.phone_number,
@@ -51,6 +51,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
         middle_name=user_data.middle_name,
         last_name=user_data.last_name,
         suffix=user_data.suffix,
+        status="active",  # Owners are active immediately
     )
     
     db.add(db_user)

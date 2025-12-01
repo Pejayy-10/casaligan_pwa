@@ -4,34 +4,97 @@ import { getAdminId } from "./adminQueries";
 export async function getConversations(limit = 50, offset = 0) {
 	const supabase = createClient();
 
-	const { data, error, count } = await supabase
-		.from("conversations")
+	// First, let's try to get all messages grouped by conversation
+	const { data: allMessages, error: messagesError } = await supabase
+		.from("messages")
 		.select(`
+			message_id,
 			conversation_id,
-			created_at,
-			last_message_at,
-			last_message,
-			topic,
-			status,
-			deleted_at,
-			restricted_at,
-			conversation_participants!inner (
-				user_id,
-				role,
-				users (
-					user_id,
-					name,
-					email,
-					role
-				)
+			sender_id,
+			content,
+			sent_at,
+			conversations (
+				conversation_id,
+				status,
+				created_at,
+				deleted_at
 			)
-		`, { count: "exact" })
-		.is("deleted_at", null)
-		.order("last_message_at", { ascending: false, nullsFirst: false })
-		.order("created_at", { ascending: false })
-		.range(offset, offset + limit - 1);
+		`)
+		.order("sent_at", { ascending: false })
+		.limit(1000);
 
-	return { data, error, count };
+	if (messagesError) {
+		console.error('Error fetching messages:', messagesError);
+		return { data: [], error: messagesError, count: 0 };
+	}
+
+	if (!allMessages || allMessages.length === 0) {
+		return { data: [], error: null, count: 0 };
+	}
+
+	// Group messages by conversation
+	const conversationMap = new Map();
+	
+	allMessages.forEach(msg => {
+		const convId = msg.conversation_id;
+		if (!conversationMap.has(convId)) {
+			conversationMap.set(convId, {
+				conversation_id: convId,
+				created_at: msg.conversations?.created_at || msg.sent_at,
+				status: msg.conversations?.status || 'active',
+				deleted_at: msg.conversations?.deleted_at,
+				last_message: msg.content,
+				last_message_at: msg.sent_at,
+				sender_ids: new Set([msg.sender_id])
+			});
+		} else {
+			const convo = conversationMap.get(convId);
+			convo.sender_ids.add(msg.sender_id);
+		}
+	});
+
+	// Filter out deleted conversations
+	const activeConversations = Array.from(conversationMap.values())
+		.filter(c => !c.deleted_at)
+		.slice(offset, offset + limit);
+
+	// Get user details for all participants
+	const allUserIds = new Set<number>();
+	activeConversations.forEach(c => {
+		c.sender_ids.forEach((id: number) => allUserIds.add(id));
+	});
+
+	const { data: users } = await supabase
+		.from("users")
+		.select("id, first_name, last_name, email, active_role")
+		.in("id", Array.from(allUserIds));
+
+	// Build conversation participants
+	const conversationsWithParticipants = activeConversations.map(convo => {
+		const participants = Array.from(convo.sender_ids).map((userId: any) => {
+			const user = users?.find(u => u.id === userId);
+			return {
+				user_id: userId,
+				role: user?.active_role || 'owner',
+				users: user
+			};
+		});
+
+		return {
+			conversation_id: convo.conversation_id,
+			created_at: convo.created_at,
+			status: convo.status,
+			last_message: convo.last_message,
+			last_message_at: convo.last_message_at,
+			conversation_participants: participants
+		};
+	});
+
+	return { 
+		data: conversationsWithParticipants, 
+		error: null, 
+		count: conversationMap.size 
+	};
 }
 
 export async function getConversationDetails(conversationId: number) {
@@ -52,10 +115,11 @@ export async function getConversationDetails(conversationId: number) {
 				joined_at,
 				role,
 				users (
-					user_id,
-					name,
+					id,
+					first_name,
+					last_name,
 					email,
-					role,
+					active_role,
 					phone_number
 				)
 			)
@@ -118,7 +182,7 @@ export async function deleteConversation(conversationId: number) {
 		.from("conversations")
 		.update({
 			deleted_at: new Date().toISOString(),
-			status: "closed",
+			status: "archived",
 		})
 		.eq("conversation_id", conversationId);
 

@@ -163,7 +163,7 @@ export default function MatchingAnalyticsPage() {
 
           {/* Table */}
           <div className="overflow-x-auto">
-            <table className="w-full bg-white">
+            <table className="w-full">
               <thead className="bg-muted/50 border-b border-border">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
@@ -186,7 +186,7 @@ export default function MatchingAnalyticsPage() {
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-border">
+              <tbody className="divide-y divide-border">
                 {isLoading ? (
                   <tr>
                     <td

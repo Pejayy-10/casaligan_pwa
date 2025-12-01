@@ -18,7 +18,6 @@ import {
   Tooltip as LineTooltip,
 } from "recharts";
 import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
 import { getEmployerAnalytics, getEmployerActivityStats } from "@/lib/supabase/employerQueries";
 
 const Employers: React.FC = () => {

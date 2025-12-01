@@ -292,18 +292,33 @@ export async function getEmployerActivityStats(startDate?: Date, endDate?: Date)
     .gte('created_at', lastMonthStart.toISOString())
     .lte('created_at', lastMonthEnd.toISOString())
 
-  // Get bookings count
-  const { count: thisMonthBookings } = await supabase
-    .from('bookings')
+  // Get bookings count (from contracts and direct_hires tables used by mobile app)
+  const { count: thisMonthContracts } = await supabase
+    .from('contracts')
     .select('*', { count: 'exact', head: true })
-    .gte('booking_date', thisMonthStart.toISOString())
-    .lte('booking_date', thisMonthEnd.toISOString())
+    .gte('created_at', thisMonthStart.toISOString())
+    .lte('created_at', thisMonthEnd.toISOString())
   
-  const { count: lastMonthBookings } = await supabase
-    .from('bookings')
+  const { count: thisMonthDirectHires } = await supabase
+    .from('direct_hires')
     .select('*', { count: 'exact', head: true })
-    .gte('booking_date', lastMonthStart.toISOString())
-    .lte('booking_date', lastMonthEnd.toISOString())
+    .gte('created_at', thisMonthStart.toISOString())
+    .lte('created_at', thisMonthEnd.toISOString())
+  
+  const { count: lastMonthContracts } = await supabase
+    .from('contracts')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', lastMonthStart.toISOString())
+    .lte('created_at', lastMonthEnd.toISOString())
+  
+  const { count: lastMonthDirectHires } = await supabase
+    .from('direct_hires')
+    .select('*', { count: 'exact', head: true })
+    .gte('created_at', lastMonthStart.toISOString())
+    .lte('created_at', lastMonthEnd.toISOString())
+  
+  const thisMonthBookings = (thisMonthContracts || 0) + (thisMonthDirectHires || 0)
+  const lastMonthBookings = (lastMonthContracts || 0) + (lastMonthDirectHires || 0)
 
   // Get payments count
   const { count: thisMonthPayments } = await supabase
@@ -318,16 +333,25 @@ export async function getEmployerActivityStats(startDate?: Date, endDate?: Date)
     .gte('payment_date', lastMonthStart.toISOString())
     .lte('payment_date', lastMonthEnd.toISOString())
 
-  // Get messages count
+  // Get messages sent by employers (proper join with employers table)
+  // First get all employer user_ids
+  const { data: employerUsers } = await supabase
+    .from('employers')
+    .select('user_id')
+  
+  const employerUserIds = employerUsers?.map(e => e.user_id) || []
+  
   const { count: thisMonthMessages } = await supabase
     .from('messages')
     .select('*', { count: 'exact', head: true })
+    .in('sender_id', employerUserIds)
     .gte('sent_at', thisMonthStart.toISOString())
     .lte('sent_at', thisMonthEnd.toISOString())
   
   const { count: lastMonthMessages } = await supabase
     .from('messages')
     .select('*', { count: 'exact', head: true })
+    .in('sender_id', employerUserIds)
     .gte('sent_at', lastMonthStart.toISOString())
     .lte('sent_at', lastMonthEnd.toISOString())
 

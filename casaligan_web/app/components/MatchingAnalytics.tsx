@@ -1,9 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import "@/app/theme.css";
 import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
 
 import {
   PieChart,

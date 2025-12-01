@@ -15,7 +15,6 @@ import {
   Tooltip as LineTooltip,
 } from "recharts";
 import DatePicker from "react-datepicker";
-import "react-datepicker/dist/react-datepicker.css";
 
 const messageByUserType = [
   { name: "Workers", value: 420 },
