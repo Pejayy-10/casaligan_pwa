@@ -139,19 +139,20 @@ def create_or_get_conversation(
     if not data.hire_id and not data.job_id:
         raise HTTPException(status_code=400, detail="Either hire_id or job_id is required")
     
-    # Check for existing conversation
-    query = db.query(Conversation)
+    # Check for existing conversation where current user is a participant
     if data.hire_id:
-        query = query.filter(Conversation.hire_id == data.hire_id)
+        existing = db.query(Conversation).filter(
+            Conversation.hire_id == data.hire_id,
+            Conversation.participant_ids.contains([current_user.id])
+        ).first()
     else:
-        query = query.filter(Conversation.job_id == data.job_id)
+        # For jobs, find conversation with current user as participant
+        existing = db.query(Conversation).filter(
+            Conversation.job_id == data.job_id,
+            Conversation.participant_ids.contains([current_user.id])
+        ).first()
     
-    existing = query.first()
     if existing:
-        # Verify user is a participant
-        if current_user.id not in existing.participant_ids:
-            raise HTTPException(status_code=403, detail="Not a participant in this conversation")
-        
         return conversation_to_response(existing, current_user.id, db)
     
     # Create new conversation
@@ -176,14 +177,40 @@ def create_or_get_conversation(
             participant_ids = [employer.user_id, worker.user_id]
     
     elif data.job_id:
+        from app.models_v2.worker_employer import Employer, Worker
+        from app.models_v2.forum import InterestCheck, InterestStatus
+        
         job = db.query(ForumPost).filter(ForumPost.post_id == data.job_id).first()
         if not job:
             raise HTTPException(status_code=404, detail="Job not found")
         
-        # For jobs, we need to know who the accepted worker is
-        # This should be passed or determined from job data
-        participant_ids = [job.user_id]  # Owner
-        # Add accepted workers if applicable
+        # Get job owner
+        employer = db.query(Employer).filter(Employer.employer_id == job.employer_id).first()
+        if not employer:
+            raise HTTPException(status_code=404, detail="Job owner not found")
+        
+        # Check if current user is the employer or an accepted worker
+        if current_user.id == employer.user_id:
+            # Owner is trying to message - need to find which worker
+            # This shouldn't happen via frontend flow, but handle it
+            raise HTTPException(status_code=400, detail="Please select a specific worker to message")
+        else:
+            # Worker is trying to message the employer
+            # Verify this worker is accepted for this job
+            worker = db.query(Worker).filter(Worker.user_id == current_user.id).first()
+            if not worker:
+                raise HTTPException(status_code=403, detail="Only accepted workers can message")
+            
+            accepted = db.query(InterestCheck).filter(
+                InterestCheck.post_id == data.job_id,
+                InterestCheck.worker_id == worker.worker_id,
+                InterestCheck.status == InterestStatus.ACCEPTED
+            ).first()
+            
+            if not accepted:
+                raise HTTPException(status_code=403, detail="You must be accepted for this job to message")
+            
+            participant_ids = [employer.user_id, current_user.id]
     
     if current_user.id not in participant_ids:
         raise HTTPException(status_code=403, detail="You are not part of this job/hire")
