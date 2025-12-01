@@ -10,6 +10,9 @@ class PaymentFrequency(str, enum.Enum):
     WEEKLY = "weekly"
     BIWEEKLY = "biweekly"
     MONTHLY = "monthly"
+    
+    def __str__(self):
+        return self.value
 
 class PaymentStatus(str, enum.Enum):
     PENDING = "pending"
@@ -17,6 +20,9 @@ class PaymentStatus(str, enum.Enum):
     CONFIRMED = "confirmed"
     DISPUTED = "disputed"
     OVERDUE = "overdue"
+    
+    def __str__(self):
+        return self.value
 
 class PaymentSchedule(Base):
     """Payment schedule configuration for long-term jobs"""
@@ -30,7 +36,7 @@ class PaymentSchedule(Base):
     # Individual payment due date and amount
     due_date = Column(String, nullable=False)  # YYYY-MM-DD
     amount = Column(Numeric, nullable=False)
-    status = Column(SQLEnum(PaymentStatus), nullable=False, default=PaymentStatus.PENDING)
+    status = Column(SQLEnum(PaymentStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=PaymentStatus.PENDING)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
@@ -52,7 +58,7 @@ class PaymentTransaction(Base):
     proof_url = Column(String, nullable=True)  # Screenshot/proof of payment
     
     # Status tracking
-    status = Column(SQLEnum(PaymentStatus), nullable=False, default=PaymentStatus.PENDING)
+    status = Column(SQLEnum(PaymentStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=PaymentStatus.PENDING)
     sent_at = Column(DateTime(timezone=True), nullable=True)
     confirmed_at = Column(DateTime(timezone=True), nullable=True)
     

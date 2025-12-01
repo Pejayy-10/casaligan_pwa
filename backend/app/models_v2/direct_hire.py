@@ -15,6 +15,9 @@ class DirectHireStatus(str, enum.Enum):
     PAID = "paid"                 # Payment confirmed
     CANCELLED = "cancelled"       # Cancelled by either party
     REJECTED = "rejected"         # Worker rejected the hire
+    
+    def __str__(self):
+        return self.value
 
 
 class DirectHire(Base):
@@ -46,7 +49,7 @@ class DirectHire(Base):
     special_instructions = Column(Text, nullable=True)
     
     # Status
-    status = Column(SQLEnum(DirectHireStatus), nullable=False, default=DirectHireStatus.PENDING)
+    status = Column(SQLEnum(DirectHireStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=DirectHireStatus.PENDING)
     
     # Completion tracking
     completion_proof_url = Column(String, nullable=True)

@@ -31,6 +31,9 @@ class NotificationType(str, enum.Enum):
     # General
     SYSTEM = "system"                             # System notification
     REMINDER = "reminder"                         # General reminder
+    
+    def __str__(self):
+        return self.value
 
 
 class Notification(Base):
@@ -41,7 +44,7 @@ class Notification(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
     # Notification content
-    type = Column(SQLEnum(NotificationType), nullable=False)
+    type = Column(SQLEnum(NotificationType, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False)
     title = Column(String(255), nullable=False)
     message = Column(Text, nullable=False)
     

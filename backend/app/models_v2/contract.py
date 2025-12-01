@@ -11,6 +11,9 @@ class ContractStatus(str, enum.Enum):
     PENDING_COMPLETION = "pending_completion"  # Worker submitted, waiting for owner approval
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    
+    def __str__(self):
+        return self.value
 
 class Contract(Base):
     __tablename__ = "contracts"
@@ -21,7 +24,7 @@ class Contract(Base):
     employer_id = Column(Integer, ForeignKey("employers.employer_id"), nullable=False)
     
     contract_terms = Column(Text, nullable=True)  # JSON string
-    status = Column(SQLEnum(ContractStatus), nullable=False, default=ContractStatus.PENDING)
+    status = Column(SQLEnum(ContractStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=ContractStatus.PENDING)
     
     # Acceptance tracking
     worker_accepted = Column(Integer, default=0)  # 0=pending, 1=accepted, -1=rejected

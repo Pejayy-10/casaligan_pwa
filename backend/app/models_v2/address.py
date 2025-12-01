@@ -6,7 +6,7 @@ from app.db import Base
 class Address(Base):
     __tablename__ = "addresses"
     
-    id = Column(Integer, primary_key=True, index=True)
+    address_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
     
     # PSGC codes and names (both sent by frontend)

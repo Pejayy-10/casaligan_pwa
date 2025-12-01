@@ -8,6 +8,9 @@ import enum
 class JobType(str, enum.Enum):
     ONETIME = "onetime"
     LONGTERM = "longterm"
+    
+    def __str__(self):
+        return self.value
 
 class ForumPostStatus(str, enum.Enum):
     OPEN = "open"
@@ -15,6 +18,9 @@ class ForumPostStatus(str, enum.Enum):
     PENDING_COMPLETION = "pending_completion"  # Housekeeper submitted proof, waiting for owner approval
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    
+    def __str__(self):
+        return self.value
 
 class ForumPost(Base):
     """Job postings"""
@@ -27,9 +33,9 @@ class ForumPost(Base):
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     location = Column(String, nullable=False)
-    job_type = Column(SQLEnum(JobType), nullable=False)
+    job_type = Column(SQLEnum(JobType, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False)
     salary = Column(Numeric, nullable=False)
-    status = Column(SQLEnum(ForumPostStatus), nullable=False, default=ForumPostStatus.OPEN)
+    status = Column(SQLEnum(ForumPostStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=ForumPostStatus.OPEN)
     
     # Long-term job fields
     is_longterm = Column(Boolean, default=False)
@@ -58,6 +64,9 @@ class InterestStatus(str, enum.Enum):
     PENDING = "pending"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
+    
+    def __str__(self):
+        return self.value
 
 class InterestCheck(Base):
     """Job applications"""
@@ -66,7 +75,7 @@ class InterestCheck(Base):
     interest_id = Column(Integer, primary_key=True, index=True)
     post_id = Column(Integer, ForeignKey("forumposts.post_id"), nullable=False)
     worker_id = Column(Integer, ForeignKey("workers.worker_id"), nullable=False)
-    status = Column(SQLEnum(InterestStatus), nullable=False, default=InterestStatus.PENDING)
+    status = Column(SQLEnum(InterestStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=InterestStatus.PENDING)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
     # Relationships

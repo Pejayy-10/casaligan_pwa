@@ -1,5 +1,5 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
-from sqlalchemy.dialects.postgresql import ARRAY, ENUM
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Enum as SQLEnum
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db import Base
@@ -10,10 +10,9 @@ class ConversationStatus(str, enum.Enum):
     ACTIVE = "active"
     READ_ONLY = "read_only"
     ARCHIVED = "archived"
-
-
-# Create PostgreSQL ENUM type
-conversation_status_enum = ENUM('active', 'read_only', 'archived', name='conversation_status', create_type=False)
+    
+    def __str__(self):
+        return self.value
 
 
 class Conversation(Base):
@@ -30,7 +29,7 @@ class Conversation(Base):
     
     # Conversation metadata
     title = Column(String(255), nullable=True)  # Optional custom title
-    status = Column(conversation_status_enum, default='active')
+    status = Column(SQLEnum(ConversationStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), default=ConversationStatus.ACTIVE)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
