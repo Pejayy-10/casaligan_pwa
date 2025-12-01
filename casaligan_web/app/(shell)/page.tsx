@@ -1,10 +1,11 @@
-import { getDashboardStats, getCurrentUser } from "@/lib/supabase/queries";
+import { getDashboardStats, getCurrentUser, getRecentActivities } from "@/lib/supabase/queries";
 import DashboardClient from "./dashboard-client";
 
 export default async function Home() {
-	const [stats, userResult] = await Promise.all([
+	const [stats, userResult, activitiesResult] = await Promise.all([
 		getDashboardStats(),
 		getCurrentUser(),
+		getRecentActivities(4),
 	]);
 
 	const userName = userResult.user?.email?.split("@")[0] || "Admin";
@@ -24,6 +25,7 @@ export default async function Home() {
 			}}
 			userName={userName}
 			today={today}
+			activities={activitiesResult.data}
 		/>
 	);
 }

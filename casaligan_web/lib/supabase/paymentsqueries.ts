@@ -4,152 +4,98 @@ import { createClient } from './client'
  * Payment-specific queries for admin dashboard
  */
 
-// Get all payments with related information using Supabase relational queries
+// Get all payments with related information from direct_hires table
 export async function getPayments(limit = 50, offset = 0, status?: string, searchQuery?: string) {
   const supabase = createClient()
   
-  // Build query with nested relational selects for better performance
+  // Fetch from direct_hires table which contains payment information
   let query = supabase
-    .from('payments')
+    .from('direct_hires')
     .select(`
-      payment_id,
-      contract_id,
-      method_id,
-      amount,
+      hire_id,
+      employer_id,
+      worker_id,
+      total_amount,
+      scheduled_date,
+      scheduled_time,
       status,
-      payment_date,
-      contracts:contract_id (
-        contract_id,
-        booking_id,
-        terms,
-        bookings:booking_id (
-          booking_id,
-          schedule_id,
+      payment_method,
+      payment_proof_url,
+      reference_number,
+      paid_at,
+      created_at,
+      employers:employer_id (
+        employer_id,
+        user_id,
+        users:user_id (
+          id,
+          name,
+          first_name,
+          last_name,
+          email,
+          phone_number,
           status,
-          booking_date,
-          notes,
-          schedules:schedule_id (
-            schedule_id,
-            package_id,
-            employer_id,
-            available_date,
-            start_time,
-            end_time,
-            status,
-            packages:package_id (
-              package_id,
-              worker_id,
-              title,
-              description,
-              price,
-              availability,
-              workers:worker_id (
-                worker_id,
-                user_id,
-                users:user_id (
-                  user_id,
-                  name,
-                  email,
-                  phone_number,
-                  status,
-                  created_at,
-                  profile_picture
-                )
-              )
-            ),
-            employers:employer_id (
-              employer_id,
-              user_id,
-              users:user_id (
-                user_id,
-                name,
-                email,
-                phone_number,
-                status,
-                created_at,
-                profile_picture
-              )
-            )
-          )
+          profile_picture
         )
       ),
-      payment_methods:method_id (
-        method_id,
-        provider_name,
-        details
+      workers:worker_id (
+        worker_id,
+        user_id,
+        users:user_id (
+          id,
+          name,
+          first_name,
+          last_name,
+          email,
+          phone_number,
+          status,
+          profile_picture
+        )
       )
     `, { count: 'exact' })
-    .order('payment_date', { ascending: false })
+    .order('created_at', { ascending: false })
     .range(offset, offset + limit - 1)
 
-  // Apply status filter if provided
+  // Apply status filter if provided - filter for paid hires
   if (status && status !== 'all') {
-    query = query.eq('status', status)
+    if (status === 'completed' || status === 'paid') {
+      query = query.eq('status', 'paid')
+    } else if (status === 'pending') {
+      query = query.in('status', ['completed', 'in_progress'])
+    } else {
+      query = query.eq('status', status)
+    }
   }
 
-  const { data: payments, error: paymentsError, count } = await query
+  const { data: hires, error: hiresError, count } = await query
 
-  if (paymentsError) {
-    console.error('Error fetching payments:', paymentsError)
-    return { data: [], count: 0, error: paymentsError }
+  if (hiresError) {
+    console.error('Error fetching payments from direct_hires:', hiresError)
+    return { data: [], count: 0, error: hiresError }
   }
 
-  if (!payments || payments.length === 0) {
+  if (!hires || hires.length === 0) {
     return { data: [], count: count || 0, error: null }
   }
 
-  // Transform the nested structure to match the expected format
-  // Note: Supabase returns arrays for relational queries, so we need to handle the first element
-  const paymentsWithDetails = payments.map((payment: any) => {
+  // Transform direct_hires data to match payment format
+  const paymentsWithDetails = hires.map((hire: any) => {
     // Handle arrays from Supabase relational queries
-    const contract = Array.isArray(payment.contracts) ? payment.contracts[0] : payment.contracts || null
-    const booking = Array.isArray(contract?.bookings) ? contract.bookings[0] : contract?.bookings || null
-    const schedule = Array.isArray(booking?.schedules) ? booking.schedules[0] : booking?.schedules || null
-    const packageData = Array.isArray(schedule?.packages) ? schedule.packages[0] : schedule?.packages || null
-    const worker = Array.isArray(packageData?.workers) ? packageData.workers[0] : packageData?.workers || null
-    const employer = Array.isArray(schedule?.employers) ? schedule.employers[0] : schedule?.employers || null
-    const paymentMethod = Array.isArray(payment.payment_methods) ? payment.payment_methods[0] : payment.payment_methods || null
-
+    const employer = Array.isArray(hire.employers) ? hire.employers[0] : hire.employers || null
+    const worker = Array.isArray(hire.workers) ? hire.workers[0] : hire.workers || null
+    
     // Handle nested user arrays
-    const workerUser = Array.isArray(worker?.users) ? worker.users[0] : worker?.users || null
     const employerUser = Array.isArray(employer?.users) ? employer.users[0] : employer?.users || null
+    const workerUser = Array.isArray(worker?.users) ? worker.users[0] : worker?.users || null
 
     return {
-      payment_id: payment.payment_id,
-      contract_id: payment.contract_id,
-      method_id: payment.method_id,
-      amount: payment.amount,
-      status: payment.status,
-      payment_date: payment.payment_date,
-      contracts: contract ? {
-        contract_id: contract.contract_id,
-        booking_id: contract.booking_id,
-        terms: contract.terms
-      } : null,
-      bookings: booking ? {
-        booking_id: booking.booking_id,
-        schedule_id: booking.schedule_id,
-        status: booking.status,
-        booking_date: booking.booking_date,
-        notes: booking.notes
-      } : null,
-      schedules: schedule ? {
-        schedule_id: schedule.schedule_id,
-        package_id: schedule.package_id,
-        employer_id: schedule.employer_id,
-        available_date: schedule.available_date,
-        start_time: schedule.start_time,
-        end_time: schedule.end_time,
-        status: schedule.status
-      } : null,
-      packages: packageData ? {
-        package_id: packageData.package_id,
-        worker_id: packageData.worker_id,
-        title: packageData.title,
-        description: packageData.description,
-        price: packageData.price,
-        availability: packageData.availability
-      } : null,
+      payment_id: hire.hire_id,
+      hire_id: hire.hire_id,
+      amount: hire.total_amount,
+      status: hire.status === 'paid' ? 'completed' : hire.status,
+      payment_date: hire.paid_at || hire.created_at,
+      payment_method: hire.payment_method,
+      reference_number: hire.reference_number,
       workers: worker ? {
         worker_id: worker.worker_id,
         user_id: worker.user_id,
@@ -160,11 +106,12 @@ export async function getPayments(limit = 50, offset = 0, status?: string, searc
         user_id: employer.user_id,
         users: employerUser
       } : null,
-      payment_methods: paymentMethod ? {
-        method_id: paymentMethod.method_id,
-        provider_name: paymentMethod.provider_name,
-        details: paymentMethod.details
-      } : null
+      payment_methods: hire.payment_method ? {
+        provider_name: hire.payment_method
+      } : null,
+      bookings: {
+        booking_date: hire.created_at
+      }
     }
   })
 
@@ -345,54 +292,55 @@ export async function getPaymentById(paymentId: number) {
   }
 }
 
-// Get payment statistics
+// Get payment statistics from direct_hires
 export async function getPaymentStats() {
   const supabase = createClient()
   
   try {
-    // Get counts by status in parallel for better performance
-    const [pendingResult, completedResult, failedResult, refundedResult, totalResult] = await Promise.all([
-      supabase.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-      supabase.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
-      supabase.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'failed'),
-      supabase.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'refunded'),
-      supabase.from('payments').select('*', { count: 'exact', head: true })
+    // Get counts by status in parallel - use direct_hires table
+    const [pendingResult, completedResult, cancelledResult, totalResult] = await Promise.all([
+      supabase.from('direct_hires').select('*', { count: 'exact', head: true }).in('status', ['completed', 'in_progress']),
+      supabase.from('direct_hires').select('*', { count: 'exact', head: true }).eq('status', 'paid'),
+      supabase.from('direct_hires').select('*', { count: 'exact', head: true }).eq('status', 'cancelled'),
+      supabase.from('direct_hires').select('*', { count: 'exact', head: true })
     ])
 
-    // Get total amount for completed payments
-    const { data: allPayments, error: amountError } = await supabase
-      .from('payments')
-      .select('amount, status, payment_date')
-      .eq('status', 'completed')
+    // Get total amount for paid hires
+    const { data: paidHires, error: amountError } = await supabase
+      .from('direct_hires')
+      .select('total_amount, status, paid_at')
+      .eq('status', 'paid')
 
     if (amountError) {
       console.error('Error fetching payment amounts:', amountError)
     }
 
-    const totalAmount = allPayments?.reduce((sum, p) => sum + (parseFloat(p.amount.toString()) || 0), 0) || 0
+    const totalAmount = paidHires?.reduce((sum, p) => sum + (parseFloat(p.total_amount?.toString() || '0') || 0), 0) || 0
 
-    // Get overdue payments count (pending payments past their payment_date)
-    const { data: pendingPayments, error: overdueError } = await supabase
-      .from('payments')
-      .select('payment_id, payment_date, status')
-      .eq('status', 'pending')
+    // Get overdue payments count (completed hires not yet paid)
+    const { data: completedHires, error: overdueError } = await supabase
+      .from('direct_hires')
+      .select('hire_id, completed_at, status')
+      .eq('status', 'completed')
 
     if (overdueError) {
       console.error('Error fetching overdue payments:', overdueError)
     }
 
+    // Hires completed more than 7 days ago without payment are overdue
     const now = new Date()
-    const overdueCount = pendingPayments?.filter(p => {
-      if (!p.payment_date) return false
-      const paymentDate = new Date(p.payment_date)
-      return paymentDate < now
+    const overdueCount = completedHires?.filter(h => {
+      if (!h.completed_at) return false
+      const completedDate = new Date(h.completed_at)
+      const daysSinceCompletion = (now.getTime() - completedDate.getTime()) / (1000 * 60 * 60 * 24)
+      return daysSinceCompletion > 7
     }).length || 0
 
     return {
       pending: pendingResult.count || 0,
       completed: completedResult.count || 0,
-      failed: failedResult.count || 0,
-      refunded: refundedResult.count || 0,
+      failed: 0, // Not tracked in direct_hires
+      refunded: 0, // Not tracked in direct_hires
       overdue: overdueCount,
       total: totalResult.count || 0,
       totalAmount: totalAmount
@@ -411,23 +359,37 @@ export async function getPaymentStats() {
   }
 }
 
-// Update payment status
-export async function updatePaymentStatus(paymentId: number, status: string) {
+// Update payment status - updates direct_hire status
+export async function updatePaymentStatus(hireId: number, status: string) {
   const supabase = createClient()
   
-  // Validate status
-  const validStatuses = ['pending', 'completed', 'failed', 'refunded', 'cancelled']
-  if (!validStatuses.includes(status.toLowerCase())) {
+  // Validate status - map payment statuses to direct_hire statuses
+  const statusMap: { [key: string]: string } = {
+    'completed': 'paid',
+    'paid': 'paid',
+    'pending': 'completed',
+    'cancelled': 'cancelled'
+  }
+  
+  const mappedStatus = statusMap[status.toLowerCase()]
+  if (!mappedStatus) {
     return { 
       data: null, 
-      error: { message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` } as any
+      error: { message: `Invalid status. Must be one of: ${Object.keys(statusMap).join(', ')}` } as any
     }
   }
 
+  const updateData: any = { status: mappedStatus }
+  
+  // If marking as paid, set paid_at timestamp
+  if (mappedStatus === 'paid') {
+    updateData.paid_at = new Date().toISOString()
+  }
+
   const { data, error } = await supabase
-    .from('payments')
-    .update({ status: status.toLowerCase() })
-    .eq('payment_id', paymentId)
+    .from('direct_hires')
+    .update(updateData)
+    .eq('hire_id', hireId)
     .select()
   
   if (error) {
@@ -437,14 +399,14 @@ export async function updatePaymentStatus(paymentId: number, status: string) {
   return { data, error }
 }
 
-// Delete payment (hard delete)
-export async function deletePayment(paymentId: number) {
+// Delete payment (hard delete from direct_hires)
+export async function deletePayment(hireId: number) {
   const supabase = createClient()
   
   const { data, error } = await supabase
-    .from('payments')
+    .from('direct_hires')
     .delete()
-    .eq('payment_id', paymentId)
+    .eq('hire_id', hireId)
     .select()
   
   if (error) {

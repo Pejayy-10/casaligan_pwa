@@ -18,9 +18,10 @@ type DashboardClientProps = {
 	};
 	userName: string;
 	today: string;
+	activities: any[];
 };
 
-export default function DashboardClient({ stats, userName, today }: DashboardClientProps) {
+export default function DashboardClient({ stats, userName, today, activities }: DashboardClientProps) {
 	return (
 		<>
 			<div className="mx-auto w-full max-w-[1400px] space-y-6 px-4 sm:px-6 lg:px-8">
@@ -68,10 +69,10 @@ export default function DashboardClient({ stats, userName, today }: DashboardCli
 						<BookingsLineChartCard />
 					</section>
 
-					<aside className="space-y-4">
-						<RevenueBarChartCard />
-						<RecentActivitiesCard />
-					</aside>
+				<aside className="space-y-4">
+					<RevenueBarChartCard />
+					<RecentActivitiesCard activities={activities} />
+				</aside>
 				</div>
 			</div>
 		</>

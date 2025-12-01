@@ -26,9 +26,10 @@ export async function getActivityLogs(limit = 50, offset = 0) {
         employer_id,
         user_id,
         users:user_id (
-          user_id,
-          name,
-          role
+          id,
+          first_name,
+          last_name,
+          active_role
         )
       )
     `)
@@ -42,14 +43,14 @@ export async function getActivityLogs(limit = 50, offset = 0) {
       if (user) {
         activities.push({
           activity_id: `post_${post.post_id}`,
-          user_type: user.role || 'employer',
-          user_name: user.name,
+          user_type: user.active_role || 'employer',
+          user_name: `${user.first_name} ${user.last_name}`,
           action: 'Created Job Post',
           timestamp: post.created_at,
           details: post.description || post.title || 'Looking for part-time',
           entity_type: 'forumpost',
           entity_id: post.post_id,
-          user_id: user.user_id
+          user_id: user.id
         })
       }
     })
@@ -60,13 +61,14 @@ export async function getActivityLogs(limit = 50, offset = 0) {
     .from('messages')
     .select(`
       message_id,
-      sender_user_id,
+      sender_id,
       conversation_id,
       sent_at,
-      users:sender_user_id (
-        user_id,
-        name,
-        role
+      users:sender_id (
+        id,
+        first_name,
+        last_name,
+        active_role
       ),
       conversations:conversation_id (
         conversation_id
@@ -81,143 +83,146 @@ export async function getActivityLogs(limit = 50, offset = 0) {
       if (user) {
         activities.push({
           activity_id: `message_${message.message_id}`,
-          user_type: user.role || 'worker',
-          user_name: user.name,
+          user_type: user.active_role || 'worker',
+          user_name: `${user.first_name} ${user.last_name}`,
           action: 'Sent Message',
           timestamp: message.sent_at,
           details: `ChatID:${String(message.conversation_id || message.message_id).padStart(3, '0')}`,
           entity_type: 'message',
           entity_id: message.message_id,
-          user_id: user.user_id
+          user_id: user.id
         })
       }
     })
   }
 
-  // 3. Get Verifications (Verified Account) from verification_logs
-  const { data: verificationLogs, error: verificationLogsError } = await supabase
-    .from('verification_logs')
+  // 3. Get Verifications (Verified Account) from user_documents
+  const { data: verifications, error: verificationsError } = await supabase
+    .from('user_documents')
     .select(`
-      log_id,
-      verification_id,
-      admin_id,
-      new_status,
-      changed_at,
-      verifications:verification_id (
-        verification_id,
-        worker_id,
-        workers:worker_id (
-          worker_id,
-          user_id,
-          users:user_id (
-            user_id,
-            name,
-            role
-          )
-        )
-      ),
-      admins:admin_id (
-        admin_id,
-        user_id,
-        users:user_id (
-          user_id,
-          name,
-          role
-        )
-      )
-    `)
-    .eq('new_status', 'accepted')
-    .order('changed_at', { ascending: false })
-    .limit(limit)
-
-  if (!verificationLogsError && verificationLogs) {
-    verificationLogs.forEach((log: any) => {
-      const verification = Array.isArray(log.verifications) ? log.verifications[0] : log.verifications
-      const worker = Array.isArray(verification?.workers) ? verification.workers[0] : verification?.workers
-      const user = Array.isArray(worker?.users) ? worker.users[0] : worker?.users
-      const admin = Array.isArray(log.admins) ? log.admins[0] : log.admins
-      const adminUser = Array.isArray(admin?.users) ? admin.users[0] : admin?.users
-      
-      if (adminUser) {
-        activities.push({
-          activity_id: `verification_${log.log_id}`,
-          user_type: adminUser.role || 'admin',
-          user_name: adminUser.name,
-          action: 'Verified Account',
-          timestamp: log.changed_at,
-          details: user?.role || 'Worker',
-          entity_type: 'verification',
-          entity_id: log.verification_id,
-          user_id: adminUser.user_id
-        })
-      }
-    })
-  }
-
-  // 4. Get Payments (Completed Payment) from payments
-  const { data: payments, error: paymentsError } = await supabase
-    .from('payments')
-    .select(`
-      payment_id,
-      contract_id,
-      method_id,
-      amount,
+      document_id,
+      user_id,
+      document_type,
       status,
-      payment_date,
-      contracts:contract_id (
-        contract_id,
-        booking_id,
-        bookings:booking_id (
-          booking_id,
-          schedule_id,
-          schedules:schedule_id (
-            schedule_id,
-            employer_id,
-            employers:employer_id (
-              employer_id,
-              user_id,
-              users:user_id (
-                user_id,
-                name,
-                role
-              )
-            )
-          )
-        )
-      ),
-      payment_methods:method_id (
-        method_id,
-        provider_name
+      uploaded_at,
+      reviewed_at,
+      users:user_id (
+        id,
+        first_name,
+        last_name,
+        active_role
       )
     `)
-    .eq('status', 'completed')
-    .order('payment_date', { ascending: false })
+    .eq('status', 'approved')
+    .not('reviewed_at', 'is', null)
+    .order('reviewed_at', { ascending: false })
     .limit(limit)
 
-  if (!paymentsError && payments) {
-    payments.forEach((payment: any) => {
-      const contract = Array.isArray(payment.contracts) ? payment.contracts[0] : payment.contracts
-      const booking = Array.isArray(contract?.bookings) ? contract.bookings[0] : contract?.bookings
-      const schedule = Array.isArray(booking?.schedules) ? booking.schedules[0] : booking?.schedules
-      const employer = Array.isArray(schedule?.employers) ? schedule.employers[0] : schedule?.employers
-      const user = Array.isArray(employer?.users) ? employer.users[0] : employer?.users
-      const paymentMethod = Array.isArray(payment.payment_methods) ? payment.payment_methods[0] : payment.payment_methods
+  if (!verificationsError && verifications) {
+    verifications.forEach((doc: any) => {
+      const user = Array.isArray(doc.users) ? doc.users[0] : doc.users
       
       if (user) {
-        const amount = parseFloat(payment.amount || 0)
+        activities.push({
+          activity_id: `verification_${doc.document_id}`,
+          user_type: 'admin',
+          user_name: 'Admin',
+          action: 'Verified Account',
+          timestamp: doc.reviewed_at,
+          details: `${user.first_name} ${user.last_name} - ${doc.document_type}`,
+          entity_type: 'verification',
+          entity_id: doc.document_id,
+          user_id: user.id
+        })
+      }
+    })
+  }
+
+  // 4. Get Completed Contracts and Direct Hires (Completed Payment)
+  const [contractsData, directHiresData] = await Promise.all([
+    supabase.from('contracts')
+      .select(`
+        contract_id,
+        employer_id,
+        paid_at,
+        employers:employer_id (
+          employer_id,
+          user_id,
+          users:user_id (
+            id,
+            first_name,
+            last_name,
+            active_role
+          )
+        )
+      `)
+      .not('paid_at', 'is', null)
+      .order('paid_at', { ascending: false })
+      .limit(limit),
+    supabase.from('direct_hires')
+      .select(`
+        hire_id,
+        employer_id,
+        total_amount,
+        paid_at,
+        payment_method,
+        employers:employer_id (
+          employer_id,
+          user_id,
+          users:user_id (
+            id,
+            first_name,
+            last_name,
+            active_role
+          )
+        )
+      `)
+      .not('paid_at', 'is', null)
+      .order('paid_at', { ascending: false })
+      .limit(limit)
+  ])
+
+  if (!contractsData.error && contractsData.data) {
+    contractsData.data.forEach((contract: any) => {
+      const employer = Array.isArray(contract.employers) ? contract.employers[0] : contract.employers
+      const user = Array.isArray(employer?.users) ? employer.users[0] : employer?.users
+      
+      if (user) {
+        activities.push({
+          activity_id: `contract_${contract.contract_id}`,
+          user_type: user.active_role || 'employer',
+          user_name: `${user.first_name} ${user.last_name}`,
+          action: 'Completed Payment',
+          timestamp: contract.paid_at,
+          details: 'Contract payment completed',
+          entity_type: 'contract',
+          entity_id: contract.contract_id,
+          user_id: user.id
+        })
+      }
+    })
+  }
+
+  if (!directHiresData.error && directHiresData.data) {
+    directHiresData.data.forEach((hire: any) => {
+      const employer = Array.isArray(hire.employers) ? hire.employers[0] : hire.employers
+      const user = Array.isArray(employer?.users) ? employer.users[0] : employer?.users
+      
+      if (user) {
+        const amount = parseFloat(hire.total_amount || 0)
         const amountFormatted = `P${Math.round(amount).toLocaleString('en-US')}`
-        const methodName = paymentMethod?.provider_name || 'Unknown'
+        const methodName = hire.payment_method || 'Unknown'
         
         activities.push({
-          activity_id: `payment_${payment.payment_id}`,
-          user_type: user.role || 'employer',
-          user_name: user.name,
+          activity_id: `hire_${hire.hire_id}`,
+          user_type: user.active_role || 'employer',
+          user_name: `${user.first_name} ${user.last_name}`,
           action: 'Completed Payment',
-          timestamp: payment.payment_date,
+          timestamp: hire.paid_at,
           details: `${amountFormatted} via ${methodName}`,
-          entity_type: 'payment',
-          entity_id: payment.payment_id,
-          user_id: user.user_id
+          entity_type: 'direct_hire',
+          entity_id: hire.hire_id,
+          user_id: user.id
         })
       }
     })
@@ -241,9 +246,10 @@ export async function getActivityLogs(limit = 50, offset = 0) {
         worker_id,
         user_id,
         users:user_id (
-          user_id,
-          name,
-          role
+          id,
+          first_name,
+          last_name,
+          active_role
         )
       )
     `)
@@ -265,16 +271,106 @@ export async function getActivityLogs(limit = 50, offset = 0) {
         if (packageDate >= thirtyDaysAgo) {
           activities.push({
             activity_id: `profile_update_${pkg.package_id}`,
-            user_type: user.role || 'worker',
-            user_name: user.name,
+            user_type: user.active_role || 'worker',
+            user_name: `${user.first_name} ${user.last_name}`,
             action: 'Updated Profile',
             timestamp: pkg.created_at,
             details: 'Added new skills',
             entity_type: 'package',
             entity_id: pkg.package_id,
-            user_id: user.user_id
+            user_id: user.id
           })
         }
+      }
+    })
+  }
+
+  // 6. Get Worker Accepted Contracts
+  const { data: acceptedContracts, error: acceptedContractsError } = await supabase
+    .from('contracts')
+    .select(`
+      contract_id,
+      worker_id,
+      status,
+      updated_at,
+      created_at,
+      workers:worker_id (
+        worker_id,
+        user_id,
+        users:user_id (
+          id,
+          first_name,
+          last_name,
+          active_role
+        )
+      )
+    `)
+    .in('status', ['accepted', 'in_progress', 'completed'])
+    .order('updated_at', { ascending: false })
+    .limit(limit)
+
+  if (!acceptedContractsError && acceptedContracts) {
+    acceptedContracts.forEach((contract: any) => {
+      const worker = Array.isArray(contract.workers) ? contract.workers[0] : contract.workers
+      const user = Array.isArray(worker?.users) ? worker.users[0] : worker?.users
+      
+      if (user) {
+        activities.push({
+          activity_id: `contract_accept_${contract.contract_id}`,
+          user_type: user.active_role || 'housekeeper',
+          user_name: `${user.first_name} ${user.last_name}`,
+          action: 'Accepted Job',
+          timestamp: contract.updated_at || contract.created_at,
+          details: `Contract #${contract.contract_id}`,
+          entity_type: 'contract',
+          entity_id: contract.contract_id,
+          user_id: user.id
+        })
+      }
+    })
+  }
+
+  // 7. Get Worker Accepted Direct Hires
+  const { data: acceptedHires, error: acceptedHiresError } = await supabase
+    .from('direct_hires')
+    .select(`
+      hire_id,
+      worker_id,
+      status,
+      updated_at,
+      created_at,
+      workers:worker_id (
+        worker_id,
+        user_id,
+        users:user_id (
+          id,
+          first_name,
+          last_name,
+          active_role
+        )
+      )
+    `)
+    .in('status', ['accepted', 'in_progress', 'completed'])
+    .order('updated_at', { ascending: false })
+    .limit(limit)
+
+  if (!acceptedHiresError && acceptedHires) {
+    acceptedHires.forEach((hire: any) => {
+      const worker = Array.isArray(hire.workers) ? hire.workers[0] : hire.workers
+      const user = Array.isArray(worker?.users) ? worker.users[0] : worker?.users
+      
+      if (user) {
+        activities.push({
+          activity_id: `hire_accept_${hire.hire_id}`,
+          user_type: user.active_role || 'housekeeper',
+          user_name: `${user.first_name} ${user.last_name}`,
+          action: 'Accepted Booking',
+          timestamp: hire.updated_at || hire.created_at,
+          details: `Direct Hire #${hire.hire_id}`,
+          entity_type: 'direct_hire',
+          entity_id: hire.hire_id,
+          user_id: user.id
+        })
       }
     })
   }
@@ -302,18 +398,23 @@ export async function getActivityLogAnalytics() {
   
   try {
     // Get counts for Actions by Type
-    const [jobPostsCount, bookingsCount, paymentsCount, messagesCount, reviewsCount] = await Promise.all([
+    const [jobPostsCount, contractsCount, directHiresCount, paidContractsCount, paidHiresCount, messagesCount, reviewsCount] = await Promise.all([
       supabase.from('forumposts').select('*', { count: 'exact', head: true }),
-      supabase.from('bookings').select('*', { count: 'exact', head: true }),
-      supabase.from('payments').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
+      supabase.from('contracts').select('*', { count: 'exact', head: true }),
+      supabase.from('direct_hires').select('*', { count: 'exact', head: true }),
+      supabase.from('contracts').select('*', { count: 'exact', head: true }).not('paid_at', 'is', null),
+      supabase.from('direct_hires').select('*', { count: 'exact', head: true }).not('paid_at', 'is', null),
       supabase.from('messages').select('*', { count: 'exact', head: true }),
       supabase.from('reviews').select('*', { count: 'exact', head: true })
     ])
 
+    const bookingsTotal = (contractsCount.count || 0) + (directHiresCount.count || 0)
+    const paymentsTotal = (paidContractsCount.count || 0) + (paidHiresCount.count || 0)
+
     const actionsData = [
       { name: "Jobs Created", value: jobPostsCount.count || 0 },
-      { name: "Bookings Made", value: bookingsCount.count || 0 },
-      { name: "Payments Completed", value: paymentsCount.count || 0 },
+      { name: "Bookings Made", value: bookingsTotal },
+      { name: "Payments Completed", value: paymentsTotal },
       { name: "Messages sent", value: messagesCount.count || 0 },
       { name: "Reviews Submitted", value: reviewsCount.count || 0 },
     ]
@@ -328,20 +429,19 @@ export async function getActivityLogAnalytics() {
       const monthName = date.toLocaleString('en-US', { month: 'short' })
       
       // Count activities in this month (from all sources)
-      const [posts, bookings, payments, messages] = await Promise.all([
+      const [posts, contracts, directHires, messages] = await Promise.all([
         supabase.from('forumposts')
           .select('*', { count: 'exact', head: true })
           .gte('created_at', date.toISOString())
           .lt('created_at', nextMonth.toISOString()),
-        supabase.from('bookings')
+        supabase.from('contracts')
           .select('*', { count: 'exact', head: true })
-          .gte('booking_date', date.toISOString())
-          .lt('booking_date', nextMonth.toISOString()),
-        supabase.from('payments')
+          .gte('created_at', date.toISOString())
+          .lt('created_at', nextMonth.toISOString()),
+        supabase.from('direct_hires')
           .select('*', { count: 'exact', head: true })
-          .eq('status', 'completed')
-          .gte('payment_date', date.toISOString())
-          .lt('payment_date', nextMonth.toISOString()),
+          .gte('created_at', date.toISOString())
+          .lt('created_at', nextMonth.toISOString()),
         supabase.from('messages')
           .select('*', { count: 'exact', head: true })
           .gte('sent_at', date.toISOString())
@@ -350,8 +450,8 @@ export async function getActivityLogAnalytics() {
       
       const totalActivities = 
         (posts.count || 0) + 
-        (bookings.count || 0) + 
-        (payments.count || 0) + 
+        (contracts.count || 0) + 
+        (directHires.count || 0) + 
         (messages.count || 0)
       
       monthlyData.push({
@@ -418,14 +518,23 @@ export async function deleteActivityLog(activityId: string) {
         .eq('message_id', parseInt(entityId))
       break
     case 'verification':
-      // Don't delete verification logs, they're audit records
-      return { data: null, error: { message: 'Cannot delete verification logs' } as any }
-    case 'payment':
+      // Don't delete verification documents, they're audit records
+      return { data: null, error: { message: 'Cannot delete verification documents' } as any }
+    case 'contract':
       result = await supabase
-        .from('payments')
+        .from('contracts')
         .delete()
-        .eq('payment_id', parseInt(entityId))
+        .eq('contract_id', parseInt(entityId))
       break
+    case 'hire':
+      result = await supabase
+        .from('direct_hires')
+        .delete()
+        .eq('hire_id', parseInt(entityId))
+      break
+    case 'profile':
+      // Don't delete packages as they're worker profile data
+      return { data: null, error: { message: 'Cannot delete profile updates' } as any }
     default:
       return { data: null, error: { message: 'Unknown activity type' } as any }
   }

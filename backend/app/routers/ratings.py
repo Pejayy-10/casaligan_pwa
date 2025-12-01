@@ -72,8 +72,8 @@ def create_rating(
     
     # Check if already rated this job/hire
     existing_query = db.query(Rating).filter(
-        Rating.rater_id == current_user.id,
-        Rating.rated_user_id == rating_data.rated_user_id
+        Rating.reviewer_user_id == current_user.id,
+        Rating.target_user_id == rating_data.rated_user_id
     )
     
     if rating_data.post_id:
@@ -89,10 +89,10 @@ def create_rating(
     
     # Create rating
     rating = Rating(
-        rater_id=current_user.id,
-        rated_user_id=rating_data.rated_user_id,
-        stars=rating_data.stars,
-        review=rating_data.review,
+        reviewer_user_id=current_user.id,
+        target_user_id=rating_data.rated_user_id,
+        rating=rating_data.stars,
+        comment=rating_data.review,
         post_id=rating_data.post_id,
         hire_id=rating_data.hire_id
     )
@@ -104,12 +104,12 @@ def create_rating(
     rater_name = f"{current_user.first_name} {current_user.last_name}"
     
     return RatingResponse(
-        rating_id=rating.rating_id,
-        rater_id=rating.rater_id,
+        rating_id=rating.review_id,
+        rater_id=current_user.id,
         rater_name=rater_name,
-        rated_user_id=rating.rated_user_id,
-        stars=rating.stars,
-        review=rating.review,
+        rated_user_id=rating.target_user_id,
+        stars=rating.rating,
+        review=rating.comment,
         post_id=rating.post_id,
         hire_id=rating.hire_id,
         created_at=rating.created_at.isoformat() if rating.created_at else ""
@@ -126,21 +126,21 @@ def get_user_ratings(
     """Get all ratings for a specific user"""
     
     ratings = db.query(Rating).filter(
-        Rating.rated_user_id == user_id
+        Rating.target_user_id == user_id
     ).order_by(Rating.created_at.desc()).offset(offset).limit(limit).all()
     
     result = []
     for rating in ratings:
-        rater = db.query(User).filter(User.id == rating.rater_id).first()
+        rater = db.query(User).filter(User.id == rating.reviewer_user_id).first()
         rater_name = f"{rater.first_name} {rater.last_name}" if rater else "Anonymous"
         
         result.append(RatingResponse(
-            rating_id=rating.rating_id,
-            rater_id=rating.rater_id,
+            rating_id=rating.review_id,
+            rater_id=rating.reviewer_user_id,
             rater_name=rater_name,
-            rated_user_id=rating.rated_user_id,
-            stars=rating.stars,
-            review=rating.review,
+            rated_user_id=rating.target_user_id,
+            stars=rating.rating,
+            review=rating.comment,
             post_id=rating.post_id,
             hire_id=rating.hire_id,
             created_at=rating.created_at.isoformat() if rating.created_at else ""
@@ -157,7 +157,7 @@ def get_user_rating_summary(
     """Get rating summary (average + breakdown) for a user"""
     
     # Get all ratings for this user
-    ratings = db.query(Rating).filter(Rating.rated_user_id == user_id).all()
+    ratings = db.query(Rating).filter(Rating.target_user_id == user_id).all()
     
     if not ratings:
         return RatingSummary(
@@ -167,13 +167,13 @@ def get_user_rating_summary(
         )
     
     # Calculate average
-    total = sum(r.stars for r in ratings)
+    total = sum(r.rating for r in ratings)
     average = total / len(ratings)
     
     # Calculate breakdown
     breakdown = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
-    for rating in ratings:
-        breakdown[rating.stars] += 1
+    for r in ratings:
+        breakdown[r.rating] += 1
     
     return RatingSummary(
         average_rating=round(average, 1),
@@ -193,8 +193,8 @@ def check_if_rated(
     """Check if current user has already rated a specific user for a job/hire"""
     
     query = db.query(Rating).filter(
-        Rating.rater_id == current_user.id,
-        Rating.rated_user_id == rated_user_id
+        Rating.reviewer_user_id == current_user.id,
+        Rating.target_user_id == rated_user_id
     )
     
     if post_id:
@@ -206,7 +206,7 @@ def check_if_rated(
     
     return {
         "has_rated": existing is not None,
-        "rating": existing.stars if existing else None
+        "rating": existing.rating if existing else None
     }
 
 
@@ -218,7 +218,7 @@ def delete_rating(
 ):
     """Delete a rating (only the rater can delete their own rating)"""
     
-    rating = db.query(Rating).filter(Rating.rating_id == rating_id).first()
+    rating = db.query(Rating).filter(Rating.review_id == rating_id).first()
     
     if not rating:
         raise HTTPException(
@@ -226,7 +226,7 @@ def delete_rating(
             detail="Rating not found"
         )
     
-    if rating.rater_id != current_user.id:
+    if rating.reviewer_user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only delete your own ratings"

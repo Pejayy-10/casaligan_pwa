@@ -10,16 +10,19 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 export async function getDashboardStats() {
   const supabase = await createClient()
   
-  const [usersResult, packagesResult, bookingsResult] = await Promise.all([
+  const [usersResult, jobsResult, contractsResult, directHiresResult] = await Promise.all([
     supabase.from('users').select('*', { count: 'exact', head: true }),
-    supabase.from('packages').select('*', { count: 'exact', head: true }),
-    supabase.from('bookings').select('*', { count: 'exact', head: true }),
+    supabase.from('forumposts').select('*', { count: 'exact', head: true }),
+    supabase.from('contracts').select('*', { count: 'exact', head: true }),
+    supabase.from('direct_hires').select('*', { count: 'exact', head: true }),
   ])
+
+  const totalBookings = (contractsResult.count || 0) + (directHiresResult.count || 0)
 
   return {
     totalUsers: usersResult.count || 0,
-    totalJobs: packagesResult.count || 0, // packages are like "jobs"
-    totalBookings: bookingsResult.count || 0,
+    totalJobs: jobsResult.count || 0,
+    totalBookings: totalBookings,
   }
 }
 
@@ -143,38 +146,198 @@ export async function getBookings(limit = 50, offset = 0) {
   return { data: bookingsWithSchedules, count: count || 0, error: null }
 }
 
-// Get recent activities from verification logs and notifications
+// Get recent activities from various sources
 export async function getRecentActivities(limit = 20) {
   const supabase = await createClient()
   
-  // Get verification logs
-  const { data: verificationLogs, error: vError } = await supabase
-    .from('verification_logs')
-    .select('*')
-    .order('changed_at', { ascending: false })
-    .limit(limit)
+  const activities: any[] = []
 
-  // Get recent notifications
-  const { data: notifications, error: nError } = await supabase
-    .from('notifications')
-    .select('*')
+  // Get recent job posts
+  const { data: jobPosts } = await supabase
+    .from('forumposts')
+    .select(`
+      post_id,
+      title,
+      created_at,
+      employers:employer_id (
+        user_id,
+        users:user_id (
+          id,
+          first_name,
+          last_name
+        )
+      )
+    `)
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  if (vError || nError) {
-    console.error('Error fetching activities:', vError || nError)
-    return { data: [], error: vError || nError }
-  }
+  jobPosts?.forEach((post: any) => {
+    const employer = Array.isArray(post.employers) ? post.employers[0] : post.employers
+    const user = Array.isArray(employer?.users) ? employer.users[0] : employer?.users
+    if (user) {
+      activities.push({
+        type: 'job_post',
+        title: 'New Job Posted',
+        description: `${user.first_name} ${user.last_name} posted: ${post.title}`,
+        date: post.created_at,
+        user_name: `${user.first_name} ${user.last_name}`
+      })
+    }
+  })
 
-  // Combine and sort by date
-  const combined = [
-    ...(verificationLogs?.map(log => ({ ...log, type: 'verification', date: log.changed_at })) || []),
-    ...(notifications?.map(notif => ({ ...notif, type: 'notification', date: notif.created_at })) || [])
-  ]
+  // Get recent contracts
+  const { data: contracts } = await supabase
+    .from('contracts')
+    .select(`
+      contract_id,
+      status,
+      created_at,
+      workers:worker_id (
+        user_id,
+        users:user_id (
+          id,
+          first_name,
+          last_name
+        )
+      ),
+      employers:employer_id (
+        user_id,
+        users:user_id (
+          id,
+          first_name,
+          last_name
+        )
+      )
+    `)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  contracts?.forEach((contract: any) => {
+    const worker = Array.isArray(contract.workers) ? contract.workers[0] : contract.workers
+    const employer = Array.isArray(contract.employers) ? contract.employers[0] : contract.employers
+    const workerUser = Array.isArray(worker?.users) ? worker.users[0] : worker?.users
+    const employerUser = Array.isArray(employer?.users) ? employer.users[0] : employer?.users
+    
+    if (workerUser && employerUser) {
+      activities.push({
+        type: 'contract',
+        title: 'New Contract',
+        description: `${employerUser.first_name} ${employerUser.last_name} hired ${workerUser.first_name} ${workerUser.last_name}`,
+        date: contract.created_at,
+        user_name: `${employerUser.first_name} ${employerUser.last_name}`
+      })
+    }
+  })
+
+  // Get recent direct hires
+  const { data: directHires } = await supabase
+    .from('direct_hires')
+    .select(`
+      hire_id,
+      status,
+      created_at,
+      workers:worker_id (
+        user_id,
+        users:user_id (
+          id,
+          first_name,
+          last_name
+        )
+      ),
+      employers:employer_id (
+        user_id,
+        users:user_id (
+          id,
+          first_name,
+          last_name
+        )
+      )
+    `)
+    .order('created_at', { ascending: false })
+    .limit(limit)
+
+  directHires?.forEach((hire: any) => {
+    const worker = Array.isArray(hire.workers) ? hire.workers[0] : hire.workers
+    const employer = Array.isArray(hire.employers) ? hire.employers[0] : hire.employers
+    const workerUser = Array.isArray(worker?.users) ? worker.users[0] : worker?.users
+    const employerUser = Array.isArray(employer?.users) ? employer.users[0] : employer?.users
+    
+    if (workerUser && employerUser) {
+      activities.push({
+        type: 'direct_hire',
+        title: 'New Booking',
+        description: `${employerUser.first_name} ${employerUser.last_name} booked ${workerUser.first_name} ${workerUser.last_name}`,
+        date: hire.created_at,
+        user_name: `${employerUser.first_name} ${employerUser.last_name}`
+      })
+    }
+  })
+
+  // Get recent messages
+  const { data: messages } = await supabase
+    .from('messages')
+    .select(`
+      message_id,
+      sent_at,
+      users:sender_id (
+        id,
+        first_name,
+        last_name
+      )
+    `)
+    .order('sent_at', { ascending: false })
+    .limit(limit)
+
+  messages?.forEach((message: any) => {
+    const user = Array.isArray(message.users) ? message.users[0] : message.users
+    if (user) {
+      activities.push({
+        type: 'message',
+        title: 'New Message',
+        description: `${user.first_name} ${user.last_name} sent a message`,
+        date: message.sent_at,
+        user_name: `${user.first_name} ${user.last_name}`
+      })
+    }
+  })
+
+  // Get recent verifications from user_documents
+  const { data: verifications } = await supabase
+    .from('user_documents')
+    .select(`
+      document_id,
+      status,
+      reviewed_at,
+      users:user_id (
+        id,
+        first_name,
+        last_name
+      )
+    `)
+    .eq('status', 'approved')
+    .not('reviewed_at', 'is', null)
+    .order('reviewed_at', { ascending: false })
+    .limit(limit)
+
+  verifications?.forEach((doc: any) => {
+    const user = Array.isArray(doc.users) ? doc.users[0] : doc.users
+    if (user) {
+      activities.push({
+        type: 'verification',
+        title: 'Account Verified',
+        description: `${user.first_name} ${user.last_name}'s document was approved`,
+        date: doc.reviewed_at,
+        user_name: `${user.first_name} ${user.last_name}`
+      })
+    }
+  })
+
+  // Sort all activities by date and limit
+  const sorted = activities
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
     .slice(0, limit)
 
-  return { data: combined, error: null }
+  return { data: sorted, error: null }
 }
 
 // Get authenticated user
