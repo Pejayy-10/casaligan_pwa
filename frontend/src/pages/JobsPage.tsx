@@ -608,12 +608,28 @@ function OwnerJobsContent({
               </p>
               <div className="flex flex-wrap gap-2">
                 {job.accepted_workers.map((worker) => (
-                  <span 
-                    key={worker.worker_id}
-                    className="px-3 py-1 bg-green-500/20 text-green-200 rounded-full text-sm font-medium"
-                  >
-                    {worker.name}
-                  </span>
+                  <div key={worker.worker_id} className="flex items-center gap-2">
+                    <span 
+                      className="px-3 py-1 bg-green-500/20 text-green-200 rounded-full text-sm font-medium"
+                    >
+                      {worker.name}
+                    </span>
+                    {job.status === 'ongoing' && (
+                      <button
+                        onClick={() => {
+                          const params = new URLSearchParams({
+                            jobId: job.post_id.toString(),
+                            name: worker.name,
+                            title: job.title,
+                          });
+                          navigate(`/chat/new?${params.toString()}`);
+                        }}
+                        className="px-2 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-lg hover:bg-purple-500/30"
+                      >
+                        💬
+                      </button>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>

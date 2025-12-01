@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 interface AcceptedJob {
   post_id: number;
@@ -42,6 +44,7 @@ interface Props {
 }
 
 export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, onReportUnpaid, onShowPayments }: Props) {
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState<AcceptedJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'all' | 'ongoing' | 'pending_completion' | 'completed'>('all');
@@ -245,6 +248,20 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
               <div className="space-y-2">
                 {(myStatus === 'ongoing' || myStatus === 'active') && (
                   <>
+                    {/* Message Employer Button */}
+                    <button
+                      onClick={() => {
+                        const params = new URLSearchParams({
+                          jobId: job.post_id.toString(),
+                          name: job.employer.name,
+                          title: job.title,
+                        });
+                        navigate(`/chat/new?${params.toString()}`);
+                      }}
+                      className="w-full py-2 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-all"
+                    >
+                      💬 Message Employer
+                    </button>
                     <button
                       onClick={() => onShowProgress(job)}
                       className="w-full py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-all"

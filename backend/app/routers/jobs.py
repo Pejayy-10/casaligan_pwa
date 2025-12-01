@@ -14,6 +14,7 @@ from app.models_v2.user import User
 from app.models_v2.worker_employer import Employer, Worker
 from app.models_v2.forum import ForumPost, ForumPostStatus, InterestCheck, InterestStatus, JobType
 from app.models_v2.contract import Contract
+from app.models_v2.conversation import Conversation
 from app.models_v2.payment import PaymentSchedule, PaymentStatus, PaymentTransaction
 from app.security import get_current_user
 from app.schemas.job import JobPostCreate, JobPostResponse, JobPostUpdate
@@ -841,6 +842,24 @@ def start_job(
                 )
             except Exception as e:
                 print(f"Warning: Could not send acceptance notification: {e}")
+            
+            # Auto-create conversation for job owner and accepted worker
+            try:
+                existing_conv = db.query(Conversation).filter(
+                    Conversation.job_id == post_id,
+                    Conversation.participant_ids.contains([current_user.id, worker_user.id])
+                ).first()
+                
+                if not existing_conv:
+                    # Create conversation with owner and this worker as participants
+                    conversation = Conversation(
+                        job_id=post_id,
+                        participant_ids=[current_user.id, worker_user.id],
+                        status='active'
+                    )
+                    db.add(conversation)
+            except Exception as e:
+                print(f"Warning: Could not create conversation: {e}")
         
         # Update contract status to ACTIVE
         from app.models_v2.contract import ContractStatus
