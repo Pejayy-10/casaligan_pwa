@@ -11,6 +11,7 @@ from app.models_v2.worker_employer import Worker, Employer
 from app.models_v2.package import WorkerPackage
 from app.models_v2.direct_hire import DirectHire, DirectHireStatus
 from app.models_v2.address import Address
+from app.models_v2.conversation import Conversation
 from app.security import get_current_user
 from app.services.notification_service import (
     notify_direct_hire_request,
@@ -440,6 +441,22 @@ def accept_hire(
             worker_name=worker_name,
             hire_id=hire.hire_id
         )
+        
+        # Auto-create conversation for both parties
+        # Check if conversation already exists for this hire
+        existing_conv = db.query(Conversation).filter(
+            Conversation.hire_id == hire.hire_id
+        ).first()
+        
+        if not existing_conv:
+            # Create conversation with both employer and worker as participants
+            conversation = Conversation(
+                hire_id=hire.hire_id,
+                participant_ids=[employer.user_id, current_user.id],
+                status='active'
+            )
+            db.add(conversation)
+            db.commit()
     
     return {"message": "Hire request accepted", "status": "accepted"}
 
