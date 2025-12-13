@@ -4,6 +4,25 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAdminProfile } from "../contexts/AdminProfileContext";
+import {
+  LayoutDashboard,
+  Users,
+  Briefcase,
+  UserCheck,
+  ClipboardList,
+  Calendar,
+  DollarSign,
+  TrendingUp,
+  MessageSquare,
+  Star,
+  Activity,
+  Shield,
+  AlertTriangle,
+  Bell,
+  ChevronRight,
+  LogOut,
+  User
+} from "lucide-react";
 
 type ShellProps = {
   children: React.ReactNode;
@@ -39,34 +58,36 @@ export default function Shell({ children }: ShellProps) {
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
   const menu: Array<
-    | { key: string; label: string; href: string }
-    | { key: string; label: string; children: { key: string; label: string; href: string }[] }
+    | { key: string; label: string; href: string; icon: React.ComponentType<{ className?: string }> }
+    | { key: string; label: string; icon: React.ComponentType<{ className?: string }>; children: { key: string; label: string; href: string; icon: React.ComponentType<{ className?: string }> }[] }
   > = [
-    { key: "dashboard", label: "Dashboard", href: "/" },
+    { key: "dashboard", label: "Dashboard", href: "/", icon: LayoutDashboard },
     {
       key: "users",
       label: "Users",
+      icon: Users,
       children: [
-        { key: "employers", label: "Employers", href: "/users/employers" },
-        { key: "workers", label: "Workers", href: "/users/workers" },
-        { key: "verification", label: "Verification", href: "/users/verification" },
+        { key: "employers", label: "Employers", href: "/users/employers", icon: Briefcase },
+        { key: "workers", label: "Workers", href: "/users/workers", icon: UserCheck },
+        { key: "verification", label: "Verification", href: "/users/verification", icon: ClipboardList },
       ],
     },
     {
       key: "jobs-and-bookings",
       label: "Job and Bookings",
+      icon: ClipboardList,
       children: [
-        { key: "job-posts", label: "Job Posts", href: "/jobs" },
-        { key: "bookings", label: "Bookings", href: "/bookings" },
+        { key: "job-posts", label: "Job Posts", href: "/jobs", icon: ClipboardList },
+        { key: "bookings", label: "Bookings", href: "/bookings", icon: Calendar },
       ],
     },
-    { key: "payments", label: "Payments", href: "/payments" },
-    { key: "matching-analytics", label: "Matching Analytics", href: "/matching-analytics" },
-    { key: "messages", label: "Messages", href: "/messages" },
-    { key: "reviews", label: "Reviews", href: "/reviews" },
-    { key: "activity-log", label: "Activity Log", href: "/activity-log" },
-    { key: "security", label: "Security", href: "/security" },
-    { key: "reports", label: "Reports", href: "/reports" },
+    { key: "payments", label: "Payments", href: "/payments", icon: DollarSign },
+    { key: "matching-analytics", label: "Matching Analytics", href: "/matching-analytics", icon: TrendingUp },
+    { key: "messages", label: "Messages", href: "/messages", icon: MessageSquare },
+    { key: "reviews", label: "Reviews", href: "/reviews", icon: Star },
+    { key: "activity-log", label: "Activity Log", href: "/activity-log", icon: Activity },
+    { key: "security", label: "Security", href: "/security", icon: Shield },
+    { key: "reports", label: "Reports", href: "/reports", icon: AlertTriangle },
   ];
 
   const toggleGroup = (key: string) =>
@@ -93,11 +114,13 @@ export default function Shell({ children }: ShellProps) {
         </div>
         <div className="flex items-center gap-3">
           <Link href="/notifications" aria-label="Notifications" className="relative rounded-md p-2 hover:bg-muted/50">
-            <span aria-hidden>🔔</span>
+            <Bell className="h-5 w-5" />
             <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-danger"></span>
           </Link>
           <Link href="/profile" aria-label="Profile">
-            <div className="h-8 w-8 rounded-full bg-primary/90 ring-2 ring-border" />
+            <div className="h-8 w-8 rounded-full bg-primary/90 ring-2 ring-border flex items-center justify-center">
+              <User className="h-4 w-4 text-white" />
+            </div>
           </Link>
         </div>
       </header>
@@ -114,7 +137,9 @@ export default function Shell({ children }: ShellProps) {
         </div>
         <div className="mb-6">
           <Link href="/profile" className="w-full flex items-center gap-4 rounded-lg p-2 bg-border">
-            <div className="h-8 w-8 rounded-full bg-primary/90 ring-2 ring-border" aria-label="Profile picture" />
+            <div className="h-8 w-8 rounded-full bg-primary/90 ring-2 ring-border flex items-center justify-center" aria-label="Profile picture">
+              <User className="h-4 w-4 text-white" />
+            </div>
             <div className="leading-tight">
               <p className="font-sans text-[13px]">{profile?.users?.name || "Admin"}</p>
             </div>
@@ -137,7 +162,7 @@ export default function Shell({ children }: ShellProps) {
                         : "hover:bg-tertiary/70 hover:text-accent"
                     }`}
                   >
-                    <span className="h-4 w-4 rounded bg-secondary" aria-hidden />
+                    <item.icon className="h-4 w-4" />
                     <span className="block text-[13px]">{item.label}</span>
                   </Link>
                 ) : (
@@ -156,17 +181,14 @@ export default function Shell({ children }: ShellProps) {
                           }`}
                         >
                           <span className="flex items-center gap-3">
-                            <span className="h-4 w-4 rounded bg-secondary" aria-hidden />
+                            <item.icon className="h-4 w-4" />
                             <span className="block text-[13px]">{item.label}</span>
                           </span>
-                          <span
-                            className={`transition-transform ${
+                          <ChevronRight
+                            className={`h-4 w-4 transition-transform ${
                               groupActive || openGroups[item.key] ? "rotate-90" : "rotate-0"
                             }`}
-                            aria-hidden
-                          >
-                            ▶
-                          </span>
+                          />
                         </button>
                     <ul
                       id={`${item.key}-submenu`}
@@ -183,7 +205,7 @@ export default function Shell({ children }: ShellProps) {
                                 : "hover:bg-tertiary/70 hover:text-accent"
                             }`}
                           >
-                            <span className="h-2 w-2 rounded bg-secondary" aria-hidden />
+                            <child.icon className="h-3 w-3" />
                                 <span className="block text-[13px]">{child.label}</span>
                           </Link>
                         </li>
@@ -202,7 +224,7 @@ export default function Shell({ children }: ShellProps) {
                 disabled={isLoggingOut}
                 className="w-full flex items-center gap-3 rounded-md px-2.5 py-2 transition-colors hover:bg-destructive/20 hover:text-destructive disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span className="h-4 w-4 rounded bg-destructive/50" aria-hidden />
+                <LogOut className="h-4 w-4" />
                 <span className="block text-[13px]">{isLoggingOut ? "Logging out..." : "Logout"}</span>
               </button>
             </li>

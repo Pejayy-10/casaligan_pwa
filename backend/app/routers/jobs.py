@@ -1167,7 +1167,7 @@ def submit_job_completion(
         worker_name = f"{current_user.first_name} {current_user.last_name}"
         notify_completion_submitted(
             db=db,
-            owner_user_id=employer.user_id,
+            employer_user_id=employer.user_id,
             worker_name=worker_name,
             job_title=post.title,
             post_id=post_id
@@ -1462,10 +1462,10 @@ def record_short_term_payment(
         amount_paid=payment_data.amount,
         payment_method=payment_data.payment_method,
         reference_number=payment_data.reference_number,
-        proof_url=payment_data.proof_url,
-        status=PaymentStatus.CONFIRMED,
-        sent_at=func.now(),
-        confirmed_at=func.now()
+        payment_proof_url=payment_data.proof_url,  # Match database column name
+        paid_at=func.now(),  # Match database column name
+        confirmed_at=func.now(),
+        confirmed_by_worker=False
     )
     db.add(transaction)
     

@@ -629,8 +629,8 @@ def browse_workers(
             continue
         
         # Get rating summary for this worker
-        ratings = db.query(Rating).filter(Rating.rated_user_id == user.id).all()
-        avg_rating = round(sum(r.stars for r in ratings) / len(ratings), 1) if ratings else 0.0
+        ratings = db.query(Rating).filter(Rating.target_user_id == user.id).all()
+        avg_rating = round(sum(r.rating for r in ratings) / len(ratings), 1) if ratings else 0.0
         total_ratings = len(ratings)
         
         # Filter by minimum rating if specified
@@ -701,23 +701,23 @@ def get_worker_profile(
     ).count()
     
     # Get rating summary
-    ratings = db.query(Rating).filter(Rating.rated_user_id == user.id).all()
-    avg_rating = round(sum(r.stars for r in ratings) / len(ratings), 1) if ratings else 0.0
+    ratings = db.query(Rating).filter(Rating.target_user_id == user.id).all()
+    avg_rating = round(sum(r.rating for r in ratings) / len(ratings), 1) if ratings else 0.0
     total_ratings = len(ratings)
     
     # Calculate rating breakdown
     rating_breakdown = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
     for r in ratings:
-        rating_breakdown[r.stars] += 1
+        rating_breakdown[r.rating] += 1
     
     # Get recent reviews (last 5)
     recent_reviews = []
     for r in sorted(ratings, key=lambda x: x.created_at, reverse=True)[:5]:
-        rater = db.query(User).filter(User.id == r.rater_id).first()
+        rater = db.query(User).filter(User.id == r.reviewer_user_id).first()
         recent_reviews.append({
-            "rating_id": r.rating_id,
-            "stars": r.stars,
-            "review": r.review,
+            "rating_id": r.review_id,
+            "stars": r.rating,
+            "review": r.comment,
             "rater_name": f"{rater.first_name} {rater.last_name[0]}." if rater else "Anonymous",
             "created_at": r.created_at.isoformat() if r.created_at else None
         })
