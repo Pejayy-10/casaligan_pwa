@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { usePayment } from '../context/PaymentContext';
 
 interface Payment {
   transaction_id: number;
@@ -23,15 +24,9 @@ interface PaymentTrackerOwnerProps {
 }
 
 export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: PaymentTrackerOwnerProps) {
+  const { initiatePayment } = usePayment();
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
-  const [uploadingProof, setUploadingProof] = useState(false);
-  const [proofUrl, setProofUrl] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState('gcash');
-  const [referenceNumber, setReferenceNumber] = useState('');
-  const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Report worker state
   const [showReportModal, setShowReportModal] = useState(false);
@@ -82,56 +77,6 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
     }
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      alert('Please select an image file');
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      alert('File size must be less than 10MB');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      setPreviewImage(e.target?.result as string);
-    };
-    reader.readAsDataURL(file);
-
-    try {
-      setUploadingProof(true);
-      const token = localStorage.getItem('access_token');
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('category', 'payment');
-
-      const response = await fetch('http://127.0.0.1:8000/upload/image', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setProofUrl(`http://127.0.0.1:8000${data.url}`);
-      } else {
-        const error = await response.json();
-        alert(error.detail || 'Failed to upload image');
-        setPreviewImage(null);
-      }
-    } catch (error) {
-      console.error('Upload error:', error);
-      alert('Failed to upload image');
-      setPreviewImage(null);
-    } finally {
-      setUploadingProof(false);
-    }
-  };
-
   const loadPayments = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token');
@@ -154,53 +99,48 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
     loadPayments();
   }, [loadPayments]);
 
-  const handleMarkAsSent = async () => {
-    if (!selectedPayment || !proofUrl.trim()) {
-      alert('Please enter proof of payment URL');
-      return;
-    }
-    
-    // Reference number is required for non-cash payments
-    if (paymentMethod !== 'cash' && !referenceNumber.trim()) {
-      alert('Please enter reference number');
-      return;
-    }
+  // Handle payment using the unified payment system
+  const handlePayment = (payment: Payment) => {
+    initiatePayment({
+      amount: payment.amount,
+      title: `Job Payment - ${jobTitle}`,
+      recipientName: payment.worker_name,
+      description: `Scheduled payment due ${new Date(payment.due_date).toLocaleDateString()}`,
+      requireProof: true,
+      onSuccess: async (paymentResult) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          const response = await fetch(
+            `http://127.0.0.1:8000/jobs/${jobId}/payments/${payment.transaction_id}/mark-sent`,
+            {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+              },
+              body: JSON.stringify({
+                payment_proof_url: paymentResult.proofUrl || null,
+                payment_method: paymentResult.method,
+                reference_number: paymentResult.referenceNumber
+              })
+            }
+          );
 
-    setUploadingProof(true);
-    try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(
-        `http://127.0.0.1:8000/jobs/${jobId}/payments/${selectedPayment.transaction_id}/mark-sent`,
-        {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            payment_proof_url: proofUrl,
-            payment_method: paymentMethod,
-            reference_number: referenceNumber
-          })
+          if (response.ok) {
+            loadPayments();
+          } else {
+            const error = await response.json();
+            alert(error.detail || 'Failed to mark payment as sent');
+          }
+        } catch (error) {
+          console.error('Failed to mark payment:', error);
+          alert('Failed to mark payment as sent');
         }
-      );
-
-      if (response.ok) {
-        alert('Payment marked as sent successfully!');
-        setSelectedPayment(null);
-        setProofUrl('');
-        setReferenceNumber('');
-        loadPayments();
-      } else {
-        const error = await response.json();
-        alert(error.detail || 'Failed to mark payment as sent');
+      },
+      onCancel: () => {
+        console.log('Payment cancelled');
       }
-    } catch (error) {
-      console.error('Failed to mark payment:', error);
-      alert('Failed to mark payment as sent');
-    } finally {
-      setUploadingProof(false);
-    }
+    });
   };
 
   const getStatusBadge = (status: string) => {
@@ -376,10 +316,10 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
 
                               {payment.status === 'pending' && (
                                 <button
-                                  onClick={() => setSelectedPayment(payment)}
+                                  onClick={() => handlePayment(payment)}
                                   className="w-full mt-2 px-4 py-2 bg-[#EA526F] text-white font-semibold rounded-lg hover:bg-[#d4486a] transition-all text-sm"
                                 >
-                                  📤 Mark Payment as Sent
+                                  📤 Pay Now
                                 </button>
                               )}
 
@@ -432,112 +372,6 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
           )}
         </div>
       </div>
-
-      {/* Upload Proof Modal */}
-      {selectedPayment && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-3xl max-w-lg w-full border border-white/20 shadow-2xl">
-            <div className="border-b border-white/20 px-6 py-4">
-              <h3 className="text-xl font-bold text-white">Upload Payment Proof</h3>
-              <p className="text-white/70 text-sm">For payment due: {new Date(selectedPayment.due_date).toLocaleDateString()}</p>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-white font-semibold mb-2">Payment Method *</label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                >
-                  <option value="gcash">GCash</option>
-                  <option value="maya">Maya (PayMaya)</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="cash">Cash</option>
-                </select>
-              </div>
-
-              {paymentMethod !== 'cash' && (
-                <div>
-                  <label className="block text-white font-semibold mb-2">Reference Number *</label>
-                  <input
-                    type="text"
-                    value={referenceNumber}
-                    onChange={(e) => setReferenceNumber(e.target.value)}
-                    placeholder="Enter transaction reference number"
-                    className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-white font-semibold mb-2">Proof of Payment *</label>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-                  accept="image/*"
-                  className="hidden"
-                />
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingProof}
-                  className="w-full py-4 border-2 border-dashed border-white/30 rounded-lg text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all flex items-center justify-center gap-2"
-                >
-                  {uploadingProof ? '⏳ Uploading...' : '📤 Click to upload payment receipt'}
-                </button>
-                <p className="text-white/50 text-xs mt-1">
-                  Supports: JPEG, PNG, GIF, WebP (max 10MB)
-                </p>
-              </div>
-
-              {previewImage && (
-                <div>
-                  <p className="text-white/70 text-sm mb-2">Preview: {proofUrl && '✅ Uploaded'}</p>
-                  <div className="relative">
-                    <img 
-                      src={previewImage} 
-                      alt="Preview" 
-                      className="w-full h-48 object-cover rounded-xl border border-white/20"
-                    />
-                    <button
-                      onClick={() => {
-                        setPreviewImage(null);
-                        setProofUrl('');
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                      }}
-                      className="absolute top-2 right-2 bg-red-500 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-600"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={() => {
-                    setSelectedPayment(null);
-                    setProofUrl('');
-                    setReferenceNumber('');
-                    setPreviewImage(null);
-                  }}
-                  className="flex-1 px-4 py-3 bg-gray-500 text-white font-semibold rounded-xl hover:bg-gray-600 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleMarkAsSent}
-                  disabled={uploadingProof || !proofUrl.trim() || !referenceNumber.trim()}
-                  className="flex-1 px-4 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {uploadingProof ? 'Uploading...' : '✅ Confirm & Send'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Report Worker Modal */}
       {showReportModal && (

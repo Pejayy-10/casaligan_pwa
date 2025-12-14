@@ -14,6 +14,7 @@ import CreateJobPage from './pages/CreateJobPage';
 import BrowseWorkersPage from './pages/BrowseWorkersPage';
 import WorkerProfilePage from './pages/WorkerProfilePage';
 import ProtectedRoute from './components/ProtectedRoute';
+import { PaymentProvider } from './context/PaymentContext';
 
 const router = createBrowserRouter([
   {
@@ -127,7 +128,11 @@ const router = createBrowserRouter([
 ]);
 
 function App() {
-  return <RouterProvider router={router} />;
+  return (
+    <PaymentProvider>
+      <RouterProvider router={router} />
+    </PaymentProvider>
+  );
 }
 
 export default App;

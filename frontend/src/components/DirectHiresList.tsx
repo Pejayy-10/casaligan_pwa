@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import RatingModal from './RatingModal';
 import apiClient from '../services/api';
+import { usePayment } from '../context/PaymentContext';
 
 interface Package {
   package_id: number;
@@ -46,19 +47,11 @@ interface Props {
 
 export default function DirectHiresList({ role, onClose }: Props) {
   const navigate = useNavigate();
+  const { initiatePayment } = usePayment();
   const [hires, setHires] = useState<DirectHire[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedHire, setSelectedHire] = useState<DirectHire | null>(null);
   const [processing, setProcessing] = useState(false);
-  
-  // Payment state for owner
-  const [paymentMethod, setPaymentMethod] = useState('gcash');
-  const [referenceNumber, setReferenceNumber] = useState('');
-  const [paymentProof, setPaymentProof] = useState('');
-  const [paymentPreview, setPaymentPreview] = useState<string | null>(null);
-  const [uploadingPayment, setUploadingPayment] = useState(false);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const paymentFileRef = useRef<HTMLInputElement>(null);
   
   // Completion state for housekeeper
   const [completionProof, setCompletionProof] = useState('');
@@ -127,46 +120,6 @@ export default function DirectHiresList({ role, onClose }: Props) {
     }
   };
 
-  // File upload handler for payment proof
-  const handlePaymentFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Preview
-    const reader = new FileReader();
-    reader.onload = (ev) => setPaymentPreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
-
-    try {
-      setUploadingPayment(true);
-      const token = localStorage.getItem('access_token');
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('category', 'payment');
-
-      const response = await fetch('http://127.0.0.1:8000/upload/image', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setPaymentProof(`http://127.0.0.1:8000${data.url}`);
-      } else {
-        const error = await response.json();
-        alert(error.detail || 'Failed to upload image');
-        setPaymentPreview(null);
-      }
-    } catch (error) {
-      console.error('Upload error:', error);
-      alert('Failed to upload image');
-      setPaymentPreview(null);
-    } finally {
-      setUploadingPayment(false);
-    }
-  };
-
   // File upload handler for completion proof
   const handleCompletionFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -207,6 +160,51 @@ export default function DirectHiresList({ role, onClose }: Props) {
     }
   };
 
+  // Handle payment using the unified payment system
+  const handlePayment = (hire: DirectHire) => {
+    initiatePayment({
+      amount: hire.total_amount,
+      title: `Payment for Direct Hire #${hire.hire_id}`,
+      recipientName: hire.worker_name,
+      description: `Payment for ${hire.packages.map(p => p.name).join(', ')}`,
+      onSuccess: async (paymentResult) => {
+        try {
+          const token = localStorage.getItem('access_token');
+          const response = await fetch(`http://127.0.0.1:8000/direct-hire/${hire.hire_id}/pay`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({
+              payment_method: paymentResult.method,
+              payment_proof_url: paymentResult.proofUrl || null,
+              reference_number: paymentResult.referenceNumber || null
+            })
+          });
+
+          if (response.ok) {
+            // Show rating modal after successful payment
+            setSelectedHire(hire);
+            setRatingHire(hire);
+            setShowRatingModal(true);
+            loadHires();
+          } else {
+            const error = await response.json();
+            alert(error.detail || 'Failed to record payment');
+          }
+        } catch (error) {
+          console.error('Payment record error:', error);
+          alert('Failed to record payment');
+        }
+      },
+      onCancel: () => {
+        // User cancelled payment
+        console.log('Payment cancelled');
+      }
+    });
+  };
+
   const handleAction = async (hire: DirectHire, action: string) => {
     try {
       setProcessing(true);
@@ -216,13 +214,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
       const method = 'POST';
       let body = null;
 
-      if (action === 'pay') {
-        body = JSON.stringify({
-          payment_method: paymentMethod,
-          payment_proof_url: paymentProof || null,
-          reference_number: paymentMethod !== 'cash' ? referenceNumber : null
-        });
-      } else if (action === 'submit-completion') {
+      if (action === 'submit-completion') {
         body = JSON.stringify({
           completion_proof_url: completionProof || null,
           completion_notes: completionNotes || null
@@ -240,36 +232,15 @@ export default function DirectHiresList({ role, onClose }: Props) {
 
       if (response.ok) {
         const result = await response.json();
-        
-        // If payment was successful, show rating modal
-        if (action === 'pay' && selectedHire) {
-          // Reset payment modal state first
-          setShowPaymentModal(false);
-          setPaymentProof('');
-          setPaymentPreview(null);
-          setReferenceNumber('');
-          setPaymentMethod('gcash');
-          
-          // Show rating modal
-          setRatingHire(selectedHire);
-          setShowRatingModal(true);
-        } else {
-          alert(result.message || 'Action completed!');
-          // Reset payment modal state
-          setShowPaymentModal(false);
-          setPaymentProof('');
-          setPaymentPreview(null);
-          setReferenceNumber('');
-          setPaymentMethod('gcash');
-          // Reset completion modal state
-          setShowCompletionModal(false);
-          setCompletionProof('');
-          setCompletionPreview(null);
-          setCompletionNotes('');
-          // Reset selected hire
-          setSelectedHire(null);
-          loadHires();
-        }
+        alert(result.message || 'Action completed!');
+        // Reset completion modal state
+        setShowCompletionModal(false);
+        setCompletionProof('');
+        setCompletionPreview(null);
+        setCompletionNotes('');
+        // Reset selected hire
+        setSelectedHire(null);
+        loadHires();
       } else {
         const error = await response.json();
         alert(error.detail || 'Action failed');
@@ -352,10 +323,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
           return (
             <div className="flex gap-2">
               <button
-                onClick={() => {
-                  setSelectedHire(hire);
-                  setShowPaymentModal(true);
-                }}
+                onClick={() => handlePayment(hire)}
                 className="px-3 py-1 bg-[#EA526F] text-white text-sm rounded-lg hover:bg-[#d64460]"
               >
                 Pay Now
@@ -519,99 +487,6 @@ export default function DirectHiresList({ role, onClose }: Props) {
           )}
         </div>
       </div>
-
-      {/* Payment Modal */}
-      {showPaymentModal && selectedHire && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-3xl max-w-lg w-full border border-white/20 shadow-2xl">
-            <div className="p-6 border-b border-white/20">
-              <h3 className="text-xl font-bold text-white">💰 Pay {selectedHire.worker_name}</h3>
-              <p className="text-white/60">Amount: ₱{selectedHire.total_amount.toLocaleString()}</p>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-white font-semibold mb-2">Payment Method *</label>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                >
-                  <option value="gcash">GCash</option>
-                  <option value="maya">Maya (PayMaya)</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="cash">Cash</option>
-                </select>
-              </div>
-
-              {paymentMethod !== 'cash' && (
-                <div>
-                  <label className="block text-white font-semibold mb-2">Reference Number *</label>
-                  <input
-                    type="text"
-                    value={referenceNumber}
-                    onChange={(e) => setReferenceNumber(e.target.value)}
-                    placeholder="Enter transaction reference"
-                    className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                  />
-                </div>
-              )}
-
-              <div>
-                <label className="block text-white font-semibold mb-2">Payment Proof (Optional)</label>
-                <input
-                  type="file"
-                  ref={paymentFileRef}
-                  onChange={handlePaymentFileSelect}
-                  accept="image/*"
-                  className="hidden"
-                />
-                <button
-                  onClick={() => paymentFileRef.current?.click()}
-                  disabled={uploadingPayment}
-                  className="w-full py-4 border-2 border-dashed border-white/30 rounded-lg text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all flex items-center justify-center gap-2"
-                >
-                  {uploadingPayment ? '⏳ Uploading...' : paymentProof ? '✅ Uploaded - Click to change' : '📤 Click to upload payment receipt'}
-                </button>
-                <p className="text-white/50 text-xs mt-1">
-                  Supports: JPEG, PNG, GIF, WebP (max 10MB)
-                </p>
-                {paymentPreview && (
-                  <div className="mt-3">
-                    <p className="text-white/70 text-sm mb-2">Preview:</p>
-                    <img 
-                      src={paymentPreview} 
-                      alt="Payment proof preview" 
-                      className="w-full h-32 object-cover rounded-xl border border-white/20"
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setShowPaymentModal(false);
-                    setPaymentProof('');
-                    setPaymentPreview(null);
-                    setReferenceNumber('');
-                  }}
-                  className="flex-1 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleAction(selectedHire, 'pay')}
-                  disabled={processing || (paymentMethod !== 'cash' && !referenceNumber)}
-                  className="flex-1 py-3 bg-green-500 text-white font-semibold rounded-xl hover:bg-green-600 disabled:opacity-50"
-                >
-                  {processing ? 'Processing...' : 'Confirm Payment'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Completion Modal */}
       {showCompletionModal && selectedHire && (
