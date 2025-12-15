@@ -150,7 +150,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
           amount: details?.budget || 0,
           proof_url: paymentData.proofUrl,
           contract_id: worker.contract_id,
-          payment_method: paymentData.paymentMethod,
+          payment_method: paymentData.method,
           reference_number: paymentData.referenceNumber
         })
       });

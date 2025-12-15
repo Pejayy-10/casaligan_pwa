@@ -9,7 +9,7 @@ export async function getPayments(limit = 50, offset = 0, status?: string, searc
   const supabase = createClient()
   
   // Fetch from direct_hires table which contains payment information
-  let query = supabase
+  let directHiresQuery = supabase
     .from('direct_hires')
     .select(`
       hire_id,
@@ -54,32 +54,116 @@ export async function getPayments(limit = 50, offset = 0, status?: string, searc
       )
     `, { count: 'exact' })
     .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1)
 
   // Apply status filter if provided - filter for paid hires
   if (status && status !== 'all') {
     if (status === 'completed' || status === 'paid') {
-      query = query.eq('status', 'paid')
+      directHiresQuery = directHiresQuery.eq('status', 'paid')
     } else if (status === 'pending') {
-      query = query.in('status', ['completed', 'in_progress'])
+      directHiresQuery = directHiresQuery.in('status', ['completed', 'in_progress'])
     } else {
-      query = query.eq('status', status)
+      directHiresQuery = directHiresQuery.eq('status', status)
     }
   }
 
-  const { data: hires, error: hiresError, count } = await query
+  const { data: hires, error: hiresError, count: hiresCount } = await directHiresQuery
 
   if (hiresError) {
     console.error('Error fetching payments from direct_hires:', hiresError)
     return { data: [], count: 0, error: hiresError }
   }
 
-  if (!hires || hires.length === 0) {
-    return { data: [], count: count || 0, error: null }
+  // Fetch from payment_transactions (job posting payments)
+  let transactionsQuery = supabase
+    .from('payment_transactions')
+    .select(`
+      transaction_id,
+      schedule_id,
+      amount_paid,
+      payment_method,
+      payment_proof_url,
+      reference_number,
+      paid_at,
+      payment_schedules:schedule_id (
+        schedule_id,
+        contract_id,
+        worker_id,
+        worker_name,
+        due_date,
+        amount,
+        status,
+        contracts:contract_id (
+          contract_id,
+          post_id,
+          employer_id,
+          forumposts:post_id (
+            post_id,
+            title,
+            salary
+          )
+        ),
+        workers:worker_id (
+          worker_id,
+          user_id,
+          users:user_id (
+            id,
+            name,
+            first_name,
+            last_name,
+            email,
+            phone_number,
+            status,
+            profile_picture
+          )
+        )
+      )
+    `, { count: 'exact' })
+    .order('paid_at', { ascending: false })
+
+  const { data: transactions, error: transactionsError, count: transactionsCount } = await transactionsQuery
+
+  if (transactionsError) {
+    console.error('Error fetching payment transactions:', transactionsError)
+  }
+
+  // Fetch employer data for job post payments
+  const employerIds = (transactions || [])
+    .map((trans: any) => {
+      const schedule = Array.isArray(trans.payment_schedules) ? trans.payment_schedules[0] : trans.payment_schedules || null
+      const contract = Array.isArray(schedule?.contracts) ? schedule.contracts[0] : schedule?.contracts || null
+      return contract?.employer_id
+    })
+    .filter(Boolean)
+
+  let employersMap: Record<number, any> = {}
+  if (employerIds.length > 0) {
+    const { data: employers } = await supabase
+      .from('employers')
+      .select(`
+        employer_id,
+        user_id,
+        users:user_id (
+          id,
+          name,
+          first_name,
+          last_name,
+          email,
+          phone_number,
+          status,
+          profile_picture
+        )
+      `)
+      .in('employer_id', employerIds)
+    
+    if (employers) {
+      employers.forEach((emp: any) => {
+        employersMap[emp.employer_id] = emp
+      })
+    }
   }
 
   // Transform direct_hires data to match payment format
-  const paymentsWithDetails = hires.map((hire: any) => {
+  const directHirePayments = (hires || []).map((hire: any) => {
     // Handle arrays from Supabase relational queries
     const employer = Array.isArray(hire.employers) ? hire.employers[0] : hire.employers || null
     const worker = Array.isArray(hire.workers) ? hire.workers[0] : hire.workers || null
@@ -89,13 +173,14 @@ export async function getPayments(limit = 50, offset = 0, status?: string, searc
     const workerUser = Array.isArray(worker?.users) ? worker.users[0] : worker?.users || null
 
     return {
-      payment_id: hire.hire_id,
+      payment_id: `DH-${hire.hire_id}`,
       hire_id: hire.hire_id,
       amount: hire.total_amount,
       status: hire.status === 'paid' ? 'completed' : hire.status,
       payment_date: hire.paid_at || hire.created_at,
       payment_method: hire.payment_method,
       reference_number: hire.reference_number,
+      payment_type: 'direct_hire',
       workers: worker ? {
         worker_id: worker.worker_id,
         user_id: worker.user_id,
@@ -115,24 +200,87 @@ export async function getPayments(limit = 50, offset = 0, status?: string, searc
     }
   })
 
+  // Transform payment_transactions data to match payment format
+  const jobPostPayments = (transactions || []).map((trans: any) => {
+    const schedule = Array.isArray(trans.payment_schedules) ? trans.payment_schedules[0] : trans.payment_schedules || null
+    const contract = Array.isArray(schedule?.contracts) ? schedule.contracts[0] : schedule?.contracts || null
+    const forumpost = Array.isArray(contract?.forumposts) ? contract.forumposts[0] : contract?.forumposts || null
+    const worker = Array.isArray(schedule?.workers) ? schedule.workers[0] : schedule?.workers || null
+    const workerUser = Array.isArray(worker?.users) ? worker.users[0] : worker?.users || null
+
+    // Get employer from map
+    const employerId = contract?.employer_id
+    const employer = employerId ? employersMap[employerId] : null
+    const employerUser = Array.isArray(employer?.users) ? employer.users[0] : employer?.users || null
+
+    return {
+      payment_id: `JP-${trans.transaction_id}`,
+      transaction_id: trans.transaction_id,
+      schedule_id: trans.schedule_id,
+      amount: trans.amount_paid,
+      status: 'completed', // Transactions are always completed
+      payment_date: trans.paid_at,
+      payment_method: trans.payment_method,
+      reference_number: trans.reference_number,
+      payment_type: 'job_post',
+      job_title: forumpost?.title || 'Job Post Payment',
+      workers: worker ? {
+        worker_id: worker.worker_id,
+        user_id: worker.user_id,
+        users: workerUser
+      } : (schedule?.worker_name ? {
+        worker_id: null,
+        user_id: null,
+        users: { name: schedule.worker_name }
+      } : null),
+      employers: employer ? {
+        employer_id: employer.employer_id,
+        user_id: employer.user_id,
+        users: employerUser
+      } : null,
+      payment_methods: trans.payment_method ? {
+        provider_name: trans.payment_method
+      } : null,
+      bookings: {
+        booking_date: trans.paid_at
+      }
+    }
+  })
+
+  // Combine both payment sources
+  let allPayments = [...directHirePayments, ...jobPostPayments]
+  
+  // Sort by payment date (most recent first)
+  allPayments.sort((a, b) => {
+    const dateA = new Date(a.payment_date || 0).getTime()
+    const dateB = new Date(b.payment_date || 0).getTime()
+    return dateB - dateA
+  })
+
   // Apply search filter if provided (search in employer name, worker name, amount)
-  let filteredPayments = paymentsWithDetails
+  let filteredPayments = allPayments
   if (searchQuery && searchQuery.trim()) {
     const search = searchQuery.toLowerCase().trim()
-    filteredPayments = paymentsWithDetails.filter(payment => {
+    filteredPayments = allPayments.filter(payment => {
       const employerName = payment.employers?.users?.name?.toLowerCase() || ''
       const workerName = payment.workers?.users?.name?.toLowerCase() || ''
       const amount = String(payment.amount || '').toLowerCase()
       const paymentId = String(payment.payment_id || '').toLowerCase()
+      const jobTitle = payment.job_title?.toLowerCase() || ''
       
       return employerName.includes(search) || 
              workerName.includes(search) || 
              amount.includes(search) ||
-             paymentId.includes(search)
+             paymentId.includes(search) ||
+             jobTitle.includes(search)
     })
   }
 
-  return { data: filteredPayments, count: count || 0, error: null }
+  // Apply pagination
+  const paginatedPayments = filteredPayments.slice(offset, offset + limit)
+  const totalCount = (hiresCount || 0) + (transactionsCount || 0)
+
+  return { data: paginatedPayments, count: totalCount, error: null }
 }
 
 // Get payment by ID with full details using relational queries

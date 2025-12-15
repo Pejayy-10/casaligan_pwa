@@ -85,7 +85,7 @@ export default function PaymentsPage() {
 
 		return {
 			id: payment.payment_id,
-			userId: `p${String(payment.payment_id).padStart(3, '0')}`,
+			userId: payment.payment_id, // Use the unique prefixed ID directly
 			payment_id: payment.payment_id,
 			employer_name: employerName,
 			amount_formatted: amountFormatted,
