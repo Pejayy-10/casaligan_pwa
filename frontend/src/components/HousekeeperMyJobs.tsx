@@ -13,6 +13,7 @@ interface AcceptedJob {
   is_longterm: boolean;
   accepted_at: string | null;
   employer: {
+    user_id: number | null;
     name: string;
     email: string | null;
     phone: string | null;
@@ -40,9 +41,11 @@ interface Props {
   onSubmitCompletion: (job: AcceptedJob) => void;
   onReportUnpaid: (job: AcceptedJob) => void;
   onShowPayments?: (job: AcceptedJob) => void;
+  onReportEmployer?: (job: AcceptedJob) => void;
+  reportedUsers?: Set<string>;
 }
 
-export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, onReportUnpaid, onShowPayments }: Props) {
+export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, onReportUnpaid, onShowPayments, onReportEmployer, reportedUsers }: Props) {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<AcceptedJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -309,9 +312,25 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                 )}
 
                 {myStatus === 'completed' && (
-                  <div className="py-3 text-center text-green-300 font-semibold bg-green-500/10 rounded-lg">
-                    ✅ Job completed! Payment received.
-                  </div>
+                  <>
+                    <div className="py-3 text-center text-green-300 font-semibold bg-green-500/10 rounded-lg">
+                      ✅ Job completed! Payment received.
+                    </div>
+                    {onReportEmployer && (
+                      reportedUsers?.has(`${job.post_id}-${job.employer.user_id}`) ? (
+                        <div className="py-2 text-center text-orange-300 font-semibold bg-orange-500/10 rounded-lg">
+                          ✓ You reported this house owner. Wait for admin review.
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => onReportEmployer(job)}
+                          className="w-full py-2 bg-red-500 text-white font-semibold rounded-lg hover:bg-red-600 transition-all"
+                        >
+                          🚨 Report House Owner
+                        </button>
+                      )
+                    )}
+                  </>
                 )}
               </div>
             </div>

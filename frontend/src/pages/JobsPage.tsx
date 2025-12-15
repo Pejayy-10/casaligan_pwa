@@ -17,6 +17,10 @@ import ReportUnpaidModal from '../components/ReportUnpaidModal';
 import CompletionReviewModal from '../components/CompletionReviewModal';
 import PackageManagement from '../components/PackageManagement';
 import DirectHiresList from '../components/DirectHiresList';
+import EditJobModal from '../components/EditJobModal';
+import RatingModal from '../components/RatingModal';
+import ReportModal from '../components/ReportModal';
+import apiClient from '../services/api';
 import type { User } from '../types';
 
 export default function JobsPage() {
@@ -48,6 +52,23 @@ export default function JobsPage() {
   // Direct hire states
   const [showPackageManagement, setShowPackageManagement] = useState(false);
   const [showDirectHires, setShowDirectHires] = useState(false);
+  
+  // Edit job state
+  const [showEditJob, setShowEditJob] = useState<JobPost | null>(null);
+  
+  // Rating state
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [ratingJobData, setRatingJobData] = useState<{ job: JobPost; worker: any } | null>(null);
+  const [ratedContracts, setRatedContracts] = useState<Set<number>>(new Set());
+  
+  // Report state
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportJobData, setReportJobData] = useState<{ job: JobPost; worker: any } | null>(null);
+  const [reportedUsers, setReportedUsers] = useState<Set<string>>(new Set()); // "postId-userId"
+  
+  // Housekeeper report state
+  const [showHousekeeperReportModal, setShowHousekeeperReportModal] = useState(false);
+  const [housekeeperReportData, setHousekeeperReportData] = useState<AcceptedJob | null>(null);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -92,13 +113,59 @@ export default function JobsPage() {
     }
   }, [user, statusFilter]);
 
+  const loadReports = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch('http://127.0.0.1:8000/reports/my-reports', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const reports = await response.json();
+        const reportedSet = new Set<string>();
+        reports.forEach((report: any) => {
+          if (report.post_id && report.reported_user_id) {
+            reportedSet.add(`${report.post_id}-${report.reported_user_id}`);
+          }
+        });
+        setReportedUsers(reportedSet);
+      }
+    } catch (error) {
+      console.error('Failed to load reports:', error);
+    }
+  }, []);
+
+  const loadRatings = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch('http://127.0.0.1:8000/ratings/my-ratings', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+
+      if (response.ok) {
+        const ratings = await response.json();
+        const ratedSet = new Set<number>();
+        ratings.forEach((rating: any) => {
+          if (rating.contract_id) {
+            ratedSet.add(rating.contract_id);
+          }
+        });
+        setRatedContracts(ratedSet);
+      }
+    } catch (error) {
+      console.error('Failed to load ratings:', error);
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) {
       navigate('/login');
     } else {
       loadJobs();
+      loadReports();
+      loadRatings();
     }
-  }, [user, navigate, loadJobs, statusFilter]);
+  }, [user, navigate, loadJobs, loadReports, loadRatings, statusFilter]);
 
   if (!user) return null;
 
@@ -268,9 +335,20 @@ export default function JobsPage() {
             jobs={jobs} 
             navigate={navigate} 
             onViewApplicants={setShowApplicants}
+            onEditJob={setShowEditJob}
             onShowPaymentTracker={setShowPaymentTracker}
             onShowProgressTracker={setShowProgressTracker}
             onShowCompletionReview={setShowCompletionReview}
+            onRateWorker={(job, worker) => {
+              setRatingJobData({ job, worker });
+              setShowRatingModal(true);
+            }}
+            ratedContracts={ratedContracts}
+            reportedUsers={reportedUsers}
+            onReportWorker={(job, worker) => {
+              setReportJobData({ job, worker });
+              setShowReportModal(true);
+            }}
           />
         ) : housekeeperView === 'my-jobs' ? (
           <HousekeeperMyJobs
@@ -278,6 +356,11 @@ export default function JobsPage() {
             onSubmitCompletion={setShowJobCompletion}
             onReportUnpaid={setShowReportUnpaid}
             onShowPayments={setShowHousekeeperPayments}
+            reportedUsers={reportedUsers}
+            onReportEmployer={(job) => {
+              setHousekeeperReportData(job);
+              setShowHousekeeperReportModal(true);
+            }}
           />
         ) : (
           <HousekeeperJobsContent jobs={jobs} onSelectJob={setSelectedJob} />
@@ -503,6 +586,104 @@ export default function JobsPage() {
           onClose={() => setShowDirectHires(false)} 
         />
       )}
+      
+      {/* Edit Job Modal */}
+      {showEditJob && (
+        <EditJobModal
+          job={showEditJob}
+          onClose={() => setShowEditJob(null)}
+          onSuccess={() => {
+            setShowEditJob(null);
+            loadJobs();
+            alert('Job updated successfully!');
+          }}
+        />
+      )}
+      
+      {/* Rating Modal */}
+      {ratingJobData && (
+        <RatingModal
+          isOpen={showRatingModal}
+          onClose={() => {
+            setShowRatingModal(false);
+            setRatingJobData(null);
+          }}
+          onSubmit={async (rating, review) => {
+            const response = await apiClient.post('/ratings/', {
+              rated_user_id: ratingJobData.worker.worker_user_id,
+              contract_id: ratingJobData.worker.contract_id,
+              stars: rating,
+              review: review || null
+            });
+            if (response.status === 200 || response.status === 201) {
+              setRatedContracts(prev => new Set(prev).add(ratingJobData.worker.contract_id));
+            } else {
+              throw new Error('Failed to submit rating');
+            }
+          }}
+          workerName={ratingJobData.worker.name}
+        />
+      )}
+      
+      {/* Report Modal */}
+      {reportJobData && (
+        <ReportModal
+          isOpen={showReportModal}
+          onClose={() => {
+            setShowReportModal(false);
+            setReportJobData(null);
+          }}
+          onSubmit={async (reportData) => {
+            const response = await apiClient.post('/reports/', {
+              reported_user_id: reportJobData.worker.worker_user_id,
+              post_id: reportJobData.job.post_id,
+              report_type: reportData.reportType,
+              title: reportData.title,
+              reason: reportData.reason,
+              description: reportData.description,
+              evidence_urls: reportData.evidenceUrls || []
+            });
+            if (response.status === 200 || response.status === 201) {
+              setReportedUsers(prev => new Set(prev).add(`${reportJobData.job.post_id}-${reportJobData.worker.worker_user_id}`));
+              alert('Report submitted successfully. Our team will review this case.');
+            } else {
+              throw new Error('Failed to submit report');
+            }
+          }}
+          reportedUserName={reportJobData.worker.name}
+          reportedUserRole="housekeeper"
+        />
+      )}
+      
+      {/* Housekeeper Report Modal */}
+      {housekeeperReportData && (
+        <ReportModal
+          isOpen={showHousekeeperReportModal}
+          onClose={() => {
+            setShowHousekeeperReportModal(false);
+            setHousekeeperReportData(null);
+          }}
+          onSubmit={async (reportData) => {
+            const response = await apiClient.post('/reports/', {
+              reported_user_id: housekeeperReportData.employer.user_id,
+              post_id: housekeeperReportData.post_id,
+              report_type: reportData.reportType,
+              title: reportData.title,
+              reason: reportData.reason,
+              description: reportData.description,
+              evidence_urls: reportData.evidenceUrls || []
+            });
+            if (response.status === 200 || response.status === 201) {
+              setReportedUsers(prev => new Set(prev).add(`${housekeeperReportData.post_id}-${housekeeperReportData.employer.user_id}`));
+              alert('Report submitted successfully. Our team will review this case.');
+            } else {
+              throw new Error('Failed to submit report');
+            }
+          }}
+          reportedUserName={housekeeperReportData.employer.name}
+          reportedUserRole="owner"
+        />
+      )}
     </div>
   );
 }
@@ -513,7 +694,12 @@ function OwnerJobsContent({
   onViewApplicants,
   onShowPaymentTracker,
   onShowProgressTracker,
-  onShowCompletionReview
+  onShowCompletionReview,
+  onEditJob,
+  onRateWorker,
+  ratedContracts,
+  reportedUsers,
+  onReportWorker
 }: { 
   jobs: JobPost[]; 
   navigate: (path: string) => void;
@@ -521,6 +707,11 @@ function OwnerJobsContent({
   onShowPaymentTracker: (job: JobPost) => void;
   onShowProgressTracker: (job: JobPost) => void;
   onShowCompletionReview: (job: JobPost) => void;
+  onEditJob: (job: JobPost) => void;
+  onRateWorker: (job: JobPost, worker: any) => void;
+  ratedContracts: Set<number>;
+  reportedUsers: Set<string>;
+  onReportWorker: (job: JobPost, worker: any) => void;
 }) {
   const handleStatusUpdate = async (postId: number, newStatus: string) => {
     try {
@@ -647,16 +838,24 @@ function OwnerJobsContent({
             )}
             
             {job.status === 'open' && (
-              <button
-                onClick={() => {
-                  if (confirm('Are you sure you want to cancel this job?')) {
-                    handleStatusUpdate(job.post_id, 'cancelled');
-                  }
-                }}
-                className="w-full py-2 bg-gray-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-gray-600 transition-all"
-              >
-                🔒 Cancel Job
-              </button>
+              <>
+                <button
+                  onClick={() => onEditJob(job)}
+                  className="w-full py-2 bg-blue-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-blue-600 transition-all"
+                >
+                  ✏️ Edit Job
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm('Are you sure you want to cancel this job?')) {
+                      handleStatusUpdate(job.post_id, 'cancelled');
+                    }
+                  }}
+                  className="w-full py-2 bg-gray-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-gray-600 transition-all"
+                >
+                  🔒 Cancel Job
+                </button>
+              </>
             )}
             
             {job.status === 'ongoing' && (
@@ -726,9 +925,51 @@ function OwnerJobsContent({
             )}
             
             {job.status === 'completed' && (
-              <div className="py-2 text-center text-green-300 font-semibold">
-                ✔️ Job Completed
-              </div>
+              <>
+                <div className="py-2 text-center text-green-300 font-semibold">
+                  ✔️ Job Completed
+                </div>
+                {/* Show rate buttons for each accepted worker */}
+                {job.accepted_workers && job.accepted_workers.length > 0 && (
+                  <div className="space-y-2">
+                    {job.accepted_workers.map((worker) => {
+                      const contractId = worker.contract_id || 0;
+                      const isRated = ratedContracts.has(contractId);
+                      const isReported = reportedUsers.has(`${job.post_id}-${worker.worker_user_id}`);
+                      
+                      return (
+                        <div key={worker.worker_id} className="space-y-2">
+                          {isRated ? (
+                            <div className="py-2 text-center text-yellow-300 font-semibold bg-yellow-500/10 rounded-lg text-sm">
+                              ✓ You rated {worker.name}
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => onRateWorker(job, worker)}
+                              className="w-full py-2 bg-yellow-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-yellow-600 transition-all"
+                            >
+                              ⭐ Rate {worker.name}
+                            </button>
+                          )}
+                          
+                          {isReported ? (
+                            <div className="py-2 text-center text-orange-300 font-semibold bg-orange-500/10 rounded-lg text-sm">
+                              ✓ You reported {worker.name}. Wait for admin review.
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => onReportWorker(job, worker)}
+                              className="w-full py-2 bg-red-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-red-600 transition-all"
+                            >
+                              🚨 Report {worker.name}
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
             )}
             
             {(job.status === 'closed' || job.status === 'cancelled') && (

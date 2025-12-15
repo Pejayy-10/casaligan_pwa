@@ -141,11 +141,15 @@ export async function approveVerification(verificationId: number, adminId: numbe
   const supabase = createClient()
   
   // Get the document to find the user_id
-  const { data: document } = await supabase
+  const { data: document, error: docError } = await supabase
     .from('user_documents')
     .select('user_id')
     .eq('id', verificationId)
     .single()
+  
+  if (docError) {
+    return { data: null, error: docError }
+  }
   
   // Update document status
   const { data, error } = await supabase
@@ -157,12 +161,58 @@ export async function approveVerification(verificationId: number, adminId: numbe
     .eq('id', verificationId)
     .select()
   
-  // If document exists, update housekeeper application status to approved
+  if (error) {
+    return { data: null, error }
+  }
+  
+  // If document exists, approve the housekeeper application and update user status
   if (document && document.user_id) {
+    const userId = document.user_id
+    
+    // Update housekeeper_applications table to approved
     await supabase
       .from('housekeeper_applications')
-      .update({ status: 'approved' })
-      .eq('user_id', document.user_id)
+      .update({ 
+        status: 'approved',
+        reviewed_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .eq('status', 'pending')
+    
+    // Update users table to set is_housekeeper = true
+    await supabase
+      .from('users')
+      .update({ 
+        is_housekeeper: true,
+        status: 'active'
+      })
+      .eq('id', userId)
+    
+    // Create worker record if it doesn't exist
+    const { data: existingWorker } = await supabase
+      .from('workers')
+      .select('worker_id')
+      .eq('user_id', userId)
+      .single()
+    
+    if (!existingWorker) {
+      await supabase
+        .from('workers')
+        .insert({ user_id: userId })
+    }
+    
+    // Create employer record if it doesn't exist (users can be both)
+    const { data: existingEmployer } = await supabase
+      .from('employers')
+      .select('employer_id')
+      .eq('user_id', userId)
+      .single()
+    
+    if (!existingEmployer) {
+      await supabase
+        .from('employers')
+        .insert({ user_id: userId })
+    }
   }
   
   return { data, error }

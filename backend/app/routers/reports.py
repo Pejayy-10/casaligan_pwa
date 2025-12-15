@@ -21,6 +21,7 @@ class CreateReportRequest(BaseModel):
     """Request body for creating a report"""
     report_type: str
     title: str
+    reason: str
     description: str
     post_id: Optional[int] = None
     reported_user_id: Optional[int] = None
@@ -81,6 +82,7 @@ def create_report(
         reporter_role=active_role,
         report_type=report_type,
         title=report_data.title,
+        reason=report_data.reason,
         description=report_data.description,
         post_id=report_data.post_id,
         reported_user_id=report_data.reported_user_id,
@@ -125,6 +127,7 @@ def get_my_reports(
             "title": report.title,
             "description": report.description,
             "post_id": report.post_id,
+            "reported_user_id": report.reported_user_id,
             "evidence_urls": evidence,
             "status": report.status.value,
             "created_at": report.created_at.isoformat() if report.created_at else None,

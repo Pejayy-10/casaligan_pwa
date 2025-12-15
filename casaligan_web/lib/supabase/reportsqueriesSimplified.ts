@@ -15,32 +15,35 @@ export async function getReports(limit = 50, offset = 0, status?: string) {
     .from('reports')
     .select(`
       report_id,
-      reporter_user_id,
+      reporter_id,
       reported_user_id,
+      report_type,
+      title,
       reason,
       description,
+      evidence_urls,
       status,
       created_at,
       resolved_at,
       resolved_by_admin_id,
       admin_notes,
-      reporter:reporter_user_id (
-        user_id,
-        name,
+      reporter:users!reports_reporter_id_fkey (
+        id,
+        first_name,
+        last_name,
         email,
-        role,
+        active_role,
         status,
-        phone_number,
-        profile_picture
+        phone_number
       ),
-      reported_user:reported_user_id (
-        user_id,
-        name,
+      reported_user:users!reports_reported_user_id_fkey (
+        id,
+        first_name,
+        last_name,
         email,
-        role,
+        active_role,
         status,
-        phone_number,
-        profile_picture
+        phone_number
       )
     `, { count: 'exact' })
     .order('created_at', { ascending: false })
@@ -64,11 +67,11 @@ export async function getReports(limit = 50, offset = 0, status?: string) {
 
   // Filter out reports where reporter or reported user is an admin
   const filteredReports = reports.filter(report => {
-    const reporterRole = report.reporter?.role
-    const reportedRole = report.reported_user?.role
+    const reporterRole = report.reporter?.active_role
+    const reportedRole = report.reported_user?.active_role
     return (
-      reporterRole && ['employer', 'worker'].includes(reporterRole) &&
-      reportedRole && ['employer', 'worker'].includes(reportedRole)
+      reporterRole && ['owner', 'housekeeper'].includes(reporterRole) &&
+      reportedRole && ['owner', 'housekeeper'].includes(reportedRole)
     )
   })
 
@@ -220,10 +223,12 @@ export async function restrictReportedUser(reportId: number, reason?: string) {
     .from('notifications')
     .insert({
       user_id: report.reported_user_id,
-      type: 'restriction',
+      type: 'system',
+      title: 'Account Restricted',
+      message: `Your account has been restricted due to a report${reason ? `: ${reason}` : ''}. Please contact support for more information.`,
+      content: `Account restricted${reason ? `: ${reason}` : ''}`,
       entity_type: 'report',
       entity_id: reportId,
-      content: 'Your account has been restricted due to a report. Please contact support for more information.',
       created_at: new Date().toISOString(),
     })
 
@@ -256,10 +261,12 @@ export async function warnReportedUser(reportId: number, reason: string) {
     .from('notifications')
     .insert({
       user_id: report.reported_user_id,
-      type: 'warning',
+      type: 'system',
+      title: 'Policy Violation Warning',
+      message: `You have received a warning regarding a report. Reason: ${reason}. Please review our community guidelines to avoid further action.`,
+      content: `Policy Violation Warning: ${reason}`,
       entity_type: 'report',
       entity_id: reportId,
-      content: `Policy Violation Warning: You have received a warning regarding a report. Reason: ${reason}`,
       created_at: new Date().toISOString(),
     })
     .select()

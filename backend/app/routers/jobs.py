@@ -203,6 +203,7 @@ def get_my_job_posts(
                 if worker_user:
                     accepted_workers_list.append({
                         "worker_id": worker.worker_id,
+                        "worker_user_id": worker_user.id,
                         "name": f"{worker_user.first_name} {worker_user.last_name}",
                         "contract_id": contract.contract_id if contract else None
                     })
@@ -343,6 +344,7 @@ def get_my_accepted_jobs(
             "is_longterm": post.is_longterm,
             "accepted_at": interest.created_at.isoformat() if interest.created_at else None,
             "employer": {
+                "user_id": employer_user.id if employer_user else None,
                 "name": f"{employer_user.first_name} {employer_user.last_name}" if employer_user else "Unknown",
                 "email": employer_user.email if employer_user else None,
                 "phone": employer_user.phone_number if employer_user else None
@@ -1347,6 +1349,7 @@ def get_completion_details(
         workers_completion.append({
             "contract_id": contract.contract_id,
             "worker_id": contract.worker_id,
+            "worker_user_id": worker_user.id if worker_user else None,
             "worker_name": f"{worker_user.first_name} {worker_user.last_name}" if worker_user else "Unknown",
             "status": contract.status.value if hasattr(contract.status, 'value') else str(contract.status),
             "completion_proof_url": contract.completion_proof_url,

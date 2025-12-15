@@ -167,6 +167,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
       title: `Payment for Direct Hire #${hire.hire_id}`,
       recipientName: hire.worker_name,
       description: `Payment for ${hire.packages.map(p => p.name).join(', ')}`,
+      requireProof: true, // Force payment proof upload and reference number
       onSuccess: async (paymentResult) => {
         try {
           const token = localStorage.getItem('access_token');

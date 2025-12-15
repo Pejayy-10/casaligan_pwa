@@ -290,36 +290,16 @@ export default function VerificationPage() {
 						{/* Action Buttons */}
 						<div className="mt-6 flex justify-end gap-2">
 							{modalAction === "view" && (
-								<>
-									{selectedVerification.status === "pending" && (
-										<>
-											<button
-												onClick={handleApprove}
-												disabled={processing}
-												className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-											>
-												{processing ? "Processing..." : "Approve"}
-											</button>
-											<button
-												onClick={handleReject}
-												disabled={processing}
-												className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-											>
-												{processing ? "Processing..." : "Reject"}
-											</button>
-										</>
-									)}
-									<button 
-										onClick={() => {
-											setShowModal(false);
-											setSelectedVerification(null);
-											setModalAction(null);
-										}} 
-										className="px-4 py-2 bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors"
-									>
-										Close
-									</button>
-								</>
+								<button 
+									onClick={() => {
+										setShowModal(false);
+										setSelectedVerification(null);
+										setModalAction(null);
+									}} 
+									className="px-4 py-2 bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors"
+								>
+									Close
+								</button>
 							)}
 							{modalAction === "approve" && (
 								<>

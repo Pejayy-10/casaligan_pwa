@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface Applicant {
   interest_id: number;
@@ -19,6 +20,7 @@ interface ApplicantsListModalProps {
 }
 
 export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onClose, onJobStarted }: ApplicantsListModalProps) {
+  const navigate = useNavigate();
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedWorkers, setSelectedWorkers] = useState<Set<number>>(new Set());
@@ -216,6 +218,15 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                       <h3 className="text-lg font-bold text-white mb-1">{applicant.worker_name}</h3>
                       <p className="text-green-200 text-sm">✓ Already Hired</p>
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/worker/${applicant.worker_id}?from=applicants`);
+                      }}
+                      className="px-4 py-2 bg-blue-500/30 text-blue-200 rounded-lg hover:bg-blue-500/40 transition-all text-sm font-semibold"
+                    >
+                      👤 Profile
+                    </button>
                   </div>
                 </div>
               ))}
@@ -269,19 +280,32 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                         </p>
                       </div>
 
-                      {/* Reject Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm(`Reject ${applicant.worker_name}?`)) {
-                            handleReject(applicant.interest_id);
-                          }
-                        }}
-                        className="px-3 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-all text-sm"
-                        title="Reject this applicant"
-                      >
-                        ✗
-                      </button>
+                      {/* Action Buttons */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/worker/${applicant.worker_id}?from=applicants`);
+                          }}
+                          className="px-4 py-2 bg-blue-500/20 text-blue-300 rounded-lg hover:bg-blue-500/30 transition-all text-sm font-semibold"
+                        >
+                          👤 Profile
+                        </button>
+                        
+                        {/* Reject Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (confirm(`Reject ${applicant.worker_name}?`)) {
+                              handleReject(applicant.interest_id);
+                            }
+                          }}
+                          className="px-3 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-all text-sm"
+                          title="Reject this applicant"
+                        >
+                          ✗
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );

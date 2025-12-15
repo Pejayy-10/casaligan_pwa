@@ -22,6 +22,7 @@ class RatingCreate(BaseModel):
     review: Optional[str] = None
     post_id: Optional[int] = None
     hire_id: Optional[int] = None
+    contract_id: Optional[int] = None
 
 
 class RatingResponse(BaseModel):
@@ -33,6 +34,7 @@ class RatingResponse(BaseModel):
     review: Optional[str]
     post_id: Optional[int]
     hire_id: Optional[int]
+    contract_id: Optional[int]
     created_at: str
 
     class Config:
@@ -76,7 +78,9 @@ def create_rating(
         Rating.target_user_id == rating_data.rated_user_id
     )
     
-    if rating_data.post_id:
+    if rating_data.contract_id:
+        existing_query = existing_query.filter(Rating.contract_id == rating_data.contract_id)
+    elif rating_data.post_id:
         existing_query = existing_query.filter(Rating.post_id == rating_data.post_id)
     elif rating_data.hire_id:
         existing_query = existing_query.filter(Rating.hire_id == rating_data.hire_id)
@@ -93,6 +97,7 @@ def create_rating(
         target_user_id=rating_data.rated_user_id,
         rating=rating_data.stars,
         comment=rating_data.review,
+        contract_id=rating_data.contract_id,
         post_id=rating_data.post_id,
         hire_id=rating_data.hire_id
     )
@@ -110,6 +115,7 @@ def create_rating(
         rated_user_id=rating.target_user_id,
         stars=rating.rating,
         review=rating.comment,
+        contract_id=rating.contract_id,
         post_id=rating.post_id,
         hire_id=rating.hire_id,
         created_at=rating.created_at.isoformat() if rating.created_at else ""
@@ -145,6 +151,33 @@ def get_user_ratings(
             hire_id=rating.hire_id,
             created_at=rating.created_at.isoformat() if rating.created_at else ""
         ))
+    
+    return result
+
+
+@router.get("/my-ratings", response_model=List[dict])
+def get_my_ratings(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all ratings submitted by the current user"""
+    
+    ratings = db.query(Rating).filter(
+        Rating.reviewer_user_id == current_user.id
+    ).order_by(Rating.created_at.desc()).all()
+    
+    result = []
+    for rating in ratings:
+        result.append({
+            "rating_id": rating.review_id,
+            "rated_user_id": rating.target_user_id,
+            "stars": rating.rating,
+            "review": rating.comment,
+            "contract_id": rating.contract_id,
+            "post_id": rating.post_id,
+            "hire_id": rating.hire_id,
+            "created_at": rating.created_at.isoformat() if rating.created_at else None
+        })
     
     return result
 
@@ -187,6 +220,7 @@ def check_if_rated(
     rated_user_id: int,
     post_id: Optional[int] = None,
     hire_id: Optional[int] = None,
+    contract_id: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -197,7 +231,9 @@ def check_if_rated(
         Rating.target_user_id == rated_user_id
     )
     
-    if post_id:
+    if contract_id:
+        query = query.filter(Rating.contract_id == contract_id)
+    elif post_id:
         query = query.filter(Rating.post_id == post_id)
     elif hire_id:
         query = query.filter(Rating.hire_id == hire_id)
