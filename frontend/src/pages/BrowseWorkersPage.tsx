@@ -2,6 +2,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TabBar from '../components/TabBar';
 import StarRating from '../components/StarRating';
+import { authService } from '../services/auth';
+import { psgcService } from '../services/psgc';
+import type { PSGCRegion, PSGCProvince, PSGCCity, PSGCBarangay } from '../types';
 
 interface WorkerPackage {
   package_id: number;
@@ -17,10 +20,13 @@ interface WorkerProfile {
   last_name: string;
   city: string | null;
   barangay: string | null;
+  province?: string | null;
   package_count: number;
   packages: WorkerPackage[];
   average_rating: number;
   total_ratings: number;
+  proximity_score?: number;
+  proximity_label?: string;
 }
 
 export default function BrowseWorkersPage() {
@@ -30,10 +36,154 @@ export default function BrowseWorkersPage() {
   const [searchCity, setSearchCity] = useState('');
   const [minRating, setMinRating] = useState<number | ''>('');
   const [sortBy, setSortBy] = useState<string>('');
+  
+  // Location filter state
+  const [employerLocation, setEmployerLocation] = useState<{
+    city: string;
+    province: string;
+    region: string;
+    barangay: string;
+  } | null>(null);
+  const [showLocationEditor, setShowLocationEditor] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(true);
+  
+  // Location editor state
+  const [regions, setRegions] = useState<PSGCRegion[]>([]);
+  const [provinces, setProvinces] = useState<PSGCProvince[]>([]);
+  const [cities, setCities] = useState<PSGCCity[]>([]);
+  const [barangays, setBarangays] = useState<PSGCBarangay[]>([]);
+  const [selectedRegion, setSelectedRegion] = useState<string>('');
+  const [selectedProvince, setSelectedProvince] = useState<string>('');
+  const [selectedCity, setSelectedCity] = useState<string>('');
+  const [selectedBarangay, setSelectedBarangay] = useState<string>('');
+
+  // Load employer's address on mount
+  useEffect(() => {
+    loadEmployerAddress();
+  }, []);
+
+  // Load workers when location or filters change
+  useEffect(() => {
+    if (!locationLoading) {
+      loadWorkers();
+    }
+  }, [employerLocation, minRating, sortBy, locationLoading]);
+
+  const loadEmployerAddress = async () => {
+    try {
+      setLocationLoading(true);
+      const user = await authService.getCurrentUser();
+      if (user?.address) {
+        setEmployerLocation({
+          city: user.address.city_name,
+          province: user.address.province_name,
+          region: user.address.region_name,
+          barangay: user.address.barangay_name || '',
+        });
+        // Set initial editor values
+        setSelectedRegion(user.address.region_code || '');
+        setSelectedProvince(user.address.province_code || '');
+        setSelectedCity(user.address.city_code || '');
+        setSelectedBarangay(user.address.barangay_code || '');
+        
+        // Load barangays if city is selected
+        if (user.address.city_code) {
+          try {
+            const barangaysData = await psgcService.getBarangays(user.address.city_code);
+            setBarangays(barangaysData);
+          } catch (error) {
+            console.error('Failed to load barangays:', error);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load employer address:', error);
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const loadLocationOptions = async () => {
+    try {
+      const regionsData = await psgcService.getRegions();
+      setRegions(regionsData);
+      
+      if (selectedRegion) {
+        const provincesData = await psgcService.getProvinces(selectedRegion);
+        setProvinces(provincesData);
+      }
+      
+      if (selectedProvince) {
+        const citiesData = await psgcService.getCities(selectedProvince);
+        setCities(citiesData);
+      }
+      
+      if (selectedCity) {
+        const barangaysData = await psgcService.getBarangays(selectedCity);
+        setBarangays(barangaysData);
+      }
+    } catch (error) {
+      console.error('Failed to load location options:', error);
+    }
+  };
 
   useEffect(() => {
-    loadWorkers();
-  }, []);
+    if (showLocationEditor) {
+      loadLocationOptions();
+    }
+  }, [showLocationEditor, selectedRegion, selectedProvince, selectedCity]);
+
+  const handleRegionChange = async (regionCode: string) => {
+    setSelectedRegion(regionCode);
+    setSelectedProvince('');
+    setSelectedCity('');
+    setCities([]);
+    
+    if (regionCode) {
+      const provincesData = await psgcService.getProvinces(regionCode);
+      setProvinces(provincesData);
+    }
+  };
+
+  const handleProvinceChange = async (provinceCode: string) => {
+    setSelectedProvince(provinceCode);
+    setSelectedCity('');
+    setSelectedBarangay('');
+    setBarangays([]);
+    
+    if (provinceCode) {
+      const citiesData = await psgcService.getCities(provinceCode);
+      setCities(citiesData);
+    }
+  };
+
+  const handleCityChange = async (cityCode: string) => {
+    setSelectedCity(cityCode);
+    setSelectedBarangay('');
+    setBarangays([]);
+    
+    if (cityCode) {
+      const barangaysData = await psgcService.getBarangays(cityCode);
+      setBarangays(barangaysData);
+    }
+  };
+
+  const handleSaveLocation = () => {
+    const selectedCityObj = cities.find(c => c.code === selectedCity);
+    const selectedProvinceObj = provinces.find(p => p.code === selectedProvince);
+    const selectedRegionObj = regions.find(r => r.code === selectedRegion);
+    const selectedBarangayObj = barangays.find(b => b.code === selectedBarangay);
+    
+    if (selectedCityObj && selectedProvinceObj && selectedRegionObj) {
+      setEmployerLocation({
+        city: selectedCityObj.name,
+        province: selectedProvinceObj.name,
+        region: selectedRegionObj.name,
+        barangay: selectedBarangayObj?.name || '',
+      });
+      setShowLocationEditor(false);
+    }
+  };
 
   const loadWorkers = async (city?: string, rating?: number, sort?: string) => {
     try {
@@ -43,9 +193,22 @@ export default function BrowseWorkersPage() {
       if (rating) params.append('min_rating', rating.toString());
       if (sort) params.append('sort_by', sort);
       
+      // Add employer location for proximity sorting
+      if (employerLocation) {
+        params.append('employer_city', employerLocation.city);
+        params.append('employer_province', employerLocation.province);
+        if (employerLocation.barangay) {
+          params.append('employer_barangay', employerLocation.barangay);
+        }
+      }
+      
       const url = `http://127.0.0.1:8000/direct-hire/workers${params.toString() ? '?' + params.toString() : ''}`;
       
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
       if (response.ok) {
         const data = await response.json();
         setWorkers(data);
@@ -102,6 +265,113 @@ export default function BrowseWorkersPage() {
 
       {/* Main Content */}
       <main className="relative z-10 max-w-4xl mx-auto px-4 py-6">
+        {/* Location Filter */}
+        {employerLocation && (
+          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 mb-4 border border-white/20">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white/70 text-sm mb-1">Showing workers near:</p>
+                <p className="text-white font-semibold">
+                  📍 {employerLocation.barangay && `${employerLocation.barangay}, `}{employerLocation.city}, {employerLocation.province}
+                </p>
+                <p className="text-white/60 text-xs mt-1">
+                  Workers in your barangay are shown first, then your city, then your province
+                </p>
+              </div>
+              <button
+                onClick={() => setShowLocationEditor(!showLocationEditor)}
+                className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-all text-sm"
+              >
+                {showLocationEditor ? 'Cancel' : '✏️ Edit Location'}
+              </button>
+            </div>
+            
+            {/* Location Editor */}
+            {showLocationEditor && (
+              <div className="mt-4 pt-4 border-t border-white/20">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                  <div>
+                    <label className="text-white/70 text-sm mb-1 block">Region</label>
+                    <select
+                      value={selectedRegion}
+                      onChange={(e) => handleRegionChange(e.target.value)}
+                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                    >
+                      <option value="" className="text-gray-900">Select Region</option>
+                      {regions.map((region) => (
+                        <option key={region.code} value={region.code} className="text-gray-900">
+                          {region.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="text-white/70 text-sm mb-1 block">Province</label>
+                    <select
+                      value={selectedProvince}
+                      onChange={(e) => handleProvinceChange(e.target.value)}
+                      disabled={!selectedRegion}
+                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] disabled:opacity-50"
+                    >
+                      <option value="" className="text-gray-900">Select Province</option>
+                      {provinces.map((province) => (
+                        <option key={province.code} value={province.code} className="text-gray-900">
+                          {province.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="text-white/70 text-sm mb-1 block">City/Municipality</label>
+                    <select
+                      value={selectedCity}
+                      onChange={(e) => handleCityChange(e.target.value)}
+                      disabled={!selectedProvince}
+                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] disabled:opacity-50"
+                    >
+                      <option value="" className="text-gray-900">Select City</option>
+                      {cities.map((city) => (
+                        <option key={city.code} value={city.code} className="text-gray-900">
+                          {city.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-1 gap-3 mb-3">
+                  <div>
+                    <label className="text-white/70 text-sm mb-1 block">Barangay</label>
+                    <select
+                      value={selectedBarangay}
+                      onChange={(e) => setSelectedBarangay(e.target.value)}
+                      disabled={!selectedCity}
+                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] disabled:opacity-50"
+                    >
+                      <option value="" className="text-gray-900">Select Barangay (Optional)</option>
+                      {barangays.map((barangay) => (
+                        <option key={barangay.code} value={barangay.code} className="text-gray-900">
+                          {barangay.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                
+                <button
+                  onClick={handleSaveLocation}
+                  disabled={!selectedCity}
+                  className="w-full px-4 py-2 bg-[#EA526F] hover:bg-[#d64460] text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save Location
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Search Bar */}
         <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 mb-6 border border-white/20">
           <div className="flex gap-3 mb-4">
@@ -144,7 +414,7 @@ export default function BrowseWorkersPage() {
                 onChange={(e) => handleFilterChange(minRating, e.target.value)}
                 className="px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
               >
-                <option value="" className="text-gray-900">Default</option>
+                <option value="" className="text-gray-900">Default (Nearby First)</option>
                 <option value="rating" className="text-gray-900">Highest Rated</option>
                 <option value="jobs_completed" className="text-gray-900">Most Jobs</option>
               </select>
@@ -200,9 +470,31 @@ export default function BrowseWorkersPage() {
                       </div>
                       
                       {worker.city && (
-                        <p className="text-white/70 text-sm mt-1">
-                          📍 {worker.barangay && `${worker.barangay}, `}{worker.city}
-                        </p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-white/70 text-sm">
+                            📍 {worker.barangay && `${worker.barangay}, `}{worker.city}
+                            {worker.province && `, ${worker.province}`}
+                          </p>
+                          {worker.proximity_label && (
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                              worker.proximity_label === 'same_barangay'
+                                ? 'bg-emerald-500/30 text-emerald-300'
+                                : worker.proximity_label === 'same_city' 
+                                ? 'bg-green-500/30 text-green-300' 
+                                : worker.proximity_label === 'same_province'
+                                ? 'bg-yellow-500/30 text-yellow-300'
+                                : 'bg-gray-500/30 text-gray-300'
+                            }`}>
+                              {worker.proximity_label === 'same_barangay'
+                                ? '📍 Same Barangay'
+                                : worker.proximity_label === 'same_city' 
+                                ? '📍 Same City' 
+                                : worker.proximity_label === 'same_province'
+                                ? '📍 Same Province'
+                                : '📍 Other Location'}
+                            </span>
+                          )}
+                        </div>
                       )}
                       
                       {/* Package Summary */}

@@ -45,6 +45,17 @@ class ForumPost(Base):
     payment_amount = Column(Numeric, nullable=True)
     payment_schedule = Column(Text, nullable=True)  # JSON string
     
+    # Recurring schedule (for regular/repeating jobs)
+    is_recurring = Column(Boolean, default=False, nullable=False)
+    day_of_week = Column(String(20), nullable=True)  # e.g., "saturday", "monday"
+    start_time = Column(String(10), nullable=True)  # e.g., "09:00"
+    end_time = Column(String(10), nullable=True)  # e.g., "11:00"
+    frequency = Column(String(20), nullable=True)  # "weekly", "biweekly", "monthly"
+    recurring_status = Column(String(20), nullable=True, default="active")  # "active", "cancelled", "paused"
+    recurring_cancelled_at = Column(DateTime(timezone=True), nullable=True)
+    recurring_cancellation_reason = Column(Text, nullable=True)
+    cancelled_by = Column(String(20), nullable=True)  # "employer" or "worker"
+    
     # Job completion fields
     completion_proof_url = Column(String, nullable=True)  # Photo/video proof of completion
     completion_notes = Column(Text, nullable=True)  # Notes from housekeeper

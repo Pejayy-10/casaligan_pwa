@@ -17,6 +17,7 @@ import ReportUnpaidModal from '../components/ReportUnpaidModal';
 import CompletionReviewModal from '../components/CompletionReviewModal';
 import PackageManagement from '../components/PackageManagement';
 import DirectHiresList from '../components/DirectHiresList';
+import AvailabilityCalendar from '../components/AvailabilityCalendar';
 import EditJobModal from '../components/EditJobModal';
 import RatingModal from '../components/RatingModal';
 import ReportModal from '../components/ReportModal';
@@ -52,6 +53,7 @@ export default function JobsPage() {
   // Direct hire states
   const [showPackageManagement, setShowPackageManagement] = useState(false);
   const [showDirectHires, setShowDirectHires] = useState(false);
+  const [showAvailabilityCalendar, setShowAvailabilityCalendar] = useState(false);
   
   // Edit job state
   const [showEditJob, setShowEditJob] = useState<JobPost | null>(null);
@@ -221,19 +223,35 @@ export default function JobsPage() {
           {/* Housekeeper View Toggle */}
           {user.active_role === 'housekeeper' && (
             <div className="mt-3 sm:mt-4 space-y-3">
+              {/* Recurring Services Link */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => navigate('/recurring-services')}
+                  className="px-4 py-2 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-all flex items-center gap-2"
+                >
+                  🔄 Manage Recurring Services
+                </button>
+              </div>
+              
               {/* Direct Hire Buttons */}
-              <div className="flex gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => setShowPackageManagement(true)}
-                  className="flex-1 py-2 px-3 bg-[#EA526F] text-white text-sm font-semibold rounded-lg hover:bg-[#d4486a] transition-all"
+                  className="py-2 px-3 bg-[#EA526F] text-white text-sm font-semibold rounded-lg hover:bg-[#d4486a] transition-all"
                 >
-                  📦 My Packages
+                  📦 Packages
                 </button>
                 <button
                   onClick={() => setShowDirectHires(true)}
-                  className="flex-1 py-2 px-3 bg-blue-500 text-white text-sm font-semibold rounded-lg hover:bg-blue-600 transition-all"
+                  className="py-2 px-3 bg-blue-500 text-white text-sm font-semibold rounded-lg hover:bg-blue-600 transition-all"
                 >
                   🎯 Direct Jobs
+                </button>
+                <button
+                  onClick={() => setShowAvailabilityCalendar(true)}
+                  className="py-2 px-3 bg-green-500 text-white text-sm font-semibold rounded-lg hover:bg-green-600 transition-all"
+                >
+                  📅 Availability
                 </button>
               </div>
               
@@ -265,10 +283,22 @@ export default function JobsPage() {
           
           {/* Status Filter Tabs - Owner Only */}
           {user.active_role === 'owner' && (
-            <div className="mt-3 sm:mt-4 overflow-x-auto pb-2 -mx-3 sm:mx-0 px-3 sm:px-0">
-              <div className="flex gap-2 min-w-max">
+            <div className="mt-3 sm:mt-4 space-y-3">
+              {/* Recurring Services Link */}
+              <div className="flex justify-end">
                 <button
-                  onClick={() => setStatusFilter('all')}
+                  onClick={() => navigate('/recurring-services')}
+                  className="px-4 py-2 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-all flex items-center gap-2"
+                >
+                  🔄 Manage Recurring Services
+                </button>
+              </div>
+              
+              {/* Status Filter Tabs */}
+              <div className="overflow-x-auto pb-2 -mx-3 sm:mx-0 px-3 sm:px-0">
+                <div className="flex gap-2 min-w-max">
+                  <button
+                    onClick={() => setStatusFilter('all')}
                   className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
                     statusFilter === 'all'
                       ? 'bg-white text-[#4B244A] shadow-lg'
@@ -317,6 +347,7 @@ export default function JobsPage() {
                 >
                   🔒 Closed
                 </button>
+                </div>
               </div>
             </div>
           )}
@@ -585,6 +616,11 @@ export default function JobsPage() {
           role={user?.active_role as 'owner' | 'housekeeper'} 
           onClose={() => setShowDirectHires(false)} 
         />
+      )}
+      
+      {/* Availability Calendar Modal */}
+      {showAvailabilityCalendar && (
+        <AvailabilityCalendar onClose={() => setShowAvailabilityCalendar(false)} />
       )}
       
       {/* Edit Job Modal */}

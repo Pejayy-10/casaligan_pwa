@@ -81,6 +81,22 @@ def create_job_post(
             "payment_method_preference": job_data.payment_schedule.payment_method_preference
         }
     
+    # Handle recurring schedule
+    is_recurring = False
+    day_of_week = None
+    start_time = None
+    end_time = None
+    frequency = None
+    recurring_status = None
+    
+    if job_data.recurring_schedule and job_data.recurring_schedule.is_recurring:
+        is_recurring = True
+        day_of_week = job_data.recurring_schedule.day_of_week
+        start_time = job_data.recurring_schedule.start_time
+        end_time = job_data.recurring_schedule.end_time
+        frequency = job_data.recurring_schedule.frequency
+        recurring_status = "active"
+    
     # Map schema fields to model fields
     job_type = JobType.LONGTERM if job_data.duration_type == "long_term" else JobType.ONETIME
     
@@ -98,7 +114,13 @@ def create_job_post(
         payment_frequency=job_data.payment_schedule.frequency if job_data.payment_schedule else None,
         payment_amount=job_data.payment_schedule.payment_amount if job_data.payment_schedule else None,
         payment_schedule=json.dumps(job_details.get("payment_schedule")) if job_data.payment_schedule else None,
-        status=ForumPostStatus.OPEN
+        status=ForumPostStatus.OPEN,
+        is_recurring=is_recurring,
+        day_of_week=day_of_week,
+        start_time=start_time,
+        end_time=end_time,
+        frequency=frequency,
+        recurring_status=recurring_status
     )
     
     db.add(post)
@@ -1593,6 +1615,79 @@ class ReportNonPerformanceRequest(BaseModel):
     reason: str
     report_type: str = "non_completion"  # non_completion, poor_quality, no_show
     evidence_urls: Optional[List[str]] = None
+
+class CancelRecurringJobRequest(BaseModel):
+    reason: Optional[str] = None  # Reason for cancellation
+
+@router.post("/{post_id}/cancel-recurring", response_model=JobPostResponse)
+def cancel_recurring_job(
+    post_id: int,
+    cancel_data: CancelRecurringJobRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Cancel/stop a recurring job posting (employer or worker)"""
+    from datetime import datetime
+    
+    # Get the job post
+    post = db.query(ForumPost).filter(ForumPost.post_id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Job post not found")
+    
+    # Check if it's a recurring job
+    if not post.is_recurring:
+        raise HTTPException(
+            status_code=400,
+            detail="This is not a recurring job"
+        )
+    
+    # Check if already cancelled
+    if hasattr(post, 'recurring_status') and post.recurring_status == "cancelled":
+        raise HTTPException(
+            status_code=400,
+            detail="This recurring job is already cancelled"
+        )
+    
+    # Verify user has permission
+    # Employer can always cancel their own job
+    is_employer = post.user_id == current_user.id
+    
+    # Worker can cancel if they have an accepted application/contract
+    is_worker = False
+    if not is_employer:
+        from app.models_v2.contract import Contract, ContractStatus
+        contract = db.query(Contract).filter(
+            Contract.post_id == post_id,
+            Contract.status == ContractStatus.ACTIVE
+        ).first()
+        if contract:
+            worker = db.query(Worker).filter(Worker.worker_id == contract.worker_id).first()
+            if worker and worker.user_id == current_user.id:
+                is_worker = True
+    
+    if not (is_employer or is_worker):
+        raise HTTPException(
+            status_code=403,
+            detail="You don't have permission to cancel this job"
+        )
+    
+    # Determine who cancelled
+    cancelled_by_role = "employer" if is_employer else "worker"
+    
+    # Update recurring status
+    post.recurring_status = "cancelled"
+    post.recurring_cancelled_at = datetime.now()
+    post.recurring_cancellation_reason = cancel_data.reason
+    post.cancelled_by = cancelled_by_role
+    
+    db.commit()
+    db.refresh(post)
+    
+    # Get employer user for response
+    employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+    employer_user = db.query(User).filter(User.id == employer.user_id).first() if employer else current_user
+    
+    return JobPostResponse.from_orm_model(post, employer_user, 0)
 
 @router.post("/{post_id}/report-non-performance")
 def report_non_performance(

@@ -30,7 +30,13 @@ export default function CreateJobPage() {
     payment_frequency: 'monthly',
     payment_amount: '',
     payment_dates: ['15', '30'], // For monthly payments
-    payment_method_preference: 'gcash'
+    payment_method_preference: 'gcash',
+    // Recurring schedule fields
+    is_recurring: false,
+    day_of_week: '',
+    start_time: '',
+    end_time: '',
+    frequency: 'weekly'
   });
   
   const [images, setImages] = useState<string[]>([]);
@@ -131,6 +137,17 @@ export default function CreateJobPage() {
           payment_amount: parseFloat(formData.payment_amount),
           payment_dates: formData.payment_dates,
           payment_method_preference: formData.payment_method_preference
+        };
+      }
+      
+      // Add recurring schedule if enabled
+      if (formData.is_recurring) {
+        jobData.recurring_schedule = {
+          is_recurring: true,
+          day_of_week: formData.day_of_week,
+          start_time: formData.start_time,
+          end_time: formData.end_time,
+          frequency: formData.frequency
         };
       }
       
@@ -366,18 +383,106 @@ export default function CreateJobPage() {
 
             {/* Date picker for short-term jobs */}
             {formData.duration_type === 'short_term' && (
-              <div className="mt-4">
-                <label className="block text-white font-semibold mb-2">Job Date *</label>
-                <input
-                  type="date"
-                  name="job_date"
-                  value={formData.job_date}
-                  onChange={handleInputChange}
-                  required={formData.duration_type === 'short_term'}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                />
-                <p className="text-white/60 text-sm mt-1">When should the housekeeper come?</p>
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className="block text-white font-semibold mb-2">Job Date *</label>
+                  <input
+                    type="date"
+                    name="job_date"
+                    value={formData.job_date}
+                    onChange={handleInputChange}
+                    required={formData.duration_type === 'short_term'}
+                    min={new Date().toISOString().split('T')[0]}
+                    className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                  />
+                  <p className="text-white/60 text-sm mt-1">When should the housekeeper come?</p>
+                </div>
+                
+                {/* Recurring Schedule Option */}
+                <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_recurring}
+                      onChange={(e) => setFormData({ ...formData, is_recurring: e.target.checked })}
+                      className="w-5 h-5 rounded"
+                    />
+                    <div>
+                      <span className="text-white font-semibold">🔄 Make this a recurring job</span>
+                      <p className="text-white/70 text-xs mt-1">
+                        Set a regular schedule (e.g., every Saturday) so you don't need to post again
+                      </p>
+                    </div>
+                  </label>
+                </div>
+                
+                {formData.is_recurring && (
+                  <div className="bg-white/10 rounded-xl p-4 space-y-4 border border-white/20">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-white font-semibold mb-2">Day of Week *</label>
+                        <select
+                          name="day_of_week"
+                          value={formData.day_of_week}
+                          onChange={handleInputChange}
+                          required={formData.is_recurring}
+                          className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                        >
+                          <option value="">Select day</option>
+                          <option value="monday">Monday</option>
+                          <option value="tuesday">Tuesday</option>
+                          <option value="wednesday">Wednesday</option>
+                          <option value="thursday">Thursday</option>
+                          <option value="friday">Friday</option>
+                          <option value="saturday">Saturday</option>
+                          <option value="sunday">Sunday</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-white font-semibold mb-2">Frequency *</label>
+                        <select
+                          name="frequency"
+                          value={formData.frequency}
+                          onChange={handleInputChange}
+                          required={formData.is_recurring}
+                          className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                        >
+                          <option value="weekly">Every Week</option>
+                          <option value="biweekly">Every 2 Weeks</option>
+                          <option value="monthly">Monthly</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className="block text-white font-semibold mb-2">Start Time *</label>
+                        <input
+                          type="time"
+                          name="start_time"
+                          value={formData.start_time}
+                          onChange={handleInputChange}
+                          required={formData.is_recurring}
+                          className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-white font-semibold mb-2">End Time *</label>
+                        <input
+                          type="time"
+                          name="end_time"
+                          value={formData.end_time}
+                          onChange={handleInputChange}
+                          required={formData.is_recurring}
+                          className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                        />
+                      </div>
+                    </div>
+                    <p className="text-white/60 text-xs">
+                      Example: Every Saturday from 9:00 AM to 11:00 AM
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
