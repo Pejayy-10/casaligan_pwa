@@ -80,6 +80,10 @@ export default function DirectHiresList({ role, onClose }: Props) {
   const [cancelRecurringHire, setCancelRecurringHire] = useState<DirectHire | null>(null);
   const [cancellationReason, setCancellationReason] = useState('');
   const [cancelling, setCancelling] = useState(false);
+  
+  // Completion review state for owner
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [reviewHire, setReviewHire] = useState<DirectHire | null>(null);
 
   useEffect(() => {
     loadHires();
@@ -381,10 +385,13 @@ export default function DirectHiresList({ role, onClose }: Props) {
           return (
             <div className="flex gap-2">
               <button
-                onClick={() => handleAction(hire, 'approve-completion')}
+                onClick={() => {
+                  setReviewHire(hire);
+                  setShowReviewModal(true);
+                }}
                 className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600"
               >
-                Approve Work
+                Review & Approve
               </button>
               {messageButton}
             </div>
@@ -715,6 +722,89 @@ export default function DirectHiresList({ role, onClose }: Props) {
                 className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50"
               >
                 {cancelling ? 'Cancelling...' : 'Stop Recurring'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Completion Review Modal */}
+      {showReviewModal && reviewHire && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-2xl p-6 max-w-2xl w-full border border-white/20">
+            <div className="mb-4">
+              <h3 className="text-xl font-bold text-white mb-2">📋 Review Completed Work</h3>
+              <p className="text-white/70">
+                Review the work completed by {reviewHire.worker_name}
+              </p>
+            </div>
+
+            {/* Hire Details */}
+            <div className="bg-white/10 rounded-xl p-4 mb-4">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <h4 className="text-lg font-bold text-white">{reviewHire.worker_name}</h4>
+                  <p className="text-white/60 text-sm">
+                    📅 {new Date(reviewHire.scheduled_date).toLocaleDateString()}
+                    {reviewHire.scheduled_time && ` at ${reviewHire.scheduled_time}`}
+                  </p>
+                </div>
+                <div className="text-xl font-bold text-[#EA526F]">
+                  ₱{reviewHire.total_amount.toLocaleString()}
+                </div>
+              </div>
+
+              {/* Packages */}
+              <div className="flex flex-wrap gap-2 mb-3">
+                {reviewHire.packages.map((pkg) => (
+                  <span key={pkg.package_id} className="px-2 py-1 bg-[#EA526F]/20 text-[#EA526F] text-sm rounded-full">
+                    {pkg.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Completion Proof */}
+            {reviewHire.completion_proof_url && (
+              <div className="bg-white/10 rounded-xl p-4 mb-4">
+                <h4 className="text-white font-semibold mb-2">📸 Completion Proof</h4>
+                <img 
+                  src={reviewHire.completion_proof_url} 
+                  alt="Completion proof" 
+                  className="w-full h-64 object-cover rounded-lg border border-white/20"
+                />
+              </div>
+            )}
+
+            {/* Completion Notes */}
+            {reviewHire.completion_notes && (
+              <div className="bg-white/10 rounded-xl p-4 mb-4">
+                <h4 className="text-white font-semibold mb-2">📝 Notes from Housekeeper</h4>
+                <p className="text-white/80">{reviewHire.completion_notes}</p>
+              </div>
+            )}
+
+            {/* Action Buttons */}
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowReviewModal(false);
+                  setReviewHire(null);
+                }}
+                className="flex-1 px-4 py-3 bg-white/20 text-white font-semibold rounded-xl hover:bg-white/30"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await handleAction(reviewHire, 'approve-completion');
+                  setShowReviewModal(false);
+                  setReviewHire(null);
+                }}
+                disabled={processing}
+                className="flex-1 px-4 py-3 bg-green-500 text-white font-semibold rounded-xl hover:bg-green-600 disabled:opacity-50"
+              >
+                {processing ? 'Approving...' : 'Approve & Continue to Payment'}
               </button>
             </div>
           </div>
