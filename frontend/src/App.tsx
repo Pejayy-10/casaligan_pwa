@@ -13,6 +13,7 @@ import ApplyHousekeeperPage from './pages/ApplyHousekeeperPage';
 import CreateJobPage from './pages/CreateJobPage';
 import BrowseWorkersPage from './pages/BrowseWorkersPage';
 import WorkerProfilePage from './pages/WorkerProfilePage';
+import RecurringServicesPage from './pages/RecurringServicesPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import { PaymentProvider } from './context/PaymentContext';
 
@@ -122,6 +123,14 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <WorkerProfilePage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/recurring-services',
+    element: (
+      <ProtectedRoute>
+        <RecurringServicesPage />
       </ProtectedRoute>
     ),
   },

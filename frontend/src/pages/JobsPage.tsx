@@ -223,6 +223,16 @@ export default function JobsPage() {
           {/* Housekeeper View Toggle */}
           {user.active_role === 'housekeeper' && (
             <div className="mt-3 sm:mt-4 space-y-3">
+              {/* Recurring Services Link */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => navigate('/recurring-services')}
+                  className="px-4 py-2 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-all flex items-center gap-2"
+                >
+                  🔄 Manage Recurring Services
+                </button>
+              </div>
+              
               {/* Direct Hire Buttons */}
               <div className="grid grid-cols-3 gap-2">
                 <button
@@ -273,10 +283,22 @@ export default function JobsPage() {
           
           {/* Status Filter Tabs - Owner Only */}
           {user.active_role === 'owner' && (
-            <div className="mt-3 sm:mt-4 overflow-x-auto pb-2 -mx-3 sm:mx-0 px-3 sm:px-0">
-              <div className="flex gap-2 min-w-max">
+            <div className="mt-3 sm:mt-4 space-y-3">
+              {/* Recurring Services Link */}
+              <div className="flex justify-end">
                 <button
-                  onClick={() => setStatusFilter('all')}
+                  onClick={() => navigate('/recurring-services')}
+                  className="px-4 py-2 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-all flex items-center gap-2"
+                >
+                  🔄 Manage Recurring Services
+                </button>
+              </div>
+              
+              {/* Status Filter Tabs */}
+              <div className="overflow-x-auto pb-2 -mx-3 sm:mx-0 px-3 sm:px-0">
+                <div className="flex gap-2 min-w-max">
+                  <button
+                    onClick={() => setStatusFilter('all')}
                   className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
                     statusFilter === 'all'
                       ? 'bg-white text-[#4B244A] shadow-lg'
@@ -325,6 +347,7 @@ export default function JobsPage() {
                 >
                   🔒 Closed
                 </button>
+                </div>
               </div>
             </div>
           )}

@@ -667,13 +667,15 @@ def browse_workers(
     sort_by: Optional[str] = None,  # "rating", "jobs_completed", "location"
     employer_city: Optional[str] = None,
     employer_province: Optional[str] = None,
+    employer_barangay: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
     """Browse available workers with their packages
     
-    If employer_city and/or employer_province are provided, workers are sorted by proximity:
-    - Same city first
-    - Same province second
+    If employer location is provided, workers are sorted by proximity:
+    - Same barangay first (highest priority)
+    - Same city second
+    - Same province third
     - Others last
     """
     from app.models_v2.application import HousekeeperApplication, ApplicationStatus
@@ -720,28 +722,41 @@ def browse_workers(
         proximity_score = 999  # Default: far away
         proximity_label = None
         
-        if employer_city and address and address.city_name:
-            employer_city_lower = employer_city.lower()
-            worker_city_lower = address.city_name.lower()
+        if address and address.city_name:
+            # Check barangay first (most specific)
+            if employer_barangay and address.barangay_name:
+                employer_barangay_lower = employer_barangay.lower()
+                worker_barangay_lower = address.barangay_name.lower()
+                
+                if employer_barangay_lower == worker_barangay_lower:
+                    proximity_score = 0  # Same barangay - highest priority
+                    proximity_label = "same_barangay"
             
-            if employer_city_lower == worker_city_lower:
-                proximity_score = 0  # Same city - highest priority
-                proximity_label = "same_city"
-            elif employer_province and address.province_name:
+            # Check city if not same barangay
+            if proximity_label is None and employer_city:
+                employer_city_lower = employer_city.lower()
+                worker_city_lower = address.city_name.lower()
+                
+                if employer_city_lower == worker_city_lower:
+                    proximity_score = 1  # Same city - second priority
+                    proximity_label = "same_city"
+            
+            # Check province if not same city
+            if proximity_label is None and employer_province and address.province_name:
                 employer_province_lower = employer_province.lower()
                 worker_province_lower = address.province_name.lower()
                 
                 if employer_province_lower == worker_province_lower:
-                    proximity_score = 1  # Same province - second priority
+                    proximity_score = 2  # Same province - third priority
                     proximity_label = "same_province"
                 else:
-                    proximity_score = 2  # Different province
+                    proximity_score = 3  # Different province
                     proximity_label = "different_province"
-            else:
-                proximity_score = 2  # Different city, no province info
+            elif proximity_label is None:
+                proximity_score = 3  # Different city, no province info
                 proximity_label = "different_city"
         elif not address:
-            proximity_score = 3  # No address info
+            proximity_score = 4  # No address info
             proximity_label = "no_address"
         
         result.append({
