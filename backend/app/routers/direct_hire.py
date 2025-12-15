@@ -27,6 +27,14 @@ router = APIRouter(prefix="/direct-hire", tags=["direct-hire"])
 
 # ============== SCHEMAS ==============
 
+class RecurringScheduleData(BaseModel):
+    """Recurring schedule for regular/repeating bookings"""
+    is_recurring: bool = False
+    day_of_week: Optional[str] = None  # "monday", "tuesday", ..., "sunday"
+    start_time: Optional[str] = None  # "09:00" format
+    end_time: Optional[str] = None  # "11:00" format
+    frequency: Optional[str] = None  # "weekly", "biweekly", "monthly"
+
 class DirectHireCreate(BaseModel):
     worker_id: int
     package_ids: List[int]
@@ -39,6 +47,7 @@ class DirectHireCreate(BaseModel):
     address_region: Optional[str] = None
     special_instructions: Optional[str] = None
     use_my_address: bool = True  # If true, use employer's saved address
+    recurring_schedule: Optional[RecurringScheduleData] = None  # For recurring bookings
 
 
 class DirectHireResponse(BaseModel):
@@ -67,11 +76,22 @@ class DirectHireResponse(BaseModel):
     payment_proof_url: Optional[str]
     paid_at: Optional[str]
     created_at: str
+    is_recurring: bool = False
+    day_of_week: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    frequency: Optional[str] = None
+    recurring_status: Optional[str] = None
+    recurring_cancelled_at: Optional[str] = None
+    recurring_cancellation_reason: Optional[str] = None
+    cancelled_by: Optional[str] = None
 
 
 class DirectHireStatusUpdate(BaseModel):
     status: str  # accepted, rejected, in_progress, etc.
 
+class CancelRecurringRequest(BaseModel):
+    reason: Optional[str] = None  # Reason for cancellation (dispute, other reasons, etc.)
 
 class CompletionSubmit(BaseModel):
     completion_proof_url: Optional[str] = None
@@ -160,7 +180,16 @@ def hire_to_response(hire: DirectHire, db: Session) -> DirectHireResponse:
         payment_method=hire.payment_method,
         payment_proof_url=hire.payment_proof_url,
         paid_at=str(hire.paid_at) if hire.paid_at else None,
-        created_at=str(hire.created_at)
+        created_at=str(hire.created_at),
+        is_recurring=hire.is_recurring if hasattr(hire, 'is_recurring') else False,
+        day_of_week=hire.day_of_week if hasattr(hire, 'day_of_week') else None,
+        start_time=hire.start_time if hasattr(hire, 'start_time') else None,
+        end_time=hire.end_time if hasattr(hire, 'end_time') else None,
+        frequency=hire.frequency if hasattr(hire, 'frequency') else None,
+        recurring_status=getattr(hire, 'recurring_status', None),
+        recurring_cancelled_at=str(hire.recurring_cancelled_at) if hasattr(hire, 'recurring_cancelled_at') and hire.recurring_cancelled_at else None,
+        recurring_cancellation_reason=getattr(hire, 'recurring_cancellation_reason', None),
+        cancelled_by=getattr(hire, 'cancelled_by', None)
     )
 
 
@@ -181,6 +210,20 @@ def create_direct_hire(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Worker not found"
+        )
+    
+    # Check if the scheduled date is blocked
+    from app.models_v2.availability import WorkerBlockedDate
+    blocked_date = db.query(WorkerBlockedDate).filter(
+        WorkerBlockedDate.worker_id == hire_data.worker_id,
+        WorkerBlockedDate.blocked_date == hire_data.scheduled_date
+    ).first()
+    
+    if blocked_date:
+        reason_msg = f" ({blocked_date.reason})" if blocked_date.reason else ""
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"This worker is not available on {hire_data.scheduled_date}. The date is blocked{reason_msg}."
         )
     
     # Validate packages exist and belong to worker
@@ -215,6 +258,22 @@ def create_direct_hire(
             address_province = user_address.province_name
             address_region = user_address.region_name
     
+    # Handle recurring schedule
+    is_recurring = False
+    day_of_week = None
+    start_time = None
+    end_time = None
+    frequency = None
+    recurring_status = None
+    
+    if hire_data.recurring_schedule and hire_data.recurring_schedule.is_recurring:
+        is_recurring = True
+        day_of_week = hire_data.recurring_schedule.day_of_week
+        start_time = hire_data.recurring_schedule.start_time
+        end_time = hire_data.recurring_schedule.end_time
+        frequency = hire_data.recurring_schedule.frequency
+        recurring_status = "active"
+    
     # Create the hire
     hire = DirectHire(
         employer_id=employer.employer_id,
@@ -229,7 +288,13 @@ def create_direct_hire(
         address_province=address_province,
         address_region=address_region,
         special_instructions=hire_data.special_instructions,
-        status=DirectHireStatus.PENDING
+        status=DirectHireStatus.PENDING,
+        is_recurring=is_recurring,
+        day_of_week=day_of_week,
+        start_time=start_time,
+        end_time=end_time,
+        frequency=frequency,
+        recurring_status=recurring_status
     )
     
     db.add(hire)
@@ -599,10 +664,18 @@ def confirm_payment_received(
 def browse_workers(
     city: Optional[str] = None,
     min_rating: Optional[float] = None,
-    sort_by: Optional[str] = None,  # "rating", "jobs_completed"
+    sort_by: Optional[str] = None,  # "rating", "jobs_completed", "location"
+    employer_city: Optional[str] = None,
+    employer_province: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    """Browse available workers with their packages"""
+    """Browse available workers with their packages
+    
+    If employer_city and/or employer_province are provided, workers are sorted by proximity:
+    - Same city first
+    - Same province second
+    - Others last
+    """
     from app.models_v2.application import HousekeeperApplication, ApplicationStatus
     from app.models_v2.rating import Rating
     from sqlalchemy import func
@@ -643,6 +716,34 @@ def browse_workers(
             WorkerPackage.is_active == True
         ).all()
         
+        # Calculate proximity score for sorting (lower is closer)
+        proximity_score = 999  # Default: far away
+        proximity_label = None
+        
+        if employer_city and address and address.city_name:
+            employer_city_lower = employer_city.lower()
+            worker_city_lower = address.city_name.lower()
+            
+            if employer_city_lower == worker_city_lower:
+                proximity_score = 0  # Same city - highest priority
+                proximity_label = "same_city"
+            elif employer_province and address.province_name:
+                employer_province_lower = employer_province.lower()
+                worker_province_lower = address.province_name.lower()
+                
+                if employer_province_lower == worker_province_lower:
+                    proximity_score = 1  # Same province - second priority
+                    proximity_label = "same_province"
+                else:
+                    proximity_score = 2  # Different province
+                    proximity_label = "different_province"
+            else:
+                proximity_score = 2  # Different city, no province info
+                proximity_label = "different_city"
+        elif not address:
+            proximity_score = 3  # No address info
+            proximity_label = "no_address"
+        
         result.append({
             "worker_id": worker.worker_id,
             "user_id": worker.user_id,
@@ -650,9 +751,12 @@ def browse_workers(
             "last_name": user.last_name,
             "city": address.city_name if address else None,
             "barangay": address.barangay_name if address else None,
+            "province": address.province_name if address else None,
             "package_count": len(packages),
             "average_rating": avg_rating,
             "total_ratings": total_ratings,
+            "proximity_score": proximity_score,
+            "proximity_label": proximity_label,
             "packages": [
                 {
                     "package_id": p.package_id,
@@ -669,8 +773,87 @@ def browse_workers(
         result.sort(key=lambda x: x["average_rating"], reverse=True)
     elif sort_by == "jobs_completed":
         result.sort(key=lambda x: x["total_ratings"], reverse=True)
+    elif employer_city:  # Sort by location proximity if employer location is provided
+        # Primary sort: proximity (lower score = closer)
+        # Secondary sort: rating (higher = better)
+        result.sort(key=lambda x: (x["proximity_score"], -x["average_rating"]))
+    elif sort_by == "location" and employer_city:
+        result.sort(key=lambda x: (x["proximity_score"], -x["average_rating"]))
     
     return result
+
+
+@router.post("/{hire_id}/cancel-recurring", response_model=DirectHireResponse)
+def cancel_recurring_hire(
+    hire_id: int,
+    cancel_data: CancelRecurringRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Cancel/stop a recurring direct hire booking (employer or worker)"""
+    from datetime import datetime
+    
+    # Get the hire
+    hire = db.query(DirectHire).filter(DirectHire.hire_id == hire_id).first()
+    if not hire:
+        raise HTTPException(status_code=404, detail="Hire not found")
+    
+    # Check if it's a recurring hire
+    if not hire.is_recurring:
+        raise HTTPException(
+            status_code=400, 
+            detail="This is not a recurring booking"
+        )
+    
+    # Check if already cancelled
+    if hasattr(hire, 'recurring_status') and hire.recurring_status == "cancelled":
+        raise HTTPException(
+            status_code=400,
+            detail="This recurring booking is already cancelled"
+        )
+    
+    # Verify user has permission (must be employer or worker)
+    employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
+    worker = db.query(Worker).filter(Worker.worker_id == hire.worker_id).first()
+    
+    is_employer = employer and employer.user_id == current_user.id
+    is_worker = worker and worker.user_id == current_user.id
+    
+    if not (is_employer or is_worker):
+        raise HTTPException(
+            status_code=403,
+            detail="You don't have permission to cancel this booking"
+        )
+    
+    # Determine who cancelled
+    cancelled_by_role = "employer" if is_employer else "worker"
+    
+    # Update recurring status
+    hire.recurring_status = "cancelled"
+    hire.recurring_cancelled_at = datetime.now()
+    hire.recurring_cancellation_reason = cancel_data.reason
+    hire.cancelled_by = cancelled_by_role
+    
+    db.commit()
+    db.refresh(hire)
+    
+    # Send notification to the other party
+    if is_employer:
+        # Notify worker
+        worker_user = db.query(User).filter(User.id == worker.user_id).first()
+        if worker_user:
+            from app.services.notification_service import notify_direct_hire_rejected
+            employer_name = f"{current_user.first_name} {current_user.last_name}"
+            # We can create a new notification or use existing one
+            # For now, just update the hire
+    else:
+        # Notify employer
+        employer_user = db.query(User).filter(User.id == employer.user_id).first()
+        if employer_user:
+            worker_name = f"{current_user.first_name} {current_user.last_name}"
+            # Notify employer that worker cancelled recurring service
+    
+    return hire_to_response(hire, db)
 
 
 @router.get("/worker/{worker_id}/profile")

@@ -37,6 +37,15 @@ interface DirectHire {
   payment_proof_url: string | null;
   paid_at: string | null;
   created_at: string;
+  is_recurring?: boolean;
+  day_of_week?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  frequency?: string | null;
+  recurring_status?: string | null;
+  recurring_cancelled_at?: string | null;
+  recurring_cancellation_reason?: string | null;
+  cancelled_by?: string | null;
 }
 
 interface Props {
@@ -72,6 +81,12 @@ export default function DirectHiresList({ role, onClose }: Props) {
   const [showRatingModal, setShowRatingModal] = useState(false);
   const [ratingHire, setRatingHire] = useState<DirectHire | null>(null);
   const [ratedHires, setRatedHires] = useState<Set<number>>(new Set());
+  
+  // Cancel recurring state
+  const [showCancelRecurringModal, setShowCancelRecurringModal] = useState(false);
+  const [cancelRecurringHire, setCancelRecurringHire] = useState<DirectHire | null>(null);
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     loadHires();
@@ -318,8 +333,62 @@ export default function DirectHiresList({ role, onClose }: Props) {
     );
   };
 
+  const handleCancelRecurring = async () => {
+    if (!cancelRecurringHire) return;
+    
+    try {
+      setCancelling(true);
+      const token = localStorage.getItem('access_token');
+      
+      const response = await fetch(
+        `http://127.0.0.1:8000/direct-hire/${cancelRecurringHire.hire_id}/cancel-recurring`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            reason: cancellationReason || null
+          })
+        }
+      );
+      
+      if (response.ok) {
+        alert('Recurring booking cancelled successfully');
+        setShowCancelRecurringModal(false);
+        setCancelRecurringHire(null);
+        setCancellationReason('');
+        loadHires();
+      } else {
+        const error = await response.json();
+        alert(error.detail || 'Failed to cancel recurring booking');
+      }
+    } catch (error) {
+      console.error('Cancel recurring error:', error);
+      alert('Failed to cancel recurring booking');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   const renderActionButtons = (hire: DirectHire) => {
     const messageButton = renderMessageButton(hire);
+    
+    // Cancel recurring button (shown for active recurring hires)
+    const cancelRecurringButton = hire.is_recurring && 
+      hire.recurring_status === 'active' && 
+      ['accepted', 'in_progress', 'pending_completion', 'completed', 'paid'].includes(hire.status) ? (
+        <button
+          onClick={() => {
+            setCancelRecurringHire(hire);
+            setShowCancelRecurringModal(true);
+          }}
+          className="px-3 py-1 bg-orange-500/20 text-orange-300 text-sm rounded-lg hover:bg-orange-500/30"
+        >
+          🛑 Stop Recurring
+        </button>
+      ) : null;
     
     if (role === 'owner') {
       // Owner actions
@@ -477,6 +546,18 @@ export default function DirectHiresList({ role, onClose }: Props) {
                           📅 {new Date(hire.scheduled_date).toLocaleDateString()}
                           {hire.scheduled_time && ` at ${hire.scheduled_time}`}
                         </p>
+                        {hire.is_recurring && (
+                          <div className="mt-2">
+                            <span className="px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded-full mr-2">
+                              🔄 Recurring: Every {hire.day_of_week} ({hire.frequency})
+                            </span>
+                            {hire.recurring_status === 'cancelled' && (
+                              <span className="px-2 py-1 bg-red-500/20 text-red-300 text-xs rounded-full">
+                                ❌ Cancelled {hire.cancelled_by === role ? 'by you' : `by ${role === 'owner' ? 'worker' : 'employer'}`}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <span className={`px-3 py-1 rounded-full text-sm ${badge.class}`}>
                         {badge.text}
@@ -716,6 +797,52 @@ export default function DirectHiresList({ role, onClose }: Props) {
           workerName={ratingHire.worker_name}
           hireId={ratingHire.hire_id}
         />
+      )}
+
+      {/* Cancel Recurring Modal */}
+      {showCancelRecurringModal && cancelRecurringHire && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+          <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-2xl p-6 max-w-md w-full border border-white/20">
+            <h3 className="text-xl font-bold text-white mb-4">Stop Recurring Service</h3>
+            <p className="text-white/70 mb-4">
+              Are you sure you want to stop this recurring booking? This will prevent future scheduled services.
+            </p>
+            
+            <div className="mb-4">
+              <label className="block text-white/80 text-sm mb-2">
+                Reason (optional - e.g., dispute, no longer needed, etc.)
+              </label>
+              <textarea
+                value={cancellationReason}
+                onChange={(e) => setCancellationReason(e.target.value)}
+                placeholder="Enter reason for cancellation..."
+                rows={3}
+                className="w-full px-4 py-2 bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F] resize-none"
+              />
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowCancelRecurringModal(false);
+                  setCancelRecurringHire(null);
+                  setCancellationReason('');
+                }}
+                disabled={cancelling}
+                className="flex-1 px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCancelRecurring}
+                disabled={cancelling}
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50"
+              >
+                {cancelling ? 'Cancelling...' : 'Stop Recurring'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

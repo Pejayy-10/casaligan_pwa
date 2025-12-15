@@ -11,6 +11,14 @@ class PaymentScheduleData(BaseModel):
     payment_dates: List[str] = []  # For monthly: ["15", "30"]
     payment_method_preference: str  # gcash, maya, bank_transfer, cash
 
+class RecurringScheduleData(BaseModel):
+    """Recurring schedule for regular/repeating jobs"""
+    is_recurring: bool = False
+    day_of_week: Optional[str] = None  # "monday", "tuesday", ..., "sunday"
+    start_time: Optional[str] = None  # "09:00" format
+    end_time: Optional[str] = None  # "11:00" format
+    frequency: Optional[str] = None  # "weekly", "biweekly", "monthly"
+
 class JobPostCreate(BaseModel):
     title: str = Field(..., min_length=5, max_length=200)
     description: str = Field(..., min_length=20)
@@ -25,6 +33,7 @@ class JobPostCreate(BaseModel):
     location: Optional[str] = None  # Job location (city/address)
     category: Optional[str] = "cleaning"  # Job category
     payment_schedule: Optional[PaymentScheduleData] = None  # For long_term jobs
+    recurring_schedule: Optional[RecurringScheduleData] = None  # For recurring jobs
 
 class JobPostResponse(BaseModel):
     post_id: int
@@ -44,6 +53,11 @@ class JobPostResponse(BaseModel):
     status: str
     created_at: str
     payment_schedule: Optional[dict] = None  # Payment schedule data
+    recurring_schedule: Optional[dict] = None  # Recurring schedule data
+    recurring_status: Optional[str] = None  # "active", "cancelled", "paused"
+    recurring_cancelled_at: Optional[str] = None
+    recurring_cancellation_reason: Optional[str] = None
+    cancelled_by: Optional[str] = None  # "employer" or "worker"
     
     # Employer info
     employer_name: str
@@ -91,6 +105,17 @@ class JobPostResponse(BaseModel):
             status=post.status.value if hasattr(post.status, 'value') else post.status,
             created_at=post.created_at.isoformat() if post.created_at else '',
             payment_schedule=custom_fields.get('payment_schedule'),
+            recurring_schedule={
+                "is_recurring": post.is_recurring if hasattr(post, 'is_recurring') else False,
+                "day_of_week": post.day_of_week if hasattr(post, 'day_of_week') else None,
+                "start_time": post.start_time if hasattr(post, 'start_time') else None,
+                "end_time": post.end_time if hasattr(post, 'end_time') else None,
+                "frequency": post.frequency if hasattr(post, 'frequency') else None,
+            } if (hasattr(post, 'is_recurring') and post.is_recurring) else None,
+            recurring_status=getattr(post, 'recurring_status', None),
+            recurring_cancelled_at=str(post.recurring_cancelled_at) if hasattr(post, 'recurring_cancelled_at') and post.recurring_cancelled_at else None,
+            recurring_cancellation_reason=getattr(post, 'recurring_cancellation_reason', None),
+            cancelled_by=getattr(post, 'cancelled_by', None),
             employer_name=f"{employer_user.first_name} {employer_user.last_name}",
             employer_address=f"{employer_user.address.city_name}, {employer_user.address.province_name}" if employer_user.address else None,
             total_applicants=applicants_count,

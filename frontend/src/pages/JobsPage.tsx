@@ -17,6 +17,7 @@ import ReportUnpaidModal from '../components/ReportUnpaidModal';
 import CompletionReviewModal from '../components/CompletionReviewModal';
 import PackageManagement from '../components/PackageManagement';
 import DirectHiresList from '../components/DirectHiresList';
+import AvailabilityCalendar from '../components/AvailabilityCalendar';
 import type { User } from '../types';
 
 export default function JobsPage() {
@@ -48,6 +49,7 @@ export default function JobsPage() {
   // Direct hire states
   const [showPackageManagement, setShowPackageManagement] = useState(false);
   const [showDirectHires, setShowDirectHires] = useState(false);
+  const [showAvailabilityCalendar, setShowAvailabilityCalendar] = useState(false);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -155,18 +157,24 @@ export default function JobsPage() {
           {user.active_role === 'housekeeper' && (
             <div className="mt-3 sm:mt-4 space-y-3">
               {/* Direct Hire Buttons */}
-              <div className="flex gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => setShowPackageManagement(true)}
-                  className="flex-1 py-2 px-3 bg-[#EA526F] text-white text-sm font-semibold rounded-lg hover:bg-[#d4486a] transition-all"
+                  className="py-2 px-3 bg-[#EA526F] text-white text-sm font-semibold rounded-lg hover:bg-[#d4486a] transition-all"
                 >
-                  📦 My Packages
+                  📦 Packages
                 </button>
                 <button
                   onClick={() => setShowDirectHires(true)}
-                  className="flex-1 py-2 px-3 bg-blue-500 text-white text-sm font-semibold rounded-lg hover:bg-blue-600 transition-all"
+                  className="py-2 px-3 bg-blue-500 text-white text-sm font-semibold rounded-lg hover:bg-blue-600 transition-all"
                 >
                   🎯 Direct Jobs
+                </button>
+                <button
+                  onClick={() => setShowAvailabilityCalendar(true)}
+                  className="py-2 px-3 bg-green-500 text-white text-sm font-semibold rounded-lg hover:bg-green-600 transition-all"
+                >
+                  📅 Availability
                 </button>
               </div>
               
@@ -502,6 +510,11 @@ export default function JobsPage() {
           role={user?.active_role as 'owner' | 'housekeeper'} 
           onClose={() => setShowDirectHires(false)} 
         />
+      )}
+      
+      {/* Availability Calendar Modal */}
+      {showAvailabilityCalendar && (
+        <AvailabilityCalendar onClose={() => setShowAvailabilityCalendar(false)} />
       )}
     </div>
   );

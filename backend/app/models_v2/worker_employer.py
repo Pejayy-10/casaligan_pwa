@@ -14,6 +14,7 @@ class Worker(Base):
     interest_checks = relationship("InterestCheck", back_populates="worker")
     packages = relationship("WorkerPackage", back_populates="worker")
     direct_hires = relationship("DirectHire", back_populates="worker")
+    blocked_dates = relationship("WorkerBlockedDate", back_populates="worker")
 
 class Employer(Base):
     __tablename__ = "employers"

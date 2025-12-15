@@ -56,6 +56,13 @@ export default function WorkerProfilePage() {
   const [useMyAddress, setUseMyAddress] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   
+  // Recurring schedule state
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [dayOfWeek, setDayOfWeek] = useState('');
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('11:00');
+  const [frequency, setFrequency] = useState('weekly');
+  
   // Custom address fields (when not using registered address)
   const [customStreet, setCustomStreet] = useState('');
   const [customBarangay, setCustomBarangay] = useState('');
@@ -221,6 +228,30 @@ export default function WorkerProfilePage() {
       return;
     }
 
+    // Check if the selected date is blocked
+    try {
+      const checkResponse = await fetch(
+        `http://127.0.0.1:8000/availability/blocked-dates/check/${profile.worker_id}?check_date=${scheduledDate}`
+      );
+      if (checkResponse.ok) {
+        const checkData = await checkResponse.json();
+        if (checkData.is_blocked) {
+          const reasonMsg = checkData.reason ? ` (${checkData.reason})` : '';
+          alert(`This worker is not available on ${new Date(scheduledDate).toLocaleDateString()}. The date is blocked${reasonMsg}. Please select a different date.`);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check availability:', error);
+      // Continue with hire attempt - backend will also check
+    }
+
+    // Validate recurring schedule if enabled
+    if (isRecurring && (!dayOfWeek || !startTime || !endTime)) {
+      alert('Please complete all recurring schedule fields');
+      return;
+    }
+
     // Validate custom address if not using registered address
     if (!useMyAddress && (!customRegion || !customProvince || !customCity || !customBarangay)) {
       alert('Please complete all address fields (Region, Province, City, and Barangay)');
@@ -231,26 +262,39 @@ export default function WorkerProfilePage() {
       setSubmitting(true);
       const token = localStorage.getItem('access_token');
       
+      const requestBody: Record<string, unknown> = {
+        worker_id: profile.worker_id,
+        package_ids: selectedPackages,
+        scheduled_date: scheduledDate,
+        scheduled_time: scheduledTime,
+        special_instructions: specialInstructions || null,
+        use_my_address: useMyAddress,
+        // Include custom address fields when not using registered address
+        address_street: useMyAddress ? null : customStreet || null,
+        address_barangay: useMyAddress ? null : customBarangay || null,
+        address_city: useMyAddress ? null : customCity || null,
+        address_province: useMyAddress ? null : customProvince || null,
+        address_region: useMyAddress ? null : customRegion || null
+      };
+      
+      // Add recurring schedule if enabled
+      if (isRecurring) {
+        requestBody.recurring_schedule = {
+          is_recurring: true,
+          day_of_week: dayOfWeek,
+          start_time: startTime,
+          end_time: endTime,
+          frequency: frequency
+        };
+      }
+      
       const response = await fetch('http://127.0.0.1:8000/direct-hire/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-          worker_id: profile.worker_id,
-          package_ids: selectedPackages,
-          scheduled_date: scheduledDate,
-          scheduled_time: scheduledTime,
-          special_instructions: specialInstructions || null,
-          use_my_address: useMyAddress,
-          // Include custom address fields when not using registered address
-          address_street: useMyAddress ? null : customStreet || null,
-          address_barangay: useMyAddress ? null : customBarangay || null,
-          address_city: useMyAddress ? null : customCity || null,
-          address_province: useMyAddress ? null : customProvince || null,
-          address_region: useMyAddress ? null : customRegion || null
-        })
+        body: JSON.stringify(requestBody)
       });
 
       if (response.ok) {
@@ -628,6 +672,88 @@ export default function WorkerProfilePage() {
                   <option value="16:00">4:00 PM</option>
                 </select>
               </div>
+
+              {/* Recurring Schedule Option */}
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isRecurring}
+                    onChange={(e) => setIsRecurring(e.target.checked)}
+                    className="w-5 h-5 rounded"
+                  />
+                  <div>
+                    <span className="text-white font-semibold">🔄 Make this a recurring booking</span>
+                    <p className="text-white/70 text-xs mt-1">
+                      Set a regular schedule (e.g., every Saturday) so you don't need to book again
+                    </p>
+                  </div>
+                </label>
+              </div>
+
+              {isRecurring && (
+                <div className="bg-white/10 rounded-xl p-4 space-y-4 border border-white/20">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-white font-semibold mb-2 text-sm">Day of Week *</label>
+                      <select
+                        value={dayOfWeek}
+                        onChange={(e) => setDayOfWeek(e.target.value)}
+                        required={isRecurring}
+                        className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] text-sm"
+                      >
+                        <option value="">Select day</option>
+                        <option value="monday">Monday</option>
+                        <option value="tuesday">Tuesday</option>
+                        <option value="wednesday">Wednesday</option>
+                        <option value="thursday">Thursday</option>
+                        <option value="friday">Friday</option>
+                        <option value="saturday">Saturday</option>
+                        <option value="sunday">Sunday</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-white font-semibold mb-2 text-sm">Frequency *</label>
+                      <select
+                        value={frequency}
+                        onChange={(e) => setFrequency(e.target.value)}
+                        required={isRecurring}
+                        className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] text-sm"
+                      >
+                        <option value="weekly">Every Week</option>
+                        <option value="biweekly">Every 2 Weeks</option>
+                        <option value="monthly">Monthly</option>
+                      </select>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-white font-semibold mb-2 text-sm">Start Time *</label>
+                      <input
+                        type="time"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        required={isRecurring}
+                        className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] text-sm"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-white font-semibold mb-2 text-sm">End Time *</label>
+                      <input
+                        type="time"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        required={isRecurring}
+                        className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] text-sm"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-white/60 text-xs">
+                    Example: Every Saturday from 9:00 AM to 11:00 AM
+                  </p>
+                </div>
+              )}
 
               {/* Address */}
               <div>

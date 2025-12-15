@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-from app.routers import auth, jobs, payments, checkins, progress, debug, upload, reports, packages, direct_hire, notifications, ratings, messaging
+from app.routers import auth, jobs, payments, checkins, progress, debug, upload, reports, packages, direct_hire, notifications, ratings, messaging, availability
 
 app = FastAPI(title="Casaligan API", version="1.0.0")
 
@@ -47,6 +47,7 @@ app.include_router(direct_hire.router)
 app.include_router(notifications.router)
 app.include_router(ratings.router)
 app.include_router(messaging.router)
+app.include_router(availability.router)
 
 @app.on_event("startup")
 async def startup_event():
