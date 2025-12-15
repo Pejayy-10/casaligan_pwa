@@ -262,22 +262,7 @@ def apply_housekeeper(
     db.commit()
     db.refresh(application)
     
-    # AUTO-APPROVE FOR DEMO: Simulate processing delay then auto-approve
-    import time
-    time.sleep(2)  # 2 second delay for demo
-    
-    application.status = ApplicationStatus.APPROVED
-    current_user.is_housekeeper = True
-    current_user.status = UserStatus.ACTIVE
-    
-    # Create Worker record
-    worker = Worker(user_id=current_user.id)
-    db.add(worker)
-    
-    db.commit()
-    db.refresh(application)
-    db.refresh(current_user)
-    
+    # Application stays as PENDING - admin must approve via verification page
     return HousekeeperApplicationResponse.from_orm_model(application)
 
 @router.get("/application-status", response_model=Optional[HousekeeperApplicationResponse])

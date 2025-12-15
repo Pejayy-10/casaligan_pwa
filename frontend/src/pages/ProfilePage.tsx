@@ -43,12 +43,83 @@ export default function ProfilePage() {
       navigate('/login');
     } else {
       // Fetch application status
-      authService.getApplicationStatus()
-        .then(setApplication)
-        .catch(() => setApplication(null))
-        .finally(() => setLoadingApplication(false));
+      const fetchApplicationStatus = () => {
+        authService.getApplicationStatus()
+          .then(app => {
+            setApplication(app);
+            // Check latest user state from localStorage
+            const currentUser = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null;
+            // If application was approved and user becomes housekeeper, refresh user data
+            if (app && app.status === 'approved' && currentUser && !currentUser.is_housekeeper) {
+              // Refresh user data to get updated is_housekeeper status
+              const refreshUser = async () => {
+                try {
+                  const response = await fetch('http://127.0.0.1:8000/auth/me', {
+                    headers: {
+                      'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                    }
+                  });
+                  if (response.ok) {
+                    const updatedUser = await response.json();
+                    setUser(updatedUser);
+                    localStorage.setItem('user', JSON.stringify(updatedUser));
+                  }
+                } catch (error) {
+                  console.error('Error refreshing user data:', error);
+                }
+              };
+              refreshUser();
+            }
+          })
+          .catch(() => setApplication(null))
+          .finally(() => setLoadingApplication(false));
+      };
+
+      fetchApplicationStatus();
+
+      // Poll for application status every 10 seconds if application is pending
+      const interval = setInterval(() => {
+        // Always check latest user state from localStorage
+        const currentUser = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null;
+        console.log('[Polling] Current user is_housekeeper:', currentUser?.is_housekeeper);
+        if (currentUser && !currentUser.is_housekeeper) {
+          authService.getApplicationStatus()
+            .then(app => {
+              console.log('[Polling] Application status:', app?.status);
+              setApplication(app);
+              // If application was approved, refresh user data
+              if (app && app.status === 'approved') {
+                console.log('[Polling] Application approved! Fetching latest user data...');
+                const refreshUser = async () => {
+                  try {
+                    const response = await fetch('http://127.0.0.1:8000/auth/me', {
+                      headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                      }
+                    });
+                    if (response.ok) {
+                      const updatedUser = await response.json();
+                      console.log('[Polling] Updated user from API:', updatedUser);
+                      console.log('[Polling] is_housekeeper value:', updatedUser.is_housekeeper);
+                      setUser(updatedUser);
+                      localStorage.setItem('user', JSON.stringify(updatedUser));
+                    } else {
+                      console.error('[Polling] Failed to fetch user:', response.status);
+                    }
+                  } catch (error) {
+                    console.error('Error refreshing user data:', error);
+                  }
+                };
+                refreshUser();
+              }
+            })
+            .catch(() => setApplication(null));
+        }
+      }, 10000); // Check every 10 seconds
+
+      return () => clearInterval(interval);
     }
-  }, [user, navigate]);
+  }, [navigate]);
 
   const handleSwitchRole = async () => {
     if (!user) return;

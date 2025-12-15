@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 export interface AcceptedWorker {
   worker_id: number;
+  worker_user_id: number;
   name: string;
   contract_id: number;
 }

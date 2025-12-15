@@ -49,6 +49,7 @@ class Report(Base):
     # Report details
     report_type = Column(SQLEnum(ReportType, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False)
     title = Column(String, nullable=False)
+    reason = Column(Text, nullable=False)
     description = Column(Text, nullable=False)
     
     # Evidence/proof

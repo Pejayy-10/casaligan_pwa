@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import TabBar from '../components/TabBar';
 import StarRating from '../components/StarRating';
 import { psgcService } from '../services/psgc';
@@ -46,6 +46,9 @@ interface WorkerProfile {
 export default function WorkerProfilePage() {
   const navigate = useNavigate();
   const { workerId } = useParams<{ workerId: string }>();
+  const [searchParams] = useSearchParams();
+  const isFromApplicants = searchParams.get('from') === 'applicants';
+  
   const [profile, setProfile] = useState<WorkerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPackages, setSelectedPackages] = useState<number[]>([]);
@@ -531,17 +534,20 @@ export default function WorkerProfilePage() {
               {profile.packages.map((pkg) => (
                 <div
                   key={pkg.package_id}
-                  onClick={() => togglePackage(pkg.package_id)}
-                  className={`bg-white/10 backdrop-blur-xl rounded-2xl p-5 border-2 transition-all cursor-pointer ${
-                    selectedPackages.includes(pkg.package_id)
-                      ? 'border-[#EA526F] bg-[#EA526F]/20'
-                      : 'border-white/20 hover:border-white/40'
+                  onClick={() => !isFromApplicants && togglePackage(pkg.package_id)}
+                  className={`bg-white/10 backdrop-blur-xl rounded-2xl p-5 border-2 transition-all ${
+                    isFromApplicants 
+                      ? 'border-white/20 cursor-default' 
+                      : selectedPackages.includes(pkg.package_id)
+                        ? 'border-[#EA526F] bg-[#EA526F]/20 cursor-pointer'
+                        : 'border-white/20 hover:border-white/40 cursor-pointer'
                   }`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
-                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
+                        {!isFromApplicants && (
+                          <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
                           selectedPackages.includes(pkg.package_id)
                             ? 'bg-[#EA526F] border-[#EA526F]'
                             : 'border-white/40'
@@ -550,6 +556,7 @@ export default function WorkerProfilePage() {
                             <span className="text-white text-sm">✓</span>
                           )}
                         </div>
+                        )}
                         <h4 className="text-lg font-bold text-white">{pkg.name}</h4>
                       </div>
                       
@@ -585,7 +592,7 @@ export default function WorkerProfilePage() {
         </div>
 
         {/* Selected Summary & Hire Button */}
-        {selectedPackages.length > 0 && (
+        {!isFromApplicants && selectedPackages.length > 0 && (
           <div className="fixed bottom-20 left-0 right-0 z-50 px-4">
             <div className="max-w-4xl mx-auto">
               <div className="bg-linear-to-r from-[#4B244A] to-[#6B3468] backdrop-blur-xl rounded-2xl p-4 border border-white/30 shadow-2xl">

@@ -320,18 +320,18 @@ export async function getEmployerActivityStats(startDate?: Date, endDate?: Date)
   const thisMonthBookings = (thisMonthContracts || 0) + (thisMonthDirectHires || 0)
   const lastMonthBookings = (lastMonthContracts || 0) + (lastMonthDirectHires || 0)
 
-  // Get payments count
+  // Get payments count from payment_transactions table (actual payments made)
   const { count: thisMonthPayments } = await supabase
-    .from('payments')
+    .from('payment_transactions')
     .select('*', { count: 'exact', head: true })
-    .gte('payment_date', thisMonthStart.toISOString())
-    .lte('payment_date', thisMonthEnd.toISOString())
+    .gte('paid_at', thisMonthStart.toISOString())
+    .lte('paid_at', thisMonthEnd.toISOString())
   
   const { count: lastMonthPayments } = await supabase
-    .from('payments')
+    .from('payment_transactions')
     .select('*', { count: 'exact', head: true })
-    .gte('payment_date', lastMonthStart.toISOString())
-    .lte('payment_date', lastMonthEnd.toISOString())
+    .gte('paid_at', lastMonthStart.toISOString())
+    .lte('paid_at', lastMonthEnd.toISOString())
 
   // Get messages sent by employers (proper join with employers table)
   // First get all employer user_ids

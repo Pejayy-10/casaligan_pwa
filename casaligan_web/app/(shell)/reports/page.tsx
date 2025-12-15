@@ -60,6 +60,14 @@ export default function ReportsPage() {
 			const reporter = report.reporter || {};
 			const reportedUser = report.reported_user || {};
 			
+			// Construct full names
+			const reporterName = reporter.first_name && reporter.last_name 
+				? `${reporter.first_name} ${reporter.last_name}` 
+				: reporter.first_name || reporter.last_name || "N/A";
+			const reportedName = reportedUser.first_name && reportedUser.last_name 
+				? `${reportedUser.first_name} ${reportedUser.last_name}` 
+				: reportedUser.first_name || reportedUser.last_name || "N/A";
+			
 			// Get status from reported user
 			const rawStatus = reportedUser.status;
 			const statusValue = (rawStatus != null && rawStatus !== undefined) 
@@ -70,10 +78,10 @@ export default function ReportsPage() {
 				id: report.report_id,
 				report_id: report.report_id,
 				userId: `R${String(report.report_id).padStart(3, '0')}`,
-				name: report.reason || "N/A",
-				reporter_name: reporter.name || "N/A",
+				name: report.title || report.report_type || "N/A",
+				reporter_name: reporterName,
 				reporter_email: reporter.email || "N/A",
-				reported_user_name: reportedUser.name || "N/A",
+				reported_user_name: reportedName,
 				reported_user_email: reportedUser.email || "N/A",
 				status: report.status || "pending",
 				date: report.created_at || new Date().toISOString(),
@@ -81,11 +89,11 @@ export default function ReportsPage() {
 				resolved_at: report.resolved_at,
 				reason: report.reason || "N/A",
 				description: report.description || "",
-				reported_to: reportedUser?.name || "N/A",
+				reported_to: reportedName,
 				// Store reported user info for restrict/unrestrict (as both names for compatibility)
 				reported_user: {
-					user_id: reportedUser.user_id,
-					name: reportedUser.name || '',
+					user_id: reportedUser.id,
+					name: reportedName,
 					email: reportedUser.email || '',
 					status: statusValue,
 					phone_number: reportedUser.phone_number,
@@ -93,8 +101,8 @@ export default function ReportsPage() {
 				},
 				// Also keep as target_user for ActionTable compatibility
 				target_user: {
-					user_id: reportedUser.user_id,
-					name: reportedUser.name || '',
+					user_id: reportedUser.id,
+					name: reportedName,
 					email: reportedUser.email || '',
 					status: statusValue,
 					phone_number: reportedUser.phone_number,
