@@ -297,21 +297,21 @@ export default function BrowseWorkersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#4B244A] via-[#6B3468] to-[#4B244A] pb-20">
+    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300 pb-20 relative">
       {/* Decorative circles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-2000"></div>
       </div>
 
       {/* Header */}
-      <header className="relative z-10 bg-white/10 backdrop-blur-xl border-b border-white/20">
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <button onClick={() => navigate(-1)} className="text-white/80 hover:text-white">
+            <button onClick={() => navigate(-1)} className="text-[#4B244A]/80 dark:text-white/80 hover:text-[#4B244A] dark:hover:text-white transition-colors">
               ← Back
             </button>
-            <h1 className="text-xl font-bold text-white">Browse Housekeepers</h1>
+            <h1 className="text-xl font-bold text-[#4B244A] dark:text-white">Browse Housekeepers</h1>
             <div className="w-16"></div>
           </div>
         </div>
@@ -321,20 +321,20 @@ export default function BrowseWorkersPage() {
       <main className="relative z-10 max-w-4xl mx-auto px-4 py-6">
         {/* Location Filter */}
         {employerLocation && (
-          <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 mb-4 border border-white/20">
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 mb-4 border border-white/50 dark:border-white/10 shadow-lg">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white/70 text-sm mb-1">Showing workers near:</p>
-                <p className="text-white font-semibold">
+                <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-1 font-medium">Showing workers near:</p>
+                <p className="text-[#4B244A] dark:text-white font-bold">
                   📍 {employerLocation.barangay && `${employerLocation.barangay}, `}{employerLocation.city}, {employerLocation.province}
                 </p>
-                <p className="text-white/60 text-xs mt-1">
+                <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
                   Workers in your barangay are shown first, then your city, then your province
                 </p>
               </div>
               <button
                 onClick={() => setShowLocationEditor(!showLocationEditor)}
-                className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-all text-sm"
+                className="px-4 py-2 bg-white/50 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/20 text-[#4B244A] dark:text-white rounded-xl transition-all text-sm font-bold border border-gray-200 dark:border-white/10"
               >
                 {showLocationEditor ? 'Cancel' : '✏️ Edit Location'}
               </button>
@@ -342,18 +342,18 @@ export default function BrowseWorkersPage() {
             
             {/* Location Editor */}
             {showLocationEditor && (
-              <div className="mt-4 pt-4 border-t border-white/20">
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/10">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                   <div>
-                    <label className="text-white/70 text-sm mb-1 block">Region</label>
+                    <label className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-1 block font-bold">Region</label>
                     <select
                       value={selectedRegion}
                       onChange={(e) => handleRegionChange(e.target.value)}
-                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                      className="w-full px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
                     >
-                      <option value="" className="text-gray-900">Select Region</option>
+                      <option value="" className="text-gray-900 dark:text-gray-900">Select Region</option>
                       {regions.map((region) => (
-                        <option key={region.code} value={region.code} className="text-gray-900">
+                        <option key={region.code} value={region.code} className="text-gray-900 dark:text-gray-900">
                           {region.name}
                         </option>
                       ))}
@@ -361,16 +361,16 @@ export default function BrowseWorkersPage() {
                   </div>
                   
                   <div>
-                    <label className="text-white/70 text-sm mb-1 block">Province</label>
+                    <label className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-1 block font-bold">Province</label>
                     <select
                       value={selectedProvince}
                       onChange={(e) => handleProvinceChange(e.target.value)}
                       disabled={!selectedRegion}
-                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] disabled:opacity-50"
+                      className="w-full px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] disabled:opacity-50"
                     >
-                      <option value="" className="text-gray-900">Select Province</option>
+                      <option value="" className="text-gray-900 dark:text-gray-900">Select Province</option>
                       {provinces.map((province) => (
-                        <option key={province.code} value={province.code} className="text-gray-900">
+                        <option key={province.code} value={province.code} className="text-gray-900 dark:text-gray-900">
                           {province.name}
                         </option>
                       ))}
@@ -378,16 +378,16 @@ export default function BrowseWorkersPage() {
                   </div>
                   
                   <div>
-                    <label className="text-white/70 text-sm mb-1 block">City/Municipality</label>
+                    <label className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-1 block font-bold">City/Municipality</label>
                     <select
                       value={selectedCity}
                       onChange={(e) => handleCityChange(e.target.value)}
                       disabled={!selectedProvince}
-                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] disabled:opacity-50"
+                      className="w-full px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] disabled:opacity-50"
                     >
-                      <option value="" className="text-gray-900">Select City</option>
+                      <option value="" className="text-gray-900 dark:text-gray-900">Select City</option>
                       {cities.map((city) => (
-                        <option key={city.code} value={city.code} className="text-gray-900">
+                        <option key={city.code} value={city.code} className="text-gray-900 dark:text-gray-900">
                           {city.name}
                         </option>
                       ))}
@@ -397,16 +397,16 @@ export default function BrowseWorkersPage() {
                 
                 <div className="grid grid-cols-1 md:grid-cols-1 gap-3 mb-3">
                   <div>
-                    <label className="text-white/70 text-sm mb-1 block">Barangay</label>
+                    <label className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-1 block font-bold">Barangay</label>
                     <select
                       value={selectedBarangay}
                       onChange={(e) => setSelectedBarangay(e.target.value)}
                       disabled={!selectedCity}
-                      className="w-full px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] disabled:opacity-50"
+                      className="w-full px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] disabled:opacity-50"
                     >
-                      <option value="" className="text-gray-900">Select Barangay (Optional)</option>
+                      <option value="" className="text-gray-900 dark:text-gray-900">Select Barangay (Optional)</option>
                       {barangays.map((barangay) => (
-                        <option key={barangay.code} value={barangay.code} className="text-gray-900">
+                        <option key={barangay.code} value={barangay.code} className="text-gray-900 dark:text-gray-900">
                           {barangay.name}
                         </option>
                       ))}
@@ -417,7 +417,7 @@ export default function BrowseWorkersPage() {
                 <button
                   onClick={handleSaveLocation}
                   disabled={!selectedCity}
-                  className="w-full px-4 py-2 bg-[#EA526F] hover:bg-[#d64460] text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full px-4 py-2 bg-[#EA526F] hover:bg-[#d64460] text-white font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                 >
                   Save Location
                 </button>
@@ -427,19 +427,19 @@ export default function BrowseWorkersPage() {
         )}
 
         {/* Search Bar */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 mb-6 border border-white/20">
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 mb-6 border border-white/50 dark:border-white/10 shadow-lg">
           <div className="flex gap-3 mb-4">
             <input
               type="text"
               value={searchCity}
               onChange={(e) => setSearchCity(e.target.value)}
               placeholder="Search by city..."
-              className="flex-1 px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+              className="flex-1 px-4 py-3 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
             />
             <button
               onClick={handleSearch}
-              className="px-6 py-3 bg-[#EA526F] text-white font-semibold rounded-xl hover:bg-[#d64460] transition-all"
+              className="px-6 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all shadow-md"
             >
               🔍 Search
             </button>
@@ -448,15 +448,15 @@ export default function BrowseWorkersPage() {
           {/* Filters */}
           <div className="flex flex-wrap gap-3">
             <div className="flex items-center gap-2">
-              <span className="text-white/70 text-sm">Category:</span>
+              <span className="text-[#4B244A]/70 dark:text-white/70 text-sm font-bold">Category:</span>
               <select
                 value={selectedCategory}
                 onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : '')}
-                className="px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                className="px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
               >
-                <option value="" className="text-gray-900">All Categories</option>
+                <option value="" className="text-gray-900 dark:text-gray-900">All Categories</option>
                 {categories.map((cat) => (
-                  <option key={cat.category_id} value={cat.category_id} className="text-gray-900">
+                  <option key={cat.category_id} value={cat.category_id} className="text-gray-900 dark:text-gray-900">
                     {cat.name}
                   </option>
                 ))}
@@ -464,29 +464,29 @@ export default function BrowseWorkersPage() {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-white/70 text-sm">Min Rating:</span>
+              <span className="text-[#4B244A]/70 dark:text-white/70 text-sm font-bold">Min Rating:</span>
               <select
                 value={minRating}
                 onChange={(e) => handleFilterChange(e.target.value ? Number(e.target.value) : '', sortBy)}
-                className="px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                className="px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
               >
-                <option value="" className="text-gray-900">Any</option>
-                <option value="4" className="text-gray-900">4+ Stars</option>
-                <option value="3" className="text-gray-900">3+ Stars</option>
-                <option value="2" className="text-gray-900">2+ Stars</option>
+                <option value="" className="text-gray-900 dark:text-gray-900">Any</option>
+                <option value="4" className="text-gray-900 dark:text-gray-900">4+ Stars</option>
+                <option value="3" className="text-gray-900 dark:text-gray-900">3+ Stars</option>
+                <option value="2" className="text-gray-900 dark:text-gray-900">2+ Stars</option>
               </select>
             </div>
             
             <div className="flex items-center gap-2">
-              <span className="text-white/70 text-sm">Sort By:</span>
+              <span className="text-[#4B244A]/70 dark:text-white/70 text-sm font-bold">Sort By:</span>
               <select
                 value={sortBy}
                 onChange={(e) => handleFilterChange(minRating, e.target.value)}
-                className="px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                className="px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
               >
-                <option value="" className="text-gray-900">Default (Nearby First)</option>
-                <option value="rating" className="text-gray-900">Highest Rated</option>
-                <option value="jobs_completed" className="text-gray-900">Most Jobs</option>
+                <option value="" className="text-gray-900 dark:text-gray-900">Default (Nearby First)</option>
+                <option value="rating" className="text-gray-900 dark:text-gray-900">Highest Rated</option>
+                <option value="jobs_completed" className="text-gray-900 dark:text-gray-900">Most Jobs</option>
               </select>
             </div>
           </div>
@@ -494,9 +494,9 @@ export default function BrowseWorkersPage() {
 
         {/* Category Filter Info */}
         {selectedCategory && (
-          <div className="bg-[#EA526F]/20 backdrop-blur-xl rounded-xl p-3 mb-4 border border-[#EA526F]/30">
-            <p className="text-white text-sm">
-              🏷️ Filtering by: <span className="font-semibold">{categories.find(c => c.category_id === selectedCategory)?.name}</span>
+          <div className="bg-[#EA526F]/10 dark:bg-[#EA526F]/20 backdrop-blur-xl rounded-xl p-3 mb-4 border border-[#EA526F]/30 dark:border-[#EA526F]/40 shadow-sm">
+            <p className="text-[#EA526F] dark:text-pink-300 text-sm font-medium">
+              🏷️ Filtering by: <span className="font-bold">{categories.find(c => c.category_id === selectedCategory)?.name}</span>
               {' '}- Workers with this category are shown first
             </p>
           </div>
@@ -506,21 +506,21 @@ export default function BrowseWorkersPage() {
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#EA526F]"></div>
-            <p className="text-white/70 mt-4">Loading housekeepers...</p>
+            <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading housekeepers...</p>
           </div>
         ) : filteredWorkers.length === 0 ? (
-          <div className="text-center py-12 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20">
-            <div className="text-6xl mb-4">🔍</div>
-            <h3 className="text-xl font-bold text-white mb-2">No housekeepers found</h3>
-            <p className="text-white/70">
+          <div className="text-center py-12 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-white/50 dark:border-white/10 shadow-lg">
+            <div className="text-6xl mb-4 opacity-50">🔍</div>
+            <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-2">No housekeepers found</h3>
+            <p className="text-[#4B244A]/70 dark:text-white/70">
               {selectedCategory 
                 ? `No housekeepers have packages in the selected category` 
                 : 'Try a different city or check back later'}
             </p>
           </div>
         ) : selectedCategory && !filteredWorkers.some(w => w.packages.some(p => p.category_id === selectedCategory)) ? (
-          <div className="mb-4 bg-yellow-500/20 backdrop-blur-xl rounded-xl p-4 border border-yellow-500/30">
-            <p className="text-yellow-200 text-sm">
+          <div className="mb-4 bg-yellow-100 dark:bg-yellow-500/20 backdrop-blur-xl rounded-xl p-4 border border-yellow-200 dark:border-yellow-500/30">
+            <p className="text-yellow-700 dark:text-yellow-200 text-sm font-medium">
               ⚠️ No housekeepers with packages in this category. Showing all available housekeepers below.
             </p>
           </div>
@@ -536,26 +536,26 @@ export default function BrowseWorkersPage() {
               return (
               <div
                 key={worker.worker_id}
-                className={`bg-white/10 backdrop-blur-xl rounded-2xl p-5 border transition-all ${
+                className={`bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 border transition-all shadow-lg ${
                   hasSelectedCategory 
                     ? 'border-[#EA526F] ring-2 ring-[#EA526F]/30' 
-                    : 'border-white/20 hover:bg-white/20'
+                    : 'border-white/50 dark:border-white/10 hover:bg-white/80 dark:hover:bg-slate-900/80'
                 }`}
               >
                 {hasSelectedCategory && (
-                  <div className="mb-3 inline-block px-3 py-1 bg-[#EA526F]/30 text-[#EA526F] text-xs font-semibold rounded-full border border-[#EA526F]/50">
+                  <div className="mb-3 inline-block px-3 py-1 bg-[#EA526F]/10 dark:bg-[#EA526F]/20 text-[#EA526F] dark:text-pink-300 text-xs font-bold rounded-full border border-[#EA526F]/30">
                     ✓ Has {categories.find(c => c.category_id === selectedCategory)?.name} packages
                   </div>
                 )}
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
                     {/* Avatar */}
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#EA526F] to-[#6B3468] flex items-center justify-center text-2xl text-white font-bold shadow-lg">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#EA526F] to-[#6B3468] dark:from-[#EA526F] dark:to-[#d4486a] flex items-center justify-center text-2xl text-white font-bold shadow-md">
                       {worker.first_name[0]}{worker.last_name[0]}
                     </div>
                     
                     <div>
-                      <h3 className="text-xl font-bold text-white">
+                      <h3 className="text-xl font-bold text-[#4B244A] dark:text-white">
                         {worker.first_name} {worker.last_name}
                       </h3>
                       
@@ -567,29 +567,29 @@ export default function BrowseWorkersPage() {
                           showValue={worker.total_ratings > 0}
                         />
                         {worker.total_ratings > 0 ? (
-                          <span className="text-white/60 text-sm">
+                          <span className="text-[#4B244A]/60 dark:text-white/60 text-sm font-medium">
                             ({worker.total_ratings} {worker.total_ratings === 1 ? 'review' : 'reviews'})
                           </span>
                         ) : (
-                          <span className="text-white/50 text-sm italic">No reviews yet</span>
+                          <span className="text-[#4B244A]/50 dark:text-white/50 text-sm italic">No reviews yet</span>
                         )}
                       </div>
                       
                       {worker.city && (
                         <div className="flex items-center gap-2 mt-1">
-                          <p className="text-white/70 text-sm">
+                          <p className="text-[#4B244A]/70 dark:text-white/70 text-sm font-medium">
                             📍 {worker.barangay && `${worker.barangay}, `}{worker.city}
                             {worker.province && `, ${worker.province}`}
                           </p>
                           {worker.proximity_label && (
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                               worker.proximity_label === 'same_barangay'
-                                ? 'bg-emerald-500/30 text-emerald-300'
+                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/30 dark:text-emerald-300'
                                 : worker.proximity_label === 'same_city' 
-                                ? 'bg-green-500/30 text-green-300' 
+                                ? 'bg-green-100 text-green-700 dark:bg-green-500/30 dark:text-green-300' 
                                 : worker.proximity_label === 'same_province'
-                                ? 'bg-yellow-500/30 text-yellow-300'
-                                : 'bg-gray-500/30 text-gray-300'
+                                ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-300'
+                                : 'bg-gray-100 text-gray-700 dark:bg-gray-500/30 dark:text-gray-300'
                             }`}>
                               {worker.proximity_label === 'same_barangay'
                                 ? '📍 Same Barangay'
@@ -608,13 +608,13 @@ export default function BrowseWorkersPage() {
                         {worker.packages.slice(0, 3).map((pkg) => (
                           <span
                             key={pkg.package_id}
-                            className="px-3 py-1 bg-[#EA526F]/20 text-[#EA526F] text-sm rounded-full"
+                            className="px-3 py-1 bg-[#EA526F]/10 dark:bg-[#EA526F]/20 text-[#EA526F] dark:text-pink-300 text-sm rounded-full font-medium"
                           >
                             {pkg.name} - ₱{pkg.price.toLocaleString()}
                           </span>
                         ))}
                         {worker.packages.length > 3 && (
-                          <span className="px-3 py-1 bg-white/10 text-white/70 text-sm rounded-full">
+                          <span className="px-3 py-1 bg-gray-100 dark:bg-white/10 text-[#4B244A]/70 dark:text-white/70 text-sm rounded-full font-medium">
                             +{worker.packages.length - 3} more
                           </span>
                         )}
@@ -624,7 +624,7 @@ export default function BrowseWorkersPage() {
 
                   <button
                     onClick={() => handleViewProfile(worker.worker_id)}
-                    className="px-4 py-2 bg-[#EA526F] text-white font-semibold rounded-xl hover:bg-[#d64460] transition-all whitespace-nowrap"
+                    className="px-4 py-2 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all whitespace-nowrap shadow-md"
                   >
                     View Profile
                   </button>

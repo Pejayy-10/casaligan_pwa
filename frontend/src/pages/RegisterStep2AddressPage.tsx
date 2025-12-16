@@ -156,54 +156,58 @@ export default function RegisterStep2AddressPage() {
     }
   };
 
+  // Shared styles for inputs/selects
+  const inputClass = "w-full px-4 py-3 bg-white/50 dark:bg-white/10 backdrop-blur-sm border border-gray-200 dark:border-white/20 rounded-xl text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all outline-none disabled:opacity-50";
+  const labelClass = "block text-sm font-bold text-[#4B244A] dark:text-white/90 mb-2";
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#4B244A] via-[#6B3468] to-[#4B244A] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 flex items-center justify-center p-4 transition-colors duration-300 relative overflow-y-auto">
       {/* Decorative circles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-64 h-64 bg-[#EA526F] rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
-        <div className="absolute top-0 right-0 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-0 left-1/2 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
-        <div className="absolute bottom-0 right-0 w-64 h-64 bg-teal-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-6000"></div>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none fixed">
+        <div className="absolute top-0 left-0 w-64 h-64 bg-[#EA526F] rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob"></div>
+        <div className="absolute top-0 right-0 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-0 left-1/2 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-4000"></div>
+        <div className="absolute bottom-0 right-0 w-64 h-64 bg-teal-400 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-6000"></div>
       </div>
 
-      <div className="w-full max-w-2xl relative z-10">
+      <div className="w-full max-w-2xl relative z-10 my-8">
         {/* Glass morphism card */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-6 md:p-8 border border-white/20">
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl shadow-2xl p-6 md:p-8 border border-white/50 dark:border-white/10 transition-all">
           {/* Progress bar */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
-              <h1 className="text-2xl md:text-3xl font-bold text-white">Address Information</h1>
-              <div className="text-sm text-white/80">Step 2 of 3</div>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#4B244A] dark:text-white">Address Information</h1>
+              <div className="text-sm text-[#4B244A]/70 dark:text-white/70 font-medium">Step 2 of 3</div>
             </div>
             <div className="flex gap-2">
               <div className="flex-1 h-2 bg-[#EA526F] rounded-full"></div>
-              <div className="flex-1 h-2 bg-[#EA526F] rounded-full"></div>
-              <div className="flex-1 h-2 bg-white/30 rounded-full"></div>
+              <div className="flex-1 h-2 bg-[#EA526F] rounded-full shadow-md shadow-[#EA526F]/30"></div>
+              <div className="flex-1 h-2 bg-gray-200 dark:bg-white/20 rounded-full"></div>
             </div>
           </div>
 
           {error && (
-            <div className="mb-4 p-4 bg-red-500/20 backdrop-blur-sm border border-red-500/30 rounded-xl text-white text-sm">
+            <div className="mb-4 p-4 bg-red-100 dark:bg-red-500/20 backdrop-blur-sm border border-red-200 dark:border-red-500/30 rounded-xl text-red-600 dark:text-white text-sm font-medium">
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="region" className="block text-sm font-medium text-white/90 mb-2">
+              <label htmlFor="region" className={labelClass}>
                 Region *
               </label>
               <select
                 id="region"
                 value={formData.region_code}
                 onChange={handleRegionChange}
-                className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all"
+                className={inputClass}
                 required
                 disabled={loading}
               >
-                <option value="" className="text-gray-900">Select Region</option>
+                <option value="" className="text-gray-500 dark:text-gray-400">Select Region</option>
                 {regions.map((region) => (
-                  <option key={region.code} value={region.code} className="text-gray-900">
+                  <option key={region.code} value={region.code} className="text-gray-900 dark:text-gray-900">
                     {region.name}
                   </option>
                 ))}
@@ -211,20 +215,20 @@ export default function RegisterStep2AddressPage() {
             </div>
 
             <div>
-              <label htmlFor="province" className="block text-sm font-medium text-white/90 mb-2">
+              <label htmlFor="province" className={labelClass}>
                 Province *
               </label>
               <select
                 id="province"
                 value={formData.province_code}
                 onChange={handleProvinceChange}
-                className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all disabled:opacity-50"
+                className={inputClass}
                 required
                 disabled={!formData.region_code || loading}
               >
-                <option value="" className="text-gray-900">Select Province</option>
+                <option value="" className="text-gray-500 dark:text-gray-400">Select Province</option>
                 {provinces.map((province) => (
-                  <option key={province.code} value={province.code} className="text-gray-900">
+                  <option key={province.code} value={province.code} className="text-gray-900 dark:text-gray-900">
                     {province.name}
                   </option>
                 ))}
@@ -232,20 +236,20 @@ export default function RegisterStep2AddressPage() {
             </div>
 
             <div>
-              <label htmlFor="city" className="block text-sm font-medium text-white/90 mb-2">
+              <label htmlFor="city" className={labelClass}>
                 City/Municipality *
               </label>
               <select
                 id="city"
                 value={formData.city_code}
                 onChange={handleCityChange}
-                className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all disabled:opacity-50"
+                className={inputClass}
                 required
                 disabled={!formData.province_code || loading}
               >
-                <option value="" className="text-gray-900">Select City/Municipality</option>
+                <option value="" className="text-gray-500 dark:text-gray-400">Select City/Municipality</option>
                 {cities.map((city) => (
-                  <option key={city.code} value={city.code} className="text-gray-900">
+                  <option key={city.code} value={city.code} className="text-gray-900 dark:text-gray-900">
                     {city.name}
                   </option>
                 ))}
@@ -253,20 +257,20 @@ export default function RegisterStep2AddressPage() {
             </div>
 
             <div>
-              <label htmlFor="barangay" className="block text-sm font-medium text-white/90 mb-2">
+              <label htmlFor="barangay" className={labelClass}>
                 Barangay *
               </label>
               <select
                 id="barangay"
                 value={formData.barangay_code}
                 onChange={handleBarangayChange}
-                className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all disabled:opacity-50"
+                className={inputClass}
                 required
                 disabled={!formData.city_code || loading}
               >
-                <option value="" className="text-gray-900">Select Barangay</option>
+                <option value="" className="text-gray-500 dark:text-gray-400">Select Barangay</option>
                 {barangays.map((barangay) => (
-                  <option key={barangay.code} value={barangay.code} className="text-gray-900">
+                  <option key={barangay.code} value={barangay.code} className="text-gray-900 dark:text-gray-900">
                     {barangay.name}
                   </option>
                 ))}
@@ -274,7 +278,7 @@ export default function RegisterStep2AddressPage() {
             </div>
 
             <div>
-              <label htmlFor="street_address" className="block text-sm font-medium text-white/90 mb-2">
+              <label htmlFor="street_address" className={labelClass}>
                 Street Address
               </label>
               <input
@@ -283,14 +287,14 @@ export default function RegisterStep2AddressPage() {
                 value={formData.street_address}
                 onChange={(e) => setFormData({ ...formData, street_address: e.target.value })}
                 placeholder="House/Unit No., Street Name"
-                className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white placeholder-white/50 focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all"
+                className={inputClass}
                 disabled={loading}
               />
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label htmlFor="subdivision" className="block text-sm font-medium text-white/90 mb-2">
+                <label htmlFor="subdivision" className={labelClass}>
                   Subdivision/Village
                 </label>
                 <input
@@ -298,13 +302,13 @@ export default function RegisterStep2AddressPage() {
                   id="subdivision"
                   value={formData.subdivision}
                   onChange={(e) => setFormData({ ...formData, subdivision: e.target.value })}
-                  className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white placeholder-white/50 focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all"
+                  className={inputClass}
                   disabled={loading}
                 />
               </div>
 
               <div>
-                <label htmlFor="zip_code" className="block text-sm font-medium text-white/90 mb-2">
+                <label htmlFor="zip_code" className={labelClass}>
                   Zip Code
                 </label>
                 <input
@@ -312,7 +316,7 @@ export default function RegisterStep2AddressPage() {
                   id="zip_code"
                   value={formData.zip_code}
                   onChange={(e) => setFormData({ ...formData, zip_code: e.target.value })}
-                  className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white placeholder-white/50 focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all"
+                  className={inputClass}
                   disabled={loading}
                 />
               </div>
@@ -321,7 +325,7 @@ export default function RegisterStep2AddressPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 bg-[#EA526F] text-white font-semibold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
+              className="w-full py-3.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30 mt-6"
             >
               {loading ? (
                 <div className="flex items-center justify-center">

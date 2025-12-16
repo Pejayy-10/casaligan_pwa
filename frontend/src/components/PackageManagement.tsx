@@ -192,107 +192,112 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     }
   };
 
+  // Shared styles
+  const inputClass = "w-full px-4 py-3 bg-white/50 dark:bg-white/10 backdrop-blur-sm border border-gray-200 dark:border-white/20 rounded-xl text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F] transition-all";
+  const labelClass = "block text-[#4B244A] dark:text-white font-bold mb-2";
+  const optionClass = "text-gray-900 dark:text-gray-900"; // Ensures dropdown items are visible
+
   // Package form JSX
   const packageForm = (
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-white">
+        <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">
           {editingPackage ? '✏️ Edit Package' : '➕ New Package'}
         </h3>
-        <button onClick={resetForm} className="text-white/60 hover:text-white text-sm">
+        <button onClick={resetForm} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white text-sm transition-colors">
           Cancel
         </button>
       </div>
 
       <div>
-        <label className="block text-white font-semibold mb-2">Package Name *</label>
+        <label className={labelClass}>Package Name *</label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g., Basic Cleaning, Deep Clean, Weekly Service"
-          className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+          className={inputClass}
         />
       </div>
 
       <div>
-        <label className="block text-white font-semibold mb-2">Category *</label>
+        <label className={labelClass}>Category *</label>
         <select
           value={categoryId}
           onChange={(e) => setCategoryId(e.target.value)}
-          className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+          className={inputClass}
           required
         >
-          <option value="" className="bg-[#4B244A] text-white/50">Select a category</option>
+          <option value="" className={optionClass}>Select a category</option>
           {categories.map((cat) => (
-            <option key={cat.category_id} value={cat.category_id} className="bg-[#4B244A] text-white">
+            <option key={cat.category_id} value={cat.category_id} className={optionClass}>
               {cat.name}
             </option>
           ))}
         </select>
         {categories.length === 0 && (
-          <p className="text-yellow-300 text-xs mt-1">⚠ No categories available. Contact admin to add categories.</p>
+          <p className="text-yellow-600 dark:text-yellow-300 text-xs mt-1">⚠ No categories available. Contact admin to add categories.</p>
         )}
       </div>
 
       <div>
-        <label className="block text-white font-semibold mb-2">Description</label>
+        <label className={labelClass}>Description</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Describe what's included in this package..."
           rows={3}
-          className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+          className={`${inputClass} resize-none`}
         />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-white font-semibold mb-2">Price (₱) *</label>
+          <label className={labelClass}>Price (₱) *</label>
           <input
             type="number"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             placeholder="500"
             min="0"
-            className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+            className={inputClass}
           />
         </div>
 
         <div>
-          <label className="block text-white font-semibold mb-2">Duration (hours)</label>
+          <label className={labelClass}>Duration (hours)</label>
           <select
             value={durationHours}
             onChange={(e) => setDurationHours(e.target.value)}
-            className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+            className={inputClass}
           >
-            <option value="1">1 hour</option>
-            <option value="2">2 hours</option>
-            <option value="3">3 hours</option>
-            <option value="4">4 hours</option>
-            <option value="5">5 hours</option>
-            <option value="6">6 hours</option>
-            <option value="8">8 hours (full day)</option>
+            <option value="1" className={optionClass}>1 hour</option>
+            <option value="2" className={optionClass}>2 hours</option>
+            <option value="3" className={optionClass}>3 hours</option>
+            <option value="4" className={optionClass}>4 hours</option>
+            <option value="5" className={optionClass}>5 hours</option>
+            <option value="6" className={optionClass}>6 hours</option>
+            <option value="8" className={optionClass}>8 hours (full day)</option>
           </select>
         </div>
       </div>
 
       <div>
-        <label className="block text-white font-semibold mb-2">Services Included</label>
+        <label className={labelClass}>Services Included</label>
         <input
           type="text"
           value={services}
           onChange={(e) => setServices(e.target.value)}
           placeholder="Sweeping, Mopping, Bathroom cleaning (comma separated)"
-          className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+          className={inputClass}
         />
-        <p className="text-white/50 text-xs mt-1">Separate services with commas</p>
+        <p className="text-[#4B244A]/50 dark:text-white/50 text-xs mt-1">Separate services with commas</p>
       </div>
 
       <button
         onClick={handleSubmit}
         disabled={submitting}
-        className="w-full py-4 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all disabled:opacity-50"
+        className="w-full py-4 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
       >
         {submitting ? '⏳ Saving...' : editingPackage ? '✓ Update Package' : '✓ Create Package'}
       </button>
@@ -304,7 +309,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     <div className="space-y-4">
       <button
         onClick={() => setShowForm(true)}
-        className="w-full py-4 border-2 border-dashed border-white/30 rounded-xl text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all"
+        className="w-full py-4 border-2 border-dashed border-gray-300 dark:border-white/30 rounded-xl text-[#4B244A]/70 dark:text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all font-medium bg-white/50 dark:bg-white/5"
       >
         ➕ Add New Package
       </button>
@@ -314,32 +319,32 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EA526F]"></div>
         </div>
       ) : packages.length === 0 ? (
-        <div className="text-center py-8 bg-white/10 rounded-xl">
-          <div className="text-4xl mb-2">📦</div>
-          <p className="text-white/70">No packages yet</p>
-          <p className="text-white/50 text-sm">Create your first package to get direct bookings!</p>
+        <div className="text-center py-8 bg-white/50 dark:bg-white/10 rounded-xl border border-gray-200 dark:border-white/10">
+          <div className="text-4xl mb-2 opacity-50">📦</div>
+          <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">No packages yet</p>
+          <p className="text-[#4B244A]/50 dark:text-white/50 text-sm">Create your first package to get direct bookings!</p>
         </div>
       ) : (
         packages.map((pkg) => (
           <div
             key={pkg.package_id}
-            className={`bg-white/10 rounded-xl p-4 border transition-all ${
-              pkg.is_active ? 'border-white/20' : 'border-white/10 opacity-60'
+            className={`bg-white/50 dark:bg-white/10 rounded-xl p-4 border transition-all ${
+              pkg.is_active ? 'border-gray-200 dark:border-white/20' : 'border-gray-100 dark:border-white/10 opacity-60'
             }`}
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-lg font-bold text-white">{pkg.name}</h4>
+                  <h4 className="text-lg font-bold text-[#4B244A] dark:text-white">{pkg.name}</h4>
                   {!pkg.is_active && (
-                    <span className="px-2 py-0.5 bg-gray-500/30 text-gray-300 text-xs rounded-full">
+                    <span className="px-2 py-0.5 bg-gray-200 text-gray-600 dark:bg-gray-500/30 dark:text-gray-300 text-xs rounded-full font-bold">
                       Inactive
                     </span>
                   )}
                 </div>
               {pkg.category_name && (
                 <div className="mt-1">
-                  <span className="px-2 py-0.5 bg-[#EA526F]/30 text-[#EA526F] text-xs rounded-full">
+                  <span className="px-2 py-0.5 bg-[#EA526F]/10 dark:bg-[#EA526F]/30 text-[#EA526F] dark:text-pink-300 text-xs font-bold rounded-full border border-[#EA526F]/20 dark:border-[#EA526F]/40">
                     {pkg.category_name}
                   </span>
                 </div>
@@ -353,23 +358,23 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
                 <div className="flex items-center gap-2 mt-2">
                   <button
                     onClick={() => handleEdit(pkg)}
-                    className="px-3 py-1 bg-white/20 text-white text-sm rounded-lg hover:bg-white/30"
+                    className="px-3 py-1 bg-white/80 dark:bg-white/20 text-[#4B244A] dark:text-white text-sm font-bold rounded-lg hover:bg-white dark:hover:bg-white/30 transition-colors shadow-sm"
                   >
                     Edit
                   </button>
                   <button
                     onClick={() => handleToggleActive(pkg)}
-                    className={`px-3 py-1 text-sm rounded-lg ${
+                    className={`px-3 py-1 text-sm font-bold rounded-lg transition-colors shadow-sm ${
                       pkg.is_active 
-                        ? 'bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30'
-                        : 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
+                        ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-300 dark:hover:bg-yellow-500/30'
+                        : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-500/20 dark:text-green-300 dark:hover:bg-green-500/30'
                     }`}
                   >
                     {pkg.is_active ? 'Deactivate' : 'Activate'}
                   </button>
                   <button
                     onClick={() => handleDelete(pkg.package_id)}
-                    className="px-3 py-1 bg-red-500/20 text-red-300 text-sm rounded-lg hover:bg-red-500/30"
+                    className="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-500/20 dark:text-red-300 text-sm font-bold rounded-lg dark:hover:bg-red-500/30 transition-colors shadow-sm"
                   >
                     Delete
                   </button>
@@ -392,15 +397,15 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
 
   // Modal mode
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-br from-[#4B244A] to-[#6B3468] p-6 border-b border-white/20 z-10">
+        <div className="sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md p-6 border-b border-gray-200 dark:border-white/10 z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white">📦 My Service Packages</h2>
-            {onClose && <button onClick={onClose} className="text-white/60 hover:text-white">✕</button>}
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">📦 My Service Packages</h2>
+            {onClose && <button onClick={onClose} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors">✕</button>}
           </div>
-          <p className="text-white/60 text-sm mt-1">Create packages that house owners can book directly</p>
+          <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mt-1 font-medium">Create packages that house owners can book directly</p>
         </div>
 
         {/* Content */}

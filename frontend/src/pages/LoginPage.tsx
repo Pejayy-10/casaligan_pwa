@@ -29,36 +29,36 @@ export default function LoginPage() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-[#4B244A] via-[#6B3468] to-[#4B244A] flex items-center justify-center p-4">
+   return (
+    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 flex items-center justify-center p-4 transition-colors duration-300 relative overflow-hidden">
       {/* Decorative circles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-64 h-64 bg-[#EA526F] rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
-        <div className="absolute top-0 right-0 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-0 left-1/2 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
-        <div className="absolute bottom-0 right-0 w-64 h-64 bg-teal-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-6000"></div>
+        <div className="absolute top-0 left-0 w-64 h-64 bg-[#EA526F] rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob"></div>
+        <div className="absolute top-0 right-0 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-0 left-1/2 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-4000"></div>
+        <div className="absolute bottom-0 right-0 w-64 h-64 bg-teal-400 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-6000"></div>
       </div>
 
       <div className="w-full max-w-md relative z-10">
         {/* Glass morphism card */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-8 md:p-10 border border-white/20">
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl shadow-2xl p-8 md:p-10 border border-white/50 dark:border-white/10 transition-all">
           {/* Logo and Title */}
           <div className="text-center mb-6">
             <div className="flex items-center justify-center mb-4">
-              <img src="/logo.png" alt="Casaligan Logo" className="w-48 h-48 md:w-56 md:h-56 object-contain" />
+              <img src="/logo.png" alt="Casaligan Logo" className="w-48 h-48 md:w-56 md:h-56 object-contain drop-shadow-lg" />
             </div>
-            <p className="text-white/90 text-lg font-medium">Welcome back!</p>
+            <p className="text-[#4B244A] dark:text-white/90 text-lg font-bold">Welcome back!</p>
           </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-500/20 backdrop-blur-sm border border-red-500/30 rounded-xl text-white text-sm">
+            <div className="mb-6 p-4 bg-red-100 dark:bg-red-500/20 backdrop-blur-sm border border-red-200 dark:border-red-500/30 rounded-xl text-red-600 dark:text-white text-sm font-medium">
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-white/90 mb-2">
+              <label htmlFor="email" className="block text-sm font-bold text-[#4B244A] dark:text-white/90 mb-2">
                 Email
               </label>
               <input
@@ -66,7 +66,7 @@ export default function LoginPage() {
                 id="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white placeholder-white/50 focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all"
+                className="w-full px-4 py-3 bg-white/50 dark:bg-white/10 backdrop-blur-sm border border-gray-200 dark:border-white/20 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all outline-none"
                 placeholder="Enter your email"
                 required
                 disabled={loading}
@@ -74,7 +74,7 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-white/90 mb-2">
+              <label htmlFor="password" className="block text-sm font-bold text-[#4B244A] dark:text-white/90 mb-2">
                 Password
               </label>
               <input
@@ -82,7 +82,7 @@ export default function LoginPage() {
                 id="password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white placeholder-white/50 focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all"
+                className="w-full px-4 py-3 bg-white/50 dark:bg-white/10 backdrop-blur-sm border border-gray-200 dark:border-white/20 rounded-xl text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all outline-none"
                 placeholder="Enter your password"
                 required
                 disabled={loading}
@@ -92,7 +92,7 @@ export default function LoginPage() {
             <div className="flex items-center justify-end">
               <button
                 type="button"
-                className="text-sm text-white/80 hover:text-[#EA526F] transition-colors"
+                className="text-sm text-[#4B244A]/70 dark:text-white/80 hover:text-[#EA526F] dark:hover:text-[#EA526F] transition-colors font-medium"
               >
                 Forgot Password?
               </button>
@@ -101,7 +101,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 bg-[#EA526F] text-white font-semibold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
+              className="w-full py-3.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
             >
               {loading ? (
                 <div className="flex items-center justify-center">
@@ -118,9 +118,9 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-8 text-center">
-            <p className="text-white/80 text-sm">
+            <p className="text-[#4B244A]/80 dark:text-white/80 text-sm">
               Don't have an account?{' '}
-              <Link to="/register" className="text-[#EA526F] hover:text-[#d4486a] font-semibold transition-colors">
+              <Link to="/register" className="text-[#EA526F] hover:text-[#d4486a] font-bold transition-colors">
                 Sign up
               </Link>
             </p>
@@ -129,11 +129,11 @@ export default function LoginPage() {
 
         {/* Back to home */}
         <div className="text-center mt-6">
-          <Link to="/" className="text-white/70 hover:text-white text-sm transition-colors">
+          <Link to="/" className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white text-sm transition-colors font-medium">
             ← Back to home
           </Link>
         </div>
       </div>
     </div>
   );
-}
+} 

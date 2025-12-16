@@ -1,6 +1,144 @@
 @import "tailwindcss";
 
-/* Animations for decorative circles */
+/* ===============================
+   THEME VARIABLES
+================================ */
+:root {
+  --bg-color: #ffffff;
+
+  /* Text colors */
+  --base-text: #4B244A;          /* ✅ NOT selected */
+  --accent-pink: #E7467B;        /* ✅ selected */
+  --selected-text: var(--accent-pink);
+
+  /* Interaction backgrounds (light mode) */
+  --hover-bg: rgba(231, 70, 123, 0.08);
+  --active-bg: rgba(231, 70, 123, 0.16);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-color: #020617;
+
+    /* Text colors */
+    --base-text: #e5e7eb;        /* gray-200 */
+    --accent-pink: #E7467B;
+    --selected-text: var(--accent-pink);
+
+    --hover-bg: rgba(231, 70, 123, 0.12);
+    --active-bg: rgba(231, 70, 123, 0.24);
+  }
+}
+
+/* ===============================
+   LIGHT MODE BASE
+================================ */
+@media (prefers-color-scheme: light) {
+  :root {
+    color: var(--base-text);
+    background-color: var(--bg-color);
+  }
+
+  a:hover {
+    color: var(--accent-pink);
+  }
+
+  button {
+    background-color: #ffffff;
+    color: var(--base-text); /* ✅ not selected */
+  }
+}
+
+/* ===============================
+   BASE
+================================ */
+body {
+  background-color: var(--bg-color);
+  color: var(--base-text); /* ✅ default text */
+}
+
+/* ===============================
+   ICONS (STROKE ONLY, INHERIT COLOR)
+================================ */
+svg,
+.icon,
+[data-icon] {
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.5;
+  transition: stroke 0.2s ease, color 0.2s ease;
+}
+
+/* ===============================
+   INTERACTION STATES
+================================ */
+button,
+a,
+[role="button"] {
+  color: var(--base-text); /* ✅ not selected */
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.1s ease;
+}
+
+/* Hover */
+button:hover,
+a:hover,
+[role="button"]:hover {
+  background-color: var(--hover-bg);
+}
+
+/* Active / Pressed */
+button:active,
+a:active,
+[role="button"]:active {
+  background-color: var(--active-bg);
+  transform: scale(0.98);
+}
+
+/* Icon follows text */
+button:hover svg,
+a:hover svg {
+  stroke: currentColor;
+}
+
+/* ===============================
+   SELECTED / ACTIVE STATES
+   (Pink Text Only - No Background)
+================================ */
+.is-selected,
+.active,
+.tab-active,
+.current-page,        /* ✅ Targets class="current-page" */
+[aria-current="page"] /* ✅ Targets accessibility attribute */
+{
+  color: var(--selected-text) !important; /* Force Pink Text */
+  border-color: var(--accent-pink);
+  background-color: transparent;          /* ✅ No pink background */
+  font-weight: 600;
+}
+
+/* Ensure Icons inside selected page are also pink */
+.is-selected svg,
+.active svg,
+[aria-current="page"] svg {
+  stroke: var(--accent-pink);
+}
+
+/* ===============================
+   ACCESSIBILITY
+================================ */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent-pink);
+  outline-offset: 3px;
+}
+
+
+/* ===============================
+   ANIMATIONS
+================================ */
 @keyframes blob {
   0%, 100% {
     transform: translate(0, 0) scale(1);
@@ -20,19 +158,6 @@
   animation: blob 20s infinite;
 }
 
-.animation-delay-2000 {
-  animation-delay: 2s;
-}
-
-.animation-delay-4000 {
-  animation-delay: 4s;
-}
-
-.animation-delay-6000 {
-  animation-delay: 6s;
-}
-
-/* Fade in animation */
 @keyframes fade-in {
   from {
     opacity: 0;
@@ -48,22 +173,6 @@
   animation: fade-in 0.8s ease-out forwards;
 }
 
-.animation-delay-500 {
-  animation-delay: 0.5s;
-  opacity: 0;
-}
-
-.animation-delay-1000 {
-  animation-delay: 1s;
-  opacity: 0;
-}
-
-.animation-delay-1500 {
-  animation-delay: 1.5s;
-  opacity: 0;
-}
-
-/* Slow bounce animation */
 @keyframes bounce-slow {
   0%, 100% {
     transform: translateY(0);
@@ -75,21 +184,4 @@
 
 .animate-bounce-slow {
   animation: bounce-slow 2s ease-in-out infinite;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
 }

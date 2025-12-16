@@ -151,15 +151,15 @@ export default function AvailabilityCalendar({ onClose }: Props) {
   const days = getDaysInMonth(currentMonth);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-3xl max-w-2xl w-full border border-white/20 shadow-2xl max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-2xl w-full border border-gray-200 dark:border-white/20 shadow-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-br from-[#4B244A] to-[#6B3468] p-6 border-b border-white/20 z-10">
+        <div className="sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md p-6 border-b border-gray-200 dark:border-white/10 z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white">📅 Manage Availability</h2>
-            <button onClick={onClose} className="text-white/60 hover:text-white text-2xl">✕</button>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">📅 Manage Availability</h2>
+            <button onClick={onClose} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white text-2xl transition-colors">✕</button>
           </div>
-          <p className="text-white/70 text-sm mt-2">
+          <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mt-2 font-medium">
             Click on a date to block/unblock it. Blocked dates prevent employers from directly hiring you.
           </p>
         </div>
@@ -169,7 +169,7 @@ export default function AvailabilityCalendar({ onClose }: Props) {
           {loading ? (
             <div className="text-center py-12">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#EA526F]"></div>
-              <p className="text-white/70 mt-4">Loading calendar...</p>
+              <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading calendar...</p>
             </div>
           ) : (
             <>
@@ -177,16 +177,16 @@ export default function AvailabilityCalendar({ onClose }: Props) {
               <div className="flex items-center justify-between mb-6">
                 <button
                   onClick={() => navigateMonth('prev')}
-                  className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all"
+                  className="px-4 py-2 bg-white/50 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/20 text-[#4B244A] dark:text-white rounded-lg transition-all font-bold border border-gray-200 dark:border-white/10"
                 >
                   ← Previous
                 </button>
-                <h3 className="text-xl font-bold text-white">
+                <h3 className="text-xl font-bold text-[#4B244A] dark:text-white">
                   {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
                 </h3>
                 <button
                   onClick={() => navigateMonth('next')}
-                  className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg transition-all"
+                  className="px-4 py-2 bg-white/50 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/20 text-[#4B244A] dark:text-white rounded-lg transition-all font-bold border border-gray-200 dark:border-white/10"
                 >
                   Next →
                 </button>
@@ -196,7 +196,7 @@ export default function AvailabilityCalendar({ onClose }: Props) {
               <div className="grid grid-cols-7 gap-2 mb-4">
                 {/* Day Headers */}
                 {dayNames.map(day => (
-                  <div key={day} className="text-center text-white/70 font-semibold text-sm py-2">
+                  <div key={day} className="text-center text-[#4B244A]/70 dark:text-white/70 font-bold text-sm py-2">
                     {day}
                   </div>
                 ))}
@@ -216,14 +216,14 @@ export default function AvailabilityCalendar({ onClose }: Props) {
                       key={date.toISOString()}
                       onClick={() => handleDateClick(date)}
                       disabled={isPast}
-                      className={`aspect-square rounded-lg transition-all text-sm font-semibold ${
+                      className={`aspect-square rounded-lg transition-all text-sm font-bold shadow-sm ${
                         isPast
-                          ? 'bg-gray-800/30 text-gray-500 cursor-not-allowed'
+                          ? 'bg-gray-200 dark:bg-white/5 text-gray-400 dark:text-white/30 cursor-not-allowed'
                           : isBlocked
-                          ? 'bg-red-500/30 text-red-300 hover:bg-red-500/40 border-2 border-red-400'
+                          ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-500/30 border-2 border-red-200 dark:border-red-500/50'
                           : isToday
-                          ? 'bg-blue-500/30 text-blue-300 hover:bg-blue-500/40 border-2 border-blue-400'
-                          : 'bg-white/10 text-white hover:bg-white/20'
+                          ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 hover:bg-blue-200 dark:hover:bg-blue-500/30 border-2 border-blue-200 dark:border-blue-500/50'
+                          : 'bg-white/60 dark:bg-white/10 text-[#4B244A] dark:text-white hover:bg-white/90 dark:hover:bg-white/20'
                       }`}
                       title={
                         isPast
@@ -241,37 +241,37 @@ export default function AvailabilityCalendar({ onClose }: Props) {
               </div>
 
               {/* Legend */}
-              <div className="flex flex-wrap gap-4 text-sm text-white/70 mt-4 pt-4 border-t border-white/20">
+              <div className="flex flex-wrap gap-4 text-sm text-[#4B244A]/70 dark:text-white/70 mt-4 pt-4 border-t border-gray-200 dark:border-white/10">
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-white/10 rounded"></div>
-                  <span>Available</span>
+                  <div className="w-4 h-4 bg-white/60 dark:bg-white/10 rounded border border-gray-200 dark:border-white/10"></div>
+                  <span className="font-medium">Available</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-red-500/30 rounded border border-red-400"></div>
-                  <span>Blocked</span>
+                  <div className="w-4 h-4 bg-red-100 dark:bg-red-500/30 rounded border border-red-200 dark:border-red-400"></div>
+                  <span className="font-medium">Blocked</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-blue-500/30 rounded border border-blue-400"></div>
-                  <span>Today</span>
+                  <div className="w-4 h-4 bg-blue-100 dark:bg-blue-500/30 rounded border border-blue-200 dark:border-blue-400"></div>
+                  <span className="font-medium">Today</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-4 h-4 bg-gray-800/30 rounded"></div>
-                  <span>Past</span>
+                  <div className="w-4 h-4 bg-gray-200 dark:bg-white/5 rounded border border-transparent"></div>
+                  <span className="font-medium">Past</span>
                 </div>
               </div>
 
               {/* Blocked Dates List */}
               {blockedDates.length > 0 && (
                 <div className="mt-6">
-                  <h4 className="text-white font-semibold mb-3">Blocked Dates:</h4>
-                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                  <h4 className="text-[#4B244A] dark:text-white font-bold mb-3">Blocked Dates:</h4>
+                  <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                     {blockedDates.map(bd => (
                       <div
                         key={bd.blocked_date_id}
-                        className="bg-white/10 rounded-lg p-3 flex items-center justify-between"
+                        className="bg-white/50 dark:bg-white/10 rounded-lg p-3 flex items-center justify-between border border-gray-200 dark:border-white/10"
                       >
                         <div>
-                          <p className="text-white font-semibold">
+                          <p className="text-[#4B244A] dark:text-white font-bold">
                             {new Date(bd.blocked_date).toLocaleDateString('en-US', {
                               weekday: 'long',
                               year: 'numeric',
@@ -280,12 +280,12 @@ export default function AvailabilityCalendar({ onClose }: Props) {
                             })}
                           </p>
                           {bd.reason && (
-                            <p className="text-white/60 text-sm">Reason: {bd.reason}</p>
+                            <p className="text-[#4B244A]/70 dark:text-white/60 text-sm font-medium">Reason: {bd.reason}</p>
                           )}
                         </div>
                         <button
                           onClick={() => handleUnblockDate(bd.blocked_date_id)}
-                          className="px-3 py-1 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 text-sm"
+                          className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 text-sm font-bold shadow-sm"
                         >
                           Unblock
                         </button>
@@ -301,10 +301,10 @@ export default function AvailabilityCalendar({ onClose }: Props) {
 
       {/* Block Date Modal */}
       {showBlockModal && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90">
-          <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-2xl p-6 max-w-md w-full border border-white/20">
-            <h3 className="text-xl font-bold text-white mb-4">Block Date</h3>
-            <p className="text-white/70 mb-4">
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-gray-200 dark:border-white/20 shadow-2xl">
+            <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">Block Date</h3>
+            <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 font-medium">
               Block <strong>{new Date(selectedDate).toLocaleDateString('en-US', {
                 weekday: 'long',
                 year: 'numeric',
@@ -314,7 +314,7 @@ export default function AvailabilityCalendar({ onClose }: Props) {
             </p>
             
             <div className="mb-4">
-              <label className="block text-white/80 text-sm mb-2">
+              <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm mb-2 font-bold">
                 Reason (optional - e.g., "Personal", "Holiday", "Already booked")
               </label>
               <input
@@ -322,7 +322,7 @@ export default function AvailabilityCalendar({ onClose }: Props) {
                 value={blockReason}
                 onChange={(e) => setBlockReason(e.target.value)}
                 placeholder="Enter reason..."
-                className="w-full px-4 py-2 bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                className="w-full px-4 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/30 rounded-lg text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
               />
             </div>
             
@@ -334,14 +334,14 @@ export default function AvailabilityCalendar({ onClose }: Props) {
                   setBlockReason('');
                 }}
                 disabled={processing}
-                className="flex-1 px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 disabled:opacity-50"
+                className="flex-1 px-4 py-2 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white rounded-lg hover:bg-white/80 dark:hover:bg-white/20 disabled:opacity-50 font-bold border border-gray-200 dark:border-white/10"
               >
                 Cancel
               </button>
               <button
                 onClick={handleBlockDate}
                 disabled={processing}
-                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50"
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 font-bold shadow-lg shadow-red-500/30"
               >
                 {processing ? 'Blocking...' : 'Block Date'}
               </button>
@@ -352,4 +352,3 @@ export default function AvailabilityCalendar({ onClose }: Props) {
     </div>
   );
 }
-

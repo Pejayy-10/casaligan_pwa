@@ -275,16 +275,16 @@ export default function DirectHiresList({ role, onClose }: Props) {
 
   const getStatusBadge = (status: string) => {
     const badges: Record<string, { text: string; class: string }> = {
-      pending: { text: '⏳ Pending', class: 'bg-yellow-500/20 text-yellow-300' },
-      accepted: { text: '✓ Accepted', class: 'bg-blue-500/20 text-blue-300' },
-      rejected: { text: '✗ Rejected', class: 'bg-red-500/20 text-red-300' },
-      in_progress: { text: '🔄 In Progress', class: 'bg-purple-500/20 text-purple-300' },
-      pending_completion: { text: '📝 Review Needed', class: 'bg-orange-500/20 text-orange-300' },
-      completed: { text: '✅ Completed', class: 'bg-green-500/20 text-green-300' },
-      paid: { text: '💰 Paid', class: 'bg-green-500/20 text-green-300' },
-      cancelled: { text: '🚫 Cancelled', class: 'bg-gray-500/20 text-gray-300' }
+      pending: { text: '⏳ Pending', class: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300' },
+      accepted: { text: '✓ Accepted', class: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' },
+      rejected: { text: '✗ Rejected', class: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' },
+      in_progress: { text: '🔄 In Progress', class: 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300' },
+      pending_completion: { text: '📝 Review Needed', class: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' },
+      completed: { text: '✅ Completed', class: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' },
+      paid: { text: '💰 Paid', class: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' },
+      cancelled: { text: '🚫 Cancelled', class: 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300' }
     };
-    return badges[status] || { text: status, class: 'bg-gray-500/20 text-gray-300' };
+    return badges[status] || { text: status, class: 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300' };
   };
 
   // Message button - only show for active hire statuses
@@ -302,7 +302,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
     return (
       <button
         onClick={() => navigate(`/chat/new?${params.toString()}`)}
-        className="px-3 py-1 bg-purple-500/20 text-purple-300 text-sm rounded-lg hover:bg-purple-500/30 flex items-center gap-1"
+        className="px-3 py-1 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 text-sm rounded-lg hover:bg-purple-200 dark:hover:bg-purple-500/30 flex items-center gap-1 font-semibold"
       >
         💬 Message
       </button>
@@ -360,7 +360,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
             setCancelRecurringHire(hire);
             setShowCancelRecurringModal(true);
           }}
-          className="px-3 py-1 bg-orange-500/20 text-orange-300 text-sm rounded-lg hover:bg-orange-500/30"
+          className="px-3 py-1 bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 text-sm rounded-lg hover:bg-orange-200 dark:hover:bg-orange-500/30 font-semibold"
         >
           🛑 Stop Recurring
         </button>
@@ -373,7 +373,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
           return (
             <button
               onClick={() => handleAction(hire, 'cancel')}
-              className="px-3 py-1 bg-red-500/20 text-red-300 text-sm rounded-lg hover:bg-red-500/30"
+              className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 font-semibold"
             >
               Cancel
             </button>
@@ -389,7 +389,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
                   setReviewHire(hire);
                   setShowReviewModal(true);
                 }}
-                className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600"
+                className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm"
               >
                 Review & Approve
               </button>
@@ -401,7 +401,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
             <div className="flex gap-2">
               <button
                 onClick={() => handlePayment(hire)}
-                className="px-3 py-1 bg-[#EA526F] text-white text-sm rounded-lg hover:bg-[#d64460]"
+                className="px-3 py-1 bg-[#EA526F] text-white text-sm rounded-lg hover:bg-[#d64460] font-semibold shadow-sm"
               >
                 Pay Now
               </button>
@@ -417,13 +417,13 @@ export default function DirectHiresList({ role, onClose }: Props) {
                   setRatingHire(hire);
                   setShowRatingModal(true);
                 }}
-                className="px-3 py-1 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600"
+                className="px-3 py-1 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600 font-semibold shadow-sm"
               >
                 ⭐ Rate
               </button>
             );
           }
-          return <span className="text-green-400 text-sm">✓ Rated</span>;
+          return <span className="text-green-600 dark:text-green-400 text-sm font-semibold">✓ Rated</span>;
         default:
           return null;
       }
@@ -435,13 +435,13 @@ export default function DirectHiresList({ role, onClose }: Props) {
             <div className="flex gap-2">
               <button
                 onClick={() => handleAction(hire, 'accept')}
-                className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600"
+                className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm"
               >
                 Accept
               </button>
               <button
                 onClick={() => handleAction(hire, 'reject')}
-                className="px-3 py-1 bg-red-500/20 text-red-300 text-sm rounded-lg hover:bg-red-500/30"
+                className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 font-semibold"
               >
                 Reject
               </button>
@@ -452,7 +452,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
             <div className="flex gap-2">
               <button
                 onClick={() => handleAction(hire, 'start')}
-                className="px-3 py-1 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600"
+                className="px-3 py-1 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 font-semibold shadow-sm"
               >
                 Start Work
               </button>
@@ -467,7 +467,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
                   setSelectedHire(hire);
                   setShowCompletionModal(true);
                 }}
-                className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600"
+                className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm"
               >
                 Submit Completion
               </button>
@@ -484,15 +484,15 @@ export default function DirectHiresList({ role, onClose }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-br from-[#4B244A] to-[#6B3468] p-6 border-b border-white/20 z-10">
+        <div className="sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md p-6 border-b border-gray-200 dark:border-white/10 z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white">
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">
               {role === 'owner' ? '📋 My Direct Bookings' : '💼 Direct Hire Jobs'}
             </h2>
-            <button onClick={onClose} className="text-white/60 hover:text-white">✕</button>
+            <button onClick={onClose} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors">✕</button>
           </div>
         </div>
 
@@ -503,39 +503,39 @@ export default function DirectHiresList({ role, onClose }: Props) {
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EA526F]"></div>
             </div>
           ) : hires.length === 0 ? (
-            <div className="text-center py-8 bg-white/10 rounded-xl">
-              <div className="text-4xl mb-2">📭</div>
-              <p className="text-white/70">No direct hires yet</p>
+            <div className="text-center py-8 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-xl border border-white/50 dark:border-white/10">
+              <div className="text-4xl mb-2 opacity-50">📭</div>
+              <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">No direct hires yet</p>
             </div>
           ) : (
             <div className="space-y-4">
               {hires.map((hire) => {
                 const badge = getStatusBadge(hire.status);
                 return (
-                  <div key={hire.hire_id} className="bg-white/10 rounded-xl p-4 border border-white/20">
+                  <div key={hire.hire_id} className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-xl p-4 border border-white/50 dark:border-white/10 shadow-lg hover:scale-[1.01] transition-transform">
                     <div className="flex items-start justify-between mb-3">
                       <div>
-                        <h4 className="text-lg font-bold text-white">
+                        <h4 className="text-lg font-bold text-[#4B244A] dark:text-white">
                           {role === 'owner' ? hire.worker_name : hire.employer_name}
                         </h4>
-                        <p className="text-white/60 text-sm">
+                        <p className="text-[#4B244A]/60 dark:text-white/60 text-sm font-medium">
                           📅 {new Date(hire.scheduled_date).toLocaleDateString()}
                           {hire.scheduled_time && ` at ${hire.scheduled_time}`}
                         </p>
                         {hire.is_recurring && (
                           <div className="mt-2">
-                            <span className="px-2 py-1 bg-blue-500/20 text-blue-300 text-xs rounded-full mr-2">
+                            <span className="px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 text-xs rounded-full mr-2 font-bold">
                               🔄 Recurring: Every {hire.day_of_week} ({hire.frequency})
                             </span>
                             {hire.recurring_status === 'cancelled' && (
-                              <span className="px-2 py-1 bg-red-500/20 text-red-300 text-xs rounded-full">
+                              <span className="px-2 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-xs rounded-full font-bold">
                                 ❌ Cancelled {hire.cancelled_by === role ? 'by you' : `by ${role === 'owner' ? 'worker' : 'employer'}`}
                               </span>
                             )}
                           </div>
                         )}
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-sm ${badge.class}`}>
+                      <span className={`px-3 py-1 rounded-full text-sm font-bold ${badge.class}`}>
                         {badge.text}
                       </span>
                     </div>
@@ -543,7 +543,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
                     {/* Packages */}
                     <div className="flex flex-wrap gap-2 mb-3">
                       {hire.packages.map((pkg) => (
-                        <span key={pkg.package_id} className="px-2 py-1 bg-[#EA526F]/20 text-[#EA526F] text-sm rounded-full">
+                        <span key={pkg.package_id} className="px-2 py-1 bg-[#EA526F]/10 dark:bg-[#EA526F]/20 text-[#EA526F] dark:text-pink-300 text-sm rounded-full font-semibold">
                           {pkg.name}
                         </span>
                       ))}
@@ -551,14 +551,14 @@ export default function DirectHiresList({ role, onClose }: Props) {
 
                     {/* Location */}
                     {hire.address_city && (
-                      <p className="text-white/60 text-sm mb-3">
+                      <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mb-3 font-medium">
                         📍 {hire.address_barangay && `${hire.address_barangay}, `}{hire.address_city}
                       </p>
                     )}
 
                     {/* Special Instructions */}
                     {hire.special_instructions && (
-                      <p className="text-white/60 text-sm mb-3 bg-white/10 rounded p-2">
+                      <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mb-3 bg-white/50 dark:bg-white/5 rounded p-2 italic">
                         💬 {hire.special_instructions}
                       </p>
                     )}
@@ -567,7 +567,9 @@ export default function DirectHiresList({ role, onClose }: Props) {
                       <div className="text-xl font-bold text-[#EA526F]">
                         ₱{hire.total_amount.toLocaleString()}
                       </div>
-                      {renderActionButtons(hire)}
+                      <div className="flex items-center gap-2">
+                        {renderActionButtons(hire)}
+                      </div>
                     </div>
                   </div>
                 );
@@ -579,16 +581,16 @@ export default function DirectHiresList({ role, onClose }: Props) {
 
       {/* Completion Modal */}
       {showCompletionModal && selectedHire && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-3xl max-w-lg w-full border border-white/20 shadow-2xl">
-            <div className="p-6 border-b border-white/20">
-              <h3 className="text-xl font-bold text-white">✅ Submit Completion</h3>
-              <p className="text-white/60">For {selectedHire.employer_name}'s booking</p>
+        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-gray-200 dark:border-white/20 shadow-2xl">
+            <div className="p-6 border-b border-gray-200 dark:border-white/10">
+              <h3 className="text-xl font-bold text-[#4B244A] dark:text-white">✅ Submit Completion</h3>
+              <p className="text-[#4B244A]/60 dark:text-white/60 font-medium">For {selectedHire.employer_name}'s booking</p>
             </div>
 
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-white font-semibold mb-2">Completion Proof (Optional)</label>
+                <label className="block text-[#4B244A] dark:text-white font-bold mb-2">Completion Proof (Optional)</label>
                 <input
                   type="file"
                   ref={completionFileRef}
@@ -599,33 +601,33 @@ export default function DirectHiresList({ role, onClose }: Props) {
                 <button
                   onClick={() => completionFileRef.current?.click()}
                   disabled={uploadingCompletion}
-                  className="w-full py-4 border-2 border-dashed border-white/30 rounded-lg text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all flex items-center justify-center gap-2"
+                  className="w-full py-4 border-2 border-dashed border-gray-300 dark:border-white/30 rounded-lg text-[#4B244A]/70 dark:text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all flex items-center justify-center gap-2 font-medium"
                 >
                   {uploadingCompletion ? '⏳ Uploading...' : completionProof ? '✅ Uploaded - Click to change' : '📤 Click to upload photo of completed work'}
                 </button>
-                <p className="text-white/50 text-xs mt-1">
+                <p className="text-[#4B244A]/50 dark:text-white/50 text-xs mt-1 font-medium">
                   Supports: JPEG, PNG, GIF, WebP (max 10MB)
                 </p>
                 {completionPreview && (
                   <div className="mt-3">
-                    <p className="text-white/70 text-sm mb-2">Preview:</p>
+                    <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-2 font-bold">Preview:</p>
                     <img 
                       src={completionPreview} 
                       alt="Completion proof preview" 
-                      className="w-full h-32 object-cover rounded-xl border border-white/20"
+                      className="w-full h-32 object-cover rounded-xl border border-gray-200 dark:border-white/20"
                     />
                   </div>
                 )}
               </div>
 
               <div>
-                <label className="block text-white font-semibold mb-2">Notes (Optional)</label>
+                <label className="block text-[#4B244A] dark:text-white font-bold mb-2">Notes (Optional)</label>
                 <textarea
                   value={completionNotes}
                   onChange={(e) => setCompletionNotes(e.target.value)}
                   placeholder="Any notes about the work done..."
                   rows={3}
-                  className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                  className="w-full px-4 py-3 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/30 rounded-xl text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F] transition-all"
                 />
               </div>
 
@@ -637,14 +639,14 @@ export default function DirectHiresList({ role, onClose }: Props) {
                     setCompletionPreview(null);
                     setCompletionNotes('');
                   }}
-                  className="flex-1 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20"
+                  className="flex-1 py-3 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/20"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => handleAction(selectedHire, 'submit-completion')}
                   disabled={processing}
-                  className="flex-1 py-3 bg-green-500 text-white font-semibold rounded-xl hover:bg-green-600 disabled:opacity-50"
+                  className="flex-1 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 disabled:opacity-50 transition-all shadow-md"
                 >
                   {processing ? 'Submitting...' : 'Submit for Review'}
                 </button>
@@ -684,15 +686,15 @@ export default function DirectHiresList({ role, onClose }: Props) {
 
       {/* Cancel Recurring Modal */}
       {showCancelRecurringModal && cancelRecurringHire && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-2xl p-6 max-w-md w-full border border-white/20">
-            <h3 className="text-xl font-bold text-white mb-4">Stop Recurring Service</h3>
-            <p className="text-white/70 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-gray-200 dark:border-white/20 shadow-2xl">
+            <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">Stop Recurring Service</h3>
+            <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 font-medium">
               Are you sure you want to stop this recurring booking? This will prevent future scheduled services.
             </p>
             
             <div className="mb-4">
-              <label className="block text-white/80 text-sm mb-2">
+              <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm mb-2 font-bold">
                 Reason (optional - e.g., dispute, no longer needed, etc.)
               </label>
               <textarea
@@ -700,7 +702,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
                 onChange={(e) => setCancellationReason(e.target.value)}
                 placeholder="Enter reason for cancellation..."
                 rows={3}
-                className="w-full px-4 py-2 bg-white/20 border border-white/30 rounded-lg text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F] resize-none"
+                className="w-full px-4 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/30 rounded-lg text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F] resize-none"
               />
             </div>
             
@@ -712,14 +714,14 @@ export default function DirectHiresList({ role, onClose }: Props) {
                   setCancellationReason('');
                 }}
                 disabled={cancelling}
-                className="flex-1 px-4 py-2 bg-white/20 text-white rounded-lg hover:bg-white/30 disabled:opacity-50"
+                className="flex-1 px-4 py-2 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white rounded-lg hover:bg-white/80 dark:hover:bg-white/20 disabled:opacity-50 font-bold border border-gray-200 dark:border-white/20"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCancelRecurring}
                 disabled={cancelling}
-                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50"
+                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 font-bold shadow-md"
               >
                 {cancelling ? 'Cancelling...' : 'Stop Recurring'}
               </button>
@@ -730,21 +732,21 @@ export default function DirectHiresList({ role, onClose }: Props) {
 
       {/* Completion Review Modal */}
       {showReviewModal && reviewHire && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-2xl p-6 max-w-2xl w-full border border-white/20">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-2xl p-6 max-w-2xl w-full border border-gray-200 dark:border-white/20 shadow-2xl">
             <div className="mb-4">
-              <h3 className="text-xl font-bold text-white mb-2">📋 Review Completed Work</h3>
-              <p className="text-white/70">
+              <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-2">📋 Review Completed Work</h3>
+              <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">
                 Review the work completed by {reviewHire.worker_name}
               </p>
             </div>
 
             {/* Hire Details */}
-            <div className="bg-white/10 rounded-xl p-4 mb-4">
+            <div className="bg-white/50 dark:bg-white/10 rounded-xl p-4 mb-4 border border-gray-200 dark:border-white/10">
               <div className="flex items-start justify-between mb-3">
                 <div>
-                  <h4 className="text-lg font-bold text-white">{reviewHire.worker_name}</h4>
-                  <p className="text-white/60 text-sm">
+                  <h4 className="text-lg font-bold text-[#4B244A] dark:text-white">{reviewHire.worker_name}</h4>
+                  <p className="text-[#4B244A]/60 dark:text-white/60 text-sm font-medium">
                     📅 {new Date(reviewHire.scheduled_date).toLocaleDateString()}
                     {reviewHire.scheduled_time && ` at ${reviewHire.scheduled_time}`}
                   </p>
@@ -757,7 +759,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
               {/* Packages */}
               <div className="flex flex-wrap gap-2 mb-3">
                 {reviewHire.packages.map((pkg) => (
-                  <span key={pkg.package_id} className="px-2 py-1 bg-[#EA526F]/20 text-[#EA526F] text-sm rounded-full">
+                  <span key={pkg.package_id} className="px-2 py-1 bg-[#EA526F]/10 dark:bg-[#EA526F]/20 text-[#EA526F] dark:text-pink-300 text-sm rounded-full font-semibold">
                     {pkg.name}
                   </span>
                 ))}
@@ -766,21 +768,21 @@ export default function DirectHiresList({ role, onClose }: Props) {
 
             {/* Completion Proof */}
             {reviewHire.completion_proof_url && (
-              <div className="bg-white/10 rounded-xl p-4 mb-4">
-                <h4 className="text-white font-semibold mb-2">📸 Completion Proof</h4>
+              <div className="bg-white/50 dark:bg-white/10 rounded-xl p-4 mb-4 border border-gray-200 dark:border-white/10">
+                <h4 className="text-[#4B244A] dark:text-white font-bold mb-2">📸 Completion Proof</h4>
                 <img 
                   src={reviewHire.completion_proof_url} 
                   alt="Completion proof" 
-                  className="w-full h-64 object-cover rounded-lg border border-white/20"
+                  className="w-full h-64 object-cover rounded-lg border border-gray-200 dark:border-white/20"
                 />
               </div>
             )}
 
             {/* Completion Notes */}
             {reviewHire.completion_notes && (
-              <div className="bg-white/10 rounded-xl p-4 mb-4">
-                <h4 className="text-white font-semibold mb-2">📝 Notes from Housekeeper</h4>
-                <p className="text-white/80">{reviewHire.completion_notes}</p>
+              <div className="bg-white/50 dark:bg-white/10 rounded-xl p-4 mb-4 border border-gray-200 dark:border-white/10">
+                <h4 className="text-[#4B244A] dark:text-white font-bold mb-2">📝 Notes from Housekeeper</h4>
+                <p className="text-[#4B244A]/80 dark:text-white/80">{reviewHire.completion_notes}</p>
               </div>
             )}
 
@@ -791,7 +793,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
                   setShowReviewModal(false);
                   setReviewHire(null);
                 }}
-                className="flex-1 px-4 py-3 bg-white/20 text-white font-semibold rounded-xl hover:bg-white/30"
+                className="flex-1 px-4 py-3 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/20"
               >
                 Cancel
               </button>
@@ -802,7 +804,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
                   setReviewHire(null);
                 }}
                 disabled={processing}
-                className="flex-1 px-4 py-3 bg-green-500 text-white font-semibold rounded-xl hover:bg-green-600 disabled:opacity-50"
+                className="flex-1 px-4 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 disabled:opacity-50 transition-all shadow-md"
               >
                 {processing ? 'Approving...' : 'Approve & Continue to Payment'}
               </button>

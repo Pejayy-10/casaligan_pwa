@@ -222,20 +222,20 @@ export default function JobsPage() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#4B244A] via-[#6B3468] to-[#4B244A] pb-20">
+    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300 pb-20 relative">
       {/* Decorative circles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-4000"></div>
       </div>
 
       {/* Header */}
-      <header className="relative z-10 bg-white/10 backdrop-blur-xl border-b border-white/20">
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <h1 className="text-xl sm:text-2xl font-bold text-white">
+              <h1 className="text-xl sm:text-2xl font-bold text-[#4B244A] dark:text-white">
                 {user.active_role === 'owner' 
                   ? '📋 My Job Posts' 
                   : housekeeperView === 'find' 
@@ -249,19 +249,19 @@ export default function JobsPage() {
                 <>
                   <button 
                     onClick={() => navigate('/browse-workers')}
-                    className="px-4 py-2 bg-white/20 text-white font-semibold rounded-xl hover:bg-white/30 transition-all border border-white/30 text-sm"
+                    className="px-4 py-2 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/20 text-sm"
                   >
                     👤 Hire Directly
                   </button>
                   <button 
                     onClick={() => setShowDirectHires(true)}
-                    className="px-4 py-2 bg-blue-500/80 text-white font-semibold rounded-xl hover:bg-blue-600 transition-all text-sm"
+                    className="px-4 py-2 bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold rounded-xl hover:bg-blue-500/20 dark:hover:bg-blue-500/30 transition-all text-sm border border-blue-500/20"
                   >
                     📋 Direct Bookings
                   </button>
                   <button 
                     onClick={() => navigate('/jobs/create')}
-                    className="px-4 py-2 bg-[#EA526F] text-white font-semibold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg text-sm"
+                    className="px-4 py-2 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg text-sm"
                   >
                     + New Job
                   </button>
@@ -277,7 +277,7 @@ export default function JobsPage() {
               <div className="flex justify-end">
                 <button
                   onClick={() => navigate('/recurring-services')}
-                  className="px-4 py-2 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-all flex items-center gap-2"
+                  className="px-4 py-2 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 text-sm font-bold rounded-lg hover:bg-purple-200 dark:hover:bg-purple-500/30 transition-all flex items-center gap-2 border border-purple-200 dark:border-transparent"
                 >
                   🔄 Manage Recurring Services
                 </button>
@@ -287,42 +287,42 @@ export default function JobsPage() {
               <div className="grid grid-cols-3 gap-2">
                 <button
                   onClick={() => setShowPackageManagement(true)}
-                  className="py-2 px-3 bg-[#EA526F] text-white text-sm font-semibold rounded-lg hover:bg-[#d4486a] transition-all"
+                  className="py-2 px-3 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
                 >
                   📦 Packages
                 </button>
                 <button
                   onClick={() => setShowDirectHires(true)}
-                  className="py-2 px-3 bg-blue-500 text-white text-sm font-semibold rounded-lg hover:bg-blue-600 transition-all"
+                  className="py-2 px-3 bg-blue-500 text-white text-sm font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
                 >
                   🎯 Direct Jobs
                 </button>
                 <button
                   onClick={() => setShowAvailabilityCalendar(true)}
-                  className="py-2 px-3 bg-green-500 text-white text-sm font-semibold rounded-lg hover:bg-green-600 transition-all"
+                  className="py-2 px-3 bg-green-500 text-white text-sm font-bold rounded-lg hover:bg-green-600 transition-all shadow-md"
                 >
                   📅 Availability
                 </button>
               </div>
               
               {/* View Toggle */}
-              <div className="flex gap-2">
+              <div className="flex gap-2 bg-white/50 dark:bg-slate-900/50 p-1 rounded-xl border border-gray-200 dark:border-white/10">
                 <button
                   onClick={() => setHousekeeperView('find')}
-                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
                     housekeeperView === 'find'
                       ? 'bg-[#EA526F] text-white shadow-lg'
-                      : 'bg-white/10 text-white hover:bg-white/20'
+                      : 'text-[#4B244A] dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
                   }`}
                 >
                   🎯 Find Jobs
                 </button>
                 <button
                   onClick={() => setHousekeeperView('my-jobs')}
-                  className={`flex-1 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
                     housekeeperView === 'my-jobs'
                       ? 'bg-blue-500 text-white shadow-lg'
-                      : 'bg-white/10 text-white hover:bg-white/20'
+                      : 'text-[#4B244A] dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
                   }`}
                 >
                   💼 My Jobs
@@ -332,15 +332,15 @@ export default function JobsPage() {
               {/* Category Filter - Find Jobs View Only */}
               {housekeeperView === 'find' && (
                 <div className="mt-3">
-                  <label className="block text-white/90 text-sm font-semibold mb-2">📂 Filter by Category</label>
+                  <label className="block text-[#4B244A] dark:text-white/90 text-sm font-bold mb-2">📂 Filter by Category</label>
                   <select
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : '')}
-                    className="w-full px-4 py-2.5 bg-white/10 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                    className="w-full px-4 py-2.5 bg-white/50 dark:bg-white/10 backdrop-blur-sm border border-gray-200 dark:border-white/30 rounded-xl text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
                   >
-                    <option value="">All Categories</option>
+                    <option value="" className="text-gray-900 dark:text-gray-900">All Categories</option>
                     {categories.map(cat => (
-                      <option key={cat.category_id} value={cat.category_id}>
+                      <option key={cat.category_id} value={cat.category_id} className="text-gray-900 dark:text-gray-900">
                         {cat.name}
                       </option>
                     ))}
@@ -348,12 +348,12 @@ export default function JobsPage() {
                   {selectedCategory && (
                     <div className="mt-2">
                       {filteredJobs.filter(job => job.category_id === selectedCategory).length === 0 ? (
-                        <div className="bg-orange-500/20 border border-orange-500/50 rounded-lg p-3 text-sm">
-                          <p className="text-orange-200">⚠️ No jobs in this category. Showing all jobs below.</p>
+                        <div className="bg-orange-100 dark:bg-orange-500/20 border border-orange-200 dark:border-orange-500/50 rounded-lg p-3 text-sm">
+                          <p className="text-orange-700 dark:text-orange-200">⚠️ No jobs in this category. Showing all jobs below.</p>
                         </div>
                       ) : (
-                        <div className="bg-[#EA526F]/20 border border-[#EA526F]/50 rounded-lg p-3 text-sm">
-                          <p className="text-[#EA526F]">✓ Showing jobs with <strong>{categories.find(c => c.category_id === selectedCategory)?.name}</strong> first, then others.</p>
+                        <div className="bg-[#EA526F]/10 dark:bg-[#EA526F]/20 border border-[#EA526F]/30 dark:border-[#EA526F]/50 rounded-lg p-3 text-sm">
+                          <p className="text-[#EA526F] dark:text-pink-300">✓ Showing jobs with <strong>{categories.find(c => c.category_id === selectedCategory)?.name}</strong> first, then others.</p>
                         </div>
                       )}
                     </div>
@@ -370,7 +370,7 @@ export default function JobsPage() {
               <div className="flex justify-end">
                 <button
                   onClick={() => navigate('/recurring-services')}
-                  className="px-4 py-2 bg-purple-500 text-white text-sm font-semibold rounded-lg hover:bg-purple-600 transition-all flex items-center gap-2"
+                  className="px-4 py-2 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 text-sm font-bold rounded-lg hover:bg-purple-200 dark:hover:bg-purple-500/30 transition-all flex items-center gap-2 border border-purple-200 dark:border-transparent"
                 >
                   🔄 Manage Recurring Services
                 </button>
@@ -378,53 +378,53 @@ export default function JobsPage() {
               
               {/* Status Filter Tabs */}
               <div className="overflow-x-auto pb-2 -mx-3 sm:mx-0 px-3 sm:px-0">
-                <div className="flex gap-2 min-w-max">
+                <div className="flex gap-2 min-w-max p-1 bg-white/50 dark:bg-slate-900/50 rounded-xl border border-gray-200 dark:border-white/10">
                   <button
                     onClick={() => setStatusFilter('all')}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
                     statusFilter === 'all'
-                      ? 'bg-white text-[#4B244A] shadow-lg'
-                      : 'bg-white/10 text-white hover:bg-white/20'
+                      ? 'bg-white dark:bg-[#4B244A] text-[#4B244A] dark:text-white shadow-md'
+                      : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
                   }`}
                 >
                   📋 All Jobs
                 </button>
                 <button
                   onClick={() => setStatusFilter('open')}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
                     statusFilter === 'open'
-                      ? 'bg-green-500 text-white shadow-lg'
-                      : 'bg-white/10 text-white hover:bg-white/20'
+                      ? 'bg-green-500 text-white shadow-md'
+                      : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
                   }`}
                 >
                   ✅ Open
                 </button>
                 <button
                   onClick={() => setStatusFilter('ongoing')}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
                     statusFilter === 'ongoing'
-                      ? 'bg-blue-500 text-white shadow-lg'
-                      : 'bg-white/10 text-white hover:bg-white/20'
+                      ? 'bg-blue-500 text-white shadow-md'
+                      : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
                   }`}
                 >
                   🔄 Ongoing
                 </button>
                 <button
                   onClick={() => setStatusFilter('completed')}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
                     statusFilter === 'completed'
-                      ? 'bg-purple-500 text-white shadow-lg'
-                      : 'bg-white/10 text-white hover:bg-white/20'
+                      ? 'bg-purple-500 text-white shadow-md'
+                      : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
                   }`}
                 >
                   ✔️ Completed
                 </button>
                 <button
                   onClick={() => setStatusFilter('closed')}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all whitespace-nowrap ${
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
                     statusFilter === 'closed'
-                      ? 'bg-gray-500 text-white shadow-lg'
-                      : 'bg-white/10 text-white hover:bg-white/20'
+                      ? 'bg-gray-500 text-white shadow-md'
+                      : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
                   }`}
                 >
                   🔒 Closed
@@ -441,7 +441,7 @@ export default function JobsPage() {
         {loading && housekeeperView === 'find' ? (
           <div className="text-center py-20">
             <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#EA526F]"></div>
-            <p className="text-white/70 mt-4">Loading jobs...</p>
+            <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading jobs...</p>
           </div>
         ) : user.active_role === 'owner' ? (
           <OwnerJobsContent 
@@ -861,13 +861,13 @@ function OwnerJobsContent({
 
   if (jobs.length === 0) {
     return (
-      <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-12 text-center border border-white/20">
+      <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-12 text-center border border-white/50 dark:border-white/10 shadow-xl">
         <div className="text-6xl mb-4">📋</div>
-        <h3 className="text-2xl font-bold text-white mb-2">No Job Posts Yet</h3>
-        <p className="text-white/70 mb-6">Create your first job post to find housekeepers</p>
+        <h3 className="text-2xl font-bold text-[#4B244A] dark:text-white mb-2">No Job Posts Yet</h3>
+        <p className="text-[#4B244A]/70 dark:text-white/70 mb-6">Create your first job post to find housekeepers</p>
         <button 
           onClick={() => navigate('/jobs/create')}
-          className="px-6 py-3 bg-[#EA526F] text-white font-semibold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg"
+          className="px-6 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg"
         >
           Create Your First Job Post
         </button>
@@ -878,53 +878,53 @@ function OwnerJobsContent({
   return (
     <div className="space-y-4">
       {jobs.map((job) => (
-        <div key={job.post_id} className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border border-white/20 hover:bg-white/15 transition-all">
+        <div key={job.post_id} className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border border-white/50 dark:border-white/10 hover:bg-white/80 dark:hover:bg-slate-900/80 transition-all shadow-lg">
           <div className="flex items-start justify-between mb-3 gap-2">
-            <h3 className="text-lg sm:text-xl font-bold text-white break-words">{job.title}</h3>
-            <span className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap ${
-              job.status === 'open' ? 'bg-green-500/20 text-green-300' : 
-              job.status === 'ongoing' ? 'bg-blue-500/20 text-blue-300' :
-              job.status === 'pending_completion' ? 'bg-yellow-500/20 text-yellow-300' :
-              job.status === 'completed' ? 'bg-purple-500/20 text-purple-300' : 
-              'bg-gray-500/20 text-gray-300'
+            <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white break-words">{job.title}</h3>
+            <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
+              job.status === 'open' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' : 
+              job.status === 'ongoing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' :
+              job.status === 'pending_completion' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300' :
+              job.status === 'completed' ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300' : 
+              'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300'
             }`}>
               {job.status === 'pending_completion' ? 'PENDING APPROVAL' : job.status.toUpperCase()}
             </span>
           </div>
           
-          <p className="text-white/70 mb-4 line-clamp-2">{job.description}</p>
+          <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 line-clamp-2">{job.description}</p>
           
           <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4">
-            <span className="px-2 sm:px-3 py-1 bg-[#EA526F]/20 text-[#EA526F] rounded-lg text-xs sm:text-sm font-semibold">
+            <span className="px-2 sm:px-3 py-1 bg-[#EA526F]/10 text-[#EA526F] dark:bg-[#EA526F]/20 dark:text-[#EA526F] rounded-lg text-xs sm:text-sm font-semibold">
               🏠 {job.house_type}
             </span>
-            <span className="px-2 sm:px-3 py-1 bg-blue-500/20 text-blue-300 rounded-lg text-xs sm:text-sm font-semibold">
+            <span className="px-2 sm:px-3 py-1 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 rounded-lg text-xs sm:text-sm font-semibold">
               🧹 {job.cleaning_type}
             </span>
-            <span className="px-2 sm:px-3 py-1 bg-green-500/20 text-green-300 rounded-lg text-xs sm:text-sm font-semibold">
+            <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300 rounded-lg text-xs sm:text-sm font-semibold">
               💰 ₱{job.budget}
             </span>
-            <span className="px-2 sm:px-3 py-1 bg-purple-500/20 text-purple-300 rounded-lg text-xs sm:text-sm font-semibold">
+            <span className="px-2 sm:px-3 py-1 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 rounded-lg text-xs sm:text-sm font-semibold">
               👥 {job.people_needed} {job.people_needed === 1 ? 'person' : 'people'}
             </span>
           </div>
           
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs sm:text-sm text-white/60">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs sm:text-sm text-[#4B244A]/60 dark:text-white/60 font-medium">
             <span>📅 {new Date(job.created_at).toLocaleDateString()}</span>
             <span>📬 {job.total_applicants} {job.total_applicants === 1 ? 'applicant' : 'applicants'}</span>
           </div>
           
           {/* Show accepted housekeepers */}
           {job.accepted_workers && job.accepted_workers.length > 0 && (
-            <div className="mt-3 bg-green-500/10 border border-green-500/30 rounded-xl p-3">
-              <p className="text-green-300 text-sm font-semibold mb-2">
+            <div className="mt-3 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-xl p-3">
+              <p className="text-green-800 dark:text-green-300 text-sm font-bold mb-2">
                 👷 Accepted Housekeepers ({job.accepted_workers.length}/{job.people_needed}):
               </p>
               <div className="flex flex-wrap gap-2">
                 {job.accepted_workers.map((worker) => (
                   <div key={worker.worker_id} className="flex items-center gap-2">
                     <span 
-                      className="px-3 py-1 bg-green-500/20 text-green-200 rounded-full text-sm font-medium"
+                      className="px-3 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-200 rounded-full text-sm font-bold"
                     >
                       {worker.name}
                     </span>
@@ -938,7 +938,7 @@ function OwnerJobsContent({
                           });
                           navigate(`/chat/new?${params.toString()}`);
                         }}
-                        className="px-2 py-1 bg-purple-500/20 text-purple-300 text-xs rounded-lg hover:bg-purple-500/30"
+                        className="px-2 py-1 bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-xs rounded-lg hover:bg-purple-200 dark:hover:bg-purple-500/30"
                       >
                         💬
                       </button>
@@ -954,7 +954,7 @@ function OwnerJobsContent({
             {job.status === 'open' && job.total_applicants > 0 && (
               <button
                 onClick={() => onViewApplicants(job)}
-                className="w-full py-2 bg-[#EA526F] text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-[#d4486a] transition-all"
+                className="w-full py-2 bg-[#EA526F] text-white text-sm sm:text-base font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
               >
                 View Applicants ({job.total_applicants})
               </button>
@@ -964,7 +964,7 @@ function OwnerJobsContent({
               <>
                 <button
                   onClick={() => onEditJob(job)}
-                  className="w-full py-2 bg-blue-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-blue-600 transition-all"
+                  className="w-full py-2 bg-blue-500 text-white text-sm sm:text-base font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
                 >
                   ✏️ Edit Job
                 </button>
@@ -974,7 +974,7 @@ function OwnerJobsContent({
                       handleStatusUpdate(job.post_id, 'cancelled');
                     }
                   }}
-                  className="w-full py-2 bg-gray-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-gray-600 transition-all"
+                  className="w-full py-2 bg-gray-500 text-white text-sm sm:text-base font-bold rounded-lg hover:bg-gray-600 transition-all shadow-md"
                 >
                   🔒 Cancel Job
                 </button>
@@ -985,14 +985,14 @@ function OwnerJobsContent({
               <>
                 {/* Warning for unpaid payments on long-term jobs */}
                 {job.duration_type === 'long_term' && job.pending_payments && job.pending_payments > 0 && (
-                  <div className="bg-red-500/20 border border-red-500/50 rounded-lg p-3 mb-2">
+                  <div className="bg-red-100 dark:bg-red-500/20 border border-red-200 dark:border-red-500/50 rounded-lg p-3 mb-2">
                     <div className="flex items-center gap-2">
                       <span className="text-2xl">⚠️</span>
                       <div>
-                        <p className="text-red-300 font-semibold">
+                        <p className="text-red-700 dark:text-red-300 font-bold">
                           {job.pending_payments} Unpaid Payment{job.pending_payments > 1 ? 's' : ''}!
                         </p>
-                        <p className="text-red-300/80 text-sm">
+                        <p className="text-red-600 dark:text-red-300/80 text-sm">
                           Please pay your housekeeper to avoid issues.
                         </p>
                       </div>
@@ -1004,7 +1004,7 @@ function OwnerJobsContent({
                 {job.duration_type === 'long_term' && (
                   <button
                     onClick={() => onShowPaymentTracker(job)}
-                    className={`w-full py-2 text-white text-sm sm:text-base font-semibold rounded-lg transition-all ${
+                    className={`w-full py-2 text-white text-sm sm:text-base font-bold rounded-lg transition-all shadow-md ${
                       job.pending_payments && job.pending_payments > 0 
                         ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
                         : 'bg-green-500 hover:bg-green-600'
@@ -1019,14 +1019,14 @@ function OwnerJobsContent({
                 {job.duration_type === 'long_term' && (
                   <button
                     onClick={() => onShowProgressTracker(job)}
-                    className="w-full py-2 bg-blue-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-blue-600 transition-all"
+                    className="w-full py-2 bg-blue-500 text-white text-sm sm:text-base font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
                   >
                     Job Progress
                   </button>
                 )}
                 {/* For short-term jobs, show info about waiting for housekeeper to complete */}
                 {job.duration_type === 'short_term' && (
-                  <div className="py-2 text-center text-blue-300 text-sm">
+                  <div className="py-2 text-center text-blue-600 dark:text-blue-300 text-sm font-medium">
                     ⏳ Waiting for housekeeper to complete and submit proof
                   </div>
                 )}
@@ -1037,11 +1037,11 @@ function OwnerJobsContent({
               <>
                 <button
                   onClick={() => onShowCompletionReview(job)}
-                  className="w-full py-2 bg-yellow-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-yellow-600 transition-all"
+                  className="w-full py-2 bg-yellow-500 text-white text-sm sm:text-base font-bold rounded-lg hover:bg-yellow-600 transition-all shadow-md"
                 >
                   📋 Review Completion
                 </button>
-                <div className="py-2 text-center text-yellow-300 text-sm">
+                <div className="py-2 text-center text-yellow-600 dark:text-yellow-300 text-sm font-medium">
                   ⏳ Housekeeper has submitted completion proof
                 </div>
               </>
@@ -1049,7 +1049,7 @@ function OwnerJobsContent({
             
             {job.status === 'completed' && (
               <>
-                <div className="py-2 text-center text-green-300 font-semibold">
+                <div className="py-2 text-center text-green-600 dark:text-green-300 font-bold">
                   ✔️ Job Completed
                 </div>
                 {/* Show rate buttons for each accepted worker */}
@@ -1063,26 +1063,26 @@ function OwnerJobsContent({
                       return (
                         <div key={worker.worker_id} className="space-y-2">
                           {isRated ? (
-                            <div className="py-2 text-center text-yellow-300 font-semibold bg-yellow-500/10 rounded-lg text-sm">
+                            <div className="py-2 text-center text-yellow-700 dark:text-yellow-300 font-bold bg-yellow-100 dark:bg-yellow-500/10 rounded-lg text-sm">
                               ✓ You rated {worker.name}
                             </div>
                           ) : (
                             <button
                               onClick={() => onRateWorker(job, worker)}
-                              className="w-full py-2 bg-yellow-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-yellow-600 transition-all"
+                              className="w-full py-2 bg-yellow-500 text-white text-sm sm:text-base font-bold rounded-lg hover:bg-yellow-600 transition-all shadow-md"
                             >
                               ⭐ Rate {worker.name}
                             </button>
                           )}
                           
                           {isReported ? (
-                            <div className="py-2 text-center text-orange-300 font-semibold bg-orange-500/10 rounded-lg text-sm">
+                            <div className="py-2 text-center text-orange-700 dark:text-orange-300 font-bold bg-orange-100 dark:bg-orange-500/10 rounded-lg text-sm">
                               ✓ You reported {worker.name}. Wait for admin review.
                             </div>
                           ) : (
                             <button
                               onClick={() => onReportWorker(job, worker)}
-                              className="w-full py-2 bg-red-500 text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-red-600 transition-all"
+                              className="w-full py-2 bg-red-500 text-white text-sm sm:text-base font-bold rounded-lg hover:bg-red-600 transition-all shadow-md"
                             >
                               🚨 Report {worker.name}
                             </button>
@@ -1096,7 +1096,7 @@ function OwnerJobsContent({
             )}
             
             {(job.status === 'closed' || job.status === 'cancelled') && (
-              <div className="py-2 text-center text-gray-400 font-semibold">
+              <div className="py-2 text-center text-gray-500 dark:text-gray-400 font-bold">
                 🔒 Job Cancelled
               </div>
             )}
@@ -1120,10 +1120,10 @@ function HousekeeperJobsContent({
 }) {
   if (jobs.length === 0) {
     return (
-      <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-12 text-center border border-white/20">
+      <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-12 text-center border border-white/50 dark:border-white/10 shadow-xl">
         <div className="text-6xl mb-4">🎯</div>
-        <h3 className="text-2xl font-bold text-white mb-2">No Jobs Available</h3>
-        <p className="text-white/70 mb-6">Check back later for new job opportunities</p>
+        <h3 className="text-2xl font-bold text-[#4B244A] dark:text-white mb-2">No Jobs Available</h3>
+        <p className="text-[#4B244A]/70 dark:text-white/70 mb-6">Check back later for new job opportunities</p>
       </div>
     );
   }
@@ -1136,37 +1136,37 @@ function HousekeeperJobsContent({
         return (
           <div 
             key={job.post_id} 
-            className={`bg-white/10 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border transition-all hover:bg-white/15 ${
+            className={`bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border transition-all hover:bg-white/80 dark:hover:bg-slate-900/80 shadow-lg ${
               hasSelectedCategory 
                 ? 'border-[#EA526F] ring-2 ring-[#EA526F]/30' 
-                : 'border-white/20'
+                : 'border-white/50 dark:border-white/10'
             }`}
           >
             {hasSelectedCategory && (
-              <div className="mb-3 inline-block px-3 py-1 bg-[#EA526F]/30 text-[#EA526F] text-xs font-semibold rounded-full border border-[#EA526F]/50">
+              <div className="mb-3 inline-block px-3 py-1 bg-[#EA526F]/10 dark:bg-[#EA526F]/30 text-[#EA526F] dark:text-pink-300 text-xs font-bold rounded-full border border-[#EA526F]/30">
                 ✓ Matches {categories.find(c => c.category_id === selectedCategory)?.name}
               </div>
             )}
             <div className="flex items-start justify-between mb-3 gap-2">
-              <h3 className="text-lg sm:text-xl font-bold text-white">{job.title}</h3>
-              <span className="px-3 py-1 bg-[#EA526F]/20 text-[#EA526F] rounded-full text-xs font-semibold whitespace-nowrap">
+              <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white">{job.title}</h3>
+              <span className="px-3 py-1 bg-[#EA526F]/10 dark:bg-[#EA526F]/20 text-[#EA526F] dark:text-[#EA526F] rounded-full text-xs font-bold whitespace-nowrap">
                 ₱{job.budget}
               </span>
             </div>
           
-          <p className="text-white/70 mb-4 text-sm sm:text-base">{job.description}</p>
+          <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 text-sm sm:text-base">{job.description}</p>
           
           <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4">
-            <span className="px-2 sm:px-3 py-1 bg-white/10 text-white/80 rounded-lg text-xs sm:text-sm">
+            <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
               🏠 {job.house_type}
             </span>
-            <span className="px-2 sm:px-3 py-1 bg-white/10 text-white/80 rounded-lg text-xs sm:text-sm">
+            <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
               🧹 {job.cleaning_type}
             </span>
-            <span className="px-2 sm:px-3 py-1 bg-white/10 text-white/80 rounded-lg text-xs sm:text-sm">
+            <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
               👥 {job.people_needed} needed
             </span>
-            <span className="px-2 sm:px-3 py-1 bg-white/10 text-white/80 rounded-lg text-xs sm:text-sm">
+            <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
               ⏱️ {job.duration_type}
             </span>
           </div>
@@ -1178,25 +1178,25 @@ function HousekeeperJobsContent({
                   key={idx} 
                   src={url} 
                   alt={`Job ${idx + 1}`} 
-                  className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border border-white/20 flex-shrink-0"
+                  className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border border-gray-200 dark:border-white/20 flex-shrink-0"
                 />
               ))}
               {job.image_urls.length > 3 && (
-                <div className="w-20 h-20 sm:w-24 sm:h-24 bg-white/10 rounded-lg border border-white/20 flex items-center justify-center flex-shrink-0">
-                  <span className="text-white/70 text-xs sm:text-sm font-semibold">+{job.image_urls.length - 3}</span>
+                <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gray-100 dark:bg-white/10 rounded-lg border border-gray-200 dark:border-white/20 flex items-center justify-center flex-shrink-0">
+                  <span className="text-[#4B244A]/70 dark:text-white/70 text-xs sm:text-sm font-bold">+{job.image_urls.length - 3}</span>
                 </div>
               )}
             </div>
           )}
           
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="text-xs sm:text-sm text-white/60 space-y-1">
+            <div className="text-xs sm:text-sm text-[#4B244A]/60 dark:text-white/60 space-y-1 font-medium">
               <p>📍 {job.employer_address}</p>
               <p>👤 {job.employer_name}</p>
             </div>
             <button 
               onClick={() => onSelectJob(job)}
-              className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-[#EA526F] text-white text-sm sm:text-base font-semibold rounded-lg hover:bg-[#d4486a] transition-all shadow-lg"
+              className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-[#EA526F] text-white text-sm sm:text-base font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-lg"
             >
               View Details
             </button>

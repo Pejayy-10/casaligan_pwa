@@ -164,21 +164,21 @@ export default function ConversationList({ filter = 'all', onConversationCountCh
     );
   }
 
-  return (
-    <div className="space-y-2">
+   return (
+    <div className="space-y-3">
       {conversations.map((conversation) => (
         <div
           key={conversation.conversation_id}
           onClick={() => handleOpenChat(conversation)}
           className={`
-            flex items-start gap-4 p-4 rounded-lg cursor-pointer transition-all
+            flex items-start gap-4 p-4 rounded-xl cursor-pointer transition-all border
             ${conversation.unread_count > 0 
-              ? 'bg-primary-50 border-l-4 border-primary-500 hover:bg-primary-100' 
-              : 'bg-white hover:bg-gray-50 border border-gray-200'}
+              ? 'bg-[#EA526F]/10 dark:bg-[#EA526F]/20 border-[#EA526F]/30 dark:border-[#EA526F]/40' 
+              : 'bg-white/50 dark:bg-white/5 border-gray-200 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/10'}
           `}
         >
             {/* Avatar placeholder */}
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center text-white font-semibold text-lg shrink-0">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#4B244A] to-[#6B3468] dark:from-[#EA526F] dark:to-[#d4486a] flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-md">
               {conversation.other_participant_name?.charAt(0).toUpperCase() || '?'}
             </div>
 
@@ -186,14 +186,14 @@ export default function ConversationList({ filter = 'all', onConversationCountCh
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <h4 className={`font-medium truncate ${conversation.unread_count > 0 ? 'text-gray-900' : 'text-gray-700'}`}>
+                  <h4 className={`font-bold truncate ${conversation.unread_count > 0 ? 'text-[#4B244A] dark:text-white' : 'text-[#4B244A]/80 dark:text-white/80'}`}>
                     {conversation.other_participant_name || 'Unknown User'}
                   </h4>
                   {getStatusIcon(conversation.status)}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {conversation.last_message_time && (
-                    <span className="text-xs text-gray-500 flex items-center gap-1">
+                    <span className="text-xs text-[#4B244A]/60 dark:text-white/60 flex items-center gap-1 font-medium">
                       <Clock className="w-3 h-3" />
                       {formatTimeAgo(conversation.last_message_time)}
                     </span>
@@ -202,24 +202,24 @@ export default function ConversationList({ filter = 'all', onConversationCountCh
               </div>
 
               {/* Job/Hire title */}
-              <p className="text-xs text-primary-600 truncate mb-1">
+              <p className="text-xs text-[#EA526F] dark:text-[#EA526F] font-semibold truncate mb-1">
                 {conversation.title || 'Direct Message'}
               </p>
 
               {/* Last message preview */}
               {conversation.last_message ? (
-                <p className={`text-sm truncate ${conversation.unread_count > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'}`}>
+                <p className={`text-sm truncate ${conversation.unread_count > 0 ? 'text-[#4B244A] dark:text-white font-bold' : 'text-[#4B244A]/60 dark:text-white/60'}`}>
                   {truncateMessage(conversation.last_message)}
                 </p>
               ) : (
-                <p className="text-sm text-gray-400 italic">No messages yet</p>
+                <p className="text-sm text-[#4B244A]/40 dark:text-white/40 italic">No messages yet</p>
               )}
             </div>
 
             {/* Right side: unread badge & archive button */}
             <div className="flex flex-col items-end gap-2 shrink-0">
               {conversation.unread_count > 0 && (
-                <span className="bg-primary-600 text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+                <span className="bg-[#EA526F] text-white text-xs font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center shadow-sm">
                   {conversation.unread_count}
                 </span>
               )}
@@ -228,11 +228,11 @@ export default function ConversationList({ filter = 'all', onConversationCountCh
                 <button
                   onClick={(e) => handleArchive(conversation.conversation_id, e)}
                   disabled={archiving === conversation.conversation_id}
-                  className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded transition-colors"
+                  className="p-1.5 text-[#4B244A]/40 dark:text-white/40 hover:text-[#4B244A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-colors"
                   title="Archive conversation"
                 >
                   {archiving === conversation.conversation_id ? (
-                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-4 h-4 border-2 border-[#4B244A]/40 dark:border-white/40 border-t-transparent rounded-full animate-spin" />
                   ) : (
                     <Archive className="w-4 h-4" />
                   )}

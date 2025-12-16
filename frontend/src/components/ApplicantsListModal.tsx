@@ -148,34 +148,34 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl">
+      <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 bg-white/10 backdrop-blur-xl border-b border-white/20 p-6 z-10">
+        <div className="sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-200 dark:border-white/10 p-6 z-10">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-2xl font-bold text-white">👥 Select Housekeepers</h2>
+            <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">👥 Select Housekeepers</h2>
             <button 
               onClick={onClose}
-              className="text-white/70 hover:text-white transition-colors text-3xl leading-none"
+              className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors text-3xl leading-none"
             >
               ×
             </button>
           </div>
-          <p className="text-white/70 text-sm mb-3">{jobTitle}</p>
+          <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-3 font-medium">{jobTitle}</p>
           
           {/* Selection Status */}
           <div className="flex flex-wrap items-center gap-3">
-            <span className="px-3 py-1 bg-[#EA526F]/20 text-[#EA526F] rounded-full text-sm font-semibold">
+            <span className="px-3 py-1 bg-[#EA526F]/10 dark:bg-[#EA526F]/20 text-[#EA526F] dark:text-pink-300 rounded-full text-sm font-bold border border-[#EA526F]/20">
               Need: {peopleNeeded} {peopleNeeded === 1 ? 'person' : 'people'}
             </span>
-            <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+            <span className={`px-3 py-1 rounded-full text-sm font-bold border ${
               canStartJob 
-                ? 'bg-green-500/20 text-green-300' 
-                : 'bg-yellow-500/20 text-yellow-300'
+                ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-500/20 dark:text-green-300 dark:border-green-500/30' 
+                : 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-300 dark:border-yellow-500/30'
             }`}>
               Selected: {totalSelected}/{peopleNeeded}
             </span>
             {alreadyAcceptedCount > 0 && (
-              <span className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm font-semibold">
+              <span className="px-3 py-1 bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30 rounded-full text-sm font-bold">
                 Already Hired: {alreadyAcceptedCount}
               </span>
             )}
@@ -183,7 +183,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
 
           {/* Instructions */}
           {needMoreSelections && pendingApplicants.length > 0 && (
-            <p className="text-yellow-300/80 text-sm mt-3 flex items-center gap-2">
+            <p className="text-yellow-600 dark:text-yellow-300/80 text-sm mt-3 flex items-center gap-2 font-medium">
               <span className="text-lg">👆</span>
               Toggle {peopleNeeded - totalSelected} more {peopleNeeded - totalSelected === 1 ? 'person' : 'people'} to start the job
             </p>
@@ -195,12 +195,12 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
           {loading ? (
             <div className="text-center py-12">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#EA526F] mb-4"></div>
-              <p className="text-white/70">Loading applicants...</p>
+              <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">Loading applicants...</p>
             </div>
           ) : applicants.length === 0 ? (
             <div className="text-center py-12">
-              <div className="text-6xl mb-4">📭</div>
-              <p className="text-white/70">No applicants yet</p>
+              <div className="text-6xl mb-4 opacity-50">📭</div>
+              <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">No applicants yet</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -208,22 +208,22 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
               {applicants.filter(a => a.status === 'accepted').map((applicant) => (
                 <div 
                   key={applicant.interest_id}
-                  className="bg-green-500/20 backdrop-blur-xl rounded-2xl p-4 border-2 border-green-400/50"
+                  className="bg-green-50 dark:bg-green-500/20 backdrop-blur-xl rounded-2xl p-4 border-2 border-green-200 dark:border-green-400/50"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center text-white text-xl">
+                    <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center text-white text-xl shadow-sm">
                       ✓
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-bold text-white mb-1">{applicant.worker_name}</h3>
-                      <p className="text-green-200 text-sm">✓ Already Hired</p>
+                      <h3 className="text-lg font-bold text-green-900 dark:text-white mb-1">{applicant.worker_name}</h3>
+                      <p className="text-green-700 dark:text-green-200 text-sm font-medium">✓ Already Hired</p>
                     </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         navigate(`/worker/${applicant.worker_id}?from=applicants`);
                       }}
-                      className="px-4 py-2 bg-blue-500/30 text-blue-200 rounded-lg hover:bg-blue-500/40 transition-all text-sm font-semibold"
+                      className="px-4 py-2 bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-200 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-500/40 transition-all text-sm font-bold shadow-sm"
                     >
                       👤 Profile
                     </button>
@@ -241,8 +241,8 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                     key={applicant.interest_id}
                     className={`backdrop-blur-xl rounded-2xl p-4 border-2 transition-all cursor-pointer ${
                       isSelected 
-                        ? 'bg-green-500/20 border-green-400/50' 
-                        : 'bg-white/10 border-white/20 hover:border-white/40'
+                        ? 'bg-green-50 border-green-200 dark:bg-green-500/20 dark:border-green-400/50 shadow-md' 
+                        : 'bg-white/60 border-white/50 dark:bg-white/10 dark:border-white/20 hover:bg-white/80 dark:hover:border-white/40 shadow-sm'
                     }`}
                     onClick={() => (isSelected || canSelect) && toggleWorker(applicant.interest_id)}
                   >
@@ -254,22 +254,22 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                           if (isSelected || canSelect) toggleWorker(applicant.interest_id);
                         }}
                         disabled={!isSelected && !canSelect}
-                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
+                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-sm ${
                           isSelected 
                             ? 'bg-green-500 text-white' 
                             : canSelect
-                              ? 'bg-white/20 text-white/50 hover:bg-white/30'
-                              : 'bg-white/10 text-white/30 cursor-not-allowed'
+                              ? 'bg-white text-gray-400 border border-gray-200 dark:bg-white/20 dark:text-white/50 dark:border-transparent hover:bg-gray-50 dark:hover:bg-white/30'
+                              : 'bg-gray-100 text-gray-300 dark:bg-white/10 dark:text-white/30 cursor-not-allowed'
                         }`}
                       >
                         {isSelected ? '✓' : '○'}
                       </button>
                       
                       <div className="flex-1">
-                        <h3 className="text-lg font-bold text-white mb-1">{applicant.worker_name}</h3>
-                        <p className="text-white/70 text-sm">📧 {applicant.worker_email}</p>
-                        <p className="text-white/70 text-sm">📞 {applicant.worker_phone}</p>
-                        <p className="text-white/60 text-xs mt-2">
+                        <h3 className="text-lg font-bold text-[#4B244A] dark:text-white mb-1">{applicant.worker_name}</h3>
+                        <p className="text-[#4B244A]/70 dark:text-white/70 text-sm">📧 {applicant.worker_email}</p>
+                        <p className="text-[#4B244A]/70 dark:text-white/70 text-sm">📞 {applicant.worker_phone}</p>
+                        <p className="text-[#4B244A]/50 dark:text-white/60 text-xs mt-2 font-medium">
                           Applied: {new Date(applicant.applied_at).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric',
@@ -287,7 +287,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                             e.stopPropagation();
                             navigate(`/worker/${applicant.worker_id}?from=applicants`);
                           }}
-                          className="px-4 py-2 bg-blue-500/20 text-blue-300 rounded-lg hover:bg-blue-500/30 transition-all text-sm font-semibold"
+                          className="px-4 py-2 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-500/30 transition-all text-sm font-bold shadow-sm"
                         >
                           👤 Profile
                         </button>
@@ -300,7 +300,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                               handleReject(applicant.interest_id);
                             }
                           }}
-                          className="px-3 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-all text-sm"
+                          className="px-3 py-2 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 transition-all text-sm font-bold shadow-sm"
                           title="Reject this applicant"
                         >
                           ✗
@@ -315,15 +315,15 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
               {applicants.filter(a => a.status === 'rejected').map((applicant) => (
                 <div 
                   key={applicant.interest_id}
-                  className="bg-red-500/10 backdrop-blur-xl rounded-2xl p-4 border border-red-400/20 opacity-60"
+                  className="bg-red-50 dark:bg-red-500/10 backdrop-blur-xl rounded-2xl p-4 border border-red-200 dark:border-red-400/20 opacity-60"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-red-500/30 flex items-center justify-center text-red-300 text-xl">
+                    <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-500/30 flex items-center justify-center text-red-500 dark:text-red-300 text-xl border border-red-200 dark:border-transparent">
                       ✗
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-bold text-white/70 mb-1">{applicant.worker_name}</h3>
-                      <p className="text-red-300/70 text-sm">Rejected</p>
+                      <h3 className="text-lg font-bold text-[#4B244A]/70 dark:text-white/70 mb-1">{applicant.worker_name}</h3>
+                      <p className="text-red-600 dark:text-red-300/70 text-sm font-medium">Rejected</p>
                     </div>
                   </div>
                 </div>
@@ -334,11 +334,11 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
 
         {/* Start Job Button - Only shows when exact number is selected */}
         {canStartJob && selectedWorkers.size > 0 && (
-          <div className="sticky bottom-0 p-6 bg-gradient-to-t from-[#4B244A] to-transparent pt-12">
+          <div className="sticky bottom-0 p-6 bg-gradient-to-t from-[#E8E4E1] dark:from-[#4B244A] to-transparent pt-12">
             <button
               onClick={handleStartJob}
               disabled={startingJob}
-              className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-lg rounded-2xl hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/30 disabled:opacity-50 flex items-center justify-center gap-3"
+              className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-lg rounded-2xl hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/30 disabled:opacity-50 flex items-center justify-center gap-3 active:scale-95"
             >
               {startingJob ? (
                 <>

@@ -131,13 +131,18 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
     }
   };
 
+  // Shared styles
+  const inputClass = "w-full px-4 py-3 bg-white/50 dark:bg-white/10 backdrop-blur-sm border border-gray-200 dark:border-white/20 rounded-xl text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]";
+  const labelClass = "block text-[#4B244A] dark:text-white font-bold mb-2";
+  const optionClass = "text-gray-900 dark:text-gray-900";
+
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-white/20">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-r from-[#EA526F] to-[#d4486a] px-6 py-4 flex items-center justify-between border-b border-white/20">
-          <h2 className="text-2xl font-bold text-white">✏️ Edit Job Post</h2>
-          <button onClick={onClose} className="text-white hover:text-gray-200 transition-colors">
+        <div className="sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md px-6 py-4 flex items-center justify-between border-b border-gray-200 dark:border-white/10 z-10">
+          <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">✏️ Edit Job Post</h2>
+          <button onClick={onClose} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -147,113 +152,113 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
         {/* Form Content */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           {error && (
-            <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4">
-              <p className="text-red-200 text-sm">{error}</p>
+            <div className="bg-red-100 dark:bg-red-500/20 border border-red-200 dark:border-red-500/50 rounded-xl p-4">
+              <p className="text-red-600 dark:text-red-200 text-sm font-medium">{error}</p>
             </div>
           )}
 
           {/* Basic Information */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold text-white">Basic Information</h3>
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 border border-white/50 dark:border-white/10 shadow-lg space-y-4">
+            <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Basic Information</h3>
             
             <div>
-              <label className="block text-white font-semibold mb-2">Job Title *</label>
+              <label className={labelClass}>Job Title *</label>
               <input
                 type="text"
                 name="title"
                 value={formData.title}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                className={inputClass}
                 placeholder="e.g., Deep Cleaning Needed"
               />
             </div>
 
             <div>
-              <label className="block text-white font-semibold mb-2">Description *</label>
+              <label className={labelClass}>Description *</label>
               <textarea
                 name="description"
                 value={formData.description}
                 onChange={handleInputChange}
                 required
                 rows={4}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F] resize-none"
+                className={`${inputClass} resize-none`}
                 placeholder="Describe the job details..."
               />
             </div>
 
             <div>
-              <label className="block text-white font-semibold mb-2">Location</label>
+              <label className={labelClass}>Location</label>
               <input
                 type="text"
                 name="location"
                 value={formData.location}
                 onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                className={inputClass}
                 placeholder="e.g., Quezon City"
               />
             </div>
           </div>
 
           {/* Job Details */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold text-white">Job Details</h3>
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 border border-white/50 dark:border-white/10 shadow-lg space-y-4">
+            <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Job Details</h3>
             
             <div>
-              <label className="block text-white font-semibold mb-2">Category *</label>
+              <label className={labelClass}>Category *</label>
               <select
                 name="category_id"
                 value={formData.category_id}
                 onChange={handleInputChange}
                 required
-                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                className={inputClass}
               >
-                <option value="">Select a category...</option>
+                <option value="" className={optionClass}>Select a category...</option>
                 {categories.map(cat => (
-                  <option key={cat.category_id} value={cat.category_id}>
+                  <option key={cat.category_id} value={cat.category_id} className={optionClass}>
                     {cat.name}
                   </option>
                 ))}
               </select>
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-white font-semibold mb-2">House Type *</label>
+                <label className={labelClass}>House Type *</label>
                 <select
                   name="house_type"
                   value={formData.house_type}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                  className={inputClass}
                 >
-                  <option value="house">House</option>
-                  <option value="apartment">Apartment</option>
-                  <option value="condo">Condo</option>
-                  <option value="office">Office</option>
+                  <option value="house" className={optionClass}>House</option>
+                  <option value="apartment" className={optionClass}>Apartment</option>
+                  <option value="condo" className={optionClass}>Condo</option>
+                  <option value="office" className={optionClass}>Office</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-white font-semibold mb-2">Cleaning Type *</label>
+                <label className={labelClass}>Cleaning Type *</label>
                 <select
                   name="cleaning_type"
                   value={formData.cleaning_type}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                  className={inputClass}
                 >
-                  <option value="general">General Cleaning</option>
-                  <option value="deep">Deep Cleaning</option>
-                  <option value="move-in">Move-in Cleaning</option>
-                  <option value="move-out">Move-out Cleaning</option>
+                  <option value="general" className={optionClass}>General Cleaning</option>
+                  <option value="deep" className={optionClass}>Deep Cleaning</option>
+                  <option value="move-in" className={optionClass}>Move-in Cleaning</option>
+                  <option value="move-out" className={optionClass}>Move-out Cleaning</option>
                 </select>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-white font-semibold mb-2">Budget (₱) *</label>
+                <label className={labelClass}>Budget (₱) *</label>
                 <input
                   type="number"
                   name="budget"
@@ -262,13 +267,13 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
                   required
                   min="0"
                   step="0.01"
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                  className={inputClass}
                   placeholder="5000"
                 />
               </div>
 
               <div>
-                <label className="block text-white font-semibold mb-2">People Needed *</label>
+                <label className={labelClass}>People Needed *</label>
                 <input
                   type="number"
                   name="people_needed"
@@ -277,15 +282,15 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
                   required
                   min="1"
                   max="10"
-                  className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                  className={inputClass}
                 />
               </div>
             </div>
           </div>
 
           {/* Images */}
-          <div>
-            <label className="block text-white font-semibold mb-2">Job Images (Optional)</label>
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 border border-white/50 dark:border-white/10 shadow-lg space-y-4">
+            <h3 className="text-lg font-bold text-[#4B244A] dark:text-white mb-2">Job Images (Optional)</h3>
             <div className="space-y-3">
               {images.length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
@@ -294,12 +299,12 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
                       <img 
                         src={url} 
                         alt={`Job ${idx + 1}`} 
-                        className="w-full h-24 object-cover rounded-lg border border-white/20"
+                        className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-white/20"
                       />
                       <button
                         type="button"
                         onClick={() => handleRemoveImage(idx)}
-                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -312,14 +317,14 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
               
               {images.length < 5 && (
                 <label className="block cursor-pointer">
-                  <div className="border-2 border-dashed border-white/30 rounded-xl p-6 text-center hover:border-white/50 transition-colors">
+                  <div className="border-2 border-dashed border-gray-300 dark:border-white/30 rounded-xl p-6 text-center hover:border-gray-400 dark:hover:border-white/50 transition-colors bg-white/50 dark:bg-white/5">
                     {uploadingImage ? (
-                      <div className="text-white/70">Uploading...</div>
+                      <div className="text-[#4B244A]/70 dark:text-white/70 font-medium">Uploading...</div>
                     ) : (
                       <>
-                        <div className="text-4xl mb-2">📸</div>
-                        <p className="text-white/70 text-sm">Click to upload images</p>
-                        <p className="text-white/50 text-xs mt-1">{images.length}/5 images</p>
+                        <div className="text-4xl mb-2 opacity-50">📸</div>
+                        <p className="text-[#4B244A]/70 dark:text-white/70 text-sm font-medium">Click to upload images</p>
+                        <p className="text-[#4B244A]/50 dark:text-white/50 text-xs mt-1">{images.length}/5 images</p>
                       </>
                     )}
                   </div>
@@ -337,18 +342,18 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
           </div>
 
           {/* Action Buttons */}
-          <div className="flex gap-3 pt-4">
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-all"
+              className="flex-1 py-3 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/10"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 py-3 bg-[#EA526F] text-white font-semibold rounded-xl hover:bg-[#d4486a] transition-all disabled:opacity-50"
+              className="flex-1 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
             >
               {loading ? 'Updating...' : 'Update Job'}
             </button>

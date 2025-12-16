@@ -15,6 +15,10 @@ export default function RegisterStep3DocumentsPage() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
 
+  // Shared styles from the design system
+  const inputClass = "w-full px-4 py-3 bg-white/50 dark:bg-white/10 backdrop-blur-sm border border-gray-200 dark:border-white/20 rounded-xl text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all outline-none disabled:opacity-50";
+  const labelClass = "block text-sm font-bold text-[#4B244A] dark:text-white/90 mb-2";
+
   const documentTypes = [
     { value: 'national_id', label: 'National ID' },
     { value: 'passport', label: 'Passport' },
@@ -112,58 +116,58 @@ export default function RegisterStep3DocumentsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#4B244A] via-[#6B3468] to-[#4B244A] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 flex items-center justify-center p-4 transition-colors duration-300 relative overflow-y-auto">
       {/* Decorative circles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-64 h-64 bg-[#EA526F] rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob"></div>
-        <div className="absolute top-0 right-0 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-0 left-1/2 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-4000"></div>
-        <div className="absolute bottom-0 right-0 w-64 h-64 bg-teal-400 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-blob animation-delay-6000"></div>
+      <div className="absolute inset-0 overflow-hidden pointer-events-none fixed">
+        <div className="absolute top-0 left-0 w-64 h-64 bg-[#EA526F] rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob"></div>
+        <div className="absolute top-0 right-0 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-2000"></div>
+        <div className="absolute bottom-0 left-1/2 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-4000"></div>
+        <div className="absolute bottom-0 right-0 w-64 h-64 bg-teal-400 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-6000"></div>
       </div>
 
-      <div className="w-full max-w-2xl relative z-10">
+      <div className="w-full max-w-2xl relative z-10 my-8">
         {/* Glass morphism card */}
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl shadow-2xl p-6 md:p-8 border border-white/20">
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl shadow-2xl p-6 md:p-8 border border-white/50 dark:border-white/10 transition-all">
           {/* Progress bar */}
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
-              <h1 className="text-2xl md:text-3xl font-bold text-white">Document Verification</h1>
-              <div className="text-sm text-white/80">Step 3 of 3</div>
+              <h1 className="text-2xl md:text-3xl font-bold text-[#4B244A] dark:text-white">Document Verification</h1>
+              <div className="text-sm text-[#4B244A]/70 dark:text-white/70 font-medium">Step 3 of 3</div>
             </div>
             <div className="flex gap-2">
               <div className="flex-1 h-2 bg-[#EA526F] rounded-full"></div>
               <div className="flex-1 h-2 bg-[#EA526F] rounded-full"></div>
-              <div className="flex-1 h-2 bg-[#EA526F] rounded-full"></div>
+              <div className="flex-1 h-2 bg-[#EA526F] rounded-full shadow-md shadow-[#EA526F]/30"></div>
             </div>
           </div>
 
-          <div className="mb-6 p-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl">
-            <p className="text-sm text-white/90">
+          <div className="mb-6 p-4 bg-white/40 dark:bg-white/5 backdrop-blur-sm border border-white/40 dark:border-white/10 rounded-xl">
+            <p className="text-sm text-[#4B244A] dark:text-white/90">
               📄 Upload a valid government-issued ID for verification. This helps keep our platform safe and trusted.
             </p>
           </div>
 
           {error && (
-            <div className="mb-4 p-4 bg-red-500/20 backdrop-blur-sm border border-red-500/30 rounded-xl text-white text-sm">
+            <div className="mb-4 p-4 bg-red-100 dark:bg-red-500/20 backdrop-blur-sm border border-red-200 dark:border-red-500/30 rounded-xl text-red-600 dark:text-white text-sm font-medium">
               {error}
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="document_type" className="block text-sm font-medium text-white/90 mb-2">
+              <label htmlFor="document_type" className={labelClass}>
                 Document Type *
               </label>
               <select
                 id="document_type"
                 value={formData.document_type}
                 onChange={(e) => setFormData({ ...formData, document_type: e.target.value })}
-                className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all"
+                className={inputClass}
                 required
                 disabled={loading}
               >
                 {documentTypes.map((type) => (
-                  <option key={type.value} value={type.value} className="text-gray-900">
+                  <option key={type.value} value={type.value} className="text-gray-900 dark:text-gray-900">
                     {type.label}
                   </option>
                 ))}
@@ -171,7 +175,7 @@ export default function RegisterStep3DocumentsPage() {
             </div>
 
             <div>
-              <label htmlFor="file" className="block text-sm font-medium text-white/90 mb-2">
+              <label htmlFor="file" className={labelClass}>
                 Upload Document *
               </label>
               <input
@@ -179,14 +183,14 @@ export default function RegisterStep3DocumentsPage() {
                 id="file"
                 onChange={handleFileChange}
                 accept="image/*,.pdf"
-                className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#EA526F] file:text-white hover:file:bg-[#d4486a] file:cursor-pointer focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all"
+                className={`${inputClass} file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-[#EA526F] file:text-white hover:file:bg-[#d4486a] file:cursor-pointer`}
                 required
                 disabled={loading || uploading}
               />
               
               {/* Upload status */}
               {uploading && (
-                <div className="mt-2 flex items-center text-white/80 text-sm">
+                <div className="mt-2 flex items-center text-[#4B244A]/80 dark:text-white/80 text-sm">
                   <svg className="animate-spin h-4 w-4 mr-2" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -197,28 +201,28 @@ export default function RegisterStep3DocumentsPage() {
               
               {/* Image Preview */}
               {previewUrl && !uploading && (
-                <div className="mt-4 p-4 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl">
-                  <p className="text-sm text-white/90 mb-3 font-medium">Document Preview: {formData.file_path && '✅ Uploaded'}</p>
-                  <div className="relative rounded-lg overflow-hidden bg-white/5">
+                <div className="mt-4 p-4 bg-white/50 dark:bg-white/5 backdrop-blur-sm border border-gray-200 dark:border-white/20 rounded-xl">
+                  <p className="text-sm text-[#4B244A] dark:text-white/90 mb-3 font-medium">Document Preview: {formData.file_path && '✅ Uploaded'}</p>
+                  <div className="relative rounded-lg overflow-hidden bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10">
                     <img 
                       src={previewUrl} 
                       alt="Document preview" 
                       className="w-full h-auto max-h-96 object-contain"
                     />
                   </div>
-                  <p className="mt-3 text-sm text-white/70">
+                  <p className="mt-3 text-sm text-[#4B244A]/70 dark:text-white/70">
                     ✓ {selectedFile?.name} ({((selectedFile?.size ?? 0) / 1024 / 1024).toFixed(2)} MB)
                   </p>
                 </div>
               )}
               
               {formData.file_path && !previewUrl && (
-                <p className="mt-2 text-sm text-white/80">✓ File selected: {selectedFile?.name}</p>
+                <p className="mt-2 text-sm text-[#4B244A]/80 dark:text-white/80">✓ File selected: {selectedFile?.name}</p>
               )}
             </div>
 
             <div>
-              <label htmlFor="notes" className="block text-sm font-medium text-white/90 mb-2">
+              <label htmlFor="notes" className={labelClass}>
                 Additional Notes (Optional)
               </label>
               <textarea
@@ -226,7 +230,7 @@ export default function RegisterStep3DocumentsPage() {
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                 rows={3}
-                className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white placeholder-white/50 focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all resize-none"
+                className={`${inputClass} resize-none`}
                 placeholder="Any additional information about your document"
                 disabled={loading}
               />
@@ -235,7 +239,7 @@ export default function RegisterStep3DocumentsPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 bg-[#EA526F] text-white font-semibold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
+              className="w-full py-3.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30 mt-6"
             >
               {loading ? (
                 <div className="flex items-center justify-center">
@@ -251,8 +255,8 @@ export default function RegisterStep3DocumentsPage() {
             </button>
           </form>
 
-          <div className="mt-6 p-4 bg-white/10 backdrop-blur-sm rounded-xl border border-white/20">
-            <p className="text-xs text-white/80">
+          <div className="mt-6 p-4 bg-white/40 dark:bg-white/5 backdrop-blur-sm rounded-xl border border-white/40 dark:border-white/10">
+            <p className="text-xs text-[#4B244A]/80 dark:text-white/80">
               🔒 Your documents are securely stored and will only be used for verification purposes. 
               We respect your privacy and follow strict data protection guidelines.
             </p>
