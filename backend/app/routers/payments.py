@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
+import json
 from app.db import get_db
 from app.models_v2.payment import PaymentSchedule, PaymentTransaction, PaymentStatus, PaymentFrequency
 from app.models_v2.user import User
@@ -435,6 +436,82 @@ async def confirm_payment_received(
     transaction.confirmed_at = datetime.now()
     schedule.status = PaymentStatus.CONFIRMED
     
+    # Check if this is a recurring service and create next payment schedule
+    is_recurring = job.is_recurring and getattr(job, 'recurring_status', 'active') == 'active'
+    
+    if is_recurring:
+        # Get the contract to access payment schedule data
+        from app.models_v2.contract import Contract
+        contract = db.query(Contract).filter(Contract.contract_id == schedule.contract_id).first()
+        
+        if contract:
+            # Get job details to find payment amount and frequency
+            job_details = {}
+            if job.content and job.content.startswith('{'):
+                try:
+                    job_details = json.loads(job.content)
+                except:
+                    pass
+            
+            payment_schedule_data = job_details.get('payment_schedule', {})
+            payment_amount = float(payment_schedule_data.get('payment_amount', job_details.get('budget', 0)))
+            
+            # Use recurring frequency if available, otherwise use payment schedule frequency
+            recurring_frequency = job.frequency or payment_schedule_data.get('frequency', 'weekly')
+            
+            # Calculate next payment due date based on frequency
+            current_due_date = datetime.strptime(schedule.due_date, '%Y-%m-%d') if isinstance(schedule.due_date, str) else schedule.due_date
+            if isinstance(current_due_date, str):
+                current_due_date = datetime.strptime(current_due_date, '%Y-%m-%d')
+            
+            next_due_date = current_due_date
+            
+            if recurring_frequency == 'weekly':
+                next_due_date = current_due_date + timedelta(weeks=1)
+            elif recurring_frequency == 'biweekly':
+                next_due_date = current_due_date + timedelta(weeks=2)
+            elif recurring_frequency == 'monthly':
+                # Add one month
+                if current_due_date.month == 12:
+                    next_due_date = current_due_date.replace(year=current_due_date.year + 1, month=1)
+                else:
+                    next_due_date = current_due_date.replace(month=current_due_date.month + 1)
+            else:
+                # Default to weekly
+                next_due_date = current_due_date + timedelta(weeks=1)
+            
+            # Check if we should create next payment (check end_date if exists)
+            should_create_next = True
+            if job.end_date:
+                try:
+                    end_date = datetime.strptime(job.end_date, '%Y-%m-%d') if isinstance(job.end_date, str) else job.end_date
+                    if isinstance(end_date, str):
+                        end_date = datetime.strptime(end_date, '%Y-%m-%d')
+                    if next_due_date > end_date:
+                        should_create_next = False
+                except:
+                    pass
+            
+            # Check if next payment schedule already exists
+            existing_next = db.query(PaymentSchedule).filter(
+                PaymentSchedule.contract_id == schedule.contract_id,
+                PaymentSchedule.due_date == next_due_date.strftime('%Y-%m-%d'),
+                PaymentSchedule.status != PaymentStatus.CONFIRMED
+            ).first()
+            
+            if should_create_next and not existing_next:
+                # Create next payment schedule for recurring service
+                next_schedule = PaymentSchedule(
+                    contract_id=schedule.contract_id,
+                    worker_id=schedule.worker_id,
+                    worker_name=schedule.worker_name,
+                    due_date=next_due_date.strftime('%Y-%m-%d'),
+                    amount=payment_amount,
+                    status=PaymentStatus.PENDING
+                )
+                db.add(next_schedule)
+                print(f"DEBUG: Created next payment schedule for recurring service - due: {next_due_date.strftime('%Y-%m-%d')}")
+    
     db.commit()
     
     # Send notification to owner about payment received by worker
@@ -451,8 +528,8 @@ async def confirm_payment_received(
         )
     
     # Check if job should auto-complete (long-term jobs only)
-    # Condition: ALL payments for ALL workers are confirmed
-    if job.is_longterm:
+    # For recurring services, don't auto-complete - they continue until cancelled
+    if job.is_longterm and not is_recurring:
         # Check if all payment schedules are confirmed
         all_schedules = db.query(PaymentSchedule).join(Contract).filter(
             Contract.post_id == job_id

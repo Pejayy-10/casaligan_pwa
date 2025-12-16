@@ -926,8 +926,34 @@ def start_job(
                     payments_created = 0
                     created_dates = set()  # Track created dates to prevent duplicates
                     
-                    if frequency == 'monthly':
-                        # Generate all payment dates between start and end
+                    # Check if this is a recurring service
+                    is_recurring = post.is_recurring and post.recurring_status == 'active'
+                    
+                    if is_recurring:
+                        # For recurring services, only create the FIRST payment schedule
+                        # Subsequent payments will be created when the previous one is confirmed
+                        # Use the recurring frequency if available, otherwise use payment schedule frequency
+                        recurring_frequency = post.frequency or frequency
+                        
+                        # Calculate first payment due date based on recurring frequency
+                        first_due_date = start_date
+                        
+                        # Create only the first payment schedule
+                        date_str = first_due_date.strftime('%Y-%m-%d')
+                        schedule = PaymentSchedule(
+                            contract_id=contract.contract_id,
+                            worker_id=application.worker_id,
+                            worker_name=worker_name,
+                            due_date=date_str,
+                            amount=payment_amount,
+                            status=PaymentStatus.PENDING
+                        )
+                        db.add(schedule)
+                        payments_created += 1
+                        print(f"DEBUG: Created FIRST payment schedule for recurring service - {worker_name} (due: {date_str})")
+                    
+                    elif frequency == 'monthly':
+                        # Generate all payment dates between start and end (for non-recurring long-term jobs)
                         current_month = start_date.replace(day=1)
                         while current_month <= end_date:
                             for day_str in payment_dates:
