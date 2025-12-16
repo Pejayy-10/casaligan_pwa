@@ -31,7 +31,7 @@ class JobPostCreate(BaseModel):
     start_date: Optional[date] = None  # For long_term jobs
     end_date: Optional[date] = None  # For long_term jobs
     location: Optional[str] = None  # Job location (city/address)
-    category: Optional[str] = "cleaning"  # Job category
+    category_id: int  # Required category from package_categories
     payment_schedule: Optional[PaymentScheduleData] = None  # For long_term jobs
     recurring_schedule: Optional[RecurringScheduleData] = None  # For recurring jobs
 
@@ -49,7 +49,8 @@ class JobPostResponse(BaseModel):
     start_date: Optional[str] = None
     end_date: Optional[str] = None
     location: Optional[str] = None
-    category: str
+    category_id: Optional[int] = None
+    category_name: Optional[str] = None
     status: str
     created_at: str
     payment_schedule: Optional[dict] = None  # Payment schedule data
@@ -101,7 +102,8 @@ class JobPostResponse(BaseModel):
             start_date=custom_fields.get('start_date') or post.start_date,
             end_date=custom_fields.get('end_date') or post.end_date,
             location=custom_fields.get('location') or post.location,
-            category=post.job_type.value if hasattr(post.job_type, 'value') else str(post.job_type),
+            category_id=post.category_id,
+            category_name=post.category.name if post.category else None,
             status=post.status.value if hasattr(post.status, 'value') else post.status,
             created_at=post.created_at.isoformat() if post.created_at else '',
             payment_schedule=custom_fields.get('payment_schedule'),
@@ -135,4 +137,5 @@ class JobPostUpdate(BaseModel):
     start_date: Optional[date] = None
     end_date: Optional[date] = None
     location: Optional[str] = None
+    category_id: Optional[int] = None
     status: Optional[str] = None  # "open", "closed"

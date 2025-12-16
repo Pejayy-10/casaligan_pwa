@@ -50,6 +50,11 @@ export default function JobsPage() {
   const [showCompletionReview, setShowCompletionReview] = useState<JobPost | null>(null);
   const [showHousekeeperPayments, setShowHousekeeperPayments] = useState<AcceptedJob | null>(null);
   
+  // Category filter for housekeeper jobs
+  const [categories, setCategories] = useState<Array<{category_id: number, name: string, description: string | null, is_active: boolean}>>([]);
+  const [selectedCategory, setSelectedCategory] = useState<number | ''>('');
+  const [filteredJobs, setFilteredJobs] = useState<JobPost[]>([]);
+  
   // Direct hire states
   const [showPackageManagement, setShowPackageManagement] = useState(false);
   const [showDirectHires, setShowDirectHires] = useState(false);
@@ -88,6 +93,7 @@ export default function JobsPage() {
       if (response.ok) {
         const data = await response.json();
         setJobs(data);
+        setFilteredJobs(data);
         
         // Load application statuses for housekeepers
         if (user?.active_role === 'housekeeper') {
@@ -159,6 +165,40 @@ export default function JobsPage() {
     }
   }, []);
 
+  const loadCategories = useCallback(async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/categories/?active_only=true');
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+    }
+  }, []);
+
+  const applyCategoryFilter = useCallback(() => {
+    if (!selectedCategory) {
+      setFilteredJobs(jobs);
+      return;
+    }
+
+    // Filter and sort jobs by category
+    const jobsWithCategory: JobPost[] = [];
+    const jobsWithoutCategory: JobPost[] = [];
+
+    jobs.forEach(job => {
+      if (job.category_id === selectedCategory) {
+        jobsWithCategory.push(job);
+      } else {
+        jobsWithoutCategory.push(job);
+      }
+    });
+
+    // Show jobs with the category first, then others
+    setFilteredJobs([...jobsWithCategory, ...jobsWithoutCategory]);
+  }, [jobs, selectedCategory]);
+
   useEffect(() => {
     if (!user) {
       navigate('/login');
@@ -166,8 +206,18 @@ export default function JobsPage() {
       loadJobs();
       loadReports();
       loadRatings();
+      if (user.active_role === 'housekeeper') {
+        loadCategories();
+      }
     }
-  }, [user, navigate, loadJobs, loadReports, loadRatings, statusFilter]);
+  }, [user, navigate, loadJobs, loadReports, loadRatings, loadCategories, statusFilter]);
+
+  // Apply category filter when jobs or selected category changes
+  useEffect(() => {
+    if (user?.active_role === 'housekeeper') {
+      applyCategoryFilter();
+    }
+  }, [jobs, selectedCategory, applyCategoryFilter, user]);
 
   if (!user) return null;
 
@@ -278,6 +328,38 @@ export default function JobsPage() {
                   💼 My Jobs
                 </button>
               </div>
+              
+              {/* Category Filter - Find Jobs View Only */}
+              {housekeeperView === 'find' && (
+                <div className="mt-3">
+                  <label className="block text-white/90 text-sm font-semibold mb-2">📂 Filter by Category</label>
+                  <select
+                    value={selectedCategory}
+                    onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : '')}
+                    className="w-full px-4 py-2.5 bg-white/10 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                  >
+                    <option value="">All Categories</option>
+                    {categories.map(cat => (
+                      <option key={cat.category_id} value={cat.category_id}>
+                        {cat.name}
+                      </option>
+                    ))}
+                  </select>
+                  {selectedCategory && (
+                    <div className="mt-2">
+                      {filteredJobs.filter(job => job.category_id === selectedCategory).length === 0 ? (
+                        <div className="bg-orange-500/20 border border-orange-500/50 rounded-lg p-3 text-sm">
+                          <p className="text-orange-200">⚠️ No jobs in this category. Showing all jobs below.</p>
+                        </div>
+                      ) : (
+                        <div className="bg-[#EA526F]/20 border border-[#EA526F]/50 rounded-lg p-3 text-sm">
+                          <p className="text-[#EA526F]">✓ Showing jobs with <strong>{categories.find(c => c.category_id === selectedCategory)?.name}</strong> first, then others.</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
           
@@ -394,7 +476,12 @@ export default function JobsPage() {
             }}
           />
         ) : (
-          <HousekeeperJobsContent jobs={jobs} onSelectJob={setSelectedJob} />
+          <HousekeeperJobsContent 
+            jobs={filteredJobs} 
+            onSelectJob={setSelectedJob} 
+            selectedCategory={selectedCategory}
+            categories={categories}
+          />
         )}
       </main>
 
@@ -1022,10 +1109,14 @@ function OwnerJobsContent({
 
 function HousekeeperJobsContent({ 
   jobs, 
-  onSelectJob 
+  onSelectJob,
+  selectedCategory,
+  categories
 }: { 
   jobs: JobPost[]; 
   onSelectJob: (job: JobPost) => void;
+  selectedCategory: number | '';
+  categories: Array<{category_id: number, name: string, description: string | null, is_active: boolean}>;
 }) {
   if (jobs.length === 0) {
     return (
@@ -1039,14 +1130,29 @@ function HousekeeperJobsContent({
 
   return (
     <div className="space-y-4">
-      {jobs.map((job) => (
-        <div key={job.post_id} className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border border-white/20 hover:bg-white/15 transition-all">
-          <div className="flex items-start justify-between mb-3 gap-2">
-            <h3 className="text-lg sm:text-xl font-bold text-white">{job.title}</h3>
-            <span className="px-3 py-1 bg-[#EA526F]/20 text-[#EA526F] rounded-full text-xs font-semibold whitespace-nowrap">
-              ₱{job.budget}
-            </span>
-          </div>
+      {jobs.map((job) => {
+        const hasSelectedCategory = selectedCategory && job.category_id === selectedCategory;
+        
+        return (
+          <div 
+            key={job.post_id} 
+            className={`bg-white/10 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border transition-all hover:bg-white/15 ${
+              hasSelectedCategory 
+                ? 'border-[#EA526F] ring-2 ring-[#EA526F]/30' 
+                : 'border-white/20'
+            }`}
+          >
+            {hasSelectedCategory && (
+              <div className="mb-3 inline-block px-3 py-1 bg-[#EA526F]/30 text-[#EA526F] text-xs font-semibold rounded-full border border-[#EA526F]/50">
+                ✓ Matches {categories.find(c => c.category_id === selectedCategory)?.name}
+              </div>
+            )}
+            <div className="flex items-start justify-between mb-3 gap-2">
+              <h3 className="text-lg sm:text-xl font-bold text-white">{job.title}</h3>
+              <span className="px-3 py-1 bg-[#EA526F]/20 text-[#EA526F] rounded-full text-xs font-semibold whitespace-nowrap">
+                ₱{job.budget}
+              </span>
+            </div>
           
           <p className="text-white/70 mb-4 text-sm sm:text-base">{job.description}</p>
           
@@ -1096,7 +1202,8 @@ function HousekeeperJobsContent({
             </button>
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

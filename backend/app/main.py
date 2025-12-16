@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-from app.routers import auth, jobs, payments, checkins, progress, debug, upload, reports, packages, direct_hire, notifications, ratings, messaging, availability
+from app.routers import auth, jobs, payments, checkins, progress, debug, upload, reports, packages, direct_hire, notifications, ratings, messaging, availability, categories
 
 app = FastAPI(title="Casaligan API", version="1.0.0")
 
@@ -13,6 +13,8 @@ origins = [
     "http://127.0.0.1:5173", # Vite alternate
     "http://127.0.0.1:5174", # Vite alternate port
     "http://localhost:8100", # Ionic/Capacitor default
+    "http://localhost:3000", # Next.js default (Admin web)
+    "http://127.0.0.1:3000", # Next.js alternate
     "capacitor://localhost", # Mobile app origin
     "http://10.213.89.2:5173", # Network IP for mobile testing
     "https://localhost", # HTTPS
@@ -43,6 +45,7 @@ app.include_router(debug.router)
 app.include_router(upload.router)
 app.include_router(reports.router)
 app.include_router(packages.router)
+app.include_router(categories.router)
 app.include_router(direct_hire.router)
 app.include_router(notifications.router)
 app.include_router(ratings.router)

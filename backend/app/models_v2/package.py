@@ -48,6 +48,9 @@ class WorkerPackage(Base):
     status = Column(SQLEnum(PackageStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=PackageStatus.ACTIVE)
     is_active = Column(Boolean, default=True, nullable=False)
     
+    # Category
+    category_id = Column(Integer, ForeignKey("package_categories.category_id"), nullable=False)
+    
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -55,3 +58,4 @@ class WorkerPackage(Base):
     
     # Relationships
     worker = relationship("Worker", back_populates="packages")
+    category = relationship("PackageCategory", back_populates="packages")

@@ -2,7 +2,7 @@
 Job posting endpoints using ForumPost model
 """
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from sqlalchemy.sql import func
 from typing import List, Optional
@@ -108,6 +108,7 @@ def create_job_post(
         location=job_data.location or "Not specified",
         job_type=job_type,
         salary=job_data.budget,
+        category_id=job_data.category_id,
         is_longterm=(job_data.duration_type == "long_term"),
         start_date=job_data.start_date.isoformat() if job_data.start_date else None,
         end_date=job_data.end_date.isoformat() if job_data.end_date else None,
@@ -139,7 +140,9 @@ def get_job_posts(
 ):
     """Get all job posts (filtered by status)"""
     
-    query = db.query(ForumPost).filter(ForumPost.deleted_at.is_(None))
+    query = db.query(ForumPost).options(
+        joinedload(ForumPost.category)
+    ).filter(ForumPost.deleted_at.is_(None))
     
     if status_filter and status_filter != "all":
         query = query.filter(ForumPost.status == status_filter)
@@ -442,6 +445,9 @@ def update_job_post(
     # Update fields
     if job_update.title:
         post.title = job_update.title
+    
+    if job_update.category_id is not None:
+        post.category_id = job_update.category_id
     
     if job_update.status:
         post.status = ForumPostStatus(job_update.status)

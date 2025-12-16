@@ -26,6 +26,7 @@ export default function CreateJobPage() {
     start_date: '',
     end_date: '',
     location: '',
+    category_id: '',
     // Payment schedule fields
     payment_frequency: 'monthly',
     payment_amount: '',
@@ -41,14 +42,29 @@ export default function CreateJobPage() {
   
   const [images, setImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [categories, setCategories] = useState<Array<{category_id: number, name: string, description: string | null, is_active: boolean}>>([]);
 
   useEffect(() => {
     if (!user) {
       navigate('/login');
     } else if (!user.is_owner) {
       navigate('/dashboard');
+    } else {
+      loadCategories();
     }
   }, [user, navigate]);
+
+  const loadCategories = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/categories/?active_only=true');
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -118,7 +134,7 @@ export default function CreateJobPage() {
         image_urls: images,
         duration_type: formData.duration_type,
         location: formData.location || null,
-        category: 'cleaning'
+        category_id: parseInt(formData.category_id)
       };
       
       // For short-term jobs, use job_date as both start and end date
@@ -288,6 +304,24 @@ export default function CreateJobPage() {
                   <option value="post_construction">Post-Construction Cleaning</option>
                   <option value="spring_cleaning">Spring Cleaning</option>
                   <option value="maintenance">Regular Maintenance</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-white font-semibold mb-2">Category *</label>
+                <select
+                  name="category_id"
+                  value={formData.category_id}
+                  onChange={handleInputChange}
+                  required
+                  className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                >
+                  <option value="">Select a category...</option>
+                  {categories.map(cat => (
+                    <option key={cat.category_id} value={cat.category_id}>
+                      {cat.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 

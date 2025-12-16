@@ -10,6 +10,7 @@ interface EditJobModalProps {
 export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [categories, setCategories] = useState<Array<{category_id: number, name: string, description: string | null, is_active: boolean}>>([]);
   
   const [formData, setFormData] = useState({
     title: job.title,
@@ -19,10 +20,27 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
     budget: job.budget.toString(),
     people_needed: job.people_needed.toString(),
     location: job.location || '',
+    category_id: job.category_id?.toString() || '',
   });
   
   const [images, setImages] = useState<string[]>(job.image_urls || []);
   const [uploadingImage, setUploadingImage] = useState(false);
+
+  useEffect(() => {
+    loadCategories();
+  }, []);
+
+  const loadCategories = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/categories/?active_only=true');
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -88,6 +106,7 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
         people_needed: parseInt(formData.people_needed),
         image_urls: images,
         location: formData.location || null,
+        category_id: formData.category_id ? parseInt(formData.category_id) : undefined,
       };
       
       const response = await fetch(`http://127.0.0.1:8000/jobs/${job.post_id}`, {
@@ -179,6 +198,24 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
           {/* Job Details */}
           <div className="space-y-4">
             <h3 className="text-lg font-bold text-white">Job Details</h3>
+            
+            <div>
+              <label className="block text-white font-semibold mb-2">Category *</label>
+              <select
+                name="category_id"
+                value={formData.category_id}
+                onChange={handleInputChange}
+                required
+                className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+              >
+                <option value="">Select a category...</option>
+                {categories.map(cat => (
+                  <option key={cat.category_id} value={cat.category_id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             
             <div className="grid grid-cols-2 gap-4">
               <div>

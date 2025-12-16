@@ -21,7 +21,8 @@ import {
   Bell,
   ChevronRight,
   LogOut,
-  User
+  User,
+  Settings
 } from "lucide-react";
 
 type ShellProps = {
@@ -88,6 +89,7 @@ export default function Shell({ children }: ShellProps) {
     { key: "activity-log", label: "Activity Log", href: "/activity-log", icon: Activity },
     { key: "security", label: "Security", href: "/security", icon: Shield },
     { key: "reports", label: "Reports", href: "/reports", icon: AlertTriangle },
+    { key: "settings", label: "Settings", href: "/settings", icon: Settings },
   ];
 
   const toggleGroup = (key: string) =>

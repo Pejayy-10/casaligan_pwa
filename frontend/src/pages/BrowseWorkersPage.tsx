@@ -11,6 +11,15 @@ interface WorkerPackage {
   name: string;
   price: number;
   duration_hours: number;
+  category_id?: number;
+  category_name?: string;
+}
+
+interface Category {
+  category_id: number;
+  name: string;
+  description: string | null;
+  is_active: boolean;
 }
 
 interface WorkerProfile {
@@ -32,6 +41,9 @@ interface WorkerProfile {
 export default function BrowseWorkersPage() {
   const navigate = useNavigate();
   const [workers, setWorkers] = useState<WorkerProfile[]>([]);
+  const [filteredWorkers, setFilteredWorkers] = useState<WorkerProfile[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<number | ''>('');
   const [loading, setLoading] = useState(true);
   const [searchCity, setSearchCity] = useState('');
   const [minRating, setMinRating] = useState<number | ''>('');
@@ -60,6 +72,7 @@ export default function BrowseWorkersPage() {
   // Load employer's address on mount
   useEffect(() => {
     loadEmployerAddress();
+    loadCategories();
   }, []);
 
   // Load workers when location or filters change
@@ -68,6 +81,46 @@ export default function BrowseWorkersPage() {
       loadWorkers();
     }
   }, [employerLocation, minRating, sortBy, locationLoading]);
+
+  // Apply category filter to workers
+  useEffect(() => {
+    applyCategoryFilter();
+  }, [workers, selectedCategory]);
+
+  const loadCategories = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/categories/?active_only=true');
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+    }
+  };
+
+  const applyCategoryFilter = () => {
+    if (!selectedCategory) {
+      setFilteredWorkers(workers);
+      return;
+    }
+
+    // Filter and sort workers by category
+    const workersWithCategory: WorkerProfile[] = [];
+    const workersWithoutCategory: WorkerProfile[] = [];
+
+    workers.forEach(worker => {
+      const hasCategory = worker.packages.some(pkg => pkg.category_id === selectedCategory);
+      if (hasCategory) {
+        workersWithCategory.push(worker);
+      } else {
+        workersWithoutCategory.push(worker);
+      }
+    });
+
+    // Show workers with the category first, then others
+    setFilteredWorkers([...workersWithCategory, ...workersWithoutCategory]);
+  };
 
   const loadEmployerAddress = async () => {
     try {
@@ -212,6 +265,7 @@ export default function BrowseWorkersPage() {
       if (response.ok) {
         const data = await response.json();
         setWorkers(data);
+        setFilteredWorkers(data);
       }
     } catch (error) {
       console.error('Failed to load workers:', error);
@@ -394,6 +448,22 @@ export default function BrowseWorkersPage() {
           {/* Filters */}
           <div className="flex flex-wrap gap-3">
             <div className="flex items-center gap-2">
+              <span className="text-white/70 text-sm">Category:</span>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : '')}
+                className="px-3 py-2 bg-white/20 border border-white/30 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+              >
+                <option value="" className="text-gray-900">All Categories</option>
+                {categories.map((cat) => (
+                  <option key={cat.category_id} value={cat.category_id} className="text-gray-900">
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
               <span className="text-white/70 text-sm">Min Rating:</span>
               <select
                 value={minRating}
@@ -422,25 +492,61 @@ export default function BrowseWorkersPage() {
           </div>
         </div>
 
+        {/* Category Filter Info */}
+        {selectedCategory && (
+          <div className="bg-[#EA526F]/20 backdrop-blur-xl rounded-xl p-3 mb-4 border border-[#EA526F]/30">
+            <p className="text-white text-sm">
+              🏷️ Filtering by: <span className="font-semibold">{categories.find(c => c.category_id === selectedCategory)?.name}</span>
+              {' '}- Workers with this category are shown first
+            </p>
+          </div>
+        )}
+
         {/* Workers List */}
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#EA526F]"></div>
             <p className="text-white/70 mt-4">Loading housekeepers...</p>
           </div>
-        ) : workers.length === 0 ? (
+        ) : filteredWorkers.length === 0 ? (
           <div className="text-center py-12 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20">
             <div className="text-6xl mb-4">🔍</div>
             <h3 className="text-xl font-bold text-white mb-2">No housekeepers found</h3>
-            <p className="text-white/70">Try a different city or check back later</p>
+            <p className="text-white/70">
+              {selectedCategory 
+                ? `No housekeepers have packages in the selected category` 
+                : 'Try a different city or check back later'}
+            </p>
           </div>
-        ) : (
+        ) : selectedCategory && !filteredWorkers.some(w => w.packages.some(p => p.category_id === selectedCategory)) ? (
+          <div className="mb-4 bg-yellow-500/20 backdrop-blur-xl rounded-xl p-4 border border-yellow-500/30">
+            <p className="text-yellow-200 text-sm">
+              ⚠️ No housekeepers with packages in this category. Showing all available housekeepers below.
+            </p>
+          </div>
+        ) : null}
+        
+        {!loading && filteredWorkers.length > 0 && (
           <div className="grid gap-4">
-            {workers.map((worker) => (
+            {filteredWorkers.map((worker) => {
+              const hasSelectedCategory = selectedCategory 
+                ? worker.packages.some(p => p.category_id === selectedCategory)
+                : false;
+              
+              return (
               <div
                 key={worker.worker_id}
-                className="bg-white/10 backdrop-blur-xl rounded-2xl p-5 border border-white/20 hover:bg-white/20 transition-all"
+                className={`bg-white/10 backdrop-blur-xl rounded-2xl p-5 border transition-all ${
+                  hasSelectedCategory 
+                    ? 'border-[#EA526F] ring-2 ring-[#EA526F]/30' 
+                    : 'border-white/20 hover:bg-white/20'
+                }`}
               >
+                {hasSelectedCategory && (
+                  <div className="mb-3 inline-block px-3 py-1 bg-[#EA526F]/30 text-[#EA526F] text-xs font-semibold rounded-full border border-[#EA526F]/50">
+                    ✓ Has {categories.find(c => c.category_id === selectedCategory)?.name} packages
+                  </div>
+                )}
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-4">
                     {/* Avatar */}
@@ -524,7 +630,8 @@ export default function BrowseWorkersPage() {
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>

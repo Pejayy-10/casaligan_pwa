@@ -20,6 +20,7 @@ class PackageCreate(BaseModel):
     price: float
     duration_hours: int = 2
     services: List[str] = []
+    category_id: int  # Required category
 
 
 class PackageUpdate(BaseModel):
@@ -29,6 +30,7 @@ class PackageUpdate(BaseModel):
     duration_hours: Optional[int] = None
     services: Optional[List[str]] = None
     is_active: Optional[bool] = None
+    category_id: Optional[int] = None
 
 
 class PackageResponse(BaseModel):
@@ -40,6 +42,8 @@ class PackageResponse(BaseModel):
     duration_hours: int
     services: List[str]
     is_active: bool
+    category_id: int
+    category_name: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -67,7 +71,19 @@ def create_package(
     db: Session = Depends(get_db)
 ):
     """Create a new service package (housekeeper only)"""
+    from app.models_v2.category import PackageCategory
+    
     worker = get_worker_for_user(current_user.id, db)
+    
+    # Verify category exists
+    category = db.query(PackageCategory).filter(
+        PackageCategory.category_id == package_data.category_id
+    ).first()
+    if not category:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Category not found"
+        )
     
     package = WorkerPackage(
         worker_id=worker.worker_id,
@@ -77,6 +93,7 @@ def create_package(
         price=package_data.price,
         duration_hours=package_data.duration_hours,
         services=package_data.services,
+        category_id=package_data.category_id,
         status='active',  # Auto-activate for now
         is_active=True
     )
@@ -93,7 +110,9 @@ def create_package(
         price=float(package.price),
         duration_hours=package.duration_hours,
         services=package.services or [],
-        is_active=package.is_active
+        is_active=package.is_active,
+        category_id=package.category_id,
+        category_name=category.name
     )
 
 
@@ -118,7 +137,9 @@ def get_my_packages(
             price=float(p.price),
             duration_hours=p.duration_hours,
             services=p.services or [],
-            is_active=p.is_active
+            is_active=p.is_active,
+            category_id=p.category_id,
+            category_name=p.category.name if p.category else None
         )
         for p in packages
     ]
@@ -132,6 +153,8 @@ def update_package(
     db: Session = Depends(get_db)
 ):
     """Update a package (owner only)"""
+    from app.models_v2.category import PackageCategory
+    
     worker = get_worker_for_user(current_user.id, db)
     
     package = db.query(WorkerPackage).filter(
@@ -144,6 +167,18 @@ def update_package(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Package not found"
         )
+    
+    # Verify category if being updated
+    if package_data.category_id is not None:
+        category = db.query(PackageCategory).filter(
+            PackageCategory.category_id == package_data.category_id
+        ).first()
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Category not found"
+            )
+        package.category_id = package_data.category_id
     
     # Update fields
     if package_data.name is not None:
@@ -170,7 +205,9 @@ def update_package(
         price=float(package.price),
         duration_hours=package.duration_hours,
         services=package.services or [],
-        is_active=package.is_active
+        is_active=package.is_active,
+        category_id=package.category_id,
+        category_name=package.category.name if package.category else None
     )
 
 

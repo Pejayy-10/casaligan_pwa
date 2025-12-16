@@ -20,6 +20,8 @@ export interface JobPost {
   start_date?: string;
   end_date?: string;
   location?: string;
+  category_id?: number;
+  category_name?: string;
   status: string;
   created_at: string;
   employer_name?: string;

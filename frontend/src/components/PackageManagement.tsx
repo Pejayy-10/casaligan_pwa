@@ -9,6 +9,15 @@ interface Package {
   duration_hours: number;
   services: string[];
   is_active: boolean;
+  category_id: number;
+  category_name?: string;
+}
+
+interface Category {
+  category_id: number;
+  name: string;
+  description: string | null;
+  is_active: boolean;
 }
 
 interface Props {
@@ -18,6 +27,7 @@ interface Props {
 
 export default function PackageManagement({ onClose, embedded = false }: Props) {
   const [packages, setPackages] = useState<Package[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingPackage, setEditingPackage] = useState<Package | null>(null);
@@ -28,11 +38,25 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
   const [price, setPrice] = useState('');
   const [durationHours, setDurationHours] = useState('2');
   const [services, setServices] = useState('');
+  const [categoryId, setCategoryId] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     loadPackages();
+    loadCategories();
   }, []);
+
+  const loadCategories = async () => {
+    try {
+      const response = await fetch('http://127.0.0.1:8000/categories/?active_only=true');
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+    }
+  };
 
   const loadPackages = async () => {
     try {
@@ -59,6 +83,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     setPrice('');
     setDurationHours('2');
     setServices('');
+    setCategoryId('');
     setEditingPackage(null);
     setShowForm(false);
   };
@@ -70,12 +95,13 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     setPrice(pkg.price.toString());
     setDurationHours(pkg.duration_hours.toString());
     setServices(pkg.services?.join(', ') || '');
+    setCategoryId(pkg.category_id.toString());
     setShowForm(true);
   };
 
   const handleSubmit = async () => {
-    if (!name.trim() || !price) {
-      alert('Please fill in package name and price');
+    if (!name.trim() || !price || !categoryId) {
+      alert('Please fill in package name, price, and category');
       return;
     }
 
@@ -90,7 +116,8 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
         description: description.trim() || null,
         price: parseFloat(price),
         duration_hours: parseInt(durationHours),
-        services: servicesArray
+        services: servicesArray,
+        category_id: parseInt(categoryId)
       };
 
       const url = editingPackage 
@@ -186,6 +213,26 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
           placeholder="e.g., Basic Cleaning, Deep Clean, Weekly Service"
           className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
         />
+      </div>
+
+      <div>
+        <label className="block text-white font-semibold mb-2">Category *</label>
+        <select
+          value={categoryId}
+          onChange={(e) => setCategoryId(e.target.value)}
+          className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+          required
+        >
+          <option value="" className="bg-[#4B244A] text-white/50">Select a category</option>
+          {categories.map((cat) => (
+            <option key={cat.category_id} value={cat.category_id} className="bg-[#4B244A] text-white">
+              {cat.name}
+            </option>
+          ))}
+        </select>
+        {categories.length === 0 && (
+          <p className="text-yellow-300 text-xs mt-1">⚠ No categories available. Contact admin to add categories.</p>
+        )}
       </div>
 
       <div>
@@ -290,15 +337,13 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
                     </span>
                   )}
                 </div>
-                {pkg.description && (
-                  <p className="text-white/70 text-sm mt-1">{pkg.description}</p>
-                )}
-                <div className="flex items-center gap-4 mt-2 text-sm text-white/60">
-                  <span>⏱ {pkg.duration_hours}h</span>
-                  {pkg.services && pkg.services.length > 0 && (
-                    <span>📋 {pkg.services.length} services</span>
-                  )}
+              {pkg.category_name && (
+                <div className="mt-1">
+                  <span className="px-2 py-0.5 bg-[#EA526F]/30 text-[#EA526F] text-xs rounded-full">
+                    {pkg.category_name}
+                  </span>
                 </div>
+              )}
               </div>
               
               <div className="text-right">

@@ -29,6 +29,7 @@ class ForumPost(Base):
     post_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     employer_id = Column(Integer, ForeignKey("employers.employer_id"), nullable=False)
+    category_id = Column(Integer, ForeignKey("package_categories.category_id"), nullable=True)
     
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
@@ -68,6 +69,7 @@ class ForumPost(Base):
     # Relationships
     user = relationship("User", back_populates="forum_posts")
     employer = relationship("Employer", back_populates="forum_posts")
+    category = relationship("PackageCategory", foreign_keys=[category_id])
     interest_checks = relationship("InterestCheck", back_populates="post")
     contracts = relationship("Contract", back_populates="post")  # Multiple contracts per job (one per worker)
 

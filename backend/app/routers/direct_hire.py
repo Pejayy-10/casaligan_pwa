@@ -681,6 +681,7 @@ def browse_workers(
     from app.models_v2.application import HousekeeperApplication, ApplicationStatus
     from app.models_v2.rating import Rating
     from sqlalchemy import func
+    from sqlalchemy.orm import joinedload
     
     # Get all approved housekeepers
     query = db.query(Worker).join(
@@ -713,7 +714,9 @@ def browse_workers(
             continue
         
         # Get active packages
-        packages = db.query(WorkerPackage).filter(
+        packages = db.query(WorkerPackage).options(
+            joinedload(WorkerPackage.category)
+        ).filter(
             WorkerPackage.worker_id == worker.worker_id,
             WorkerPackage.is_active == True
         ).all()
@@ -777,7 +780,9 @@ def browse_workers(
                     "package_id": p.package_id,
                     "name": p.name,
                     "price": float(p.price),
-                    "duration_hours": p.duration_hours
+                    "duration_hours": p.duration_hours,
+                    "category_id": p.category_id,
+                    "category_name": p.category.name if p.category else None
                 }
                 for p in packages
             ]
