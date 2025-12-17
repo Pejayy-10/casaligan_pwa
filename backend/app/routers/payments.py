@@ -198,12 +198,12 @@ async def get_payments_for_owner(
             due_date=s.due_date if isinstance(s.due_date, str) else s.due_date.strftime('%Y-%m-%d'),
             amount=float(s.amount) if s.amount else 0,
             status=s.status.value if hasattr(s.status, 'value') else str(s.status),
-            payment_proof_url=transaction.proof_url if transaction else None,
+            payment_proof_url=transaction.payment_proof_url if transaction else None,
             payment_method=transaction.payment_method if transaction else None,
             reference_number=transaction.reference_number if transaction else None,
-            sent_at=transaction.sent_at.isoformat() if transaction and transaction.sent_at else None,
+            sent_at=transaction.paid_at.isoformat() if transaction and transaction.paid_at else None,
             confirmed_at=transaction.confirmed_at.isoformat() if transaction and transaction.confirmed_at else None,
-            dispute_reason=transaction.dispute_reason if transaction else None,
+            dispute_reason=transaction.notes if transaction and transaction.notes and 'DISPUTE:' in transaction.notes else None,
             worker_id=s.worker_id,
             worker_name=s.worker_name or "Worker"
         ))
@@ -261,13 +261,11 @@ async def get_my_payments(
     # Create a map of schedule_id -> transaction
     transaction_map = {t.schedule_id: t for t in transactions}
     
-    # Check for overdue payments
+    # Mark overdue payments based on schedule status
     today = datetime.now().date()
     for schedule in schedules:
         due_date = datetime.strptime(schedule.due_date, '%Y-%m-%d').date() if isinstance(schedule.due_date, str) else schedule.due_date
-        transaction = transaction_map.get(schedule.schedule_id)
-        if transaction and transaction.status == PaymentStatus.PENDING and due_date < today:
-            transaction.status = PaymentStatus.OVERDUE
+        if schedule.status == PaymentStatus.PENDING and due_date < today:
             schedule.status = PaymentStatus.OVERDUE
     db.commit()
     
@@ -284,12 +282,12 @@ async def get_my_payments(
             due_date=due_date_str,
             amount=float(schedule.amount) if schedule.amount else 0,
             status=schedule.status.value if hasattr(schedule.status, 'value') else str(schedule.status),
-            payment_proof_url=transaction.proof_url if transaction else None,
+            payment_proof_url=transaction.payment_proof_url if transaction else None,
             payment_method=transaction.payment_method if transaction else None,
             reference_number=transaction.reference_number if transaction else None,
-            sent_at=transaction.sent_at.isoformat() if transaction and transaction.sent_at else None,
+            sent_at=transaction.paid_at.isoformat() if transaction and transaction.paid_at else None,
             confirmed_at=transaction.confirmed_at.isoformat() if transaction and transaction.confirmed_at else None,
-            dispute_reason=transaction.dispute_reason if transaction else None,
+            dispute_reason=transaction.notes if transaction and transaction.notes and 'DISPUTE:' in transaction.notes else None,
             worker_id=worker.worker_id,
             worker_name=f"{current_user.first_name} {current_user.last_name}"
         ))
@@ -338,26 +336,24 @@ async def mark_payment_as_sent(
     ).first()
     
     if not transaction:
-        # Create a new transaction
+        # Create a new transaction (similar to short-term payment pattern)
         transaction = PaymentTransaction(
             schedule_id=schedule_id,
             amount_paid=schedule.amount,
-            status=PaymentStatus.SENT,
-            proof_url=data.payment_proof_url,
+            payment_proof_url=data.payment_proof_url,
             payment_method=data.payment_method,
             reference_number=data.reference_number,
-            sent_at=datetime.now()
+            paid_at=datetime.now()
         )
         db.add(transaction)
     else:
         # Update existing transaction
-        transaction.status = PaymentStatus.SENT
-        transaction.proof_url = data.payment_proof_url
+        transaction.payment_proof_url = data.payment_proof_url
         transaction.payment_method = data.payment_method
         transaction.reference_number = data.reference_number
-        transaction.sent_at = datetime.now()
+        transaction.paid_at = datetime.now()
     
-    # Also update the schedule status
+    # Update the schedule status (this is where status is tracked)
     schedule.status = PaymentStatus.SENT
     
     db.commit()
@@ -425,15 +421,16 @@ async def confirm_payment_received(
     if not transaction:
         raise HTTPException(status_code=404, detail="Payment has not been sent yet")
     
-    if transaction.status == PaymentStatus.CONFIRMED:
+    # Check schedule status (status is tracked on schedule, not transaction)
+    if schedule.status == PaymentStatus.CONFIRMED:
         return {"message": "Payment already confirmed", "job_completed": False}
     
-    if transaction.status != PaymentStatus.SENT:
+    if schedule.status != PaymentStatus.SENT:
         raise HTTPException(status_code=400, detail="Payment has not been marked as sent")
     
-    # Update transaction and schedule status
-    transaction.status = PaymentStatus.CONFIRMED
+    # Update transaction confirmation and schedule status
     transaction.confirmed_at = datetime.now()
+    transaction.confirmed_by_worker = True
     schedule.status = PaymentStatus.CONFIRMED
     
     # Check if this is a recurring service and create next payment schedule
@@ -581,9 +578,15 @@ async def report_payment_issue(
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
     
-    # Update transaction
-    transaction.status = PaymentStatus.DISPUTED
-    transaction.dispute_reason = data.dispute_reason
+    # Get the schedule to update its status
+    schedule = db.query(PaymentSchedule).filter(
+        PaymentSchedule.schedule_id == transaction.schedule_id
+    ).first()
+    
+    # Update schedule status and add note to transaction
+    if schedule:
+        schedule.status = PaymentStatus.DISPUTED
+    transaction.notes = f"DISPUTE: {data.dispute_reason}"
     
     db.commit()
     
