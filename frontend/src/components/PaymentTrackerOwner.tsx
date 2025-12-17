@@ -186,19 +186,19 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl">
+      <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-br from-[#4B244A] to-[#6B3468] border-b border-white/20 px-6 py-4">
+        <div className="sticky top-0 bg-[#E8E4E1]/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10 px-6 py-4 z-10">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-2xl font-bold text-white">💰 Payment Tracker</h2>
+            <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">💰 Payment Tracker</h2>
             <button 
               onClick={onClose}
-              className="text-white/70 hover:text-white transition-colors text-3xl leading-none"
+              className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors text-3xl leading-none"
             >
               ×
             </button>
           </div>
-          <p className="text-white/70 text-sm">{jobTitle}</p>
+          <p className="text-[#4B244A]/70 dark:text-white/70 text-sm font-medium">{jobTitle}</p>
         </div>
 
         {/* Content */}
@@ -206,27 +206,27 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
           {loading ? (
             <div className="text-center py-12">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#EA526F] mb-4"></div>
-              <p className="text-white/70">Loading payment schedule...</p>
+              <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">Loading payment schedule...</p>
             </div>
           ) : payments.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-4">📭</div>
-              <p className="text-white/70">No payment schedule found</p>
-              <p className="text-white/50 text-sm mt-2">This may be a short-term job without scheduled payments</p>
+            <div className="text-center py-12 bg-white/50 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/10">
+              <div className="text-6xl mb-4 opacity-50">📭</div>
+              <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">No payment schedule found</p>
+              <p className="text-[#4B244A]/50 dark:text-white/50 text-sm mt-2">This may be a short-term job without scheduled payments</p>
             </div>
           ) : (
             <div className="space-y-6">
               {/* Payment Summary */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                 {[
-                  { label: 'Total', count: payments.length, color: 'bg-white/10' },
-                  { label: 'Pending', count: payments.filter(p => p.status === 'pending').length, color: 'bg-yellow-500/20' },
-                  { label: 'Confirmed', count: payments.filter(p => p.status === 'confirmed').length, color: 'bg-green-500/20' },
-                  { label: 'Overdue', count: payments.filter(p => isOverdue(p)).length, color: 'bg-red-500/20' }
+                  { label: 'Total', count: payments.length, color: 'bg-white/50 dark:bg-white/5 border-gray-200 dark:border-white/10' },
+                  { label: 'Pending', count: payments.filter(p => p.status === 'pending').length, color: 'bg-yellow-100 dark:bg-yellow-500/20 border-yellow-200 dark:border-yellow-500/30' },
+                  { label: 'Confirmed', count: payments.filter(p => p.status === 'confirmed').length, color: 'bg-green-100 dark:bg-green-500/20 border-green-200 dark:border-green-500/30' },
+                  { label: 'Overdue', count: payments.filter(p => isOverdue(p)).length, color: 'bg-red-100 dark:bg-red-500/20 border-red-200 dark:border-red-500/30' }
                 ].map((stat) => (
-                  <div key={stat.label} className={`${stat.color} rounded-2xl p-4 border border-white/20`}>
-                    <p className="text-white/70 text-sm">{stat.label}</p>
-                    <p className="text-white text-2xl font-bold">{stat.count}</p>
+                  <div key={stat.label} className={`${stat.color} rounded-2xl p-4 border shadow-sm`}>
+                    <p className="text-[#4B244A]/70 dark:text-white/70 text-sm font-bold">{stat.label}</p>
+                    <p className="text-[#4B244A] dark:text-white text-2xl font-bold">{stat.count}</p>
                   </div>
                 ))}
               </div>
@@ -242,25 +242,25 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
                   const workerId = workerPayments[0]?.worker_id;
                   
                   return (
-                    <div key={workerName} className="bg-white/5 rounded-2xl border border-white/20 overflow-hidden">
+                    <div key={workerName} className="bg-white/50 dark:bg-white/5 rounded-2xl border border-gray-200 dark:border-white/20 overflow-hidden shadow-sm">
                       {/* Worker Header */}
-                      <div className="bg-gradient-to-r from-[#EA526F]/20 to-transparent px-5 py-4 border-b border-white/10">
+                      <div className="bg-gradient-to-r from-[#EA526F]/10 to-transparent px-5 py-4 border-b border-gray-200 dark:border-white/10">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-full bg-[#EA526F] flex items-center justify-center text-white font-bold">
+                            <div className="w-10 h-10 rounded-full bg-[#EA526F] flex items-center justify-center text-white font-bold shadow-sm">
                               {workerName.charAt(0).toUpperCase()}
                             </div>
                             <div>
-                              <h3 className="text-white font-bold text-lg">{workerName}</h3>
-                              <p className="text-white/60 text-sm">
+                              <h3 className="text-[#4B244A] dark:text-white font-bold text-lg">{workerName}</h3>
+                              <p className="text-[#4B244A]/60 dark:text-white/60 text-sm font-medium">
                                 {workerPayments.length} payments • {workerConfirmed} confirmed
                               </p>
                             </div>
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="text-right">
-                              <p className="text-white/60 text-sm">Total Budget</p>
-                              <p className="text-white font-bold text-xl">₱{workerTotal.toLocaleString()}</p>
+                              <p className="text-[#4B244A]/60 dark:text-white/60 text-sm font-medium">Total Budget</p>
+                              <p className="text-[#4B244A] dark:text-white font-bold text-xl">₱{workerTotal.toLocaleString()}</p>
                             </div>
                             {workerId && (
                               <button
@@ -269,7 +269,7 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
                                   setReportWorkerName(workerName);
                                   setShowReportModal(true);
                                 }}
-                                className="px-3 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-all text-sm"
+                                className="px-3 py-2 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 transition-all text-sm font-bold shadow-sm"
                                 title="Report issue with this worker"
                               >
                                 🚨 Report
@@ -278,7 +278,7 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
                           </div>
                         </div>
                         {workerPending > 0 && (
-                          <div className="mt-3 bg-yellow-500/20 text-yellow-200 text-sm px-3 py-2 rounded-lg">
+                          <div className="mt-3 bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-200 text-sm px-3 py-2 rounded-lg font-medium border border-yellow-200 dark:border-yellow-500/30">
                             ⚠️ {workerPending} payment{workerPending > 1 ? 's' : ''} pending
                           </div>
                         )}
@@ -291,57 +291,57 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
                           return (
                             <div 
                               key={payment.transaction_id}
-                              className={`bg-white/10 backdrop-blur-xl rounded-xl p-4 border ${
-                                overdue ? 'border-red-500/50' : 'border-white/20'
+                              className={`bg-white/70 dark:bg-slate-900/60 backdrop-blur-xl rounded-xl p-4 border shadow-sm ${
+                                overdue ? 'border-red-300 dark:border-red-500/50' : 'border-gray-200 dark:border-white/20'
                               }`}
                             >
                               <div className="flex items-start justify-between mb-2">
                                 <div>
                                   <div className="flex items-center gap-2 mb-1">
-                                    <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusBadge(overdue ? 'overdue' : payment.status)}`}>
+                                    <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusBadge(overdue ? 'overdue' : payment.status)}`}>
                                       {getStatusIcon(overdue ? 'overdue' : payment.status)} {(overdue ? 'OVERDUE' : payment.status).toUpperCase()}
                                     </span>
                                     {payment.dispute_reason && (
-                                      <span className="px-3 py-1 bg-red-500/20 text-red-300 rounded-full text-xs font-semibold">
+                                      <span className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 rounded-full text-xs font-bold">
                                         🚨 DISPUTED
                                       </span>
                                     )}
                                   </div>
-                                  <p className="text-white/60 text-sm">Due: {new Date(payment.due_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+                                  <p className="text-[#4B244A]/60 dark:text-white/60 text-sm font-medium">Due: {new Date(payment.due_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
                                 </div>
                                 <div className="text-right">
-                                  <p className="text-white text-xl font-bold">₱{payment.amount.toLocaleString()}</p>
+                                  <p className="text-[#4B244A] dark:text-white text-xl font-bold">₱{payment.amount.toLocaleString()}</p>
                                 </div>
                               </div>
 
                               {payment.status === 'pending' && (
                                 <button
                                   onClick={() => handlePayment(payment)}
-                                  className="w-full mt-2 px-4 py-2 bg-[#EA526F] text-white font-semibold rounded-lg hover:bg-[#d4486a] transition-all text-sm"
+                                  className="w-full mt-2 px-4 py-2 bg-[#EA526F] text-white font-bold rounded-lg hover:bg-[#d4486a] transition-all text-sm shadow-md"
                                 >
                                   📤 Pay Now
                                 </button>
                               )}
 
                               {payment.status === 'sent' && (
-                                <div className="mt-2 bg-blue-500/10 border border-blue-500/30 rounded-lg p-2">
-                                  <p className="text-blue-200 text-xs">
+                                <div className="mt-2 bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg p-2">
+                                  <p className="text-blue-800 dark:text-blue-200 text-xs font-medium">
                                     <strong>Waiting for confirmation...</strong> Sent on {payment.sent_at && new Date(payment.sent_at).toLocaleDateString()}
                                   </p>
                                 </div>
                               )}
 
                               {payment.status === 'confirmed' && (
-                                <div className="mt-2 bg-green-500/10 border border-green-500/30 rounded-lg p-2">
-                                  <p className="text-green-200 text-xs">
+                                <div className="mt-2 bg-green-100 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-lg p-2">
+                                  <p className="text-green-800 dark:text-green-200 text-xs font-medium">
                                     <strong>✅ Payment confirmed!</strong> {payment.confirmed_at && new Date(payment.confirmed_at).toLocaleDateString()}
                                   </p>
                                 </div>
                               )}
 
                               {payment.dispute_reason && (
-                                <div className="mt-2 bg-red-500/10 border border-red-500/30 rounded-lg p-2">
-                                  <p className="text-red-200 text-xs">
+                                <div className="mt-2 bg-red-100 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg p-2">
+                                  <p className="text-red-800 dark:text-red-200 text-xs font-medium">
                                     <strong>⚠️ Dispute:</strong> {payment.dispute_reason}
                                   </p>
                                 </div>
@@ -349,13 +349,13 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
 
                               {payment.payment_proof_url && (
                                 <div className="mt-2">
-                                  <p className="text-white/70 text-xs mb-1">Proof of Payment:</p>
+                                  <p className="text-[#4B244A]/70 dark:text-white/70 text-xs mb-1 font-bold">Proof of Payment:</p>
                                   <img 
                                     src={payment.payment_proof_url} 
                                     alt="Payment proof" 
-                                    className="w-full h-32 object-cover rounded-lg border border-white/20"
+                                    className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-white/20"
                                   />
-                                  <p className="text-white/50 text-xs mt-1">
+                                  <p className="text-[#4B244A]/50 dark:text-white/50 text-xs mt-1 font-medium">
                                     Method: {payment.payment_method?.toUpperCase()} | Ref: {payment.reference_number}
                                   </p>
                                 </div>
@@ -376,35 +376,35 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
       {/* Report Worker Modal */}
       {showReportModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl animate-fade-in">
+          <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl animate-fade-in border border-gray-200 dark:border-white/20">
             <div className="p-6">
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                <div className="w-12 h-12 bg-red-100 dark:bg-red-500/20 rounded-full flex items-center justify-center">
                   <span className="text-2xl">🚨</span>
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-gray-800">Report Issue</h3>
-                  <p className="text-sm text-gray-500">Report a problem with {reportWorkerName}</p>
+                  <h3 className="text-xl font-bold text-[#4B244A] dark:text-white">Report Issue</h3>
+                  <p className="text-sm text-[#4B244A]/60 dark:text-white/60 font-medium">Report a problem with {reportWorkerName}</p>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-bold text-[#4B244A] dark:text-white mb-2">
                     What happened? <span className="text-red-500">*</span>
                   </label>
                   <textarea
                     value={reportReason}
                     onChange={(e) => setReportReason(e.target.value)}
                     placeholder="Describe the issue (e.g., did not show up for work, left early without notice, poor quality work...)"
-                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-[#EA526F] focus:outline-none transition-colors resize-none"
+                    className="w-full px-4 py-3 bg-white/50 dark:bg-white/10 border-2 border-gray-200 dark:border-white/20 rounded-xl focus:border-[#EA526F] focus:outline-none transition-colors resize-none text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/30"
                     rows={4}
                   />
                 </div>
 
-                <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                  <p className="text-sm text-yellow-800">
-                    <span className="font-semibold">⚠️ Note:</span> Reports are reviewed by our team. 
+                <div className="bg-yellow-100 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-xl p-4">
+                  <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
+                    <span className="font-bold">⚠️ Note:</span> Reports are reviewed by our team. 
                     False reports may result in account restrictions. Only report genuine issues.
                   </p>
                 </div>
@@ -418,14 +418,14 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
                     setReportWorkerName('');
                     setReportReason('');
                   }}
-                  className="flex-1 px-4 py-3 bg-gray-500 text-white font-semibold rounded-xl hover:bg-gray-600 transition-all"
+                  className="flex-1 px-4 py-3 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/10"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleReportWorker}
                   disabled={reportingWorker || !reportReason.trim()}
-                  className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 px-4 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
                 >
                   {reportingWorker ? 'Submitting...' : '📝 Submit Report'}
                 </button>

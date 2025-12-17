@@ -129,19 +129,19 @@ export default function JobProgressTracker({ jobId, onClose, userRole }: JobProg
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl">
+      <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-br from-[#4B244A] to-[#6B3468] border-b border-white/20 px-6 py-4">
+        <div className="sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-200 dark:border-white/20 px-6 py-4 z-10">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-xl sm:text-2xl font-bold text-white">Job Progress Tracker</h2>
+            <h2 className="text-xl sm:text-2xl font-bold text-[#4B244A] dark:text-white">Job Progress Tracker</h2>
             <button 
               onClick={onClose}
-              className="text-white/70 hover:text-white transition-colors text-3xl leading-none"
+              className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors text-3xl leading-none"
             >
               ×
             </button>
           </div>
-          {data && <p className="text-white/70 text-sm">{data.job_title}</p>}
+          {data && <p className="text-[#4B244A]/70 dark:text-white/70 text-sm font-medium">{data.job_title}</p>}
         </div>
 
         {/* Content */}
@@ -149,86 +149,86 @@ export default function JobProgressTracker({ jobId, onClose, userRole }: JobProg
           {loading ? (
             <div className="text-center py-12">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#EA526F] mb-4"></div>
-              <p className="text-white/70">Loading progress data...</p>
+              <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">Loading progress data...</p>
             </div>
           ) : !data ? (
             <div className="text-center py-12">
-              <div className="text-6xl mb-4">❌</div>
-              <p className="text-white/70">Failed to load progress data</p>
+              <div className="text-6xl mb-4 opacity-50">❌</div>
+              <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">Failed to load progress data</p>
             </div>
           ) : (
             <div className="space-y-6">
               {/* Progress Overview */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="bg-blue-500/20 rounded-2xl p-4 border border-blue-500/30">
-                  <p className="text-blue-200 text-sm mb-1">Days Elapsed</p>
-                  <p className="text-white text-3xl font-bold">{data.days_elapsed}</p>
+                <div className="bg-blue-100 dark:bg-blue-500/20 rounded-2xl p-4 border border-blue-200 dark:border-blue-500/30 shadow-sm">
+                  <p className="text-blue-700 dark:text-blue-200 text-sm mb-1 font-bold">Days Elapsed</p>
+                  <p className="text-[#4B244A] dark:text-white text-3xl font-bold">{data.days_elapsed}</p>
                 </div>
-                <div className="bg-green-500/20 rounded-2xl p-4 border border-green-500/30">
-                  <p className="text-green-200 text-sm mb-1">Days Remaining</p>
-                  <p className="text-white text-3xl font-bold">{data.days_remaining}</p>
+                <div className="bg-green-100 dark:bg-green-500/20 rounded-2xl p-4 border border-green-200 dark:border-green-500/30 shadow-sm">
+                  <p className="text-green-700 dark:text-green-200 text-sm mb-1 font-bold">Days Remaining</p>
+                  <p className="text-[#4B244A] dark:text-white text-3xl font-bold">{data.days_remaining}</p>
                 </div>
-                <div className="bg-purple-500/20 rounded-2xl p-4 border border-purple-500/30">
-                  <p className="text-purple-200 text-sm mb-1">Total Duration</p>
-                  <p className="text-white text-3xl font-bold">{data.total_days} days</p>
+                <div className="bg-purple-100 dark:bg-purple-500/20 rounded-2xl p-4 border border-purple-200 dark:border-purple-500/30 shadow-sm">
+                  <p className="text-purple-700 dark:text-purple-200 text-sm mb-1 font-bold">Total Duration</p>
+                  <p className="text-[#4B244A] dark:text-white text-3xl font-bold">{data.total_days} days</p>
                 </div>
-                <div className="bg-[#EA526F]/20 rounded-2xl p-4 border border-[#EA526F]/30">
-                  <p className="text-[#EA526F] text-sm mb-1">Progress</p>
-                  <p className="text-white text-3xl font-bold">{data.progress_percentage}%</p>
+                <div className="bg-[#EA526F]/10 dark:bg-[#EA526F]/20 rounded-2xl p-4 border border-[#EA526F]/20 dark:border-[#EA526F]/30 shadow-sm">
+                  <p className="text-[#EA526F] text-sm mb-1 font-bold">Progress</p>
+                  <p className="text-[#4B244A] dark:text-white text-3xl font-bold">{data.progress_percentage}%</p>
                 </div>
               </div>
 
               {/* Progress Bar */}
-              <div className="bg-white/10 rounded-2xl p-6 border border-white/20">
+              <div className="bg-white/50 dark:bg-white/10 rounded-2xl p-6 border border-gray-200 dark:border-white/20 shadow-sm">
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-white font-semibold">Overall Progress</span>
-                  <span className="text-white/70 text-sm">
+                  <span className="text-[#4B244A] dark:text-white font-bold">Overall Progress</span>
+                  <span className="text-[#4B244A]/70 dark:text-white/70 text-sm font-medium">
                     {new Date(data.start_date).toLocaleDateString()} - {new Date(data.end_date).toLocaleDateString()}
                   </span>
                 </div>
-                <div className="w-full h-6 bg-white/10 rounded-full overflow-hidden">
+                <div className="w-full h-6 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-gradient-to-r from-[#EA526F] to-[#d4486a] transition-all duration-500"
                     style={{ width: `${data.progress_percentage}%` }}
                   />
                 </div>
-                <p className="text-white/60 text-xs mt-2 text-center">
+                <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-2 text-center font-medium">
                   {data.progress_percentage < 100 ? `${data.days_remaining} days until completion` : 'Job period completed!'}
                 </p>
               </div>
 
               {/* Upcoming Payment */}
               {data.upcoming_payment && (
-                <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-5">
+                <div className="bg-green-100 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-2xl p-5 shadow-sm">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-green-200 font-semibold mb-1 text-sm sm:text-base">Next Payment</p>
-                      <p className="text-white text-sm">
+                      <p className="text-green-800 dark:text-green-200 font-bold mb-1 text-sm sm:text-base">Next Payment</p>
+                      <p className="text-[#4B244A]/80 dark:text-white text-sm font-medium">
                         Due: {new Date(data.upcoming_payment.date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-white text-2xl font-bold">₱{data.upcoming_payment.amount.toLocaleString()}</p>
+                      <p className="text-[#4B244A] dark:text-white text-2xl font-bold">₱{data.upcoming_payment.amount.toLocaleString()}</p>
                     </div>
                   </div>
                 </div>
               )}
 
               {/* Calendar View */}
-              <div className="bg-white/10 rounded-2xl p-6 border border-white/20">
+              <div className="bg-white/50 dark:bg-white/10 rounded-2xl p-6 border border-gray-200 dark:border-white/20 shadow-sm">
                 <div className="flex items-center justify-between mb-4 gap-2">
                   <button
                     onClick={() => changeMonth(-1)}
-                    className="px-3 sm:px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-all text-sm sm:text-base flex-shrink-0"
+                    className="px-3 sm:px-4 py-2 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white rounded-lg hover:bg-white/80 dark:hover:bg-white/20 transition-all text-sm sm:text-base flex-shrink-0 font-bold border border-gray-200 dark:border-white/10"
                   >
                     ← Prev
                   </button>
-                  <h3 className="text-base sm:text-xl font-bold text-white text-center flex-1">
+                  <h3 className="text-base sm:text-xl font-bold text-[#4B244A] dark:text-white text-center flex-1">
                     {selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                   </h3>
                   <button
                     onClick={() => changeMonth(1)}
-                    className="px-3 sm:px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-all text-sm sm:text-base flex-shrink-0"
+                    className="px-3 sm:px-4 py-2 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white rounded-lg hover:bg-white/80 dark:hover:bg-white/20 transition-all text-sm sm:text-base flex-shrink-0 font-bold border border-gray-200 dark:border-white/10"
                   >
                     Next →
                   </button>
@@ -236,62 +236,62 @@ export default function JobProgressTracker({ jobId, onClose, userRole }: JobProg
 
                 {renderCalendar()}
 
-                <div className="mt-4 flex flex-wrap gap-4 text-xs">
+                <div className="mt-4 flex flex-wrap gap-4 text-xs font-medium">
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-blue-500/10 border border-blue-500/30" />
-                    <span className="text-white/70">Past work days</span>
+                    <div className="w-4 h-4 rounded bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30" />
+                    <span className="text-[#4B244A]/70 dark:text-white/70">Past work days</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-white/10" />
-                    <span className="text-white/70">Upcoming work days</span>
+                    <div className="w-4 h-4 rounded bg-white/80 dark:bg-white/10 border border-gray-200 dark:border-transparent" />
+                    <span className="text-[#4B244A]/70 dark:text-white/70">Upcoming work days</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-green-500/20" />
-                    <span className="text-white/70">Payment dates</span>
+                    <div className="w-4 h-4 rounded bg-green-100 dark:bg-green-500/20 border border-green-200 dark:border-transparent" />
+                    <span className="text-[#4B244A]/70 dark:text-white/70">Payment dates</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded ring-2 ring-[#EA526F]" />
-                    <span className="text-white/70">Today</span>
+                    <span className="text-[#4B244A]/70 dark:text-white/70">Today</span>
                   </div>
                 </div>
               </div>
 
               {/* Recent Check-ins */}
               {data.recent_checkins.length > 0 && (
-                <div className="bg-white/10 rounded-2xl p-6 border border-white/20">
+                <div className="bg-white/50 dark:bg-white/10 rounded-2xl p-6 border border-gray-200 dark:border-white/20 shadow-sm">
                   <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-xl font-bold text-white">🕐 Recent Check-ins</h3>
-                    <span className="text-white/70 text-sm">Total: {data.total_checkins}</span>
+                    <h3 className="text-xl font-bold text-[#4B244A] dark:text-white">🕐 Recent Check-ins</h3>
+                    <span className="text-[#4B244A]/70 dark:text-white/70 text-sm font-medium">Total: {data.total_checkins}</span>
                   </div>
 
                   <div className="space-y-3">
                     {data.recent_checkins.slice(0, 5).map((checkin) => (
                       <div 
                         key={checkin.checkin_id}
-                        className="bg-white/5 rounded-xl p-4 border border-white/10"
+                        className="bg-white/60 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10"
                       >
                         <div className="flex items-start justify-between">
                           <div>
-                            <p className="text-white font-semibold mb-1">
+                            <p className="text-[#4B244A] dark:text-white font-bold mb-1">
                               {new Date(checkin.check_in_time).toLocaleDateString('en-US', { 
                                 month: 'short', 
                                 day: 'numeric',
                                 weekday: 'short'
                               })}
                             </p>
-                            <p className="text-white/60 text-sm">
+                            <p className="text-[#4B244A]/70 dark:text-white/60 text-sm font-medium">
                               Check-in: {new Date(checkin.check_in_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                             </p>
                             {checkin.check_out_time && (
-                              <p className="text-white/60 text-sm">
+                              <p className="text-[#4B244A]/70 dark:text-white/60 text-sm font-medium">
                                 Check-out: {new Date(checkin.check_out_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                               </p>
                             )}
                           </div>
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${
                             checkin.verified 
-                              ? 'bg-green-500/20 text-green-300' 
-                              : 'bg-yellow-500/20 text-yellow-300'
+                              ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' 
+                              : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300'
                           }`}>
                             {checkin.verified ? '✅ Verified' : '⏳ Pending'}
                           </span>
@@ -303,8 +303,8 @@ export default function JobProgressTracker({ jobId, onClose, userRole }: JobProg
               )}
 
               {/* Legend/Help */}
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-4">
-                <p className="text-blue-200 text-sm">
+              <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-2xl p-4">
+                <p className="text-blue-800 dark:text-blue-200 text-sm">
                   <strong>💡 Tip:</strong> {userRole === 'owner' 
                     ? 'Payment dates are highlighted in green. Click on "Payment Tracker" to manage payments and view proofs.'
                     : 'Green dates are when you should receive payments. Use the Check-in feature daily to track your attendance.'}

@@ -192,28 +192,28 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
       {/* Payment Modal */}
       {isOpen && currentRequest && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl">
+          <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
             
             {/* SUCCESS STATE */}
             {step === 'success' && (
               <div className="p-8 text-center">
                 <div className="mb-6">
-                  <div className="w-24 h-24 mx-auto bg-green-500/20 rounded-full flex items-center justify-center animate-bounce">
-                    <svg className="w-12 h-12 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div className="w-24 h-24 mx-auto bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center animate-bounce">
+                    <svg className="w-12 h-12 text-green-500 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
                 </div>
                 
-                <h3 className="text-2xl font-bold text-white mb-2">Payment Successful!</h3>
-                <p className="text-white/80 mb-4">Your payment has been processed</p>
+                <h3 className="text-2xl font-bold text-[#4B244A] dark:text-white mb-2">Payment Successful!</h3>
+                <p className="text-[#4B244A]/70 dark:text-white/80 mb-4">Your payment has been processed</p>
                 
-                <div className="bg-white/10 rounded-xl p-4 mb-4 border border-white/20">
-                  <p className="text-white/60 text-sm mb-1">Reference Number</p>
-                  <p className="text-white font-mono text-sm break-all">{referenceNumber}</p>
+                <div className="bg-white/50 dark:bg-white/10 rounded-xl p-4 mb-4 border border-gray-200 dark:border-white/20">
+                  <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mb-1">Reference Number</p>
+                  <p className="text-[#4B244A] dark:text-white font-mono text-sm break-all font-medium">{referenceNumber}</p>
                 </div>
                 
-                <div className="text-white/60 text-sm">Redirecting...</div>
+                <div className="text-[#4B244A]/60 dark:text-white/60 text-sm">Redirecting...</div>
               </div>
             )}
             
@@ -224,8 +224,8 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
                   <div className="w-24 h-24 mx-auto border-4 border-[#EA526F] border-t-transparent rounded-full animate-spin"></div>
                 </div>
                 
-                <h3 className="text-2xl font-bold text-white mb-2">Processing Payment...</h3>
-                <p className="text-white/80">
+                <h3 className="text-2xl font-bold text-[#4B244A] dark:text-white mb-2">Processing Payment...</h3>
+                <p className="text-[#4B244A]/70 dark:text-white/80">
                   Please wait while we process your {PAYMENT_METHODS[selectedMethod!]?.name} payment
                 </p>
               </div>
@@ -234,31 +234,31 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
             {/* PROOF UPLOAD STATE */}
             {step === 'proof' && (
               <>
-                <div className="sticky top-0 bg-white/10 backdrop-blur-xl border-b border-white/20 p-6 flex items-center justify-between">
+                <div className="sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-200 dark:border-white/20 p-6 flex items-center justify-between z-10">
                   <div className="flex items-center gap-3">
                     <button 
                       onClick={() => setStep('select')}
-                      className="text-white/70 hover:text-white transition-colors"
+                      className="text-[#4B244A]/70 dark:text-white/70 hover:text-[#4B244A] dark:hover:text-white transition-colors text-2xl"
                     >
                       ←
                     </button>
-                    <h2 className="text-xl font-bold text-white">Upload Payment Proof</h2>
+                    <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">Upload Payment Proof</h2>
                   </div>
-                  <button onClick={handleClose} className="text-white/70 hover:text-white text-3xl">×</button>
+                  <button onClick={handleClose} className="text-[#4B244A]/70 dark:text-white/70 hover:text-[#4B244A] dark:hover:text-white text-3xl">×</button>
                 </div>
                 
                 <div className="p-6 space-y-6">
-                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
+                  <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
                     <div className="flex items-center gap-3 mb-3">
                       <div 
-                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold"
+                        className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-sm"
                         style={{ backgroundColor: PAYMENT_METHODS[selectedMethod!]?.color }}
                       >
                         {PAYMENT_METHODS[selectedMethod!]?.icon}
                       </div>
                       <div>
-                        <p className="text-white font-semibold">{PAYMENT_METHODS[selectedMethod!]?.name}</p>
-                        <p className="text-white/60 text-sm">₱{currentRequest.amount.toLocaleString()}</p>
+                        <p className="text-[#4B244A] dark:text-white font-bold">{PAYMENT_METHODS[selectedMethod!]?.name}</p>
+                        <p className="text-[#4B244A]/60 dark:text-white/60 text-sm font-medium">₱{currentRequest.amount.toLocaleString()}</p>
                       </div>
                     </div>
                   </div>
@@ -266,40 +266,40 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
                   {/* Upload Area */}
                   <div 
                     onClick={() => fileInputRef.current?.click()}
-                    className="border-2 border-dashed border-white/30 rounded-xl p-8 text-center cursor-pointer hover:border-white/50 transition-all"
+                    className="border-2 border-dashed border-gray-300 dark:border-white/30 rounded-xl p-8 text-center cursor-pointer hover:border-[#EA526F] dark:hover:border-[#EA526F] transition-all bg-white/50 dark:bg-white/5"
                   >
                     {proofPreview ? (
                       <div className="space-y-3">
                         <img 
                           src={proofPreview} 
                           alt="Payment proof" 
-                          className="max-h-48 mx-auto rounded-lg"
+                          className="max-h-48 mx-auto rounded-lg border border-gray-200 dark:border-white/20"
                         />
-                        <p className="text-green-400 text-sm">✓ Proof uploaded</p>
-                        <p className="text-white/60 text-xs">Tap to change</p>
+                        <p className="text-green-600 dark:text-green-400 text-sm font-medium">✓ Proof uploaded</p>
+                        <p className="text-[#4B244A]/60 dark:text-white/60 text-xs">Tap to change</p>
                       </div>
                     ) : (
                       <div className="space-y-3">
-                        <div className="text-4xl">📷</div>
-                        <p className="text-white font-semibold">Upload Screenshot</p>
-                        <p className="text-white/60 text-sm">Take a screenshot of your payment confirmation</p>
+                        <div className="text-4xl opacity-50">📷</div>
+                        <p className="text-[#4B244A] dark:text-white font-bold">Upload Screenshot</p>
+                        <p className="text-[#4B244A]/60 dark:text-white/60 text-sm">Take a screenshot of your payment confirmation</p>
                       </div>
                     )}
                   </div>
                   
                   {uploading && (
-                    <div className="text-center text-white/60">
-                      <div className="inline-block animate-spin rounded-full h-6 w-6 border-2 border-white border-t-transparent mr-2"></div>
-                      Uploading...
+                    <div className="text-center text-[#4B244A]/60 dark:text-white/60 flex items-center justify-center gap-2">
+                      <div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-[#EA526F] border-t-transparent"></div>
+                      <span className="text-sm font-medium">Uploading...</span>
                     </div>
                   )}
                 </div>
                 
-                <div className="sticky bottom-0 bg-white/10 backdrop-blur-xl border-t border-white/20 p-6">
+                <div className="sticky bottom-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-gray-200 dark:border-white/20 p-6 rounded-b-3xl">
                   <button
                     onClick={handleProcessPayment}
                     disabled={!proofUrl || uploading}
-                    className="w-full py-4 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white font-bold text-lg rounded-xl hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full py-4 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white font-bold text-lg rounded-xl hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
                   >
                     {uploading ? 'Uploading...' : 'Confirm Payment'}
                   </button>
@@ -310,28 +310,28 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
             {/* SELECT METHOD STATE */}
             {step === 'select' && (
               <>
-                <div className="sticky top-0 bg-white/10 backdrop-blur-xl border-b border-white/20 p-6 flex items-center justify-between">
-                  <h2 className="text-2xl font-bold text-white">💳 Payment</h2>
-                  <button onClick={handleClose} className="text-white/70 hover:text-white text-3xl">×</button>
+                <div className="sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-200 dark:border-white/20 p-6 flex items-center justify-between z-10">
+                  <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">💳 Payment</h2>
+                  <button onClick={handleClose} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white text-3xl transition-colors">×</button>
                 </div>
 
                 <div className="p-6 space-y-6">
                   {/* Payment Info */}
-                  <div className="bg-white/5 rounded-xl p-4 border border-white/10">
-                    <p className="text-white/60 text-sm mb-1">{currentRequest.description || 'Payment for'}</p>
-                    <p className="text-white font-semibold mb-3">{currentRequest.title}</p>
+                  <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10 shadow-sm">
+                    <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mb-1 font-medium">{currentRequest.description || 'Payment for'}</p>
+                    <p className="text-[#4B244A] dark:text-white font-bold mb-3">{currentRequest.title}</p>
                     {currentRequest.recipientName && (
-                      <p className="text-white/70 text-sm mb-3">To: {currentRequest.recipientName}</p>
+                      <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-3 font-medium">To: {currentRequest.recipientName}</p>
                     )}
-                    <div className="flex items-center justify-between">
-                      <span className="text-white/60">Amount to Pay</span>
+                    <div className="flex items-center justify-between pt-3 border-t border-gray-200 dark:border-white/10">
+                      <span className="text-[#4B244A]/60 dark:text-white/60 font-medium">Amount to Pay</span>
                       <span className="text-3xl font-bold text-[#EA526F]">₱{currentRequest.amount.toLocaleString()}</span>
                     </div>
                   </div>
 
                   {/* Payment Methods */}
                   <div>
-                    <h3 className="text-white font-semibold mb-3">Select Payment Method</h3>
+                    <h3 className="text-[#4B244A] dark:text-white font-bold mb-3">Select Payment Method</h3>
                     <div className="space-y-3">
                       {allowedMethods.map((method) => {
                         const config = PAYMENT_METHODS[method];
@@ -339,10 +339,10 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
                           <button
                             key={method}
                             onClick={() => setSelectedMethod(method)}
-                            className={`w-full p-4 rounded-xl border-2 transition-all ${
+                            className={`w-full p-4 rounded-xl border-2 transition-all shadow-sm ${
                               selectedMethod === method
-                                ? `border-[${config.color}] bg-[${config.color}]/20`
-                                : 'border-white/20 bg-white/5 hover:bg-white/10'
+                                ? `border-[${config.color}] bg-[${config.color}]/10 dark:bg-[${config.color}]/20`
+                                : 'border-gray-200 dark:border-white/20 bg-white/50 dark:bg-white/5 hover:bg-white/80 dark:hover:bg-white/10'
                             }`}
                             style={selectedMethod === method ? { 
                               borderColor: config.color, 
@@ -351,18 +351,18 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
                           >
                             <div className="flex items-center gap-3">
                               <div 
-                                className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-xl"
+                                className="w-12 h-12 rounded-lg flex items-center justify-center text-white font-bold text-xl shadow-sm"
                                 style={{ backgroundColor: config.color }}
                               >
                                 {config.icon}
                               </div>
                               <div className="text-left flex-1">
-                                <p className="text-white font-semibold">{config.name}</p>
-                                <p className="text-white/60 text-sm">{config.description}</p>
+                                <p className="text-[#4B244A] dark:text-white font-bold">{config.name}</p>
+                                <p className="text-[#4B244A]/60 dark:text-white/60 text-sm font-medium">{config.description}</p>
                               </div>
                               {selectedMethod === method && (
                                 <div 
-                                  className="w-6 h-6 rounded-full flex items-center justify-center"
+                                  className="w-6 h-6 rounded-full flex items-center justify-center shadow-sm"
                                   style={{ backgroundColor: config.color }}
                                 >
                                   <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -378,11 +378,11 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
                   </div>
                 </div>
 
-                <div className="sticky bottom-0 bg-white/10 backdrop-blur-xl border-t border-white/20 p-6">
+                <div className="sticky bottom-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-gray-200 dark:border-white/20 p-6 rounded-b-3xl">
                   <button
                     onClick={handleProceedToProof}
                     disabled={!selectedMethod}
-                    className="w-full py-4 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white font-bold text-lg rounded-xl hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="w-full py-4 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white font-bold text-lg rounded-xl hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30 active:scale-95"
                   >
                     {selectedMethod 
                       ? (currentRequest.requireProof && selectedMethod !== 'cash' 

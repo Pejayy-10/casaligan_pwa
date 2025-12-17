@@ -188,16 +188,21 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
 
   // Payment modal is handled by PaymentContext now - no custom UI needed
   
-  return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl">
+   return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="p-6 border-b border-white/10">
+        <div className="p-6 border-b border-gray-200 dark:border-white/10 sticky top-0 bg-[#E8E4E1]/95 dark:bg-slate-900/95 backdrop-blur z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white">📋 Review Job Completion</h2>
-            <button onClick={onClose} className="text-white/60 hover:text-white transition-colors">✕</button>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">📋 Review Job Completion</h2>
+            <button 
+              onClick={onClose} 
+              className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors text-2xl"
+            >
+              ✕
+            </button>
           </div>
-          <p className="text-white/60 text-sm mt-1">{jobTitle}</p>
+          <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mt-1 font-medium">{jobTitle}</p>
         </div>
 
         {/* Content */}
@@ -205,30 +210,30 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
           {loading ? (
             <div className="text-center py-8">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#EA526F]"></div>
-              <p className="text-white/70 mt-4">Loading details...</p>
+              <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading details...</p>
             </div>
           ) : details ? (
             <div className="space-y-6">
               {/* Overall Status */}
-              <div className="flex items-center justify-between bg-white/10 rounded-xl p-4">
+              <div className="flex items-center justify-between bg-white/50 dark:bg-white/10 rounded-xl p-4 border border-gray-200 dark:border-white/10">
                 <div>
-                  <p className="text-white/60 text-sm">Job Status</p>
-                  <p className="text-white font-semibold capitalize">{details.status.replace('_', ' ')}</p>
+                  <p className="text-[#4B244A]/60 dark:text-white/60 text-sm font-medium">Job Status</p>
+                  <p className="text-[#4B244A] dark:text-white font-bold capitalize">{details.status.replace('_', ' ')}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-white/60 text-sm">Budget per Worker</p>
+                  <p className="text-[#4B244A]/60 dark:text-white/60 text-sm font-medium">Budget per Worker</p>
                   <p className="text-[#EA526F] font-bold text-xl">₱{details.budget?.toLocaleString()}</p>
                 </div>
               </div>
 
               {/* Workers List */}
               <div>
-                <h3 className="text-white font-semibold mb-3">
+                <h3 className="text-[#4B244A] dark:text-white font-bold mb-3">
                   👷 Housekeepers ({details.workers?.length || 0})
                 </h3>
                 
                 {details.workers?.length === 0 ? (
-                  <div className="bg-white/10 rounded-xl p-4 text-center text-white/60">
+                  <div className="bg-white/50 dark:bg-white/10 rounded-xl p-4 text-center text-[#4B244A]/60 dark:text-white/60 border border-gray-200 dark:border-white/10">
                     No housekeepers assigned yet
                   </div>
                 ) : (
@@ -237,16 +242,16 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                       const statusBadge = getWorkerStatusBadge(worker);
                       
                       return (
-                        <div key={worker.contract_id} className="bg-white/10 rounded-xl p-4 border border-white/10">
+                        <div key={worker.contract_id} className="bg-white/60 dark:bg-white/10 rounded-xl p-4 border border-gray-200 dark:border-white/10 shadow-sm">
                           {/* Worker Header */}
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-[#EA526F] flex items-center justify-center text-white font-bold">
+                              <div className="w-10 h-10 rounded-full bg-[#EA526F] flex items-center justify-center text-white font-bold shadow-md">
                                 {worker.worker_name.charAt(0).toUpperCase()}
                               </div>
                               <div>
-                                <p className="text-white font-semibold">{worker.worker_name}</p>
-                                <span className={`px-2 py-0.5 rounded-full text-xs ${statusBadge.class}`}>
+                                <p className="text-[#4B244A] dark:text-white font-bold">{worker.worker_name}</p>
+                                <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${statusBadge.class}`}>
                                   {statusBadge.text}
                                 </span>
                               </div>
@@ -256,20 +261,20 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                           {/* Completion Proof */}
                           {worker.completion_proof_url && (
                             <div className="mb-3">
-                              <p className="text-white/60 text-sm mb-2">📷 Proof of Completion</p>
+                              <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mb-2 font-medium">📷 Proof of Completion</p>
                               <img 
                                 src={worker.completion_proof_url} 
                                 alt="Completion proof" 
-                                className="w-full h-40 object-cover rounded-lg border border-white/20"
+                                className="w-full h-40 object-cover rounded-lg border border-gray-200 dark:border-white/20"
                               />
                             </div>
                           )}
 
                           {/* Completion Notes */}
                           {worker.completion_notes && (
-                            <div className="mb-3 bg-white/5 rounded-lg p-3">
-                              <p className="text-white/60 text-sm mb-1">📝 Notes</p>
-                              <p className="text-white/80 text-sm">{worker.completion_notes}</p>
+                            <div className="mb-3 bg-white/50 dark:bg-white/5 rounded-lg p-3 border border-gray-100 dark:border-white/5">
+                              <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mb-1 font-bold">📝 Notes</p>
+                              <p className="text-[#4B244A]/80 dark:text-white/80 text-sm">{worker.completion_notes}</p>
                             </div>
                           )}
 
@@ -278,7 +283,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                             <button
                               onClick={() => handleApproveWorker(worker)}
                               disabled={processingWorker === worker.contract_id}
-                              className="w-full py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-all disabled:opacity-50"
+                              className="w-full py-2 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition-all disabled:opacity-50 shadow-md"
                             >
                               {processingWorker === worker.contract_id ? 'Approving...' : '✅ Approve & Pay'}
                             </button>
@@ -286,14 +291,14 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
 
                           {/* Status Messages */}
                           {worker.status === 'active' && (
-                            <div className="text-center text-gray-400 text-sm py-2">
+                            <div className="text-center text-gray-500 dark:text-gray-400 text-sm py-2 font-medium">
                               Still working on the job...
                             </div>
                           )}
 
                           {worker.paid_at && (
-                            <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-2 text-center">
-                              <p className="text-green-300 text-sm">
+                            <div className="bg-green-100 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-lg p-2 text-center">
+                              <p className="text-green-700 dark:text-green-300 text-sm font-medium">
                                 ✅ Paid on {new Date(worker.paid_at).toLocaleDateString()}
                               </p>
                             </div>
@@ -314,7 +319,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                                   onCancel: () => {}
                                 });
                               }}
-                              className="w-full py-2 bg-[#EA526F] text-white font-semibold rounded-lg hover:bg-[#d4486a] transition-all"
+                              className="w-full py-2 bg-[#EA526F] text-white font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
                             >
                               💰 Pay Now
                             </button>
@@ -327,8 +332,8 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
               </div>
 
               {/* Info Box */}
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-                <p className="text-blue-300 text-sm">
+              <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg p-4">
+                <p className="text-blue-800 dark:text-blue-300 text-sm font-medium">
                   💡 Review each housekeeper's work and approve individually. 
                   {details.duration_type === 'short_term' 
                     ? ' Payment screen will appear after each approval.' 
@@ -337,15 +342,15 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
               </div>
             </div>
           ) : (
-            <div className="text-center py-8 text-white/60">No completion details found</div>
+            <div className="text-center py-8 text-[#4B244A]/60 dark:text-white/60 font-medium">No completion details found</div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-white/10">
+        <div className="p-6 border-t border-gray-200 dark:border-white/10">
           <button
             onClick={onClose}
-            className="w-full py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-all"
+            className="w-full py-3 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/10"
           >
             Close
           </button>
