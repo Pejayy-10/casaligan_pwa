@@ -12,7 +12,7 @@ class NotificationType(str, enum.Enum):
     APPLICATION_ACCEPTED = "application_accepted" # Your application was accepted
     APPLICATION_REJECTED = "application_rejected" # Your application was rejected
     JOB_STARTED = "job_started"                   # Worker started the job
-    JOB_EDITED = "job_edited"                     # Job was edited
+    JOB_EDITED = "job_edited"                     # Job was edited after application
     COMPLETION_SUBMITTED = "completion_submitted" # Worker submitted completion proof
     COMPLETION_APPROVED = "completion_approved"   # Owner approved your completion
     PAYMENT_SENT = "payment_sent"                 # Owner sent payment
@@ -20,7 +20,6 @@ class NotificationType(str, enum.Enum):
     PAYMENT_REVIEW = "payment_review"             # Payment needs review/confirmation
     PAYMENT_DUE = "payment_due"                   # Payment is due (long-term)
     PAYMENT_OVERDUE = "payment_overdue"           # Payment is overdue
-    JOB_EDITED = "job_edited"                      # Job was edited after application
     
     # Direct Hire related (Flow 2)
     DIRECT_HIRE_REQUEST = "direct_hire_request"   # New direct hire request
