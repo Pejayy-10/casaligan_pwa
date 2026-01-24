@@ -83,6 +83,14 @@ class InterestStatus(str, enum.Enum):
     def __str__(self):
         return self.value
 
+class EditResponseStatus(str, enum.Enum):
+    PENDING = "pending"  # Waiting for applicant to respond
+    ACCEPTED = "accepted"  # Applicant accepted the edit
+    REJECTED = "rejected"  # Applicant rejected the edit
+    
+    def __str__(self):
+        return self.value
+
 class InterestCheck(Base):
     """Job applications"""
     __tablename__ = "interestcheck"
@@ -92,6 +100,11 @@ class InterestCheck(Base):
     worker_id = Column(Integer, ForeignKey("workers.worker_id"), nullable=False)
     status = Column(SQLEnum(InterestStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=InterestStatus.PENDING)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Job edit response tracking
+    edit_response = Column(SQLEnum(EditResponseStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=True)  # NULL if no edit yet, 'pending'/'accepted'/'rejected' after edit
+    edit_notified_at = Column(DateTime(timezone=True), nullable=True)  # When the applicant was notified of the edit
+    edit_responded_at = Column(DateTime(timezone=True), nullable=True)  # When the applicant responded
     
     # Relationships
     post = relationship("ForumPost", back_populates="interest_checks")

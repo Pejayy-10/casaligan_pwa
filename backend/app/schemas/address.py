@@ -13,6 +13,9 @@ class AddressBase(BaseModel):
     street_address: Optional[str] = None
     subdivision: Optional[str] = None
     zip_code: Optional[str] = None
+    # GPS coordinates for location-based services
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 class AddressCreate(AddressBase):
     pass

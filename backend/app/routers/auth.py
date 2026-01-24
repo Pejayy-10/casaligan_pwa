@@ -139,6 +139,44 @@ def add_address(
         db.refresh(db_address)
         return db_address
 
+@router.post("/update-address-gps")
+def update_address_gps(
+    latitude: float,
+    longitude: float,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update GPS coordinates for current user's address
+    
+    This endpoint allows users to update their address GPS coordinates
+    for location-based services. Useful when users want to enable GPS
+    location search.
+    """
+    address = db.query(Address).filter(Address.user_id == current_user.id).first()
+    if not address:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Address not found. Please add an address first."
+        )
+    
+    address.latitude = latitude
+    address.longitude = longitude
+    db.commit()
+    db.refresh(address)
+    
+    return {
+        "message": "GPS coordinates updated successfully",
+        "address": {
+            "address_id": address.address_id,
+            "city": address.city_name,
+            "province": address.province_name,
+            "barangay": address.barangay_name,
+            "latitude": address.latitude,
+            "longitude": address.longitude
+        }
+    }
+
+
 @router.post("/register/documents", response_model=DocumentResponse, status_code=status.HTTP_201_CREATED)
 def upload_document(
     document_data: DocumentCreate,

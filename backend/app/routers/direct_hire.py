@@ -5,6 +5,7 @@ from sqlalchemy.sql import func
 from typing import List, Optional
 from pydantic import BaseModel
 from datetime import date
+import math
 from app.db import get_db
 from app.models_v2.user import User
 from app.models_v2.worker_employer import Worker, Employer
@@ -24,6 +25,33 @@ from app.services.notification_service import (
 )
 
 router = APIRouter(prefix="/direct-hire", tags=["direct-hire"])
+
+
+# ============== HELPER FUNCTIONS ==============
+
+def calculate_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Calculate the great circle distance between two points on Earth using Haversine formula.
+    Returns distance in kilometers.
+    """
+    # Earth's radius in kilometers
+    R = 6371.0
+    
+    # Convert latitude and longitude from degrees to radians
+    lat1_rad = math.radians(lat1)
+    lon1_rad = math.radians(lon1)
+    lat2_rad = math.radians(lat2)
+    lon2_rad = math.radians(lon2)
+    
+    # Haversine formula
+    dlat = lat2_rad - lat1_rad
+    dlon = lon2_rad - lon1_rad
+    
+    a = math.sin(dlat / 2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    
+    distance = R * c
+    return round(distance, 2)
 
 
 # ============== SCHEMAS ==============
@@ -724,15 +752,26 @@ def browse_workers(
     employer_city: Optional[str] = None,
     employer_province: Optional[str] = None,
     employer_barangay: Optional[str] = None,
+    # GPS coordinates for location-based search
+    employer_latitude: Optional[float] = None,
+    employer_longitude: Optional[float] = None,
+    max_distance_km: Optional[float] = None,  # Optional: filter by max distance
     db: Session = Depends(get_db)
 ):
     """Browse available workers with their packages
     
-    If employer location is provided, workers are sorted by proximity:
-    - Same barangay first (highest priority)
-    - Same city second
-    - Same province third
-    - Others last
+    Location-based search supports two modes:
+    1. GPS-based (when employer_latitude and employer_longitude are provided):
+       - Calculates actual distance using Haversine formula
+       - Sorts by distance in kilometers
+       - Optionally filters by max_distance_km
+    2. Address-based (when employer_city/province/barangay are provided):
+       - Same barangay first (highest priority)
+       - Same city second
+       - Same province third
+       - Others last
+    
+    GPS-based search takes priority over address-based search.
     """
     from app.models_v2.application import HousekeeperApplication, ApplicationStatus
     from app.models_v2.rating import Rating
@@ -777,11 +816,36 @@ def browse_workers(
             WorkerPackage.is_active == True
         ).all()
         
-        # Calculate proximity score for sorting (lower is closer)
+        # Calculate proximity/distance
         proximity_score = 999  # Default: far away
         proximity_label = None
+        distance_km = None
         
-        if address and address.city_name:
+        # GPS-based distance calculation (takes priority)
+        if employer_latitude is not None and employer_longitude is not None:
+            if address and address.latitude is not None and address.longitude is not None:
+                distance_km = calculate_distance_km(
+                    employer_latitude,
+                    employer_longitude,
+                    address.latitude,
+                    address.longitude
+                )
+                
+                # Filter by max distance if specified
+                if max_distance_km is not None and distance_km > max_distance_km:
+                    continue
+                
+                # Use distance as proximity score (lower is closer)
+                proximity_score = distance_km
+                proximity_label = "gps_distance"
+            else:
+                # Worker doesn't have GPS coordinates - still include them but with lower priority
+                # They'll be sorted after workers with GPS coordinates
+                proximity_score = 9999  # Very high score so they appear last
+                proximity_label = "no_gps_coordinates"
+        
+        # Address-based proximity calculation (fallback or when GPS not available)
+        if proximity_label is None and address and address.city_name:
             # Check barangay first (most specific)
             if employer_barangay and address.barangay_name:
                 employer_barangay_lower = employer_barangay.lower()
@@ -831,6 +895,7 @@ def browse_workers(
             "total_ratings": total_ratings,
             "proximity_score": proximity_score,
             "proximity_label": proximity_label,
+            "distance_km": distance_km,  # Distance in kilometers (only for GPS-based search)
             "packages": [
                 {
                     "package_id": p.package_id,
@@ -849,7 +914,15 @@ def browse_workers(
         result.sort(key=lambda x: x["average_rating"], reverse=True)
     elif sort_by == "jobs_completed":
         result.sort(key=lambda x: x["total_ratings"], reverse=True)
-    elif employer_city:  # Sort by location proximity if employer location is provided
+    elif employer_latitude is not None and employer_longitude is not None:
+        # GPS-based sorting: sort by distance (lower = closer)
+        # Workers with GPS coordinates first, then those without
+        # Secondary sort: rating (higher = better)
+        result.sort(key=lambda x: (
+            x["proximity_score"] if x["distance_km"] is not None else 99999,  # Workers without GPS go to end
+            -x["average_rating"]
+        ))
+    elif employer_city:  # Address-based sorting if employer location is provided
         # Primary sort: proximity (lower score = closer)
         # Secondary sort: rating (higher = better)
         result.sort(key=lambda x: (x["proximity_score"], -x["average_rating"]))

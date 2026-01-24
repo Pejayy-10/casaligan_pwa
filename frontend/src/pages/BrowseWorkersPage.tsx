@@ -36,6 +36,7 @@ interface WorkerProfile {
   total_ratings: number;
   proximity_score?: number;
   proximity_label?: string;
+  distance_km?: number | null;  // Distance in kilometers for GPS-based search
 }
 
 export default function BrowseWorkersPage() {
@@ -59,6 +60,17 @@ export default function BrowseWorkersPage() {
   const [showLocationEditor, setShowLocationEditor] = useState(false);
   const [locationLoading, setLocationLoading] = useState(true);
   
+  // GPS location state
+  const [useGPSLocation, setUseGPSLocation] = useState(false);
+  const [gpsLocation, setGpsLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  const [locationPermissionAsked, setLocationPermissionAsked] = useState(false);
+  
   // Location editor state
   const [regions, setRegions] = useState<PSGCRegion[]>([]);
   const [provinces, setProvinces] = useState<PSGCProvince[]>([]);
@@ -69,18 +81,39 @@ export default function BrowseWorkersPage() {
   const [selectedCity, setSelectedCity] = useState<string>('');
   const [selectedBarangay, setSelectedBarangay] = useState<string>('');
 
-  // Load employer's address on mount
+  // Load employer's address on mount and check location permission
   useEffect(() => {
     loadEmployerAddress();
     loadCategories();
+    checkLocationPermission();
   }, []);
+
+  // Check if location permission has been granted or denied
+  const checkLocationPermission = () => {
+    if (!navigator.geolocation) {
+      setGpsError('Geolocation is not supported by your browser');
+      return;
+    }
+
+    // Check if we've already asked for permission (stored in localStorage)
+    const hasAskedBefore = localStorage.getItem('location_permission_asked');
+    if (hasAskedBefore) {
+      setLocationPermissionAsked(true);
+      return;
+    }
+
+    // Show prompt after a short delay to let the page load
+    setTimeout(() => {
+      setShowLocationPrompt(true);
+    }, 1000);
+  };
 
   // Load workers when location or filters change
   useEffect(() => {
     if (!locationLoading) {
       loadWorkers();
     }
-  }, [employerLocation, minRating, sortBy, locationLoading]);
+  }, [employerLocation, minRating, sortBy, locationLoading, useGPSLocation, gpsLocation]);
 
   // Apply category filter to workers
   useEffect(() => {
@@ -248,8 +281,21 @@ export default function BrowseWorkersPage() {
       if (rating) params.append('min_rating', rating.toString());
       if (sort) params.append('sort_by', sort);
       
-      // Add employer location for proximity sorting
-      if (employerLocation) {
+      // Add GPS location if available and enabled
+      if (useGPSLocation && gpsLocation) {
+        params.append('employer_latitude', gpsLocation.latitude.toString());
+        params.append('employer_longitude', gpsLocation.longitude.toString());
+        // Also send saved address for fallback matching with workers who don't have GPS coordinates
+        if (employerLocation) {
+          params.append('employer_city', employerLocation.city);
+          params.append('employer_province', employerLocation.province);
+          if (employerLocation.barangay) {
+            params.append('employer_barangay', employerLocation.barangay);
+          }
+        }
+      }
+      // Otherwise, use address-based location
+      else if (employerLocation && !useGPSLocation) {
         params.append('employer_city', employerLocation.city);
         params.append('employer_province', employerLocation.province);
         if (employerLocation.barangay) {
@@ -266,11 +312,19 @@ export default function BrowseWorkersPage() {
       });
       if (response.ok) {
         const data = await response.json();
+        console.log('Workers loaded:', data.length, 'workers found');
+        console.log('GPS Location:', useGPSLocation ? gpsLocation : 'Not using GPS');
+        console.log('Employer Location:', employerLocation);
         setWorkers(data);
         setFilteredWorkers(data);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to load workers:', response.status, errorData);
+        setGpsError(`Failed to load workers: ${response.status} ${errorData.detail || ''}`);
       }
     } catch (error) {
       console.error('Failed to load workers:', error);
+      setGpsError('Failed to load workers. Please check your connection.');
     } finally {
       setLoading(false);
     }
@@ -298,6 +352,95 @@ export default function BrowseWorkersPage() {
     navigate(`/worker/${workerId}`);
   };
 
+  const requestGPSLocation = async () => {
+    if (!navigator.geolocation) {
+      setGpsError('Geolocation is not supported by your browser');
+      return;
+    }
+
+    setGpsLoading(true);
+    setGpsError(null);
+    setShowLocationPrompt(false);
+    setLocationPermissionAsked(true);
+    localStorage.setItem('location_permission_asked', 'true');
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const coords = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        
+        setGpsLocation(coords);
+        setUseGPSLocation(true);
+        setGpsLoading(false);
+        
+        // Save GPS coordinates to user's address in database
+        try {
+          const token = localStorage.getItem('access_token');
+          const response = await fetch(
+            `http://127.0.0.1:8000/auth/update-address-gps?latitude=${coords.latitude}&longitude=${coords.longitude}`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+          
+          if (response.ok) {
+            console.log('GPS coordinates saved to address');
+          } else {
+            console.warn('Failed to save GPS coordinates to address, but location is still available for this session');
+          }
+        } catch (error) {
+          console.warn('Error saving GPS coordinates to address:', error);
+          // Don't show error to user - GPS still works for this session
+        }
+      },
+      (error) => {
+        let errorMessage = 'Failed to get your location';
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            errorMessage = 'Location permission denied. Please enable location access in your browser settings to find nearby housekeepers.';
+            break;
+          case error.POSITION_UNAVAILABLE:
+            errorMessage = 'Location information is unavailable.';
+            break;
+          case error.TIMEOUT:
+            errorMessage = 'Location request timed out.';
+            break;
+        }
+        setGpsError(errorMessage);
+        setGpsLoading(false);
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      }
+    );
+  };
+
+  const handleLocationPromptAccept = () => {
+    requestGPSLocation();
+  };
+
+  const handleLocationPromptDismiss = () => {
+    setShowLocationPrompt(false);
+    setLocationPermissionAsked(true);
+    localStorage.setItem('location_permission_asked', 'true');
+  };
+
+  const handleLocationModeChange = (useGPS: boolean) => {
+    setUseGPSLocation(useGPS);
+    if (!useGPS) {
+      setGpsLocation(null);
+      setGpsError(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300 pb-20 relative">
       {/* Decorative circles */}
@@ -321,9 +464,93 @@ export default function BrowseWorkersPage() {
 
       {/* Main Content */}
       <main className="relative z-10 max-w-4xl mx-auto px-4 py-6">
+        {/* Location Permission Prompt */}
+        {showLocationPrompt && !locationPermissionAsked && (
+          <div className="bg-blue-50 dark:bg-blue-500/20 backdrop-blur-xl rounded-2xl p-5 mb-4 border border-blue-200 dark:border-blue-500/30 shadow-lg">
+            <div className="flex items-start gap-4">
+              <div className="text-3xl">📍</div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-[#4B244A] dark:text-white mb-2">
+                  Enable Location Services
+                </h3>
+                <p className="text-[#4B244A]/80 dark:text-white/80 text-sm mb-4">
+                  Allow us to access your location to find the nearest housekeepers based on your current position. 
+                  This helps you discover housekeepers closest to you for faster service.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleLocationPromptAccept}
+                    className="px-4 py-2 bg-[#EA526F] hover:bg-[#d64460] text-white font-bold rounded-xl transition-all text-sm"
+                  >
+                    ✓ Enable Location
+                  </button>
+                  <button
+                    onClick={handleLocationPromptDismiss}
+                    className="px-4 py-2 bg-white/50 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/20 text-[#4B244A] dark:text-white font-bold rounded-xl transition-all text-sm border border-gray-200 dark:border-white/10"
+                  >
+                    Not Now
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Location Filter */}
-        {employerLocation && (
-          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 mb-4 border border-white/50 dark:border-white/10 shadow-lg">
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 mb-4 border border-white/50 dark:border-white/10 shadow-lg">
+          {/* Location Mode Toggle */}
+          <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-white/10">
+            <div className="flex items-center gap-3">
+              <span className="text-[#4B244A]/70 dark:text-white/70 text-sm font-bold">Location Mode:</span>
+              <button
+                onClick={() => handleLocationModeChange(false)}
+                className={`px-4 py-2 rounded-xl transition-all text-sm font-bold border ${
+                  !useGPSLocation
+                    ? 'bg-[#EA526F] text-white border-[#EA526F]'
+                    : 'bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white border-gray-200 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/20'
+                }`}
+              >
+                📍 Saved Address
+              </button>
+              <button
+                onClick={() => {
+                  if (!gpsLocation) {
+                    requestGPSLocation();
+                  } else {
+                    handleLocationModeChange(true);
+                  }
+                }}
+                disabled={gpsLoading}
+                className={`px-4 py-2 rounded-xl transition-all text-sm font-bold border ${
+                  useGPSLocation
+                    ? 'bg-[#EA526F] text-white border-[#EA526F]'
+                    : 'bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white border-gray-200 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/20'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {gpsLoading ? '⏳ Getting Location...' : gpsLocation ? '📱 Use GPS Location' : '📱 Enable GPS Location'}
+              </button>
+            </div>
+          </div>
+
+          {/* GPS Error Message */}
+          {gpsError && (
+            <div className="mb-3 p-3 bg-red-100 dark:bg-red-500/20 border border-red-300 dark:border-red-500/30 rounded-xl">
+              <p className="text-red-700 dark:text-red-300 text-sm font-medium">{gpsError}</p>
+            </div>
+          )}
+
+          {/* Location Display */}
+          {useGPSLocation && gpsLocation ? (
+            <div>
+              <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-1 font-medium">Showing workers near your current location:</p>
+              <p className="text-[#4B244A] dark:text-white font-bold">
+                📱 GPS Location (Lat: {gpsLocation.latitude.toFixed(6)}, Lng: {gpsLocation.longitude.toFixed(6)})
+              </p>
+              <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
+                Workers are sorted by distance from your current location
+              </p>
+            </div>
+          ) : employerLocation ? (
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-1 font-medium">Showing workers near:</p>
@@ -341,9 +568,10 @@ export default function BrowseWorkersPage() {
                 {showLocationEditor ? 'Cancel' : '✏️ Edit Location'}
               </button>
             </div>
-            
-            {/* Location Editor */}
-            {showLocationEditor && (
+          ) : null}
+             
+          {/* Location Editor */}
+          {showLocationEditor && !useGPSLocation && (
               <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/10">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                   <div>
@@ -426,7 +654,6 @@ export default function BrowseWorkersPage() {
               </div>
             )}
           </div>
-        )}
 
         {/* Search Bar */}
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 mb-6 border border-white/50 dark:border-white/10 shadow-lg">
@@ -583,7 +810,11 @@ export default function BrowseWorkersPage() {
                             📍 {worker.barangay && `${worker.barangay}, `}{worker.city}
                             {worker.province && `, ${worker.province}`}
                           </p>
-                          {worker.proximity_label && (
+                          {worker.distance_km !== null && worker.distance_km !== undefined ? (
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-300">
+                              📍 {worker.distance_km} km away
+                            </span>
+                          ) : worker.proximity_label && (
                             <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
                               worker.proximity_label === 'same_barangay'
                                 ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/30 dark:text-emerald-300'

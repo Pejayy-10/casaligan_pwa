@@ -45,9 +45,11 @@ interface JobDetailModalProps {
   onApply?: (jobId: number) => Promise<void>;
   hasApplied?: boolean;
   applicationStatus?: string;
+  canReapply?: boolean;
+  onStatusRefresh?: () => void;
 }
 
-export default function JobDetailModal({ job, onClose, onApply, hasApplied = false, applicationStatus }: JobDetailModalProps) {
+export default function JobDetailModal({ job, onClose, onApply, hasApplied = false, applicationStatus, canReapply = false, onStatusRefresh }: JobDetailModalProps) {
   const [isApplying, setIsApplying] = useState(false);
 
   const handleApply = async () => {
@@ -175,16 +177,33 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
         {onApply && (
           <div className="sticky bottom-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-gray-200 dark:border-white/10 p-6 rounded-b-3xl">
             {hasApplied ? (
-              <div className="text-center">
+              <div className="text-center space-y-3">
                 <div className={`inline-flex items-center px-6 py-3 rounded-xl font-bold ${
                   applicationStatus === 'accepted' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' :
-                  applicationStatus === 'rejected' ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' :
+                  applicationStatus === 'rejected' || applicationStatus === 'withdrawn' ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' :
                   'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300'
                 }`}>
                   {applicationStatus === 'accepted' ? '✓ Application Accepted' :
                    applicationStatus === 'rejected' ? '✗ Application Rejected' :
+                   applicationStatus === 'withdrawn' ? '🚫 Application Withdrawn' :
                    '⏳ Application Pending'}
                 </div>
+                {canReapply && applicationStatus === 'withdrawn' && (
+                  <button
+                    onClick={async () => {
+                      if (onApply) {
+                        await handleApply();
+                        if (onStatusRefresh) {
+                          onStatusRefresh();
+                        }
+                      }
+                    }}
+                    disabled={isApplying}
+                    className="w-full py-3 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white font-bold text-base rounded-xl hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
+                  >
+                    {isApplying ? 'Re-applying...' : '🔄 Re-apply to this Job'}
+                  </button>
+                )}
               </div>
             ) : (
               <button

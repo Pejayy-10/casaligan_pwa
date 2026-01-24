@@ -20,6 +20,7 @@ class NotificationType(str, enum.Enum):
     PAYMENT_REVIEW = "payment_review"             # Payment needs review/confirmation
     PAYMENT_DUE = "payment_due"                   # Payment is due (long-term)
     PAYMENT_OVERDUE = "payment_overdue"           # Payment is overdue
+    JOB_EDITED = "job_edited"                      # Job was edited after application
     
     # Direct Hire related (Flow 2)
     DIRECT_HIRE_REQUEST = "direct_hire_request"   # New direct hire request
