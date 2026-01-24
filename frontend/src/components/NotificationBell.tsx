@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, X, Check, CheckCheck } from 'lucide-react';
+import JobEditResponseModal from './JobEditResponseModal';
 
 interface Notification {
   notification_id: number;
@@ -23,6 +24,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+  const [showJobEditModal, setShowJobEditModal] = useState<{ jobId: number; jobTitle: string; message: string } | null>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -140,6 +142,17 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
       markAsRead(notification.notification_id);
     }
     
+    // Special handling for job_edited notifications
+    if (notification.type === 'job_edited' && notification.reference_type === 'job' && notification.reference_id) {
+      setShowJobEditModal({
+        jobId: notification.reference_id,
+        jobTitle: notification.title.replace(' ⚠️', '').replace('Job Post Updated', '').trim() || 'Job',
+        message: notification.message
+      });
+      setIsOpen(false);
+      return;
+    }
+    
     if (onNavigate && notification.reference_type && notification.reference_id) {
       onNavigate(notification.reference_type, notification.reference_id);
       setIsOpen(false);
@@ -206,6 +219,9 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
 
   // Get icon color based on notification type
   const getTypeColor = (type: string) => {
+    if (type === 'job_edited') {
+      return 'text-yellow-600 dark:text-yellow-400';
+    }
     if (type.includes('ACCEPTED') || type.includes('APPROVED') || type.includes('CONFIRMED')) {
       return 'text-green-500';
     }
@@ -353,6 +369,21 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
 
       {/* Dropdown rendered via Portal to escape z-index stacking context */}
       {createPortal(dropdownContent, document.body)}
+
+      {/* Job Edit Response Modal */}
+      {showJobEditModal && (
+        <JobEditResponseModal
+          jobId={showJobEditModal.jobId}
+          jobTitle={showJobEditModal.jobTitle}
+          message={showJobEditModal.message}
+          onClose={() => setShowJobEditModal(null)}
+          onResponse={(response) => {
+            // Refresh notifications after response
+            fetchNotifications();
+            fetchUnreadCount();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -33,7 +33,7 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<JobPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState<JobPost | null>(null);
-  const [applicationStatuses, setApplicationStatuses] = useState<Record<number, { has_applied: boolean; status?: string }>>({});
+  const [applicationStatuses, setApplicationStatuses] = useState<Record<number, { has_applied: boolean; status?: string; can_reapply?: boolean }>>({});
   const [showApplicants, setShowApplicants] = useState<JobPost | null>(null);
   const [showPayment, setShowPayment] = useState<{ jobTitle: string; amount: number; workerName: string } | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'ongoing' | 'completed' | 'closed'>('all');
@@ -97,7 +97,7 @@ export default function JobsPage() {
         
         // Load application statuses for housekeepers
         if (user?.active_role === 'housekeeper') {
-          const statuses: Record<number, { has_applied: boolean; status?: string }> = {};
+          const statuses: Record<number, { has_applied: boolean; status?: string; can_reapply?: boolean }> = {};
           for (const job of data) {
             try {
               const statusResponse = await fetch(`http://127.0.0.1:8000/jobs/${job.post_id}/application-status`, {
@@ -498,6 +498,27 @@ export default function JobsPage() {
           }}
           hasApplied={applicationStatuses[selectedJob.post_id]?.has_applied}
           applicationStatus={applicationStatuses[selectedJob.post_id]?.status}
+          canReapply={applicationStatuses[selectedJob.post_id]?.can_reapply || false}
+          onStatusRefresh={async () => {
+            // Refresh application status after re-applying
+            const token = localStorage.getItem('access_token');
+            if (token && selectedJob) {
+              try {
+                const statusResponse = await fetch(`http://127.0.0.1:8000/jobs/${selectedJob.post_id}/application-status`, {
+                  headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (statusResponse.ok) {
+                  const statusData = await statusResponse.json();
+                  setApplicationStatuses(prev => ({
+                    ...prev,
+                    [selectedJob.post_id]: statusData
+                  }));
+                }
+              } catch (err) {
+                console.error('Failed to refresh application status:', err);
+              }
+            }
+          }}
         />
       )}
       

@@ -6,13 +6,13 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc
 from sqlalchemy.sql import func
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from pydantic import BaseModel
 import json
 from app.db import get_db
 from app.models_v2.user import User
 from app.models_v2.worker_employer import Employer, Worker
-from app.models_v2.forum import ForumPost, ForumPostStatus, InterestCheck, InterestStatus, JobType
+from app.models_v2.forum import ForumPost, ForumPostStatus, InterestCheck, InterestStatus, JobType, EditResponseStatus
 from app.models_v2.contract import Contract
 from app.models_v2.conversation import Conversation
 from app.models_v2.payment import PaymentSchedule, PaymentStatus, PaymentTransaction
@@ -25,8 +25,10 @@ from app.services.notification_service import (
     notify_completion_submitted,
     notify_completion_approved,
     notify_payment_sent,
-    notify_payment_received
+    notify_payment_received,
+    notify_user
 )
+from app.models_v2.notification import NotificationType
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -442,6 +444,29 @@ def update_job_post(
             detail="You can only update your own job posts"
         )
     
+    # Store old values to detect ALL changes
+    old_details = json.loads(post.content) if post.content else {}
+    old_title = post.title
+    old_budget = float(post.salary) if post.salary else old_details.get('budget', 0)
+    old_description = old_details.get('description', '')
+    old_house_type = old_details.get('house_type', '')
+    old_cleaning_type = old_details.get('cleaning_type', '')
+    old_people_needed = old_details.get('people_needed', 1)
+    old_image_urls = old_details.get('image_urls', [])
+    old_location = post.location or old_details.get('location', '')
+    old_category_id = post.category_id
+    old_duration_type = "long_term" if post.is_longterm else "short_term"
+    old_start_date = post.start_date or old_details.get('start_date', '')
+    old_end_date = post.end_date or old_details.get('end_date', '')
+    
+    # Check if there are any applicants (pending or accepted) before updating
+    existing_applicants = db.query(InterestCheck).filter(
+        InterestCheck.post_id == post_id,
+        InterestCheck.status.in_([InterestStatus.PENDING, InterestStatus.ACCEPTED])
+    ).all()
+    
+    has_applicants = len(existing_applicants) > 0
+    
     # Update fields
     if job_update.title:
         post.title = job_update.title
@@ -451,6 +476,9 @@ def update_job_post(
     
     if job_update.status:
         post.status = ForumPostStatus(job_update.status)
+    
+    if job_update.location:
+        post.location = job_update.location
     
     # Update JSON description with new job details
     if any([job_update.description, job_update.house_type, job_update.cleaning_type, 
@@ -481,10 +509,135 @@ def update_job_post(
         if job_update.end_date:
             current_details['end_date'] = job_update.end_date.isoformat()
             post.end_date = job_update.end_date.isoformat()
+        if job_update.location:
+            current_details['location'] = job_update.location
         
         post.content = json.dumps(current_details)
     
-    db.commit()
+    # If there are applicants, build detailed change list and notify them
+    if has_applicants:
+        # Get new values after update
+        new_details = json.loads(post.content) if post.content else {}
+        new_budget = float(post.salary) if post.salary else new_details.get('budget', 0)
+        new_title = post.title
+        new_description = new_details.get('description', '')
+        new_house_type = new_details.get('house_type', '')
+        new_cleaning_type = new_details.get('cleaning_type', '')
+        new_people_needed = new_details.get('people_needed', 1)
+        new_image_urls = new_details.get('image_urls', [])
+        new_location = post.location or new_details.get('location', '')
+        new_category_id = post.category_id
+        new_duration_type = "long_term" if post.is_longterm else "short_term"
+        new_start_date = post.start_date or new_details.get('start_date', '')
+        new_end_date = post.end_date or new_details.get('end_date', '')
+        
+        # Build detailed change list by comparing old vs new values
+        changes = []
+        
+        # Title change
+        if old_title != new_title:
+            changes.append(f"• Title: '{old_title}' → '{new_title}'")
+        
+        # Budget change
+        if abs(new_budget - old_budget) > 0.01:
+            changes.append(f"• Budget: ₱{old_budget:,.2f} → ₱{new_budget:,.2f}")
+        
+        # Description change
+        if old_description != new_description:
+            old_desc_preview = old_description[:100] + "..." if len(old_description) > 100 else old_description
+            new_desc_preview = new_description[:100] + "..." if len(new_description) > 100 else new_description
+            changes.append(f"• Description: '{old_desc_preview}' → '{new_desc_preview}'")
+        
+        # House type change
+        if old_house_type != new_house_type:
+            changes.append(f"• House Type: '{old_house_type or 'Not specified'}' → '{new_house_type or 'Not specified'}'")
+        
+        # Cleaning type change
+        if old_cleaning_type != new_cleaning_type:
+            changes.append(f"• Cleaning Type: '{old_cleaning_type or 'Not specified'}' → '{new_cleaning_type or 'Not specified'}'")
+        
+        # People needed change
+        if old_people_needed != new_people_needed:
+            changes.append(f"• People Needed: {old_people_needed} → {new_people_needed}")
+        
+        # Images change
+        if len(old_image_urls) != len(new_image_urls):
+            changes.append(f"• Images: {len(old_image_urls)} image(s) → {len(new_image_urls)} image(s)")
+        
+        # Location change
+        if old_location != new_location:
+            changes.append(f"• Location: '{old_location or 'Not specified'}' → '{new_location or 'Not specified'}'")
+        
+        # Category change
+        if old_category_id != new_category_id:
+            from app.models_v2.package_category import PackageCategory
+            old_cat = db.query(PackageCategory).filter(PackageCategory.category_id == old_category_id).first() if old_category_id else None
+            new_cat = db.query(PackageCategory).filter(PackageCategory.category_id == new_category_id).first() if new_category_id else None
+            old_cat_name = old_cat.name if old_cat else 'None'
+            new_cat_name = new_cat.name if new_cat else 'None'
+            changes.append(f"• Category: '{old_cat_name}' → '{new_cat_name}'")
+        
+        # Duration type change
+        if old_duration_type != new_duration_type:
+            changes.append(f"• Duration Type: '{old_duration_type}' → '{new_duration_type}'")
+        
+        # Start date change
+        if old_start_date != new_start_date:
+            old_start = old_start_date if old_start_date else 'Not set'
+            new_start = new_start_date if new_start_date else 'Not set'
+            changes.append(f"• Start Date: {old_start} → {new_start}")
+        
+        # End date change
+        if old_end_date != new_end_date:
+            old_end = old_end_date if old_end_date else 'Not set'
+            new_end = new_end_date if new_end_date else 'Not set'
+            changes.append(f"• End Date: {old_end} → {new_end}")
+        
+        # Build change summary message
+        if changes:
+            change_summary = "The following changes were made:\n" + "\n".join(changes)
+        else:
+            change_summary = "Job details have been updated (no specific changes detected)"
+        
+        # Notify all applicants and set edit_response to pending
+        now = datetime.now(timezone.utc)
+        notification_created = False
+        
+        for application in existing_applicants:
+            # Get worker's user_id
+            worker = db.query(Worker).filter(Worker.worker_id == application.worker_id).first()
+            if worker:
+                # Notify the worker with detailed changes
+                try:
+                    notification = notify_user(
+                        db=db,
+                        user_id=worker.user_id,
+                        notification_type=NotificationType.JOB_EDITED,
+                        title="Job Post Updated ⚠️",
+                        message=f"The job '{new_title}' has been updated.\n\n{change_summary}\n\nPlease review and confirm if you want to continue with your application.",
+                        reference_type="job",
+                        reference_id=post_id,
+                        commit=False  # Don't commit yet, we'll commit all at once
+                    )
+                    notification_created = True
+                    
+                    # Mark edit_response as pending
+                    application.edit_response = EditResponseStatus.PENDING
+                    application.edit_notified_at = now
+                except Exception as e:
+                    print(f"Error notifying worker {worker.worker_id}: {e}")
+                    import traceback
+                    traceback.print_exc()
+        
+        # Commit all changes (notifications and edit_response updates)
+        db.commit()
+        
+        # Log for debugging
+        if notification_created:
+            print(f"Job edit notifications sent to {len(existing_applicants)} applicant(s) for job {post_id}")
+    else:
+        db.commit()
+    
     db.refresh(post)
     
     applicants_count = db.query(InterestCheck).filter(InterestCheck.post_id == post.post_id).count()
@@ -562,79 +715,111 @@ def apply_to_job(
         InterestCheck.worker_id == worker_record.worker_id
     ).first()
     
+    is_reapplying = False
+    
+    # If application exists and is not withdrawn, prevent duplicate application
     if existing_application:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="You have already applied to this job"
+        # Allow re-applying if the application was withdrawn (rejected edit or rejected status)
+        is_withdrawn = (
+            existing_application.status == InterestStatus.REJECTED or
+            existing_application.edit_response == EditResponseStatus.REJECTED
         )
-    
-    # Create interest check
-    interest = InterestCheck(
-        post_id=post_id,
-        worker_id=worker_record.worker_id,
-        status=InterestStatus.PENDING
-    )
-    
-    db.add(interest)
-    
-    # Create contract record
-    from app.models_v2.contract import Contract
-    import json
-    
-    try:
-        # Get job details for contract
-        job_details = json.loads(post.content) if post.content else {}
-        contract_terms = {
-            "job_title": post.title,
-            "job_type": job_details.get("job_type"),
-            "location": job_details.get("location"),
-            "description": job_details.get("description"),
-            "start_date": job_details.get("start_date"),
-            "end_date": job_details.get("end_date"),
-            "budget": job_details.get("budget"),
-            "payment_schedule": job_details.get("payment_schedule"),
-            "employer_name": "Employer"  # Will be populated from user data later
-        }
         
-        contract = Contract(
+        if not is_withdrawn:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="You have already applied to this job"
+            )
+        else:
+            # Re-apply: Reset the application to pending
+            is_reapplying = True
+            existing_application.status = InterestStatus.PENDING
+            existing_application.edit_response = None
+            existing_application.edit_notified_at = None
+            existing_application.edit_responded_at = None
+            # Use the existing application instead of creating a new one
+            interest = existing_application
+    
+    # Create interest check only if not re-applying
+    if not is_reapplying:
+        interest = InterestCheck(
             post_id=post_id,
-            employer_id=post.employer_id,  # Get from the job post
             worker_id=worker_record.worker_id,
-            contract_terms=json.dumps(contract_terms),  # Convert dict to JSON string
-            worker_accepted=1,  # 1 = accepted (integer, not boolean)
-            employer_accepted=0  # 0 = pending
+            status=InterestStatus.PENDING
         )
+        db.add(interest)
+    
+    # Create contract record (only for new applications, not re-applications)
+    if not is_reapplying:
+        from app.models_v2.contract import Contract
+        import json
         
-        db.add(contract)
-    except Exception as e:
-        print(f"Warning: Could not create contract: {e}")
-        import traceback
-        traceback.print_exc()
+        try:
+            # Get job details for contract
+            job_details = json.loads(post.content) if post.content else {}
+            contract_terms = {
+                "job_title": post.title,
+                "job_type": job_details.get("job_type"),
+                "location": job_details.get("location"),
+                "description": job_details.get("description"),
+                "start_date": job_details.get("start_date"),
+                "end_date": job_details.get("end_date"),
+                "budget": job_details.get("budget"),
+                "payment_schedule": job_details.get("payment_schedule"),
+                "employer_name": "Employer"  # Will be populated from user data later
+            }
+            
+            contract = Contract(
+                post_id=post_id,
+                employer_id=post.employer_id,  # Get from the job post
+                worker_id=worker_record.worker_id,
+                contract_terms=json.dumps(contract_terms),  # Convert dict to JSON string
+                worker_accepted=1,  # 1 = accepted (integer, not boolean)
+                employer_accepted=0  # 0 = pending
+            )
+            
+            db.add(contract)
+        except Exception as e:
+            print(f"Warning: Could not create contract: {e}")
+            import traceback
+            traceback.print_exc()
     
     db.commit()
     db.refresh(interest)
     
-    # Notify employer about new application
+    # Notify employer about new application or re-application
     try:
         employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
         if employer:
             employer_user = db.query(User).filter(User.id == employer.user_id).first()
             if employer_user:
                 worker_name = f"{current_user.first_name} {current_user.last_name}"
-                notify_job_application(
-                    db=db,
-                    employer_user_id=employer_user.id,
-                    worker_name=worker_name,
-                    job_title=post.title,
-                    post_id=post_id
-                )
+                if is_reapplying:
+                    notify_user(
+                        db=db,
+                        user_id=employer_user.id,
+                        notification_type=NotificationType.JOB_APPLICATION,
+                        title="Applicant Re-applied",
+                        message=f"{worker_name} has re-applied to your job: {post.title}",
+                        reference_type="job",
+                        reference_id=post_id
+                    )
+                else:
+                    notify_job_application(
+                        db=db,
+                        employer_user_id=employer_user.id,
+                        worker_name=worker_name,
+                        job_title=post.title,
+                        post_id=post_id
+                    )
     except Exception as e:
         print(f"Warning: Could not send notification: {e}")
     
     return {
-        "message": "Application submitted successfully",
+        "message": "Application submitted successfully" + (" (re-applied)" if is_reapplying else ""),
         "interest_id": interest.interest_id,
-        "status": interest.status
+        "status": interest.status.value if hasattr(interest.status, 'value') else str(interest.status),
+        "is_reapplication": is_reapplying
     }
 
 @router.get("/{post_id}/application-status")
@@ -660,10 +845,26 @@ def get_application_status(
     if not application:
         return {"has_applied": False}
     
+    # Determine effective status for display
+    effective_status = application.status.value if hasattr(application.status, 'value') else str(application.status)
+    
+    # If edit was rejected, show as withdrawn
+    if application.edit_response == EditResponseStatus.REJECTED:
+        effective_status = "withdrawn"
+    elif application.status == InterestStatus.REJECTED:
+        effective_status = "withdrawn"
+    
     return {
         "has_applied": True,
-        "status": application.status,
-        "applied_at": application.created_at.isoformat()
+        "status": effective_status,
+        "original_status": application.status.value if hasattr(application.status, 'value') else str(application.status),
+        "applied_at": application.created_at.isoformat(),
+        "edit_response": application.edit_response.value if application.edit_response else None,
+        "edit_notified_at": application.edit_notified_at.isoformat() if application.edit_notified_at else None,
+        "can_reapply": (
+            application.status == InterestStatus.REJECTED or
+            application.edit_response == EditResponseStatus.REJECTED
+        )
     }
 
 @router.get("/{post_id}/applicants")
@@ -690,10 +891,23 @@ def get_job_applicants(
             detail="You can only view applicants for your own job posts"
         )
     
-    # Get all applicants
+    # Get all applicants (excluding rejected/withdrawn applications)
     applications = db.query(InterestCheck).filter(
         InterestCheck.post_id == post_id
     ).all()
+    
+    # Filter out rejected/withdrawn applications in Python to ensure it works correctly
+    filtered_applications = []
+    for app in applications:
+        # Skip if status is REJECTED
+        if app.status == InterestStatus.REJECTED:
+            continue
+        # Skip if edit_response is REJECTED (withdrawn after edit)
+        if app.edit_response == EditResponseStatus.REJECTED:
+            continue
+        filtered_applications.append(app)
+    
+    applications = filtered_applications
     
     result = []
     for app in applications:
@@ -704,6 +918,9 @@ def get_job_applicants(
             if user:
                 # Get status value
                 status_val = app.status.value if hasattr(app.status, 'value') else str(app.status)
+                # Get edit response status
+                edit_response_val = app.edit_response.value if app.edit_response and hasattr(app.edit_response, 'value') else (str(app.edit_response) if app.edit_response else None)
+                
                 result.append({
                     "interest_id": app.interest_id,
                     "worker_id": app.worker_id,
@@ -711,10 +928,141 @@ def get_job_applicants(
                     "worker_email": user.email,
                     "worker_phone": user.phone_number,
                     "status": status_val,
-                    "applied_at": app.created_at.isoformat() if app.created_at else ""
+                    "applied_at": app.created_at.isoformat() if app.created_at else "",
+                    "edit_response": edit_response_val,  # Add edit response status
+                    "edit_notified_at": app.edit_notified_at.isoformat() if app.edit_notified_at else None
                 })
     
     return result
+
+@router.post("/{post_id}/respond-to-edit")
+def respond_to_job_edit(
+    post_id: int,
+    response: str,  # "accept" or "reject"
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Respond to a job edit (accept or reject the edited job)"""
+    
+    if not current_user.is_housekeeper:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only housekeepers can respond to job edits"
+        )
+    
+    if response not in ["accept", "reject"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Response must be 'accept' or 'reject'"
+        )
+    
+    # Get worker record
+    worker_record = db.query(Worker).filter(Worker.user_id == current_user.id).first()
+    if not worker_record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Worker profile not found"
+        )
+    
+    # Check if job exists
+    post = db.query(ForumPost).filter(ForumPost.post_id == post_id).first()
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job post not found"
+        )
+    
+    # Get application
+    application = db.query(InterestCheck).filter(
+        InterestCheck.post_id == post_id,
+        InterestCheck.worker_id == worker_record.worker_id
+    ).first()
+    
+    if not application:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="You have not applied to this job"
+        )
+    
+    # Check if there's a pending edit response
+    if not application.edit_response or application.edit_response != EditResponseStatus.PENDING:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No pending job edit to respond to"
+        )
+    
+    # Update response
+    now = datetime.now(timezone.utc)
+    if response == "accept":
+        application.edit_response = EditResponseStatus.ACCEPTED
+        application.edit_responded_at = now
+        message = f"You have accepted the job changes for '{post.title}'. Your application continues."
+    else:  # reject - withdraw the application
+        application.edit_response = EditResponseStatus.REJECTED
+        application.edit_responded_at = now
+        # Withdraw the application by setting status to rejected
+        application.status = InterestStatus.REJECTED
+        
+        # Also update any associated contract to reflect the withdrawal
+        try:
+            from app.models_v2.contract import Contract, ContractStatus
+            contract = db.query(Contract).filter(
+                Contract.post_id == post_id,
+                Contract.worker_id == worker_record.worker_id
+            ).first()
+            
+            if contract:
+                # Update contract status to cancelled/rejected
+                try:
+                    contract.status = ContractStatus.CANCELLED
+                except:
+                    # If ContractStatus doesn't have CANCELLED, just mark worker_accepted as 0
+                    contract.worker_accepted = 0
+        except Exception as e:
+            print(f"Warning: Could not update contract for withdrawn application: {e}")
+        
+        message = f"You have withdrawn your application for '{post.title}' after rejecting the job changes."
+    
+    # Commit the changes
+    db.commit()
+    # Refresh to ensure the changes are persisted
+    db.refresh(application)
+    
+    # Notify employer about the response
+    try:
+        employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+        if employer:
+            employer_user = db.query(User).filter(User.id == employer.user_id).first()
+            if employer_user:
+                worker_name = f"{current_user.first_name} {current_user.last_name}"
+                if response == "accept":
+                    notify_user(
+                        db=db,
+                        user_id=employer_user.id,
+                        notification_type=NotificationType.SYSTEM,
+                        title="Applicant Accepted Job Changes",
+                        message=f"{worker_name} has accepted the changes to job '{post.title}' and will continue with their application.",
+                        reference_type="job",
+                        reference_id=post_id
+                    )
+                else:  # reject
+                    notify_user(
+                        db=db,
+                        user_id=employer_user.id,
+                        notification_type=NotificationType.SYSTEM,
+                        title="Applicant Withdrew Application",
+                        message=f"{worker_name} has withdrawn their application for '{post.title}' after rejecting the job changes.",
+                        reference_type="job",
+                        reference_id=post_id
+                    )
+    except Exception as e:
+        print(f"Warning: Could not send notification to employer: {e}")
+    
+    return {
+        "message": message,
+        "response": response,
+        "post_id": post_id
+    }
 
 @router.put("/{post_id}/applicants/{interest_id}")
 def update_applicant_status(

@@ -43,6 +43,79 @@ export default function DashboardPage() {
     fetchRatingSummary();
   }, [user]);
 
+  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
+  const [locationPromptLoading, setLocationPromptLoading] = useState(false);
+
+  const requestLocationForHousekeeper = async (): Promise<boolean> => {
+    if (!navigator.geolocation) {
+      alert('Geolocation is not supported by your browser');
+      return false;
+    }
+
+    return new Promise((resolve) => {
+      setLocationPromptLoading(true);
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const coords = {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          };
+          
+          // Save GPS coordinates to user's address
+          try {
+            const token = localStorage.getItem('access_token');
+            const response = await fetch(
+              `http://127.0.0.1:8000/auth/update-address-gps?latitude=${coords.latitude}&longitude=${coords.longitude}`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
+            
+            if (response.ok) {
+              console.log('GPS coordinates saved to address');
+              setLocationPromptLoading(false);
+              resolve(true);
+            } else {
+              console.error('Failed to save GPS coordinates');
+              setLocationPromptLoading(false);
+              resolve(false);
+            }
+          } catch (error) {
+            console.error('Error saving GPS coordinates:', error);
+            setLocationPromptLoading(false);
+            resolve(false);
+          }
+        },
+        (error) => {
+          let errorMessage = 'Failed to get your location';
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = 'Location permission denied. Please enable location access in your browser settings.';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = 'Location information is unavailable.';
+              break;
+            case error.TIMEOUT:
+              errorMessage = 'Location request timed out.';
+              break;
+          }
+          alert(errorMessage);
+          setLocationPromptLoading(false);
+          resolve(false);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0,
+        }
+      );
+    });
+  };
+
   const handleSwitchRole = async () => {
     if (!user) return;
     try {
@@ -50,9 +123,39 @@ export default function DashboardPage() {
       const updatedUser = { ...user, active_role: result.active_role as 'owner' | 'housekeeper' };
       setUser(updatedUser);
       localStorage.setItem('user', JSON.stringify(updatedUser));
+      
+      // Check if switching to housekeeper
+      if (result.active_role === 'housekeeper') {
+        // Check if user has GPS coordinates in their address
+        const hasGPS = user.address?.latitude && user.address?.longitude;
+        
+        if (!hasGPS) {
+          // Prompt to enable location
+          setShowLocationPrompt(true);
+        }
+      }
     } catch {
       alert('Failed to switch role. You may not have housekeeper privileges yet.');
     }
+  };
+
+  const handleLocationPromptAccept = async () => {
+    const success = await requestLocationForHousekeeper();
+    if (success) {
+      setShowLocationPrompt(false);
+      // Refresh user data to get updated address
+      const updatedUser = await authService.getCurrentUser();
+      if (updatedUser) {
+        setUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+      }
+      alert('✓ Location saved! Homeowners can now find you using GPS search.');
+    }
+  };
+
+  const handleLocationPromptDismiss = () => {
+    setShowLocationPrompt(false);
+    alert('⚠️ Note: Without GPS location, homeowners may have difficulty finding you when using GPS search. You can enable this later in your profile.');
   };
 
   if (!user) return null;
@@ -198,6 +301,42 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
+
+      {/* Location Prompt Modal - When switching to housekeeper */}
+      {showLocationPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-gray-200 dark:border-white/10 shadow-2xl">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="text-4xl">📍</div>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-2">
+                  Enable Location Services
+                </h3>
+                <p className="text-[#4B244A]/80 dark:text-white/80 text-sm mb-4">
+                  To help homeowners find you when they search using GPS location, please allow us to access your current location. 
+                  This will save your location so you can be discovered by nearby homeowners.
+                </p>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleLocationPromptAccept}
+                    disabled={locationPromptLoading}
+                    className="flex-1 px-4 py-2 bg-[#EA526F] hover:bg-[#d64460] text-white font-bold rounded-xl transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {locationPromptLoading ? '⏳ Getting Location...' : '✓ Enable Location'}
+                  </button>
+                  <button
+                    onClick={handleLocationPromptDismiss}
+                    disabled={locationPromptLoading}
+                    className="px-4 py-2 bg-white/50 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/20 text-[#4B244A] dark:text-white font-bold rounded-xl transition-all text-sm border border-gray-200 dark:border-white/10 disabled:opacity-50"
+                  >
+                    Not Now
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <TabBar role={user.active_role} />
     </div>
