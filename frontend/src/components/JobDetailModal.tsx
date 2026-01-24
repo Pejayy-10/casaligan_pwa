@@ -22,6 +22,8 @@ export interface JobPost {
   location?: string;
   category_id?: number;
   category_name?: string;
+  category_ids?: number[];
+  category_names?: string[];
   status: string;
   created_at: string;
   employer_name?: string;

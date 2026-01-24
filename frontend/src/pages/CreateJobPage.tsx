@@ -26,7 +26,6 @@ export default function CreateJobPage() {
     start_date: '',
     end_date: '',
     location: '',
-    category_id: '',
     // Payment schedule fields
     payment_frequency: 'monthly',
     payment_amount: '',
@@ -39,6 +38,8 @@ export default function CreateJobPage() {
     end_time: '',
     frequency: 'weekly'
   });
+  
+  const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
   
   const [images, setImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -119,6 +120,13 @@ export default function CreateJobPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
+    // Validate at least one category is selected
+    if (selectedCategories.length === 0) {
+      setError('Please select at least one category');
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -134,7 +142,7 @@ export default function CreateJobPage() {
         image_urls: images,
         duration_type: formData.duration_type,
         location: formData.location || null,
-        category_id: parseInt(formData.category_id)
+        category_ids: selectedCategories
       };
       
       // For short-term jobs, use job_date as both start and end date
@@ -317,22 +325,33 @@ export default function CreateJobPage() {
                   </select>
                 </div>
 
-                <div>
-                  <label className={labelClass}>Category *</label>
-                  <select
-                    name="category_id"
-                    value={formData.category_id}
-                    onChange={handleInputChange}
-                    required
-                    className={inputClass}
-                  >
-                    <option value="" className={optionClass}>Select a category...</option>
+                <div className="md:col-span-2">
+                  <label className={labelClass}>Categories * (Select one or more)</label>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
                     {categories.map(cat => (
-                      <option key={cat.category_id} value={cat.category_id} className={optionClass}>
-                        {cat.name}
-                      </option>
+                      <label
+                        key={cat.category_id}
+                        className="flex items-center p-3 bg-white/50 dark:bg-white/5 backdrop-blur-sm border border-gray-200 dark:border-white/20 rounded-xl cursor-pointer hover:bg-[#EA526F]/10 dark:hover:bg-[#EA526F]/20 transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.includes(cat.category_id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedCategories([...selectedCategories, cat.category_id]);
+                            } else {
+                              setSelectedCategories(selectedCategories.filter(id => id !== cat.category_id));
+                            }
+                          }}
+                          className="w-5 h-5 text-[#EA526F] bg-white/50 dark:bg-white/10 border-gray-300 dark:border-white/30 rounded focus:ring-[#EA526F] focus:ring-2"
+                        />
+                        <span className="ml-3 text-[#4B244A] dark:text-white font-medium">{cat.name}</span>
+                      </label>
                     ))}
-                  </select>
+                  </div>
+                  {selectedCategories.length === 0 && (
+                    <p className="text-red-500 text-sm mt-2">Please select at least one category</p>
+                  )}
                 </div>
 
                 <div>

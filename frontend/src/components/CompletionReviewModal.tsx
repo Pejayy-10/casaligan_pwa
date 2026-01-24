@@ -99,7 +99,27 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
       if (response.ok) {
         const result = await response.json();
         
-        // Reload details to reflect changes
+        // For short-term jobs, immediately open payment modal after approval
+        if (details?.duration_type === 'short_term') {
+          setProcessingWorker(null);
+          initiatePayment({
+            title: jobTitle,
+            amount: details?.budget || 0,
+            description: `Payment for ${jobTitle}`,
+            recipientName: worker.worker_name,
+            requireProof: true,
+            onSuccess: async (paymentData) => {
+              await handleConfirmPayment(worker, paymentData);
+            },
+            onCancel: () => {
+              // Just reload details to show the approved status
+              loadDetails();
+            }
+          });
+          return;
+        }
+        
+        // For long-term jobs, just reload details
         await loadDetails();
         
         // If all workers are completed, close modal
@@ -123,23 +143,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
       setProcessingWorker(worker.contract_id);
       const token = localStorage.getItem('access_token');
       
-      // First, approve the completion
-      const approveResponse = await fetch(
-        `http://127.0.0.1:8000/jobs/${jobId}/approve-completion?contract_id=${worker.contract_id}`, 
-        {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}` }
-        }
-      );
-
-      if (!approveResponse.ok) {
-        const error = await approveResponse.json();
-        alert(error.detail || 'Failed to approve completion');
-        setProcessingWorker(null);
-        return;
-      }
-      
-      // Then record the payment
+      // Record the payment (completion was already approved in handleApproveWorker)
       const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/record-short-term-payment`, {
         method: 'POST',
         headers: {
@@ -156,6 +160,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
       });
 
       if (response.ok) {
+        alert('Payment submitted! Waiting for housekeeper confirmation.');
         // Reload details to show updated payment status
         await loadDetails();
       } else {
@@ -173,6 +178,9 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
   const getWorkerStatusBadge = (worker: WorkerCompletion) => {
     if (worker.paid_at) {
       return { text: '💰 Paid', class: 'bg-green-500/20 text-green-300' };
+    }
+    if (worker.payment_proof_url && !worker.paid_at) {
+      return { text: '⏳ Payment Pending', class: 'bg-blue-500/20 text-blue-300' };
     }
     if (worker.status === 'completed') {
       return { text: '✅ Approved', class: 'bg-blue-500/20 text-blue-300' };
@@ -299,12 +307,20 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                           {worker.paid_at && (
                             <div className="bg-green-100 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-lg p-2 text-center">
                               <p className="text-green-700 dark:text-green-300 text-sm font-medium">
-                                ✅ Paid on {new Date(worker.paid_at).toLocaleDateString()}
+                                ✅ Payment confirmed on {new Date(worker.paid_at).toLocaleDateString()}
                               </p>
                             </div>
                           )}
 
-                          {worker.status === 'completed' && !worker.paid_at && details.duration_type === 'short_term' && (
+                          {worker.payment_proof_url && !worker.paid_at && (
+                            <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg p-2 text-center">
+                              <p className="text-blue-700 dark:text-blue-300 text-sm font-medium">
+                                ⏳ Payment submitted - Waiting for housekeeper confirmation
+                              </p>
+                            </div>
+                          )}
+
+                          {worker.status === 'completed' && !worker.paid_at && !worker.payment_proof_url && details.duration_type === 'short_term' && (
                             <button
                               onClick={() => {
                                 initiatePayment({

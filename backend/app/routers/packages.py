@@ -20,7 +20,7 @@ class PackageCreate(BaseModel):
     price: float
     duration_hours: int = 2
     services: List[str] = []
-    category_id: int  # Required category
+    category_ids: List[int] = []  # Multiple categories (at least one required)
 
 
 class PackageUpdate(BaseModel):
@@ -30,7 +30,7 @@ class PackageUpdate(BaseModel):
     duration_hours: Optional[int] = None
     services: Optional[List[str]] = None
     is_active: Optional[bool] = None
-    category_id: Optional[int] = None
+    category_ids: Optional[List[int]] = None
 
 
 class PackageResponse(BaseModel):
@@ -42,8 +42,8 @@ class PackageResponse(BaseModel):
     duration_hours: int
     services: List[str]
     is_active: bool
-    category_id: int
-    category_name: Optional[str] = None
+    category_ids: List[int] = []
+    category_names: List[str] = []
 
     class Config:
         from_attributes = True
@@ -75,14 +75,22 @@ def create_package(
     
     worker = get_worker_for_user(current_user.id, db)
     
-    # Verify category exists
-    category = db.query(PackageCategory).filter(
-        PackageCategory.category_id == package_data.category_id
-    ).first()
-    if not category:
+    # Validate at least one category
+    if not package_data.category_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one category is required"
+        )
+    
+    # Verify all categories exist
+    categories = db.query(PackageCategory).filter(
+        PackageCategory.category_id.in_(package_data.category_ids)
+    ).all()
+    
+    if len(categories) != len(package_data.category_ids):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Category not found"
+            detail="One or more categories not found"
         )
     
     package = WorkerPackage(
@@ -93,12 +101,17 @@ def create_package(
         price=package_data.price,
         duration_hours=package_data.duration_hours,
         services=package_data.services,
-        category_id=package_data.category_id,
+        category_id=package_data.category_ids[0] if package_data.category_ids else None,  # Keep first for backward compatibility
         status='active',  # Auto-activate for now
         is_active=True
     )
     
     db.add(package)
+    db.flush()  # Get package_id before adding categories
+    
+    # Add categories to junction table
+    package.categories = categories
+    
     db.commit()
     db.refresh(package)
     
@@ -111,8 +124,8 @@ def create_package(
         duration_hours=package.duration_hours,
         services=package.services or [],
         is_active=package.is_active,
-        category_id=package.category_id,
-        category_name=category.name
+        category_ids=[c.category_id for c in package.categories],
+        category_names=[c.name for c in package.categories]
     )
 
 
@@ -138,8 +151,8 @@ def get_my_packages(
             duration_hours=p.duration_hours,
             services=p.services or [],
             is_active=p.is_active,
-            category_id=p.category_id,
-            category_name=p.category.name if p.category else None
+            category_ids=[c.category_id for c in p.categories] if p.categories else [],
+            category_names=[c.name for c in p.categories] if p.categories else []
         )
         for p in packages
     ]
@@ -168,21 +181,32 @@ def update_package(
             detail="Package not found"
         )
     
-    # Verify category if being updated
-    if package_data.category_id is not None:
-        category = db.query(PackageCategory).filter(
-            PackageCategory.category_id == package_data.category_id
-        ).first()
-        if not category:
+    # Update categories if provided
+    if package_data.category_ids is not None:
+        if not package_data.category_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one category is required"
+            )
+        
+        # Verify all categories exist
+        categories = db.query(PackageCategory).filter(
+            PackageCategory.category_id.in_(package_data.category_ids)
+        ).all()
+        
+        if len(categories) != len(package_data.category_ids):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail="Category not found"
+                detail="One or more categories not found"
             )
-        package.category_id = package_data.category_id
+        
+        package.categories = categories
+        package.category_id = package_data.category_ids[0]  # Keep first for backward compatibility
     
     # Update fields
     if package_data.name is not None:
         package.name = package_data.name
+        package.title = package_data.name  # Keep title in sync
     if package_data.description is not None:
         package.description = package_data.description
     if package_data.price is not None:
@@ -206,8 +230,8 @@ def update_package(
         duration_hours=package.duration_hours,
         services=package.services or [],
         is_active=package.is_active,
-        category_id=package.category_id,
-        category_name=package.category.name if package.category else None
+        category_ids=[c.category_id for c in package.categories] if package.categories else [],
+        category_names=[c.name for c in package.categories] if package.categories else []
     )
 
 

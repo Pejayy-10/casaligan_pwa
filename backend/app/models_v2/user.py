@@ -20,6 +20,15 @@ class UserRole(str, enum.Enum):
     def __str__(self):
         return self.value
 
+class Gender(str, enum.Enum):
+    MALE = "male"
+    FEMALE = "female"
+    OTHER = "other"
+    PREFER_NOT_TO_SAY = "prefer_not_to_say"
+    
+    def __str__(self):
+        return self.value
+
 class User(Base):
     __tablename__ = "users"
     
@@ -33,6 +42,7 @@ class User(Base):
     middle_name = Column(String, nullable=True)
     last_name = Column(String, nullable=False)
     suffix = Column(String, nullable=True)
+    gender = Column(SQLEnum(Gender, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=True)
     
     # Role and status
     is_owner = Column(Boolean, default=True, nullable=False)

@@ -29,6 +29,7 @@ interface WorkerProfile {
   last_name: string;
   phone_masked: string | null;
   email_masked: string | null;
+  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say' | null;
   city: string | null;
   barangay: string | null;
   province: string | null;
@@ -377,6 +378,14 @@ export default function WorkerProfilePage() {
                 <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">
                   📍 {profile.barangay && `${profile.barangay}, `}{profile.city}
                   {profile.province && `, ${profile.province}`}
+                </p>
+              )}
+              {profile.gender && (
+                <p className="text-[#4B244A]/60 dark:text-white/60 text-sm font-medium mt-1">
+                  {profile.gender === 'male' && '👨 Male'}
+                  {profile.gender === 'female' && '👩 Female'}
+                  {profile.gender === 'other' && '⚧️ Other'}
+                  {profile.gender === 'prefer_not_to_say' && '🙋 Prefer not to say'}
                 </p>
               )}
               <div className="flex flex-wrap items-center gap-2 mt-2">

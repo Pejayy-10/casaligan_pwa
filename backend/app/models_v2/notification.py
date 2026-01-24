@@ -12,10 +12,12 @@ class NotificationType(str, enum.Enum):
     APPLICATION_ACCEPTED = "application_accepted" # Your application was accepted
     APPLICATION_REJECTED = "application_rejected" # Your application was rejected
     JOB_STARTED = "job_started"                   # Worker started the job
+    JOB_EDITED = "job_edited"                     # Job was edited
     COMPLETION_SUBMITTED = "completion_submitted" # Worker submitted completion proof
     COMPLETION_APPROVED = "completion_approved"   # Owner approved your completion
     PAYMENT_SENT = "payment_sent"                 # Owner sent payment
     PAYMENT_RECEIVED = "payment_received"         # Worker confirmed payment
+    PAYMENT_REVIEW = "payment_review"             # Payment needs review/confirmation
     PAYMENT_DUE = "payment_due"                   # Payment is due (long-term)
     PAYMENT_OVERDUE = "payment_overdue"           # Payment is overdue
     

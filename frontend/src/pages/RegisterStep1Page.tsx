@@ -13,6 +13,7 @@ export default function RegisterStep1Page() {
     middle_name: '',
     last_name: '',
     suffix: '',
+    gender: undefined,
   });
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -138,6 +139,25 @@ export default function RegisterStep1Page() {
                   disabled={loading}
                 />
               </div>
+            </div>
+
+            <div>
+              <label htmlFor="gender" className={labelClass}>
+                Gender
+              </label>
+              <select
+                id="gender"
+                value={formData.gender || ''}
+                onChange={(e) => setFormData({ ...formData, gender: e.target.value as RegisterData['gender'] })}
+                className={inputClass}
+                disabled={loading}
+              >
+                <option value="">Select gender (optional)</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+              </select>
             </div>
 
             <div>

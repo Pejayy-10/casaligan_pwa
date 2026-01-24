@@ -108,7 +108,7 @@ def create_job_post(
         location=job_data.location or "Not specified",
         job_type=job_type,
         salary=job_data.budget,
-        category_id=job_data.category_id,
+        category_id=job_data.category_ids[0] if job_data.category_ids else job_data.category_id,  # Keep first category for compatibility
         is_longterm=(job_data.duration_type == "long_term"),
         start_date=job_data.start_date.isoformat() if job_data.start_date else None,
         end_date=job_data.end_date.isoformat() if job_data.end_date else None,
@@ -128,6 +128,13 @@ def create_job_post(
     db.commit()
     db.refresh(post)
     
+    # Assign multiple categories
+    if job_data.category_ids:
+        from app.models_v2.category import PackageCategory
+        categories = db.query(PackageCategory).filter(PackageCategory.category_id.in_(job_data.category_ids)).all()
+        post.categories = categories
+        db.commit()
+    
     return JobPostResponse.from_orm_model(post, current_user, 0)
 
 @router.get("/", response_model=List[JobPostResponse])
@@ -141,7 +148,8 @@ def get_job_posts(
     """Get all job posts (filtered by status)"""
     
     query = db.query(ForumPost).options(
-        joinedload(ForumPost.category)
+        joinedload(ForumPost.category),
+        joinedload(ForumPost.categories)
     ).filter(ForumPost.deleted_at.is_(None))
     
     if status_filter and status_filter != "all":
@@ -186,7 +194,10 @@ def get_my_job_posts(
         return []
     
     # Build query with optional status filter
-    query = db.query(ForumPost).filter(
+    query = db.query(ForumPost).options(
+        joinedload(ForumPost.category),
+        joinedload(ForumPost.categories)
+    ).filter(
         ForumPost.employer_id == employer.employer_id,
         ForumPost.deleted_at.is_(None)
     )
@@ -274,11 +285,11 @@ def get_my_accepted_jobs(
     if not worker_record:
         return []
     
-    # Get all accepted interest checks for this worker
+    # Get all accepted interest checks for this worker, ordered by most recent first
     query = db.query(InterestCheck).filter(
         InterestCheck.worker_id == worker_record.worker_id,
         InterestCheck.status == InterestStatus.ACCEPTED
-    )
+    ).order_by(InterestCheck.created_at.desc())
     
     accepted_interests = query.all()
     
@@ -398,7 +409,10 @@ def get_job_post(
 ):
     """Get a specific job post"""
     
-    post = db.query(ForumPost).filter(
+    post = db.query(ForumPost).options(
+        joinedload(ForumPost.category),
+        joinedload(ForumPost.categories)
+    ).filter(
         ForumPost.post_id == post_id,
         ForumPost.deleted_at.is_(None)
     ).first()
@@ -451,6 +465,15 @@ def update_job_post(
     
     if job_update.status:
         post.status = ForumPostStatus(job_update.status)
+    
+    # Update categories if provided
+    if job_update.category_ids is not None:
+        from app.models_v2.category import PackageCategory
+        categories = db.query(PackageCategory).filter(PackageCategory.category_id.in_(job_update.category_ids)).all()
+        post.categories = categories
+        # Update first category for backward compatibility
+        if categories:
+            post.category_id = categories[0].category_id
     
     # Update JSON description with new job details
     if any([job_update.description, job_update.house_type, job_update.cleaning_type, 
@@ -1309,7 +1332,9 @@ def approve_job_completion(
         all_contracts = db.query(Contract).filter(Contract.post_id == post_id).all()
         all_completed = all(c.status == ContractStatus.COMPLETED for c in all_contracts)
         
-        if all_completed:
+        # For short-term jobs, DON'T mark job as completed yet - wait for payment confirmation
+        # For long-term jobs, mark as completed when all work is approved
+        if all_completed and post.is_longterm:
             post.status = ForumPostStatus.COMPLETED
             post.completed_at = func.now()
             db.commit()
@@ -1318,7 +1343,7 @@ def approve_job_completion(
             "message": "Worker completion approved!",
             "contract_id": contract_id,
             "all_completed": all_completed,
-            "status": "completed" if all_completed else "pending_completion"
+            "status": "completed" if (all_completed and post.is_longterm) else "pending_completion"
         }
     else:
         # Legacy: approve all pending contracts
@@ -1343,7 +1368,9 @@ def approve_job_completion(
         all_contracts = db.query(Contract).filter(Contract.post_id == post_id).all()
         all_completed = all(c.status == ContractStatus.COMPLETED for c in all_contracts)
         
-        if all_completed:
+        # For short-term jobs, DON'T mark job as completed yet - wait for payment confirmation
+        # For long-term jobs, mark as completed when all work is approved
+        if all_completed and post.is_longterm:
             post.status = ForumPostStatus.COMPLETED
             post.completed_at = func.now()
         
@@ -1352,7 +1379,7 @@ def approve_job_completion(
         return {
             "message": "Job completion approved!",
             "post_id": post_id,
-            "status": "completed" if all_completed else "pending_completion"
+            "status": "completed" if (all_completed and post.is_longterm) else "pending_completion"
         }
 
 
@@ -1492,9 +1519,9 @@ def record_short_term_payment(
             detail="No contract found for this job"
         )
     
-    # Update contract with payment info
+    # Store payment proof on contract but DON'T mark as paid yet - worker must confirm first
     contract.payment_proof_url = payment_data.proof_url
-    contract.paid_at = func.now()
+    # contract.paid_at will be set when worker confirms payment (don't set it here!)
     
     # Create a payment schedule entry for this short-term job
     worker = db.query(Worker).filter(Worker.worker_id == contract.worker_id).first()
@@ -1505,7 +1532,7 @@ def record_short_term_payment(
         contract_id=contract.contract_id,
         due_date=func.now(),
         amount=payment_data.amount,
-        status=PaymentStatus.CONFIRMED,  # CONFIRMED = payment completed
+        status=PaymentStatus.SENT,  # SENT = payment submitted, waiting for worker confirmation
         worker_id=contract.worker_id,
         worker_name=worker_name
     )
@@ -1521,13 +1548,15 @@ def record_short_term_payment(
         reference_number=payment_data.reference_number,
         payment_proof_url=payment_data.proof_url,  # Match database column name
         paid_at=func.now(),  # Match database column name
-        confirmed_at=func.now(),
+        confirmed_at=None,  # Not confirmed yet
         confirmed_by_worker=False
     )
     db.add(transaction)
     
-    # For short-term jobs, check if ALL workers are now paid
-    # If so, mark job as completed
+    # Don't mark contract as paid yet - wait for worker confirmation
+    # contract.paid_at will be set when worker confirms
+    
+    # For short-term jobs, check if ALL workers have confirmed payment
     all_contracts = db.query(Contract).filter(Contract.post_id == post_id).all()
     all_paid = all(c.paid_at is not None for c in all_contracts)
     
@@ -1537,24 +1566,28 @@ def record_short_term_payment(
     
     db.commit()
     
-    # Send notification to worker about payment (for short-term, owner records payment directly)
+    # Send notification to worker about payment submission (for review)
     if worker and worker_user:
-        notify_payment_sent(
+        from app.services.notification_service import notify_user
+        from app.models_v2.notification import NotificationType
+        notify_user(
             db=db,
-            worker_user_id=worker_user.id,
-            job_title=post.title,
-            amount=payment_data.amount,
-            post_id=post_id
+            user_id=worker_user.id,
+            notification_type=NotificationType.PAYMENT_REVIEW,
+            title="Payment Submitted - Review Required 💰",
+            message=f"Payment of ₱{payment_data.amount:,.2f} for '{post.title}' has been submitted. Please review and confirm.",
+            reference_type="job",
+            reference_id=post_id
         )
     
     return {
-        "message": f"Payment to {worker_name} recorded successfully",
+        "message": f"Payment to {worker_name} submitted successfully. Waiting for worker confirmation.",
         "post_id": post_id,
         "contract_id": contract.contract_id,
         "amount": payment_data.amount,
-        "status": "paid",
+        "status": "payment_pending",
         "all_paid": all_paid,
-        "job_completed": all_paid
+        "job_completed": False  # Not completed until worker confirms
     }
 
 

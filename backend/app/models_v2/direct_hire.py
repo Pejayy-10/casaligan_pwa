@@ -12,7 +12,8 @@ class DirectHireStatus(str, enum.Enum):
     IN_PROGRESS = "in_progress"   # Work is being done
     PENDING_COMPLETION = "pending_completion"  # Worker submitted completion
     COMPLETED = "completed"       # Owner approved, ready for payment
-    PAID = "paid"                 # Payment confirmed
+    PAYMENT_PENDING = "payment_pending"  # Employer submitted payment, awaiting worker confirmation
+    PAID = "paid"                 # Payment confirmed by worker
     CANCELLED = "cancelled"       # Cancelled by either party
     REJECTED = "rejected"         # Worker rejected the hire
     

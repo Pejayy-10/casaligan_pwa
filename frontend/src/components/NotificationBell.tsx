@@ -42,9 +42,16 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
         headers: { Authorization: `Bearer ${token}` }
       });
       
+      console.log('fetchNotifications response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('fetchNotifications data:', data);
+        console.log('Number of notifications:', data.length);
         setNotifications(data);
+      } else {
+        const errorText = await response.text();
+        console.error('fetchNotifications error:', response.status, errorText);
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);

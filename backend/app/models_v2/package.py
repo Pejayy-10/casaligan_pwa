@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Nume
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db import Base
+from app.models_v2.package_category_mapping import package_category_mapping
 import enum
 
 
@@ -48,8 +49,8 @@ class WorkerPackage(Base):
     status = Column(SQLEnum(PackageStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=PackageStatus.ACTIVE)
     is_active = Column(Boolean, default=True, nullable=False)
     
-    # Category
-    category_id = Column(Integer, ForeignKey("package_categories.category_id"), nullable=False)
+    # Legacy single category (kept for backward compatibility)
+    category_id = Column(Integer, ForeignKey("package_categories.category_id"), nullable=True)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -58,4 +59,5 @@ class WorkerPackage(Base):
     
     # Relationships
     worker = relationship("Worker", back_populates="packages")
-    category = relationship("PackageCategory", back_populates="packages")
+    category = relationship("PackageCategory", foreign_keys=[category_id])  # Legacy single category
+    categories = relationship("PackageCategory", secondary=package_category_mapping, backref="packages")  # Multiple categories

@@ -11,8 +11,8 @@ interface WorkerPackage {
   name: string;
   price: number;
   duration_hours: number;
-  category_id?: number;
-  category_name?: string;
+  category_ids: number[];
+  category_names: string[];
 }
 
 interface Category {
@@ -110,7 +110,9 @@ export default function BrowseWorkersPage() {
     const workersWithoutCategory: WorkerProfile[] = [];
 
     workers.forEach(worker => {
-      const hasCategory = worker.packages.some(pkg => pkg.category_id === selectedCategory);
+      const hasCategory = worker.packages.some(pkg => 
+        pkg.category_ids && pkg.category_ids.includes(selectedCategory as number)
+      );
       if (hasCategory) {
         workersWithCategory.push(worker);
       } else {
@@ -518,7 +520,7 @@ export default function BrowseWorkersPage() {
                 : 'Try a different city or check back later'}
             </p>
           </div>
-        ) : selectedCategory && !filteredWorkers.some(w => w.packages.some(p => p.category_id === selectedCategory)) ? (
+        ) : selectedCategory && !filteredWorkers.some(w => w.packages.some(p => p.category_ids && p.category_ids.includes(selectedCategory as number))) ? (
           <div className="mb-4 bg-yellow-100 dark:bg-yellow-500/20 backdrop-blur-xl rounded-xl p-4 border border-yellow-200 dark:border-yellow-500/30">
             <p className="text-yellow-700 dark:text-yellow-200 text-sm font-medium">
               ⚠️ No housekeepers with packages in this category. Showing all available housekeepers below.
@@ -530,7 +532,7 @@ export default function BrowseWorkersPage() {
           <div className="grid gap-4">
             {filteredWorkers.map((worker) => {
               const hasSelectedCategory = selectedCategory 
-                ? worker.packages.some(p => p.category_id === selectedCategory)
+                ? worker.packages.some(p => p.category_ids && p.category_ids.includes(selectedCategory as number))
                 : false;
               
               return (

@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Nume
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db import Base
+from app.models_v2.job_category_mapping import job_category_mapping
 import enum
 
 class JobType(str, enum.Enum):
@@ -29,7 +30,7 @@ class ForumPost(Base):
     post_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     employer_id = Column(Integer, ForeignKey("employers.employer_id"), nullable=False)
-    category_id = Column(Integer, ForeignKey("package_categories.category_id"), nullable=True)
+    category_id = Column(Integer, ForeignKey("package_categories.category_id"), nullable=True)  # Legacy single category (kept for compatibility)
     
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
@@ -69,7 +70,8 @@ class ForumPost(Base):
     # Relationships
     user = relationship("User", back_populates="forum_posts")
     employer = relationship("Employer", back_populates="forum_posts")
-    category = relationship("PackageCategory", foreign_keys=[category_id])
+    category = relationship("PackageCategory", foreign_keys=[category_id])  # Legacy single category
+    categories = relationship("PackageCategory", secondary=job_category_mapping, backref="job_posts")  # Multiple categories
     interest_checks = relationship("InterestCheck", back_populates="post")
     contracts = relationship("Contract", back_populates="post")  # Multiple contracts per job (one per worker)
 

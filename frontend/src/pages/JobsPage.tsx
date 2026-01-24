@@ -183,12 +183,16 @@ export default function JobsPage() {
       return;
     }
 
-    // Filter and sort jobs by category
+    // Filter and sort jobs by category (support multiple categories)
     const jobsWithCategory: JobPost[] = [];
     const jobsWithoutCategory: JobPost[] = [];
 
     jobs.forEach(job => {
-      if (job.category_id === selectedCategory) {
+      // Check if job has the selected category (either in category_id or category_ids array)
+      const hasCategory = job.category_id === selectedCategory || 
+                         (job.category_ids && job.category_ids.includes(selectedCategory));
+      
+      if (hasCategory) {
         jobsWithCategory.push(job);
       } else {
         jobsWithoutCategory.push(job);
@@ -1131,7 +1135,10 @@ function HousekeeperJobsContent({
   return (
     <div className="space-y-4">
       {jobs.map((job) => {
-        const hasSelectedCategory = selectedCategory && job.category_id === selectedCategory;
+        const hasSelectedCategory = selectedCategory && (
+          job.category_id === selectedCategory || 
+          (job.category_ids && job.category_ids.includes(selectedCategory))
+        );
         
         return (
           <div 
@@ -1155,6 +1162,17 @@ function HousekeeperJobsContent({
             </div>
           
           <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 text-sm sm:text-base">{job.description}</p>
+          
+          {/* Display multiple categories */}
+          {job.category_names && job.category_names.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {job.category_names.map((categoryName, idx) => (
+                <span key={idx} className="px-2 sm:px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg text-xs sm:text-sm font-bold border border-purple-200 dark:border-purple-700/50">
+                  🏷️ {categoryName}
+                </span>
+              ))}
+            </div>
+          )}
           
           <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4">
             <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">

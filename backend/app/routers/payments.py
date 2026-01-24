@@ -433,6 +433,11 @@ async def confirm_payment_received(
     transaction.confirmed_by_worker = True
     schedule.status = PaymentStatus.CONFIRMED
     
+    # For short-term jobs, mark contract as paid when worker confirms
+    contract = db.query(Contract).filter(Contract.contract_id == schedule.contract_id).first()
+    if contract and not job.is_longterm:
+        contract.paid_at = datetime.now()
+    
     # Check if this is a recurring service and create next payment schedule
     is_recurring = job.is_recurring and getattr(job, 'recurring_status', 'active') == 'active'
     
@@ -524,10 +529,13 @@ async def confirm_payment_received(
             post_id=job_id
         )
     
-    # Check if job should auto-complete (long-term jobs only)
+    # Check if job should auto-complete
     # For recurring services, don't auto-complete - they continue until cancelled
-    if job.is_longterm and not is_recurring:
-        # Check if all payment schedules are confirmed
+    if is_recurring:
+        # Recurring jobs continue indefinitely
+        return {"message": "Payment confirmed successfully", "job_completed": False}
+    elif job.is_longterm:
+        # Long-term non-recurring: Check if all payment schedules are confirmed
         all_schedules = db.query(PaymentSchedule).join(Contract).filter(
             Contract.post_id == job_id
         ).all()
@@ -550,6 +558,29 @@ async def confirm_payment_received(
                 "message": "Payment confirmed! Job has been completed.",
                 "job_completed": True
             }
+    else:
+        # Short-term job: Check if all workers have been paid (contract.paid_at is set)
+        all_contracts = db.query(Contract).filter(Contract.post_id == job_id).all()
+        all_paid = all(c.paid_at is not None for c in all_contracts)
+        
+        if all_paid:
+            job.status = ForumPostStatus.COMPLETED
+            job.completed_at = datetime.now()
+            
+            # Mark all contracts as completed
+            from app.models_v2.contract import ContractStatus
+            for contract in all_contracts:
+                contract.status = ContractStatus.COMPLETED
+            
+            db.commit()
+            
+            return {
+                "message": "Payment confirmed! Job has been completed.",
+                "job_completed": True
+            }
+    
+    # Commit the payment confirmation changes
+    db.commit()
     
     return {"message": "Payment confirmed successfully", "job_completed": False}
 

@@ -106,6 +106,11 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
     return job.contract?.status || job.status;
   };
 
+  // Check if job has payment pending confirmation (payment sent but not confirmed by worker)
+  const hasPendingPaymentConfirmation = (job: AcceptedJob): boolean => {
+    return job.payments?.schedules?.some(s => s.status === 'sent' || s.status === 'SENT') || false;
+  };
+
   if (loading) {
     return (
       <div className="text-center py-20">
@@ -247,8 +252,53 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
               )}
 
               {/* Action Buttons - Use myStatus (contract status) for individual worker state */}
-              <div className="space-y-2">
-                {(myStatus === 'ongoing' || myStatus === 'active') && (
+              <div className="space-y-2">                {/* Show payment confirmation if payment is sent but not confirmed */}
+                {hasPendingPaymentConfirmation(job) && (
+                  <>
+                    <div className="py-3 text-center text-blue-700 dark:text-blue-300 font-bold bg-blue-100 dark:bg-blue-500/10 rounded-lg border border-blue-200 dark:border-blue-500/30">
+                      💰 Payment Sent - Review Required!
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (window.confirm('Confirm that you have received the payment?')) {
+                          try {
+                            const token = localStorage.getItem('access_token');
+                            // Get the transaction_id from the payment schedule with 'sent' status
+                            const sentPayment = job.payments.schedules.find(s => s.status === 'sent' || s.status === 'SENT');
+                            if (!sentPayment) {
+                              alert('No pending payment found');
+                              return;
+                            }
+                            
+                            const response = await fetch(
+                              `http://127.0.0.1:8000/jobs/${job.post_id}/payments/${sentPayment.schedule_id}/confirm`,
+                              {
+                                method: 'PUT',
+                                headers: { 'Authorization': `Bearer ${token}` }
+                              }
+                            );
+                            
+                            if (response.ok) {
+                              alert('Payment confirmed successfully!');
+                              // Reload jobs list (errors here don't affect confirmation success)
+                              loadMyJobs().catch(err => console.error('Failed to reload jobs:', err));
+                            } else {
+                              const error = await response.json();
+                              alert(error.detail || 'Failed to confirm payment');
+                            }
+                          } catch (error) {
+                            console.error('Payment confirmation error:', error);
+                            alert('Failed to confirm payment');
+                          }
+                        }
+                      }}
+                      className="w-full py-3 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition-all shadow-md"
+                    >
+                      ✓ Confirm Payment Received
+                    </button>
+                  </>
+                )}
+                                {(myStatus === 'ongoing' || myStatus === 'active') && !hasPendingPaymentConfirmation(job) && (
                   <>
                     {/* Message Employer Button */}
                     <button
@@ -311,7 +361,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                   </div>
                 )}
 
-                {myStatus === 'completed' && (
+                {myStatus === 'completed' && !hasPendingPaymentConfirmation(job) && (
                   <>
                     <div className="py-3 text-center text-green-700 dark:text-green-300 font-bold bg-green-100 dark:bg-green-500/10 rounded-lg">
                       ✅ Job completed! Payment received.

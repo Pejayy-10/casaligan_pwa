@@ -18,5 +18,4 @@ class PackageCategory(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     
-    # Relationships
-    packages = relationship("WorkerPackage", back_populates="category")
+    # Note: packages relationship is defined in WorkerPackage model via backref

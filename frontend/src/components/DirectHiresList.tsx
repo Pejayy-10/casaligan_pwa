@@ -204,18 +204,17 @@ export default function DirectHiresList({ role, onClose }: Props) {
           });
 
           if (response.ok) {
-            // Show rating modal after successful payment
-            setSelectedHire(hire);
-            setRatingHire(hire);
-            setShowRatingModal(true);
+            // Don't show rating modal immediately - payment needs worker confirmation first
+            alert('Payment submitted successfully! Waiting for worker to confirm receipt.');
             loadHires();
           } else {
             const error = await response.json();
+            console.error('Payment error:', error);
             alert(error.detail || 'Failed to record payment');
           }
         } catch (error) {
           console.error('Payment record error:', error);
-          alert('Failed to record payment');
+          alert(`Failed to record payment: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       },
       onCancel: () => {
@@ -281,6 +280,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
       in_progress: { text: '🔄 In Progress', class: 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300' },
       pending_completion: { text: '📝 Review Needed', class: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' },
       completed: { text: '✅ Completed', class: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' },
+      payment_pending: { text: '💳 Payment Pending Review', class: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' },
       paid: { text: '💰 Paid', class: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' },
       cancelled: { text: '🚫 Cancelled', class: 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300' }
     };
@@ -289,7 +289,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
 
   // Message button - only show for active hire statuses
   const renderMessageButton = (hire: DirectHire) => {
-    const canMessage = ['accepted', 'in_progress', 'pending_completion', 'completed'].includes(hire.status);
+    const canMessage = ['accepted', 'in_progress', 'pending_completion', 'completed', 'payment_pending'].includes(hire.status);
     if (!canMessage) return null;
     
     const otherName = role === 'owner' ? hire.worker_name : hire.employer_name;
@@ -354,7 +354,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
     // Cancel recurring button (shown for active recurring hires)
     const cancelRecurringButton = hire.is_recurring && 
       hire.recurring_status === 'active' && 
-      ['accepted', 'in_progress', 'pending_completion', 'completed', 'paid'].includes(hire.status) ? (
+      ['accepted', 'in_progress', 'pending_completion', 'completed', 'payment_pending', 'paid'].includes(hire.status) ? (
         <button
           onClick={() => {
             setCancelRecurringHire(hire);
@@ -406,6 +406,12 @@ export default function DirectHiresList({ role, onClose }: Props) {
                 Pay Now
               </button>
               {messageButton}
+            </div>
+          );
+        case 'payment_pending':
+          return (
+            <div className="text-blue-600 dark:text-blue-300 text-sm font-medium">
+              ⏳ Waiting for worker to confirm payment
             </div>
           );
         case 'paid':
@@ -477,6 +483,44 @@ export default function DirectHiresList({ role, onClose }: Props) {
         case 'pending_completion':
         case 'completed':
           return messageButton;
+        case 'payment_pending':
+          return (
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  if (window.confirm('Confirm that you have received the payment?')) {
+                    try {
+                      setProcessing(true);
+                      const token = localStorage.getItem('access_token');
+                      const response = await fetch(`http://127.0.0.1:8000/direct-hire/${hire.hire_id}/confirm-payment`, {
+                        method: 'POST',
+                        headers: {
+                          'Authorization': `Bearer ${token}`
+                        }
+                      });
+                      
+                      if (response.ok) {
+                        alert('Payment confirmed! You can now rate the employer.');
+                        loadHires();
+                      } else {
+                        const error = await response.json();
+                        alert(error.detail || 'Failed to confirm payment');
+                      }
+                    } catch (error) {
+                      console.error('Payment confirmation error:', error);
+                      alert('Failed to confirm payment');
+                    } finally {
+                      setProcessing(false);
+                    }
+                  }
+                }}
+                className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm"
+              >
+                ✓ Confirm Payment Received
+              </button>
+              {messageButton}
+            </div>
+          );
         default:
           return null;
       }

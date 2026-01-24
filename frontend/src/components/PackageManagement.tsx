@@ -9,8 +9,8 @@ interface Package {
   duration_hours: number;
   services: string[];
   is_active: boolean;
-  category_id: number;
-  category_name?: string;
+  category_ids: number[];
+  category_names: string[];
 }
 
 interface Category {
@@ -38,7 +38,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
   const [price, setPrice] = useState('');
   const [durationHours, setDurationHours] = useState('2');
   const [services, setServices] = useState('');
-  const [categoryId, setCategoryId] = useState('');
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -83,7 +83,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     setPrice('');
     setDurationHours('2');
     setServices('');
-    setCategoryId('');
+    setSelectedCategoryIds([]);
     setEditingPackage(null);
     setShowForm(false);
   };
@@ -95,13 +95,13 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     setPrice(pkg.price.toString());
     setDurationHours(pkg.duration_hours.toString());
     setServices(pkg.services?.join(', ') || '');
-    setCategoryId(pkg.category_id.toString());
+    setSelectedCategoryIds(pkg.category_ids || []);
     setShowForm(true);
   };
 
   const handleSubmit = async () => {
-    if (!name.trim() || !price || !categoryId) {
-      alert('Please fill in package name, price, and category');
+    if (!name.trim() || !price || selectedCategoryIds.length === 0) {
+      alert('Please fill in package name, price, and at least one category');
       return;
     }
 
@@ -117,7 +117,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
         price: parseFloat(price),
         duration_hours: parseInt(durationHours),
         services: servicesArray,
-        category_id: parseInt(categoryId)
+        category_ids: selectedCategoryIds
       };
 
       const url = editingPackage 
@@ -221,22 +221,34 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
       </div>
 
       <div>
-        <label className={labelClass}>Category *</label>
-        <select
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          className={inputClass}
-          required
-        >
-          <option value="" className={optionClass}>Select a category</option>
+        <label className={labelClass}>Categories * (Select at least one)</label>
+        <div className="space-y-2 max-h-48 overflow-y-auto p-3 bg-white/50 dark:bg-slate-800/50 rounded-lg border border-gray-200 dark:border-white/10">
           {categories.map((cat) => (
-            <option key={cat.category_id} value={cat.category_id} className={optionClass}>
-              {cat.name}
-            </option>
+            <label 
+              key={cat.category_id} 
+              className="flex items-center gap-2 cursor-pointer hover:bg-white/80 dark:hover:bg-slate-700/50 p-2 rounded transition-colors"
+            >
+              <input
+                type="checkbox"
+                checked={selectedCategoryIds.includes(cat.category_id)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSelectedCategoryIds([...selectedCategoryIds, cat.category_id]);
+                  } else {
+                    setSelectedCategoryIds(selectedCategoryIds.filter(id => id !== cat.category_id));
+                  }
+                }}
+                className="w-4 h-4 text-[#EA526F] bg-white dark:bg-slate-700 border-gray-300 dark:border-white/20 rounded focus:ring-[#EA526F] focus:ring-2"
+              />
+              <span className="text-[#4B244A] dark:text-white text-sm">{cat.name}</span>
+            </label>
           ))}
-        </select>
+        </div>
         {categories.length === 0 && (
           <p className="text-yellow-600 dark:text-yellow-300 text-xs mt-1">⚠ No categories available. Contact admin to add categories.</p>
+        )}
+        {selectedCategoryIds.length === 0 && (
+          <p className="text-red-500 dark:text-red-400 text-xs mt-1">Please select at least one category</p>
         )}
       </div>
 
@@ -342,11 +354,16 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
                     </span>
                   )}
                 </div>
-              {pkg.category_name && (
-                <div className="mt-1">
-                  <span className="px-2 py-0.5 bg-[#EA526F]/10 dark:bg-[#EA526F]/30 text-[#EA526F] dark:text-pink-300 text-xs font-bold rounded-full border border-[#EA526F]/20 dark:border-[#EA526F]/40">
-                    {pkg.category_name}
-                  </span>
+              {pkg.category_names && pkg.category_names.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {pkg.category_names.map((catName, idx) => (
+                    <span 
+                      key={idx}
+                      className="px-2 py-0.5 bg-[#EA526F]/10 dark:bg-[#EA526F]/30 text-[#EA526F] dark:text-pink-300 text-xs font-bold rounded-full border border-[#EA526F]/20 dark:border-[#EA526F]/40"
+                    >
+                      {catName}
+                    </span>
+                  ))}
                 </div>
               )}
               </div>

@@ -1,5 +1,5 @@
-from pydantic import BaseModel, EmailStr, ConfigDict
-from typing import Optional
+from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
+from typing import Optional, Literal
 from datetime import datetime
 
 class UserBase(BaseModel):
@@ -9,6 +9,7 @@ class UserBase(BaseModel):
     middle_name: Optional[str] = None
     last_name: str
     suffix: Optional[str] = None
+    gender: Optional[Literal['male', 'female', 'other', 'prefer_not_to_say']] = None
 
 class UserCreate(UserBase):
     password: str
@@ -22,11 +23,19 @@ class UserResponse(UserBase):
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
+    
+    @field_validator('gender', mode='before')
+    @classmethod
+    def convert_gender_enum(cls, value):
+        if value is None:
+            return None
+        # Convert enum to string value before validation
+        return value.value if hasattr(value, 'value') else value
 
 class UserProfileResponse(UserResponse):
     address: Optional["AddressResponse"] = None
     
-    model_config = ConfigDict(from_attributes=True)
+    model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 
 # Avoid circular imports
 from app.schemas.address import AddressResponse

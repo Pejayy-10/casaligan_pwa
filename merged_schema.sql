@@ -318,7 +318,7 @@ CREATE TABLE public.packages (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone,
   deleted_at timestamp with time zone,
-  category_id integer,
+  category_id integer NOT NULL,
   CONSTRAINT packages_pkey PRIMARY KEY (package_id),
   CONSTRAINT packages_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.package_categories(category_id),
   CONSTRAINT packages_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id)

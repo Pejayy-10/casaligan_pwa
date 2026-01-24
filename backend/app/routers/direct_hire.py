@@ -12,6 +12,7 @@ from app.models_v2.package import WorkerPackage
 from app.models_v2.direct_hire import DirectHire, DirectHireStatus
 from app.models_v2.address import Address
 from app.models_v2.conversation import Conversation
+from app.models_v2.notification import Notification, NotificationType
 from app.security import get_current_user
 from app.services.notification_service import (
     notify_direct_hire_request,
@@ -381,6 +382,9 @@ def submit_payment(
     db: Session = Depends(get_db)
 ):
     """Submit payment for a completed direct hire"""
+    print(f"Payment submission for hire {hire_id}")
+    print(f"Payment data: {payment_data}")
+    
     employer = get_employer_for_user(current_user.id, db)
     
     hire = db.query(DirectHire).filter(
@@ -391,6 +395,8 @@ def submit_payment(
     if not hire:
         raise HTTPException(status_code=404, detail="Booking not found")
     
+    print(f"Current hire status: {hire.status}")
+    
     if hire.status != DirectHireStatus.COMPLETED:
         raise HTTPException(status_code=400, detail="Work must be completed before payment")
     
@@ -398,23 +404,73 @@ def submit_payment(
     if payment_data.payment_method != 'cash' and not payment_data.reference_number:
         raise HTTPException(status_code=400, detail="Reference number required for non-cash payments")
     
-    hire.payment_method = payment_data.payment_method
-    hire.payment_proof_url = payment_data.payment_proof_url
-    hire.reference_number = payment_data.reference_number
-    hire.paid_at = func.now()
+    try:
+        hire.payment_method = payment_data.payment_method
+        hire.payment_proof_url = payment_data.payment_proof_url
+        hire.reference_number = payment_data.reference_number
+        hire.paid_at = func.now()
+        hire.status = DirectHireStatus.PAYMENT_PENDING  # Changed to PAYMENT_PENDING for worker review
+        
+        db.commit()
+        db.refresh(hire)
+        
+        # Send notification to worker about payment submission (for review)
+        worker = db.query(Worker).filter(Worker.worker_id == hire.worker_id).first()
+        if worker:
+            employer_name = f"{current_user.first_name} {current_user.last_name}"
+            # Notification to review payment
+            notification = Notification(
+                user_id=worker.user_id,
+                title="Payment Received - Please Review",
+                message=f"{employer_name} has submitted payment of ₱{float(hire.total_amount):,.2f} for Direct Hire #{hire.hire_id}. Please review and confirm.",
+                type=NotificationType.PAYMENT_SENT,  # Using existing enum value temporarily
+                reference_type="direct_hire",
+                reference_id=hire.hire_id
+            )
+            db.add(notification)
+            db.commit()
+        
+        return hire_to_response(hire, db)
+    except Exception as e:
+        db.rollback()
+        print(f"Payment submission error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to process payment: {str(e)}")
+
+
+@router.post("/{hire_id}/confirm-payment", response_model=DirectHireResponse)
+def confirm_payment(
+    hire_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Worker confirms receipt of payment"""
+    worker = get_worker_for_user(current_user.id, db)
+    
+    hire = db.query(DirectHire).filter(
+        DirectHire.hire_id == hire_id,
+        DirectHire.worker_id == worker.worker_id
+    ).first()
+    
+    if not hire:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    if hire.status != DirectHireStatus.PAYMENT_PENDING:
+        raise HTTPException(status_code=400, detail="No payment pending confirmation")
+    
+    # Confirm payment
     hire.status = DirectHireStatus.PAID
     
     db.commit()
     db.refresh(hire)
     
-    # Send notification to worker about payment
-    worker = db.query(Worker).filter(Worker.worker_id == hire.worker_id).first()
-    if worker:
-        employer_name = f"{current_user.first_name} {current_user.last_name}"
+    # Send notification to employer about payment confirmation
+    employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
+    if employer:
+        worker_name = f"{current_user.first_name} {current_user.last_name}"
         notify_direct_hire_paid(
             db=db,
-            worker_user_id=worker.user_id,
-            employer_name=employer_name,
+            worker_user_id=employer.user_id,
+            employer_name=worker_name,
             amount=float(hire.total_amount),
             hire_id=hire.hire_id
         )
@@ -715,7 +771,7 @@ def browse_workers(
         
         # Get active packages
         packages = db.query(WorkerPackage).options(
-            joinedload(WorkerPackage.category)
+            joinedload(WorkerPackage.categories)
         ).filter(
             WorkerPackage.worker_id == worker.worker_id,
             WorkerPackage.is_active == True
@@ -781,8 +837,8 @@ def browse_workers(
                     "name": p.name,
                     "price": float(p.price),
                     "duration_hours": p.duration_hours,
-                    "category_id": p.category_id,
-                    "category_name": p.category.name if p.category else None
+                    "category_ids": [cat.category_id for cat in p.categories],
+                    "category_names": [cat.name for cat in p.categories]
                 }
                 for p in packages
             ]
@@ -937,6 +993,7 @@ def get_worker_profile(
         "last_name": user.last_name,
         "phone_masked": phone_masked,
         "email_masked": user.email.split('@')[0][:3] + "***@" + user.email.split('@')[1] if '@' in user.email else None,
+        "gender": user.gender.value if user.gender else None,
         "city": address.city_name if address else None,
         "barangay": address.barangay_name if address else None,
         "province": address.province_name if address else None,

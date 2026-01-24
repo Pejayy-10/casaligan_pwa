@@ -13,6 +13,7 @@ export interface User {
   middle_name?: string;
   last_name: string;
   suffix?: string;
+  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
   is_owner: boolean;
   is_housekeeper: boolean;
   active_role: 'owner' | 'housekeeper';
@@ -50,6 +51,7 @@ export interface RegisterData {
   middle_name?: string;
   last_name: string;
   suffix?: string;
+  gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
 }
 
 export interface LoginData {
