@@ -232,34 +232,15 @@ export default function ActionTable({ rows, onAction, className = "", actionType
                                 <AlertTriangle className="h-4 w-4" />
                               </button>
                               {(() => {
-                                // Check the target user's status for THIS specific row
-                                // Each row should check its own target_user's status independently
-                                // IMPORTANT: This function is called for EACH row separately
+                                // Check the target user's restriction status for THIS specific row
                                 const targetUserId = row.target_user?.user_id;
                                 const reportId = row.report_id;
                                 
-                                // Get status from target_user object (most reliable)
-                                // Read directly from the object to ensure we get the row-specific value
-                                let finalStatus = 'active'; // Default
-                                
-                                if (row.target_user) {
-                                  // Get status directly from target_user object for this specific row
-                                  const rawStatus = row.target_user.status;
-                                  if (rawStatus != null && rawStatus !== undefined) {
-                                    finalStatus = String(rawStatus).toLowerCase().trim();
-                                  }
-                                } else if (row.target_user_status) {
-                                  // Fallback to target_user_status field
-                                  finalStatus = String(row.target_user_status).toLowerCase().trim();
-                                }
-                                
-                                // Only show shield (unrestrict) if:
-                                // 1. Status is exactly 'restricted'
-                                // 2. We have a valid user_id
-                                const isRestricted = finalStatus === 'restricted' && 
+                                // Check is_restricted field (not status field)
+                                const isRestricted = row.target_user?.is_restricted === true && 
                                   targetUserId != null &&
                                   targetUserId !== undefined &&
-                                  Number.isInteger(Number(targetUserId)); // Ensure user_id is a valid number
+                                  Number.isInteger(Number(targetUserId));
                                 
                                 return isRestricted;
                               })() ? (
@@ -329,11 +310,10 @@ export default function ActionTable({ rows, onAction, className = "", actionType
                             </button>
                           )}
                           {(() => {
-                            // Get the user status for this specific row
-                            const userStatus = row.users?.status || row.status || 'active';
-                            const normalizedStatus = String(userStatus).toLowerCase().trim();
+                            // Check is_restricted field for this specific row
+                            const isRestricted = row.users?.is_restricted === true || row.is_restricted === true;
                             
-                            return normalizedStatus === 'restricted';
+                            return isRestricted;
                           })() ? (
                             <button
                               type="button"

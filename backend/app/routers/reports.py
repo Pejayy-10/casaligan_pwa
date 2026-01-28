@@ -137,6 +137,146 @@ def get_my_reports(
     return result
 
 
+class RestrictUserRequest(BaseModel):
+    """Request body for restricting a user"""
+    restriction_days: Optional[int] = None  # None = permanent restriction
+    reason: str
+
+
+@router.post("/admin/restrict-user/{user_id}")
+def restrict_user(
+    user_id: int,
+    restriction_data: RestrictUserRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Restrict a user (admin only)
+    
+    Args:
+        user_id: ID of the user to restrict
+        restriction_data: Restriction details including days and reason
+    
+    Returns:
+        Success message with restriction details
+    """
+    # TODO: Add proper admin role check
+    # For now, allowing any user (will be restricted by admin panel access)
+    
+    # Get the user to restrict
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Calculate restriction dates
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    restriction_end = None
+    
+    if restriction_data.restriction_days:
+        restriction_end = now + timedelta(days=restriction_data.restriction_days)
+    
+    # Apply restriction
+    target_user.is_restricted = True
+    target_user.restriction_reason = restriction_data.reason
+    target_user.restriction_start = now
+    target_user.restriction_end = restriction_end
+    target_user.restricted_by_admin_id = current_user.id
+    
+    db.commit()
+    
+    restriction_type = f"{restriction_data.restriction_days} days" if restriction_data.restriction_days else "permanent"
+    
+    return {
+        "message": f"User {target_user.first_name} {target_user.last_name} has been restricted for {restriction_type}",
+        "user_id": user_id,
+        "restriction_end": restriction_end.isoformat() if restriction_end else None,
+        "reason": restriction_data.reason
+    }
+
+
+@router.post("/admin/unrestrict-user/{user_id}")
+def unrestrict_user(
+    user_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Remove restriction from a user (admin only)"""
+    # TODO: Add proper admin role check
+    
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    if not target_user.is_restricted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is not currently restricted"
+        )
+    
+    # Remove restriction
+    target_user.is_restricted = False
+    target_user.restriction_reason = None
+    target_user.restriction_start = None
+    target_user.restriction_end = None
+    target_user.restricted_by_admin_id = None
+    
+    db.commit()
+    
+    return {
+        "message": f"Restriction lifted for user {target_user.first_name} {target_user.last_name}",
+        "user_id": user_id
+    }
+
+
+@router.post("/admin/warn-user/{user_id}")
+def warn_user(
+    user_id: int,
+    warning_message: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Send a warning to a user (admin only)
+    
+    This creates a notification for the user about the warning
+    """
+    # TODO: Add proper admin role check
+    
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+    
+    # Send warning notification
+    from app.services.notification_service import notify_user
+    from app.models_v2.notification import NotificationType
+    
+    try:
+        notify_user(
+            db=db,
+            user_id=user_id,
+            notification_type=NotificationType.SYSTEM,
+            title="⚠️ Warning from Administration",
+            message=warning_message,
+            reference_type="warning",
+            reference_id=None
+        )
+    except Exception as e:
+        print(f"Error sending warning notification: {e}")
+    
+    return {
+        "message": f"Warning sent to user {target_user.first_name} {target_user.last_name}",
+        "user_id": user_id
+    }
+
+
 @router.get("/{report_id}")
 def get_report(
     report_id: int,

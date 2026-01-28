@@ -592,7 +592,6 @@ def update_job_post(
         
         # Category change
         if old_category_id != new_category_id:
-            from app.models_v2.package_category import PackageCategory
             old_cat = db.query(PackageCategory).filter(PackageCategory.category_id == old_category_id).first() if old_category_id else None
             new_cat = db.query(PackageCategory).filter(PackageCategory.category_id == new_category_id).first() if new_category_id else None
             old_cat_name = old_cat.name if old_cat else 'None'

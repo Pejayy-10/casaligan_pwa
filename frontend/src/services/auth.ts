@@ -34,7 +34,23 @@ export const authService = {
 
   async getCurrentUser(): Promise<UserProfile> {
     const response = await apiClient.get<UserProfile>('/auth/me');
-    return response.data;
+    
+    // Update user in localStorage to keep it fresh
+    const userData = response.data;
+    localStorage.setItem('user', JSON.stringify(userData));
+    
+    return userData;
+  },
+
+  async checkRestrictionStatus(): Promise<void> {
+    try {
+      // Try to get current user - this will trigger 403 if restricted
+      await this.getCurrentUser();
+    } catch (error: any) {
+      // Error is already handled by the API interceptor
+      // which shows popup and logs out the user
+      throw error;
+    }
   },
 
   async addAddress(data: AddressData): Promise<Address> {

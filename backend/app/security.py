@@ -72,10 +72,49 @@ async def get_current_user(
 ):
     """Dependency to get current user object from database"""
     from app.models_v2.user import User
+    from datetime import datetime, timezone
+    
     user = db.query(User).filter(User.email == user_email).first()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
         )
+    
+    # Check if user is restricted
+    if user.is_restricted:
+        # Check if restriction has expired
+        if user.restriction_end:
+            now = datetime.now(timezone.utc)
+            restriction_end = user.restriction_end
+            
+            # If restriction_end is naive, make it timezone-aware
+            if restriction_end.tzinfo is None:
+                from datetime import timezone as dt_timezone
+                restriction_end = restriction_end.replace(tzinfo=dt_timezone.utc)
+            
+            if now >= restriction_end:
+                # Restriction has expired, lift it automatically
+                user.is_restricted = False
+                user.restriction_reason = None
+                user.restriction_start = None
+                user.restriction_end = None
+                user.restricted_by_admin_id = None
+                db.commit()
+            else:
+                # Still restricted
+                days_left = (restriction_end - now).days
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Your account has been restricted. Reason: {user.restriction_reason or 'Policy violation'}. Time remaining: {days_left} days. Contact support for assistance.",
+                    headers={"X-Account-Status": "restricted"}
+                )
+        else:
+            # Permanent restriction
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Your account has been restricted. Reason: {user.restriction_reason or 'Policy violation'}. Contact support for assistance.",
+                headers={"X-Account-Status": "restricted"}
+            )
+    
     return user

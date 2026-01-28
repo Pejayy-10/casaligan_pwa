@@ -34,7 +34,11 @@ export async function getReports(limit = 50, offset = 0, status?: string) {
         email,
         active_role,
         status,
-        phone_number
+        phone_number,
+        is_restricted,
+        restriction_reason,
+        restriction_start,
+        restriction_end
       ),
       reported_user:users!reports_reported_user_id_fkey (
         id,
@@ -43,7 +47,11 @@ export async function getReports(limit = 50, offset = 0, status?: string) {
         email,
         active_role,
         status,
-        phone_number
+        phone_number,
+        is_restricted,
+        restriction_reason,
+        restriction_start,
+        restriction_end
       )
     `, { count: 'exact' })
     .order('created_at', { ascending: false })
@@ -175,10 +183,10 @@ export async function dismissReport(reportId: number, adminNotes?: string) {
 
 // Restrict the reported user
 // Requires: Run the migration script add-restriction-reason-to-users.sql to add the restriction_reason field
-export async function restrictReportedUser(reportId: number, reason?: string) {
+export async function restrictReportedUser(reportId: number, reason: string, days?: number | null) {
   const supabase = createClient()
   
-  // Get admin ID
+  // Get admin ID for auth
   const { admin_id, error: adminError } = await getAdminId()
   if (adminError || !admin_id) {
     return { data: null, error: adminError || new Error('Admin not authenticated') }
@@ -195,38 +203,46 @@ export async function restrictReportedUser(reportId: number, reason?: string) {
     return { data: null, error: reportError || new Error('Report not found') }
   }
 
-  // Update the reported user's status to restricted with reason
-  const updateData: any = {
-    status: 'restricted',
-    restricted_at: new Date().toISOString(),
-    restricted_by_admin_id: admin_id,
-  };
+  // Calculate restriction dates
+  const now = new Date()
+  let restriction_end = null
+  
+  if (days && days > 0) {
+    restriction_end = new Date(now.getTime() + days * 24 * 60 * 60 * 1000)
+  }
 
-  // Add restriction reason if provided
-  if (reason) {
-    updateData.restriction_reason = reason;
+  // Update the user directly in Supabase with new restriction fields
+  const updateData: any = {
+    is_restricted: true,
+    restriction_reason: reason,
+    restriction_start: now.toISOString(),
+    restriction_end: restriction_end ? restriction_end.toISOString() : null,
+    restricted_by_admin_id: admin_id
+    // Note: status field stays as 'active' or 'suspended', is_restricted is the main flag
   }
 
   const { data, error } = await supabase
     .from('users')
     .update(updateData)
-    .eq('user_id', report.reported_user_id)
+    .eq('id', report.reported_user_id)
     .select()
     .single()
 
   if (error) {
+    console.error('Error updating user:', error)
     return { data: null, error }
   }
 
   // Create notification for the user
+  const durationType = days && days > 0 ? `for ${days} days` : 'permanently'
   await supabase
     .from('notifications')
     .insert({
       user_id: report.reported_user_id,
       type: 'system',
       title: 'Account Restricted',
-      message: `Your account has been restricted due to a report${reason ? `: ${reason}` : ''}. Please contact support for more information.`,
-      content: `Account restricted${reason ? `: ${reason}` : ''}`,
+      message: `Your account has been restricted ${durationType}. Reason: ${reason}. Please contact support for more information.`,
+      content: `Account restricted ${durationType}: ${reason}`,
       entity_type: 'report',
       entity_id: reportId,
       created_at: new Date().toISOString(),
@@ -315,12 +331,13 @@ export async function unrestrictReportedUser(reportId: number) {
   const { data, error } = await supabase
     .from('users')
     .update({
-      status: 'active',
+      is_restricted: false,
       restriction_reason: null,
-      restricted_at: null,
-      restricted_by_admin_id: null,
+      restriction_start: null,
+      restriction_end: null,
+      restricted_by_admin_id: null
     })
-    .eq('user_id', report.reported_user_id)
+    .eq('id', report.reported_user_id)
     .select()
     .single()
 

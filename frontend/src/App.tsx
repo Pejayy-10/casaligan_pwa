@@ -1,4 +1,5 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import SplashPage from './pages/SplashPage';
 import LoginPage from './pages/LoginPage';
 import RegisterStep1Page from './pages/RegisterStep1Page';
@@ -15,6 +16,7 @@ import BrowseWorkersPage from './pages/BrowseWorkersPage';
 import WorkerProfilePage from './pages/WorkerProfilePage';
 import RecurringServicesPage from './pages/RecurringServicesPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import RestrictionModal from './components/RestrictionModal';
 import { PaymentProvider } from './context/PaymentContext';
 
 const router = createBrowserRouter([
@@ -137,9 +139,31 @@ const router = createBrowserRouter([
 ]);
 
 function App() {
+  const [restrictionMessage, setRestrictionMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Listen for account restriction events
+    const handleRestriction = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      setRestrictionMessage(customEvent.detail?.message || 'Your account has been restricted.');
+    };
+
+    window.addEventListener('account-restricted', handleRestriction);
+
+    return () => {
+      window.removeEventListener('account-restricted', handleRestriction);
+    };
+  }, []);
+
   return (
     <PaymentProvider>
       <RouterProvider router={router} />
+      {restrictionMessage && (
+        <RestrictionModal
+          message={restrictionMessage}
+          onClose={() => setRestrictionMessage(null)}
+        />
+      )}
     </PaymentProvider>
   );
 }

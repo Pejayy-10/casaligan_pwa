@@ -14,6 +14,7 @@ export default function ReportsPage() {
 	const [selectedReport, setSelectedReport] = useState<any>(null);
 	const [showRestrictModal, setShowRestrictModal] = useState(false);
 	const [restrictionReason, setRestrictionReason] = useState("");
+	const [restrictionDays, setRestrictionDays] = useState<number | null>(null);
 	const [restrictingReport, setRestrictingReport] = useState<any>(null);
 	const [showWarnModal, setShowWarnModal] = useState(false);
 	const [warnReason, setWarnReason] = useState("");
@@ -36,22 +37,31 @@ export default function ReportsPage() {
 		setLoading(false);
 	}
 
-	// Update reported user status for a specific report
-	const updateReportedUserStatus = (reportId: number, newStatus: string) => {
-		setReports(prevReports => 
-			prevReports.map(report => {
-				if (report.report_id === reportId) {
+	// Update reported user restriction status for ALL reports of the same user
+	const updateReportedUserRestriction = (reportId: number, isRestricted: boolean) => {
+		setReports(prevReports => {
+			// Find the user_id from the report
+			const targetReport = prevReports.find(r => r.report_id === reportId);
+			if (!targetReport || !targetReport.reported_user_id) {
+				return prevReports;
+			}
+			
+			const userId = targetReport.reported_user_id;
+			
+			// Update ALL reports that have the same reported_user_id
+			return prevReports.map(report => {
+				if (report.reported_user_id === userId) {
 					return {
 						...report,
 						reported_user: {
 							...report.reported_user,
-							status: newStatus
+							is_restricted: isRestricted
 						}
 					};
 				}
 				return report;
-			})
-		);
+			});
+		});
 	};
 
 	// Transform reports data to match TableShell row format - memoized for performance
@@ -73,6 +83,9 @@ export default function ReportsPage() {
 			const statusValue = (rawStatus != null && rawStatus !== undefined) 
 				? String(rawStatus).toLowerCase().trim() 
 				: 'active';
+			
+			// Check if user is restricted
+			const isRestricted = reportedUser.is_restricted === true;
 			
 			return {
 				id: report.report_id,
@@ -98,6 +111,10 @@ export default function ReportsPage() {
 					status: statusValue,
 					phone_number: reportedUser.phone_number,
 					profile_picture: reportedUser.profile_picture,
+					is_restricted: isRestricted,
+					restriction_reason: reportedUser.restriction_reason,
+					restriction_start: reportedUser.restriction_start,
+					restriction_end: reportedUser.restriction_end
 				},
 				// Also keep as target_user for ActionTable compatibility
 				target_user: {
@@ -107,6 +124,10 @@ export default function ReportsPage() {
 					status: statusValue,
 					phone_number: reportedUser.phone_number,
 					profile_picture: reportedUser.profile_picture,
+					is_restricted: isRestricted,
+					restriction_reason: reportedUser.restriction_reason,
+					restriction_start: reportedUser.restriction_start,
+					restriction_end: reportedUser.restriction_end
 				},
 			};
 		});
@@ -137,7 +158,7 @@ export default function ReportsPage() {
 					alert(`Error unrestricting user: ${error.message}`);
 					setProcessing(false);
 				} else {
-					updateReportedUserStatus(row.report_id, 'active');
+					updateReportedUserRestriction(row.report_id, false);
 					alert(`${row.reported_user.name} has been unrestricted successfully.`);
 					setProcessing(false);
 				}
@@ -180,17 +201,19 @@ export default function ReportsPage() {
 		}
 
 		setProcessing(true);
-		const { error } = await restrictReportedUser(restrictingReport.report_id, restrictionReason.trim());
+		const { error } = await restrictReportedUser(restrictingReport.report_id, restrictionReason.trim(), restrictionDays);
 		
 		if (error) {
 			alert(`Error restricting user: ${error.message}`);
 			setProcessing(false);
 		} else {
-			updateReportedUserStatus(restrictingReport.report_id, 'restricted');
-			alert(`${restrictingReport.reported_user.name} has been restricted successfully.`);
+			updateReportedUserRestriction(restrictingReport.report_id, true);
+			const durationType = restrictionDays ? `${restrictionDays} days` : 'permanently';
+			alert(`${restrictingReport.reported_user.name} has been restricted ${durationType}.`);
 			setShowRestrictModal(false);
 			setRestrictingReport(null);
 			setRestrictionReason("");
+			setRestrictionDays(null);
 			setProcessing(false);
 		}
 	};
@@ -379,6 +402,30 @@ export default function ReportsPage() {
 							</div>
 
 							<div>
+								<label htmlFor="restriction-duration" className="block text-sm font-medium text-foreground mb-2">
+									Restriction Duration <span className="text-red-500">*</span>
+								</label>
+								<select
+									id="restriction-duration"
+									value={restrictionDays === null ? "" : restrictionDays}
+									onChange={(e) => setRestrictionDays(e.target.value ? parseInt(e.target.value) : null)}
+									className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent"
+									disabled={processing}
+								>
+									<option value="">Select duration...</option>
+									<option value="1">1 Day</option>
+									<option value="3">3 Days</option>
+									<option value="7">7 Days</option>
+									<option value="14">14 Days</option>
+									<option value="30">30 Days</option>
+									<option value="0">Permanent</option>
+								</select>
+								<p className="mt-1 text-xs text-muted-foreground">
+									Select how long the user will be restricted from using the platform. Permanent restriction will last indefinitely.
+								</p>
+							</div>
+
+							<div>
 								<label htmlFor="restriction-reason" className="block text-sm font-medium text-foreground mb-2">
 									Reason for Restriction <span className="text-red-500">*</span>
 								</label>
@@ -399,7 +446,7 @@ export default function ReportsPage() {
 						<div className="flex justify-end gap-2">
 							<button
 								onClick={handleConfirmRestrict}
-								disabled={processing || !restrictionReason.trim()}
+								disabled={processing || !restrictionReason.trim() || restrictionDays === null}
 								className="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
 							>
 								{processing ? "Processing..." : "Confirm Restriction"}
@@ -410,6 +457,7 @@ export default function ReportsPage() {
 										setShowRestrictModal(false);
 										setRestrictingReport(null);
 										setRestrictionReason("");
+										setRestrictionDays(null);
 									}
 								}}
 								disabled={processing}
