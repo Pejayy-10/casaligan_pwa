@@ -9,6 +9,7 @@ interface Applicant {
   worker_phone: string;
   status: string;
   applied_at: string;
+  edit_response?: string | null;  // 'pending' | 'accepted' | 'rejected' | null
 }
 
 interface ApplicantsListModalProps {
@@ -29,6 +30,8 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
   // Count already accepted workers (from previous selections)
   const alreadyAcceptedCount = applicants.filter(a => a.status === 'accepted').length;
   const pendingApplicants = applicants.filter(a => a.status === 'pending');
+  // Applicants with edit_response='pending' cannot be hired until they accept/withdraw
+  const hireableApplicants = pendingApplicants.filter(a => a.edit_response !== 'pending');
   
   // Total selected = already accepted + newly toggled
   const totalSelected = alreadyAcceptedCount + selectedWorkers.size;
@@ -57,7 +60,9 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
     loadApplicants();
   }, [loadApplicants]);
 
-  const toggleWorker = (interestId: number) => {
+  const toggleWorker = (interestId: number, applicant: Applicant) => {
+    // Cannot select applicants awaiting edit response
+    if (applicant.edit_response === 'pending') return;
     setSelectedWorkers(prev => {
       const newSet = new Set(prev);
       if (newSet.has(interestId)) {
@@ -188,6 +193,11 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
               Toggle {peopleNeeded - totalSelected} more {peopleNeeded - totalSelected === 1 ? 'person' : 'people'} to start the job
             </p>
           )}
+          {hireableApplicants.length < pendingApplicants.length && (
+            <p className="text-amber-600 dark:text-amber-300/80 text-sm mt-2 flex items-center gap-2 font-medium">
+              ⏳ Some applicants haven&apos;t responded to the job edit yet. You can only hire after they accept or withdraw.
+            </p>
+          )}
         </div>
 
         {/* Content */}
@@ -233,40 +243,52 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
 
               {/* Pending Applicants with Toggle */}
               {pendingApplicants.map((applicant) => {
+                const isAwaitingEditResponse = applicant.edit_response === 'pending';
                 const isSelected = selectedWorkers.has(applicant.interest_id);
-                const canSelect = selectedWorkers.size < (peopleNeeded - alreadyAcceptedCount);
+                const canSelect = !isAwaitingEditResponse && selectedWorkers.size < (peopleNeeded - alreadyAcceptedCount);
                 
                 return (
                   <div 
                     key={applicant.interest_id}
-                    className={`backdrop-blur-xl rounded-2xl p-4 border-2 transition-all cursor-pointer ${
+                    className={`backdrop-blur-xl rounded-2xl p-4 border-2 transition-all ${
+                      isAwaitingEditResponse ? 'opacity-75 cursor-not-allowed' : 'cursor-pointer'
+                    } ${
                       isSelected 
                         ? 'bg-green-50 border-green-200 dark:bg-green-500/20 dark:border-green-400/50 shadow-md' 
                         : 'bg-white/60 border-white/50 dark:bg-white/10 dark:border-white/20 hover:bg-white/80 dark:hover:border-white/40 shadow-sm'
                     }`}
-                    onClick={() => (isSelected || canSelect) && toggleWorker(applicant.interest_id)}
+                    onClick={() => !isAwaitingEditResponse && (isSelected || canSelect) && toggleWorker(applicant.interest_id, applicant)}
                   >
                     <div className="flex items-center gap-4">
                       {/* Toggle Circle */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (isSelected || canSelect) toggleWorker(applicant.interest_id);
+                          if (!isAwaitingEditResponse && (isSelected || canSelect)) toggleWorker(applicant.interest_id, applicant);
                         }}
-                        disabled={!isSelected && !canSelect}
+                        disabled={isAwaitingEditResponse || (!isSelected && !canSelect)}
                         className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-sm ${
-                          isSelected 
-                            ? 'bg-green-500 text-white' 
-                            : canSelect
-                              ? 'bg-white text-gray-400 border border-gray-200 dark:bg-white/20 dark:text-white/50 dark:border-transparent hover:bg-gray-50 dark:hover:bg-white/30'
-                              : 'bg-gray-100 text-gray-300 dark:bg-white/10 dark:text-white/30 cursor-not-allowed'
+                          isAwaitingEditResponse
+                            ? 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400 cursor-not-allowed'
+                            : isSelected 
+                              ? 'bg-green-500 text-white' 
+                              : canSelect
+                                ? 'bg-white text-gray-400 border border-gray-200 dark:bg-white/20 dark:text-white/50 dark:border-transparent hover:bg-gray-50 dark:hover:bg-white/30'
+                                : 'bg-gray-100 text-gray-300 dark:bg-white/10 dark:text-white/30 cursor-not-allowed'
                         }`}
                       >
-                        {isSelected ? '✓' : '○'}
+                        {isAwaitingEditResponse ? '⏳' : isSelected ? '✓' : '○'}
                       </button>
                       
                       <div className="flex-1">
-                        <h3 className="text-lg font-bold text-[#4B244A] dark:text-white mb-1">{applicant.worker_name}</h3>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">{applicant.worker_name}</h3>
+                          {isAwaitingEditResponse && (
+                            <span className="px-2 py-0.5 bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-bold rounded-full border border-amber-200 dark:border-amber-500/30">
+                              ⏳ Awaiting response to job edit
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[#4B244A]/70 dark:text-white/70 text-sm">📧 {applicant.worker_email}</p>
                         <p className="text-[#4B244A]/70 dark:text-white/70 text-sm">📞 {applicant.worker_phone}</p>
                         <p className="text-[#4B244A]/50 dark:text-white/60 text-xs mt-2 font-medium">

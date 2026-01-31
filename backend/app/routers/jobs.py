@@ -458,9 +458,10 @@ def update_job_post(
             detail="You can only update your own job posts"
         )
     
-    # Store old values to detect ALL changes
+    # Store old values to detect ALL changes (any edit triggers applicant notification)
     old_details = json.loads(post.content) if post.content else {}
     old_title = post.title
+    old_status = post.status.value if hasattr(post.status, 'value') else str(post.status)
     old_budget = float(post.salary) if post.salary else old_details.get('budget', 0)
     old_description = old_details.get('description', '')
     old_house_type = old_details.get('house_type', '')
@@ -469,6 +470,7 @@ def update_job_post(
     old_image_urls = old_details.get('image_urls', [])
     old_location = post.location or old_details.get('location', '')
     old_category_id = post.category_id
+    old_category_ids = sorted([c.category_id for c in post.categories]) if hasattr(post, 'categories') and post.categories else ([old_category_id] if old_category_id else [])
     old_duration_type = "long_term" if post.is_longterm else "short_term"
     old_start_date = post.start_date or old_details.get('start_date', '')
     old_end_date = post.end_date or old_details.get('end_date', '')
@@ -549,6 +551,8 @@ def update_job_post(
         new_image_urls = new_details.get('image_urls', [])
         new_location = post.location or new_details.get('location', '')
         new_category_id = post.category_id
+        new_category_ids = sorted([c.category_id for c in post.categories]) if hasattr(post, 'categories') and post.categories else ([new_category_id] if new_category_id else [])
+        new_status = post.status.value if hasattr(post.status, 'value') else str(post.status)
         new_duration_type = "long_term" if post.is_longterm else "short_term"
         new_start_date = post.start_date or new_details.get('start_date', '')
         new_end_date = post.end_date or new_details.get('end_date', '')
@@ -582,21 +586,28 @@ def update_job_post(
         if old_people_needed != new_people_needed:
             changes.append(f"• People Needed: {old_people_needed} → {new_people_needed}")
         
-        # Images change
-        if len(old_image_urls) != len(new_image_urls):
+        # Images change (count or content)
+        if set(old_image_urls or []) != set(new_image_urls or []):
             changes.append(f"• Images: {len(old_image_urls)} image(s) → {len(new_image_urls)} image(s)")
+        
+        # Category change (including multi-category)
+        if old_category_ids != new_category_ids:
+            if len(old_category_ids) <= 1 and len(new_category_ids) <= 1:
+                old_cat = db.query(PackageCategory).filter(PackageCategory.category_id == old_category_id).first() if old_category_id else None
+                new_cat = db.query(PackageCategory).filter(PackageCategory.category_id == new_category_id).first() if new_category_id else None
+                old_cat_name = old_cat.name if old_cat else 'None'
+                new_cat_name = new_cat.name if new_cat else 'None'
+                changes.append(f"• Category: '{old_cat_name}' → '{new_cat_name}'")
+            else:
+                changes.append(f"• Categories: updated (was {len(old_category_ids)}, now {len(new_category_ids)} categories)")
+        
+        # Status change
+        if old_status != new_status:
+            changes.append(f"• Status: '{old_status}' → '{new_status}'")
         
         # Location change
         if old_location != new_location:
             changes.append(f"• Location: '{old_location or 'Not specified'}' → '{new_location or 'Not specified'}'")
-        
-        # Category change
-        if old_category_id != new_category_id:
-            old_cat = db.query(PackageCategory).filter(PackageCategory.category_id == old_category_id).first() if old_category_id else None
-            new_cat = db.query(PackageCategory).filter(PackageCategory.category_id == new_category_id).first() if new_category_id else None
-            old_cat_name = old_cat.name if old_cat else 'None'
-            new_cat_name = new_cat.name if new_cat else 'None'
-            changes.append(f"• Category: '{old_cat_name}' → '{new_cat_name}'")
         
         # Duration type change
         if old_duration_type != new_duration_type:
@@ -1206,6 +1217,18 @@ def start_job(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Must select exactly {people_needed} workers. Currently have {already_accepted} accepted + {len(request.selected_applicants)} selected = {total_workers}"
         )
+    
+    # Block hiring if any selected applicant hasn't responded to job edit yet
+    for interest_id in request.selected_applicants:
+        application = db.query(InterestCheck).filter(
+            InterestCheck.interest_id == interest_id,
+            InterestCheck.post_id == post_id
+        ).first()
+        if application and application.edit_response == EditResponseStatus.PENDING:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot hire housekeepers who have not yet responded to the job edit. Please wait for them to either accept the changes or withdraw their application."
+            )
     
     # Accept all selected applicants
     accepted_workers = []

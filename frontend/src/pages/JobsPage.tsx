@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import TabBar from '../components/TabBar';
-import NotificationBell from '../components/NotificationBell';
 import JobDetailModal, { type JobPost } from '../components/JobDetailModal';
 import ApplicantsListModal from '../components/ApplicantsListModal';
 import PaymentModal from '../components/PaymentModal';
@@ -248,7 +247,6 @@ export default function JobsPage() {
               </h1>
             </div>
             <div className="flex items-center gap-2">
-              <NotificationBell />
               {user.active_role === 'owner' && (
                 <>
                   <button 

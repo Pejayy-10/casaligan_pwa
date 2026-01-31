@@ -7,23 +7,34 @@ interface TabBarProps {
 }
 
 export default function TabBar({ role }: TabBarProps) {
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [messagesUnreadCount, setMessagesUnreadCount] = useState(0);
+  const [notificationsUnreadCount, setNotificationsUnreadCount] = useState(0);
 
   useEffect(() => {
-    const fetchUnreadCount = async () => {
+    const fetchMessagesUnread = async () => {
       try {
         const response = await api.get('/messages/unread-count');
-        setUnreadCount(response.data.unread_count || 0);
+        setMessagesUnreadCount(response.data.unread_count || 0);
       } catch (error) {
-        console.error('Failed to fetch unread count:', error);
+        console.error('Failed to fetch messages unread count:', error);
+      }
+    };
+    const fetchNotificationsUnread = async () => {
+      try {
+        const response = await api.get('/notifications/count');
+        setNotificationsUnreadCount(response.data.unread_count || 0);
+      } catch (error) {
+        console.error('Failed to fetch notifications unread count:', error);
       }
     };
 
-    // Fetch initially
-    fetchUnreadCount();
+    fetchMessagesUnread();
+    fetchNotificationsUnread();
 
-    // Poll every 30 seconds
-    const interval = setInterval(fetchUnreadCount, 30000);
+    const interval = setInterval(() => {
+      fetchMessagesUnread();
+      fetchNotificationsUnread();
+    }, 30000);
 
     return () => clearInterval(interval);
   }, []);
@@ -77,13 +88,35 @@ export default function TabBar({ role }: TabBarProps) {
               <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
               </svg>
-              {unreadCount > 0 && (
+              {messagesUnreadCount > 0 && (
                 <span className="absolute -top-1 -right-2 bg-[#EA526F] text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
-                  {unreadCount > 99 ? '99+' : unreadCount}
+                  {messagesUnreadCount > 99 ? '99+' : messagesUnreadCount}
                 </span>
               )}
             </div>
             <span className="text-xs font-medium">Messages</span>
+          </NavLink>
+
+          {/* Notifications Tab */}
+          <NavLink
+            to="/notifications"
+            className={({ isActive }) =>
+              `flex flex-col items-center justify-center flex-1 h-full transition-all relative ${
+                isActive ? 'text-[#EA526F]' : 'text-white/70 hover:text-white'
+              }`
+            }
+          >
+            <div className="relative">
+              <svg className="w-6 h-6 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              {notificationsUnreadCount > 0 && (
+                <span className="absolute -top-1 -right-2 bg-[#EA526F] text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                  {notificationsUnreadCount > 99 ? '99+' : notificationsUnreadCount}
+                </span>
+              )}
+            </div>
+            <span className="text-xs font-medium">Notifications</span>
           </NavLink>
 
           {/* Profile Tab */}
