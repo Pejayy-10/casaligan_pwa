@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { loginWithDatabase } from "@/lib/supabase/auth";
+import { loginWithDatabase, isAuthenticated, isAdmin } from "@/lib/supabase/auth";
 import LavaBackground from "./LavaBackground";
 
 export default function AuthPage() {
@@ -11,16 +11,18 @@ export default function AuthPage() {
 	const [password, setPassword] = useState("");
 	const [error, setError] = useState<string | null>(null);
 	const [loading, setLoading] = useState(false);
+	const [checkingAuth, setCheckingAuth] = useState(true);
 
 	// Check if already logged in
 	useEffect(() => {
-		const checkAuth = async () => {
-			const { isAuthenticated, isAdmin } = await import("@/lib/supabase/auth");
-			if (isAuthenticated() && isAdmin()) {
-				router.push("/");
-			}
-		};
-		checkAuth();
+		// Only run on client side
+		if (typeof window === "undefined") return;
+		
+		if (isAuthenticated() && isAdmin()) {
+			router.replace("/");
+		} else {
+			setCheckingAuth(false);
+		}
 	}, [router]);
 
 	const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -47,8 +49,7 @@ export default function AuthPage() {
 				}
 
 				// Redirect to dashboard after successful sign-in
-				router.push("/");
-				router.refresh();
+				router.replace("/");
 			}
 		} catch (err) {
 			console.error("Login error:", err);
@@ -56,6 +57,15 @@ export default function AuthPage() {
 			setLoading(false);
 		}
 	};
+
+	// Show loading while checking auth
+	if (checkingAuth) {
+		return (
+			<div className="flex items-center justify-center min-h-screen bg-accent">
+				<div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="relative min-h-screen flex items-center justify-center p-4 overflow-hidden bg-accent">

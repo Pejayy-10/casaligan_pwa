@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAdminProfile } from "../contexts/AdminProfileContext";
+import { isAuthenticated, isAdmin } from "@/lib/supabase/auth";
 import {
   LayoutDashboard,
   Users,
@@ -33,28 +34,34 @@ export default function Shell({ children }: ShellProps) {
   const sidebarWidth = 200;
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
+  const [isAuthed, setIsAuthed] = useState(false);
   const { profile } = useAdminProfile();
   const pathname = usePathname();
   const router = useRouter();
 
   // Check authentication on mount
   useEffect(() => {
-    const checkAuth = async () => {
-      const { isAuthenticated, isAdmin } = await import("@/lib/supabase/auth");
-      
-      if (!isAuthenticated()) {
-        router.push("/auth");
-        return;
-      }
-      
-      if (!isAdmin()) {
-        router.push("/auth");
-        return;
-      }
-    };
+    // Only run on client
+    if (typeof window === "undefined") return;
     
-    checkAuth();
+    const authed = isAuthenticated() && isAdmin();
+    setIsAuthed(authed);
+    setAuthChecked(true);
+    
+    if (!authed) {
+      router.replace("/auth");
+    }
   }, [router]);
+
+  // Show nothing while checking auth or if not authenticated
+  if (!authChecked || !isAuthed) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
 

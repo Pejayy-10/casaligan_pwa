@@ -1,23 +1,15 @@
-import { getDashboardStats, getCurrentUser, getRecentActivities } from "@/lib/supabase/queries";
-import { redirect } from "next/navigation";
+import { getDashboardStats, getRecentActivities } from "@/lib/supabase/queries";
 import DashboardClient from "./dashboard-client";
 
 export const dynamic = 'force-dynamic';
 
 export default async function Home() {
-	const userResult = await getCurrentUser();
-	
-	// If not authenticated, redirect to auth page
-	if (!userResult.user) {
-		redirect('/auth');
-	}
-
+	// Fetch data server-side (no auth check here - auth is handled client-side)
 	const [stats, activitiesResult] = await Promise.all([
 		getDashboardStats(),
 		getRecentActivities(4),
 	]);
 
-	const userName = userResult.user?.email?.split("@")[0] || "Admin";
 	const today = new Date().toLocaleDateString("en-US", {
 		weekday: "long",
 		day: "numeric",
@@ -32,7 +24,6 @@ export default async function Home() {
 				totalJobs: stats.totalJobs,
 				totalBookings: stats.totalBookings,
 			}}
-			userName={userName}
 			today={today}
 			activities={activitiesResult.data}
 		/>

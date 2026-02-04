@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { BriefcaseBusiness, CalendarCheck, Users2 } from "lucide-react";
 
 import { BookingsLineChartCard } from "@/app/components/BookingsLineChartCard";
@@ -9,6 +11,7 @@ import { RecentActivitiesCard } from "@/app/components/RecentActivitiesCard";
 import { RevenueBarChartCard } from "@/app/components/RevenueBarChartCard";
 import { SearchBar } from "@/app/components/SearchBar";
 import { StatSummaryCard } from "@/app/components/StatSummaryCard";
+import { getCurrentUser } from "@/lib/supabase/auth";
 
 type DashboardClientProps = {
 	stats: {
@@ -16,12 +19,33 @@ type DashboardClientProps = {
 		totalJobs: number;
 		totalBookings: number;
 	};
-	userName: string;
 	today: string;
 	activities: any[];
 };
 
-export default function DashboardClient({ stats, userName, today, activities }: DashboardClientProps) {
+export default function DashboardClient({ stats, today, activities }: DashboardClientProps) {
+	const router = useRouter();
+	const [userName, setUserName] = useState("Admin");
+	const [isLoading, setIsLoading] = useState(true);
+
+	useEffect(() => {
+		const user = getCurrentUser();
+		if (!user) {
+			router.replace('/auth');
+			return;
+		}
+		setUserName(user.name || user.email?.split("@")[0] || "Admin");
+		setIsLoading(false);
+	}, [router]);
+
+	if (isLoading) {
+		return (
+			<div className="flex items-center justify-center min-h-screen">
+				<div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+			</div>
+		);
+	}
+
 	return (
 		<>
 			<div className="mx-auto w-full max-w-[1400px] space-y-6 px-4 sm:px-6 lg:px-8">
