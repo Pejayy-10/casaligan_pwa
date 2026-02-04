@@ -212,7 +212,7 @@ export async function restrictReportedUser(reportId: number, reason: string, day
   }
 
   // Update the user directly in Supabase with new restriction fields
-  const updateData: any = {
+  const updateData: Record<string, boolean | string | number | null> = {
     is_restricted: true,
     restriction_reason: reason,
     restriction_start: now.toISOString(),

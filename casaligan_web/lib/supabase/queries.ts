@@ -256,7 +256,7 @@ export async function getRecentActivities(limit = 20) {
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  directHires?.forEach((hire: any) => {
+  directHires?.forEach((hire: { workers?: { users?: { first_name?: string; last_name?: string } | { first_name?: string; last_name?: string }[] } | { users?: { first_name?: string; last_name?: string } | { first_name?: string; last_name?: string }[] }[]; employers?: { users?: { first_name?: string; last_name?: string } | { first_name?: string; last_name?: string }[] } | { users?: { first_name?: string; last_name?: string } | { first_name?: string; last_name?: string }[] }[]; created_at?: string }) => {
     const worker = Array.isArray(hire.workers) ? hire.workers[0] : hire.workers
     const employer = Array.isArray(hire.employers) ? hire.employers[0] : hire.employers
     const workerUser = Array.isArray(worker?.users) ? worker.users[0] : worker?.users
@@ -288,7 +288,7 @@ export async function getRecentActivities(limit = 20) {
     .order('sent_at', { ascending: false })
     .limit(limit)
 
-  messages?.forEach((message: any) => {
+  messages?.forEach((message: { users?: { first_name?: string; last_name?: string } | { first_name?: string; last_name?: string }[]; sent_at?: string }) => {
     const user = Array.isArray(message.users) ? message.users[0] : message.users
     if (user) {
       activities.push({
@@ -319,7 +319,7 @@ export async function getRecentActivities(limit = 20) {
     .order('reviewed_at', { ascending: false })
     .limit(limit)
 
-  verifications?.forEach((doc: any) => {
+  verifications?.forEach((doc: { users?: { first_name?: string; last_name?: string } | { first_name?: string; last_name?: string }[]; reviewed_at?: string }) => {
     const user = Array.isArray(doc.users) ? doc.users[0] : doc.users
     if (user) {
       activities.push({

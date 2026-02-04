@@ -46,7 +46,7 @@ export async function getReports(limit = 50, offset = 0, status?: string) {
 
   // Get resolver admin IDs and fetch admins
   const resolverAdminIds = reports.map(r => r.resolver_admin_id).filter(Boolean)
-  let resolverAdmins: any[] = []
+  let resolverAdmins: { admin_id?: number; user_id?: number; users?: Record<string, unknown> }[] = []
   if (resolverAdminIds.length > 0) {
     const { data: admins, error: adminsError } = await supabase
       .from('admins')
@@ -124,7 +124,7 @@ export async function getReports(limit = 50, offset = 0, status?: string) {
   
   // Fetch target users
   const uniqueTargetUserIds = [...new Set(targetUserIds)]
-  let targetUsers: any[] = []
+  let targetUsers: { user_id?: number; name?: string; email?: string; phone_number?: string; status?: string; created_at?: string; profile_picture?: string }[] = []
   if (uniqueTargetUserIds.length > 0) {
     const { data: targetUsersData, error: targetUsersError } = await supabase
       .from('users')
@@ -232,7 +232,7 @@ export async function getReportAnalytics() {
 export async function updateReportStatus(reportId: number, status: string, resolverAdminId?: number) {
   const supabase = createClient()
   
-  const updateData: any = { status }
+  const updateData: Record<string, string | number | null> = { status }
   if (status === 'resolved' || status === 'closed' || status === 'dismissed') {
     updateData.resolved_at = new Date().toISOString()
     if (resolverAdminId) {
@@ -263,7 +263,7 @@ export async function deleteReport(reportId: number) {
 }
 
 // Get target user ID from report
-async function getTargetUserIdFromReport(reportId: number): Promise<{ userId: number | null, error: any }> {
+async function getTargetUserIdFromReport(reportId: number): Promise<{ userId: number | null, error: Error | null }> {
   const supabase = createClient()
   
   const { data: report, error: reportError } = await supabase
