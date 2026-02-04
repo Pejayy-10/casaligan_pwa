@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, Archive, MessageSquare, Loader2 } from 'lucide-react';
+import { MessageCircle, Archive, MessageSquare, Loader2} from 'lucide-react';
 import TabBar from '../components/TabBar';
 import ConversationList from '../components/ConversationList';
 import type { User } from '../types';
@@ -41,16 +41,19 @@ export default function MessagesPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-300 pb-20 relative">
       
-      {/* Header - Updated to match NotificationsPage colors */}
-      <header className="sticky top-0 z-50 bg-gray-50 dark:bg-white/10 dark:backdrop-blur-xl border-b border-gray-200 dark:border-white/20 transition-all">
+      <header className="sticky top-0 z-50 bg-gray-50 dark:bg-white/10 dark:backdrop-blur-xl border-b border-gray-200 dark:border-white/20 transition-all pt-14 md:pt-4">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             {/* Title */}
-            <div className="flex items-center gap-3">
-              <MessageCircle className="w-6 h-6 text-[#EA526F]" />
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Messages
-              </h1>
+            <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-[#4B244A]/5 dark:bg-white/10 rounded-xl">
+                            <MessageCircle className="w-6 h-6 text-[#4B244A] dark:text-white" />
+                        </div>
+                        <h1 className="text-2xl font-bold text-[#4B244A] dark:text-white tracking-tight">
+                            Messages
+                        </h1>
+                    </div>
             </div>
 
             {/* Tabs */}

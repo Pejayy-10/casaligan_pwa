@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RotateCw, X, ClipboardList, Briefcase, Calendar } from 'lucide-react';
+import { RotateCw, X, ClipboardList, Briefcase, Calendar, ChevronDown, CheckCircle } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import type { User } from '../types';
 import apiClient from '../services/api';
@@ -151,6 +151,37 @@ export default function RecurringServicesPage() {
       setCancelling(false);
     }
   };
+  
+  function FilterTab({ 
+    active, 
+    onClick, 
+    icon: Icon, 
+    label, 
+    activeColor = "bg-white dark:bg-[#4B244A] text-[#4B244A] dark:text-white"
+}: { 
+    active: boolean, 
+    onClick: () => void, 
+    icon: any, 
+    label: string,
+    activeColor?: string 
+}) {
+    return (
+        <button
+            onClick={onClick}
+            // Added: flex-1, w-full, justify-center
+            className={`flex-1 w-full justify-center px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                active
+                    ? `${activeColor} shadow-sm`
+                    : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
+            }`}
+        >
+            <Icon className="w-4 h-4" />
+            {label}
+        </button>
+    );
+}
+  
+  
 
   const formatSchedule = (dayOfWeek: string | null, startTime: string | null, endTime: string | null, frequency: string | null) => {
     if (!dayOfWeek || !startTime || !endTime || !frequency) return 'N/A';
@@ -175,232 +206,205 @@ export default function RecurringServicesPage() {
     ...filteredJobs.map(job => ({ type: 'job' as const, data: job })),
     ...filteredHires.map(hire => ({ type: 'hire' as const, data: hire }))
   ].sort((a, b) => new Date(b.data.created_at).getTime() - new Date(a.data.created_at).getTime());
+  const countActive = recurringJobs.filter(j => j.recurring_status === 'active').length + recurringHires.filter(h => h.recurring_status === 'active').length;
+  const countCancelled = recurringJobs.filter(j => j.recurring_status === 'cancelled').length + recurringHires.filter(h => h.recurring_status === 'cancelled').length;
+  const countAll = recurringJobs.length + recurringHires.length;
 
-  return (
-    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300 pb-20 relative">
+return (
+    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300 pb-20 relative font-sans">
       {/* Decorative circles */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob"></div>
         <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-2000"></div>
       </div>
 
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <button onClick={() => navigate(-1)} className="text-[#4B244A]/80 dark:text-white/80 hover:text-[#4B244A] dark:hover:text-white transition-colors">
-              ← Back
-            </button>
-            <h1 className="text-xl font-bold text-[#4B244A] dark:text-white"><RotateCw className="inline w-5 h-5 mr-2" /> Recurring Services</h1>
-            <div className="w-16"></div>
+      {/* HEADER (Sticky with Navigation & Filters) */}
+      <header className="sticky top-0 z-50 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm pt-14 md:pt-4">
+        <div className="max-w-4xl mx-auto px-4 py-3 space-y-4">
+          
+          {/* Row 1: Navigation & Title */}
+          <div className="flex items-center gap-3">
+                  <button 
+                      onClick={() => navigate(-1)} 
+                      className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-600 dark:text-white transition-colors active:scale-95"
+                  >
+                      <ChevronDown className="w-6 h-6 rotate-90" />
+                  </button>
+                  <h1 className="text-xl font-bold text-[#4B244A] dark:text-white tracking-tight">Recurring Services</h1>
           </div>
+
+          {/* Row 2: Filter Tabs (Scrollable) */}
+          <div className="overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
+            <div className="flex gap-1.5 w-full p-1.5 bg-gray-100/80 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-white/5">
+                <FilterTab 
+                    active={filter === 'all'} 
+                    onClick={() => setFilter('all')} 
+                    icon={ClipboardList} 
+                    label={`All (${countAll})`} 
+                />
+                <FilterTab 
+                    active={filter === 'active'} 
+                    onClick={() => setFilter('active')} 
+                    icon={CheckCircle} 
+                    label={`Active (${countActive})`} 
+                    activeColor="bg-green-500 text-white"
+                />
+                <FilterTab 
+                    active={filter === 'cancelled'} 
+                    onClick={() => setFilter('cancelled')} 
+                    icon={X} 
+                    label={`Cancelled (${countCancelled})`} 
+                    activeColor="bg-red-500 text-white"
+                />
+            </div>
+          </div>
+          
         </div>
       </header>
 
-      {/* Main Content */}
+      {/* MAIN CONTENT (Scrollable List) */}
       <main className="relative z-10 max-w-4xl mx-auto px-4 py-6">
-        {/* Filter Tabs */}
-        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 mb-6 border border-white/50 dark:border-white/10 shadow-lg">
-          <div className="flex gap-2">
-            <button
-              onClick={() => setFilter('all')}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                filter === 'all'
-                  ? 'bg-white dark:bg-[#4B244A] text-[#4B244A] dark:text-white shadow-md'
-                  : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
-              }`}
-            >
-              All ({allServices.length})
-            </button>
-            <button
-              onClick={() => setFilter('active')}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                filter === 'active'
-                  ? 'bg-green-500 text-white shadow-md'
-                  : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
-              }`}
-            >
-              Active ({filteredJobs.filter(j => j.recurring_status === 'active').length + filteredHires.filter(h => h.recurring_status === 'active').length})
-            </button>
-            <button
-              onClick={() => setFilter('cancelled')}
-              className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
-                filter === 'cancelled'
-                  ? 'bg-red-500 text-white shadow-md'
-                  : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
-              }`}
-            >
-              Cancelled ({filteredJobs.filter(j => j.recurring_status === 'cancelled').length + filteredHires.filter(h => h.recurring_status === 'cancelled').length})
-            </button>
-          </div>
-        </div>
-
-        {/* Services List */}
         {loading ? (
-          <div className="text-center py-12">
+          <div className="text-center py-20">
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#EA526F]"></div>
             <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading recurring services...</p>
           </div>
         ) : allServices.length === 0 ? (
-          <div className="text-center py-12 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-white/50 dark:border-white/10 shadow-lg">
-            <div className="text-6xl mb-4 opacity-50"><RotateCw className="w-16 h-16 mx-auto" /></div>
-            <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-2">No recurring services found</h3>
-            <p className="text-[#4B244A]/70 dark:text-white/70 mb-6">
-              {filter === 'active' 
-                ? 'You don\'t have any active recurring services'
-                : filter === 'cancelled'
-                ? 'You don\'t have any cancelled recurring services'
-                : 'Create a recurring job or direct hire to see it here'}
+          <div className="text-center py-20 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-white/50 dark:border-white/10 shadow-lg">
+            <div className="text-6xl mb-4 opacity-50">🔄</div>
+            <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-2">No Recurring Services</h3>
+            <p className="text-[#4B244A]/70 dark:text-white/70">
+              {filter === 'all' 
+                ? "You don't have any recurring service contracts yet." 
+                : `No ${filter} recurring services found.`}
             </p>
-            {filter === 'all' && (
-              <button 
-                onClick={() => navigate('/jobs/create')}
-                className="px-6 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg"
-              >
-                Create Recurring Service
-              </button>
-            )}
           </div>
         ) : (
           <div className="space-y-4">
-            {allServices.map((service) => {
-              const isJob = service.type === 'job';
-              const data = service.data;
-              const isActive = data.recurring_status === 'active';
-              const isCancelled = data.recurring_status === 'cancelled';
-
-              return (
-                <div
-                  key={isJob ? `job-${data.post_id}` : `hire-${data.hire_id}`}
-                  className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 border border-white/50 dark:border-white/10 hover:bg-white/80 dark:hover:bg-slate-900/80 transition-all shadow-lg"
-                >
-                  <div className="flex items-start justify-between mb-3 gap-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <span className="text-2xl">
-                          {isJob ? '📋' : '💼'}
-                        </span>
-                        <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">
-                          {isJob ? (data as RecurringJobPost).title : `Direct Hire #${(data as RecurringDirectHire).hire_id}`}
-                        </h3>
-                      </div>
-                      
-                      {isJob && (
-                        <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-2 line-clamp-2">
-                          {(data as RecurringJobPost).description}
-                        </p>
-                      )}
-
-                      <div className="space-y-1 mb-3">
-                        <p className="text-[#4B244A]/80 dark:text-white/80 text-sm font-medium">
-                          📅 Schedule: {formatSchedule(data.day_of_week, data.start_time, data.end_time, data.frequency)}
-                        </p>
-                        {isJob && (
-                          <p className="text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">
-                            Status: {(data as RecurringJobPost).status}
-                          </p>
-                        )}
-                        {!isJob && (
-                          <p className="text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">
-                            {user?.active_role === 'owner' 
-                              ? `Worker: ${(data as RecurringDirectHire).worker_name}`
-                              : `Employer: ${(data as RecurringDirectHire).employer_name}`
-                            }
-                          </p>
-                        )}
-                        {!isJob && (
-                          <p className="text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">
-                            Amount: ₱{(data as RecurringDirectHire).total_amount.toLocaleString()}
-                          </p>
-                        )}
-                      </div>
-
-                      {isCancelled && (
-                        <div className="mt-3 p-3 bg-red-100 dark:bg-red-500/20 rounded-lg border border-red-200 dark:border-red-500/30">
-                          <p className="text-red-700 dark:text-red-300 text-sm font-bold mb-1">
-                            ❌ Cancelled {data.cancelled_by === user?.active_role ? 'by you' : `by ${user?.active_role === 'owner' ? 'worker' : 'employer'}`}
-                          </p>
-                          {data.recurring_cancelled_at && (
-                            <p className="text-red-600 dark:text-red-300/70 text-xs">
-                              On {new Date(data.recurring_cancelled_at).toLocaleDateString()}
-                            </p>
-                          )}
-                          {data.recurring_cancellation_reason && (
-                            <p className="text-red-600 dark:text-red-300/70 text-xs mt-1">
-                              Reason: {data.recurring_cancellation_reason}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
-                      isActive 
-                        ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' 
-                        : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'
-                    }`}>
-                      {isActive ? '🟢 Active' : '🔴 Cancelled'}
-                    </span>
+            
+            {/* Direct Hires List */}
+            {filteredHires.map((hire) => (
+              <div key={`hire-${hire.hire_id}`} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl p-5 border border-white/60 dark:border-white/10 shadow-sm hover:shadow-md transition-all">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">{hire.package_name || 'Direct Hire'}</h3>
+                    <p className="text-sm text-[#4B244A]/70 dark:text-white/70 font-medium">
+                      Worker: <span className="text-[#4B244A] dark:text-white">{hire.worker_name}</span>
+                    </p>
                   </div>
-
-                  {isActive && (
-                    <div className="flex gap-2 mt-4">
-                      <button
-                        onClick={() => {
-                          setCancelTarget({
-                            type: isJob ? 'job' : 'hire',
-                            id: isJob ? (data as RecurringJobPost).post_id : (data as RecurringDirectHire).hire_id
-                          });
-                          setShowCancelModal(true);
-                        }}
-                        className="px-4 py-2 bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 text-sm rounded-lg hover:bg-orange-200 dark:hover:bg-orange-500/30 transition-all font-semibold"
-                      >
-                        🛑 Stop Recurring
-                      </button>
-                      {isJob && (
-                        <button
-                          onClick={() => navigate(`/jobs?post=${(data as RecurringJobPost).post_id}`)}
-                          className="px-4 py-2 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 text-sm rounded-lg hover:bg-blue-200 dark:hover:bg-blue-500/30 transition-all font-semibold"
-                        >
-                          View Job
-                        </button>
-                      )}
-                      {!isJob && (
-                        <button
-                          onClick={() => navigate('/jobs')}
-                          className="px-4 py-2 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 text-sm rounded-lg hover:bg-blue-200 dark:hover:bg-blue-500/30 transition-all font-semibold"
-                        >
-                          View Direct Hire
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                    hire.recurring_status === 'active' 
+                      ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' 
+                      : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'
+                  }`}>
+                    {hire.recurring_status ? hire.recurring_status.toUpperCase() : 'UNKNOWN'}
+                  </span>
                 </div>
-              );
-            })}
+                
+                <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+                  <div className="bg-gray-50 dark:bg-white/5 p-2.5 rounded-xl border border-gray-100 dark:border-white/5">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Frequency</p>
+                    <p className="font-bold text-[#4B244A] dark:text-white capitalize flex items-center">
+                      <RotateCw className="w-3.5 h-3.5 mr-1.5 text-[#EA526F]" />
+                      {hire.frequency || 'N/A'}
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-white/5 p-2.5 rounded-xl border border-gray-100 dark:border-white/5">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Next Service</p>
+                    <p className="font-bold text-[#4B244A] dark:text-white flex items-center">
+                      <Calendar className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                      {hire.scheduled_date ? new Date(hire.scheduled_date).toLocaleDateString() : 'TBD'}
+                    </p>
+                  </div>
+                </div>
+
+                {hire.recurring_status === 'active' && (
+                  <button 
+                    onClick={() => {
+                      setCancelTarget({ id: hire.hire_id, type: 'hire' });
+                      setShowCancelModal(true);
+                    }}
+                    className="w-full py-2.5 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-sm font-bold rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2"
+                  >
+                    Cancel Service
+                  </button>
+                )}
+              </div>
+            ))}
+
+            {/* Job Posts List */}
+            {filteredJobs.map((job) => (
+              <div key={`job-${job.post_id}`} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl p-5 border border-white/60 dark:border-white/10 shadow-sm hover:shadow-md transition-all">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">{job.title}</h3>
+                    <p className="text-sm text-[#4B244A]/70 dark:text-white/70 font-medium">Posted Job</p>
+                  </div>
+                  <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                    job.recurring_status === 'active' 
+                      ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' 
+                      : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'
+                  }`}>
+                    {job.recurring_status ? job.recurring_status.toUpperCase() : 'UNKNOWN'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+                  <div className="bg-gray-50 dark:bg-white/5 p-2.5 rounded-xl border border-gray-100 dark:border-white/5">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Frequency</p>
+                    <p className="font-bold text-[#4B244A] dark:text-white capitalize flex items-center">
+                      <RotateCw className="w-3.5 h-3.5 mr-1.5 text-[#EA526F]" />
+                      {job.frequency || 'N/A'}
+                    </p>
+                  </div>
+                  <div className="bg-gray-50 dark:bg-white/5 p-2.5 rounded-xl border border-gray-100 dark:border-white/5">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Schedule</p>
+                    <p className="font-bold text-[#4B244A] dark:text-white flex items-center">
+                      <Calendar className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                      {job.day_of_week || 'TBD'}
+                    </p>
+                  </div>
+                </div>
+
+                {job.recurring_status === 'active' && (
+                  <button 
+                    onClick={() => {
+                      setCancelTarget({ id: job.post_id, type: 'job' });
+                      setShowCancelModal(true);
+                    }}
+                    className="w-full py-2.5 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-sm font-bold rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2"
+                  >
+                    Cancel Service
+                  </button>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </main>
 
       {/* Cancel Recurring Modal */}
       {showCancelModal && cancelTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-gray-200 dark:border-white/20 shadow-2xl">
-            <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">Stop Recurring Service</h3>
-            <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 font-medium">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-gray-200 dark:border-white/20 shadow-2xl scale-100 animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 bg-red-100 dark:bg-red-500/20 rounded-full flex items-center justify-center mb-4 mx-auto">
+                <X className="w-6 h-6 text-red-600 dark:text-red-400" />
+            </div>
+            <h3 className="text-xl font-bold text-center text-[#4B244A] dark:text-white mb-2">Stop Recurring Service</h3>
+            <p className="text-center text-[#4B244A]/70 dark:text-white/70 mb-6 font-medium text-sm">
               Are you sure you want to stop this recurring service? This will prevent future scheduled services.
             </p>
             
             <div className="mb-4">
-              <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm mb-2 font-bold">
-                Reason (optional - e.g., dispute, no longer needed, etc.)
+              <label className="block text-[#4B244A]/80 dark:text-white/80 text-xs uppercase font-bold mb-2">
+                Reason (Optional)
               </label>
               <textarea
                 value={cancellationReason}
                 onChange={(e) => setCancellationReason(e.target.value)}
                 placeholder="Enter reason for cancellation..."
                 rows={3}
-                className="w-full px-4 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/30 rounded-lg text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F] resize-none"
+                className="w-full px-4 py-3 bg-white dark:bg-black/20 border border-gray-200 dark:border-white/10 rounded-xl text-sm text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#EA526F] resize-none"
               />
             </div>
             
@@ -412,16 +416,16 @@ export default function RecurringServicesPage() {
                   setCancellationReason('');
                 }}
                 disabled={cancelling}
-                className="flex-1 px-4 py-2 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white rounded-lg hover:bg-white/80 dark:hover:bg-white/30 disabled:opacity-50 font-bold border border-gray-200 dark:border-white/10"
+                className="flex-1 px-4 py-3 bg-white dark:bg-white/5 text-[#4B244A] dark:text-white rounded-xl hover:bg-gray-100 dark:hover:bg-white/10 disabled:opacity-50 font-bold border border-gray-200 dark:border-white/10 text-sm transition-colors"
               >
-                Cancel
+                Keep Service
               </button>
               <button
                 onClick={handleCancelRecurring}
                 disabled={cancelling}
-                className="flex-1 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 disabled:opacity-50 font-bold shadow-md"
+                className="flex-1 px-4 py-3 bg-red-500 text-white rounded-xl hover:bg-red-600 disabled:opacity-50 font-bold shadow-lg shadow-red-500/30 text-sm transition-all"
               >
-                {cancelling ? 'Cancelling...' : 'Stop Recurring'}
+                {cancelling ? 'Stopping...' : 'Stop Service'}
               </button>
             </div>
           </div>

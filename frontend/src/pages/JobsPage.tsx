@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, DollarSign, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X } from 'lucide-react';
+import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, DollarSign, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X, ChevronRight } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import JobDetailModal, { type JobPost } from '../components/JobDetailModal';
 import ApplicantsListModal from '../components/ApplicantsListModal';
@@ -190,7 +190,7 @@ export default function JobsPage() {
     jobs.forEach(job => {
       // Check if job has the selected category (either in category_id or category_ids array)
       const hasCategory = job.category_id === selectedCategory || 
-                         (job.category_ids && job.category_ids.includes(selectedCategory));
+                           (job.category_ids && job.category_ids.includes(selectedCategory));
       
       if (hasCategory) {
         jobsWithCategory.push(job);
@@ -226,241 +226,188 @@ export default function JobsPage() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300 pb-20 relative">
-      {/* Decorative circles */}
+    <div className="min-h-screen bg-[#F4F2F0] dark:bg-slate-950 transition-colors duration-300 pb-24 relative font-sans">
+      
+      {/* Decorative Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob"></div>
-        <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#EA526F]/10 rounded-full blur-[100px]" />
+        <div className="absolute top-[20%] right-[-10%] w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-[100px]" />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-blue-400/10 rounded-full blur-[120px]" />
       </div>
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              {user.active_role === 'owner' 
-                ? (
-                  <>
-                    <ClipboardList className="w-6 h-6 text-[#4B244A] dark:text-white" />
-                    <h1 className="text-xl sm:text-2xl font-bold text-[#4B244A] dark:text-white">
-                      My Job Posts
-                    </h1>
-                  </>
-                )
-                : housekeeperView === 'find'
-                ? (
-                  <>
-                    <Briefcase className="w-6 h-6 text-[#4B244A] dark:text-white" />
-                    <h1 className="text-xl sm:text-2xl font-bold text-[#4B244A] dark:text-white">
-                      Find Jobs
-                    </h1>
-                  </>
-                )
-                : (
-                  <>
-                    <Users className="w-6 h-6 text-[#4B244A] dark:text-white" />
-                    <h1 className="text-xl sm:text-2xl font-bold text-[#4B244A] dark:text-white">
-                      My Accepted Jobs
-                    </h1>
-                  </>
-                )
-              }
-            </div>
-            <div className="flex items-center gap-2">
-              {user.active_role === 'owner' && (
-                <>
-                  <button 
-                    onClick={() => navigate('/browse-workers')}
-                    className="px-4 py-2 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/20 text-sm"
-                  >
-                    <UserPlus className="inline w-4 h-4 mr-1" /> Hire Directly
-                  </button>
-                  <button 
-                    onClick={() => setShowDirectHires(true)}
-                    className="px-4 py-2 bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold rounded-xl hover:bg-blue-500/20 dark:hover:bg-blue-500/30 transition-all text-sm border border-blue-500/20"
-                  >
-                    <BookOpen className="inline w-4 h-4 mr-1" /> Direct Bookings
-                  </button>
-                  <button 
-                    onClick={() => navigate('/jobs/create')}
-                    className="px-4 py-2 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg text-sm"
-                  >
-                    + New Job
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm pt-14 md:pt-4">
+        <div className="max-w-7xl mx-auto px-4 py-4">
           
-          {/* Housekeeper View Toggle */}
-          {user.active_role === 'housekeeper' && (
-            <div className="mt-3 sm:mt-4 space-y-3">
-              {/* Recurring Services Link */}
-              <div className="flex justify-end">
-                <button
-                  onClick={() => navigate('/recurring-services')}
-                  className="px-4 py-2 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 text-sm font-bold rounded-lg hover:bg-purple-200 dark:hover:bg-purple-500/30 transition-all flex items-center gap-2 border border-purple-200 dark:border-transparent"
-                >
-                  🔄 Manage Recurring Services
-                </button>
-              </div>
-              
-              {/* Direct Hire Buttons */}
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={() => setShowPackageManagement(true)}
-                  className="py-2 px-3 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
-                >
-                  <Package className="inline w-4 h-4 mr-1" /> Packages
-                </button>
-                <button
-                  onClick={() => setShowDirectHires(true)}
-                  className="py-2 px-3 bg-blue-500 text-white text-sm font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
-                >
-                  <Briefcase className="inline w-4 h-4 mr-1" /> Direct Jobs
-                </button>
-                <button
-                  onClick={() => setShowAvailabilityCalendar(true)}
-                  className="py-2 px-3 bg-green-500 text-white text-sm font-bold rounded-lg hover:bg-green-600 transition-all shadow-md"
-                >
-                  <Calendar className="inline w-4 h-4 mr-1" /> Availability
-                </button>
-              </div>
-              
-              {/* View Toggle */}
-              <div className="flex gap-2 bg-white/50 dark:bg-slate-900/50 p-1 rounded-xl border border-gray-200 dark:border-white/10">
-                <button
-                  onClick={() => setHousekeeperView('find')}
-                  className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
-                    housekeeperView === 'find'
-                      ? 'bg-[#EA526F] text-white shadow-lg'
-                      : 'text-[#4B244A] dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
-                  }`}
-                >
-                  Find Jobs
-                </button>
-                <button
-                  onClick={() => setHousekeeperView('my-jobs')}
-                  className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${
-                    housekeeperView === 'my-jobs'
-                      ? 'bg-blue-500 text-white shadow-lg'
-                      : 'text-[#4B244A] dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
-                  }`}
-                >
-                  My Jobs
-                </button>
-              </div>
-              
-              {/* Category Filter - Find Jobs View Only */}
-              {housekeeperView === 'find' && (
-                <div className="mt-3">
-                  <label className="block text-[#4B244A] dark:text-white/90 text-sm font-bold mb-2"><Folder className="inline w-4 h-4 mr-1" /> Filter by Category</label>
-                  <select
-                    value={selectedCategory}
-                    onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : '')}
-                    className="w-full px-4 py-2.5 bg-white/50 dark:bg-white/10 backdrop-blur-sm border border-gray-200 dark:border-white/30 rounded-xl text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                  >
-                    <option value="" className="text-gray-900 dark:text-gray-900">All Categories</option>
-                    {categories.map(cat => (
-                      <option key={cat.category_id} value={cat.category_id} className="text-gray-900 dark:text-gray-900">
-                        {cat.name}
-                      </option>
-                    ))}
-                  </select>
-                  {selectedCategory && (
-                    <div className="mt-2">
-                      {filteredJobs.filter(job => job.category_id === selectedCategory).length === 0 ? (
-                        <div className="bg-orange-100 dark:bg-orange-500/20 border border-orange-200 dark:border-orange-500/50 rounded-lg p-3 text-sm">
-                          <p className="text-orange-700 dark:text-orange-200"><AlertTriangle className="inline w-4 h-4 mr-1" /> No jobs in this category. Showing all jobs below.</p>
+          {user.active_role === 'owner' ? (
+            /* --- OWNER VIEW HEADER (Cleaned Up Layout) --- */
+            <div className="space-y-5">
+                
+                {/* 1. Top Row: Title & Primary Action */}
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-[#4B244A]/5 dark:bg-white/10 rounded-xl">
+                            <ClipboardList className="w-6 h-6 text-[#4B244A] dark:text-white" />
                         </div>
-                      ) : (
-                        <div className="bg-[#EA526F]/10 dark:bg-[#EA526F]/20 border border-[#EA526F]/30 dark:border-[#EA526F]/50 rounded-lg p-3 text-sm">
-                          <p className="text-[#EA526F] dark:text-pink-300"><CheckCircle className="inline w-4 h-4 mr-1" /> Showing jobs with <strong>{categories.find(c => c.category_id === selectedCategory)?.name}</strong> first, then others.</p>
-                        </div>
-                      )}
+                        <h1 className="text-2xl font-bold text-[#4B244A] dark:text-white tracking-tight">
+                            My Job Posts
+                        </h1>
                     </div>
-                  )}
+                    
+                    <button 
+                        onClick={() => navigate('/jobs/create')}
+                        className="group flex items-center gap-2 px-5 py-2.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-md hover:shadow-lg active:scale-95"
+                    >
+                        <span className="text-lg leading-none group-hover:rotate-90 transition-transform duration-300">+</span> 
+                        <span>New Job</span>
+                    </button>
                 </div>
-              )}
+
+                {/* 2. Secondary Actions Grid */}
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    <button 
+                        onClick={() => navigate('/browse-workers')}
+                        className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 p-2 sm:p-3 bg-white/50 dark:bg-slate-900/50 text-[#4B244A] dark:text-white font-medium rounded-xl border border-gray-200/60 dark:border-white/10 hover:border-[#4B244A]/30 dark:hover:border-white/30 hover:bg-white dark:hover:bg-slate-800 transition-all text-xs sm:text-sm group text-center"
+                    >
+                        <div className="p-1.5 rounded-lg bg-[#4B244A]/5 dark:bg-white/5 group-hover:bg-[#4B244A]/10 dark:group-hover:bg-white/10 transition-colors">
+                            <UserPlus className="w-4 h-4 sm:w-5 sm:h-5 text-[#4B244A] dark:text-white" />
+                        </div>
+                        <span className="leading-tight">Hire Directly</span>
+                    </button>
+                
+                    <button 
+                        onClick={() => setShowDirectHires(true)}
+                        className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 p-2 sm:p-3 bg-white/50 dark:bg-slate-900/50 text-[#4B244A] dark:text-white font-medium rounded-xl border border-gray-200/60 dark:border-white/10 hover:border-[#4B244A]/30 dark:hover:border-white/30 hover:bg-white dark:hover:bg-slate-800 transition-all text-xs sm:text-sm group text-center"
+                    >
+                        <div className="p-1.5 rounded-lg bg-[#4B244A]/5 dark:bg-white/5 group-hover:bg-[#4B244A]/10 dark:group-hover:bg-white/10 transition-colors">
+                            <BookOpen className="w-4 h-4 sm:w-5 sm:h-5 text-[#4B244A] dark:text-white" />
+                        </div>
+                        <span className="leading-tight">Direct Bookings</span>
+                    </button>
+                
+                    <button 
+                        onClick={() => navigate('/recurring-services')}
+                        className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 p-2 sm:p-3 bg-white/50 dark:bg-slate-900/50 text-[#4B244A] dark:text-white font-medium rounded-xl border border-gray-200/60 dark:border-white/10 hover:border-[#4B244A]/30 dark:hover:border-white/30 hover:bg-white dark:hover:bg-slate-800 transition-all text-xs sm:text-sm group text-center"
+                    >
+                        <div className="p-1.5 rounded-lg bg-[#4B244A]/5 dark:bg-white/5 group-hover:bg-[#4B244A]/10 dark:group-hover:bg-white/10 transition-colors">
+                            <RotateCw className="w-4 h-4 sm:w-5 sm:h-5 text-[#4B244A] dark:text-white" />
+                        </div>
+                        <span className="leading-tight">Manage Recurring</span>
+                    </button>
+                </div>
+
+                {/* 3. Status Filters (Segmented Control) */}
+                <div className="overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
+                    <div className="flex gap-1.5 min-w-max p-1.5 bg-gray-100/80 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-white/5">
+                        <FilterTab 
+                            active={statusFilter === 'all'} 
+                            onClick={() => setStatusFilter('all')} 
+                            icon={ClipboardList} 
+                            label="All Jobs" 
+                        />
+                        <FilterTab 
+                            active={statusFilter === 'open'} 
+                            onClick={() => setStatusFilter('open')} 
+                            icon={CheckCircle} 
+                            label="Open" 
+                            activeColor="bg-green-500 text-white"
+                        />
+                        <FilterTab 
+                            active={statusFilter === 'ongoing'} 
+                            onClick={() => setStatusFilter('ongoing')} 
+                            icon={RotateCw} 
+                            label="Ongoing" 
+                            activeColor="bg-blue-500 text-white"
+                        />
+                        <FilterTab 
+                            active={statusFilter === 'completed'} 
+                            onClick={() => setStatusFilter('completed')} 
+                            icon={Check} 
+                            label="Completed" 
+                            activeColor="bg-purple-500 text-white"
+                        />
+                        <FilterTab 
+                            active={statusFilter === 'closed'} 
+                            onClick={() => setStatusFilter('closed')} 
+                            icon={X} 
+                            label="Closed" 
+                            activeColor="bg-gray-500 text-white"
+                        />
+                    </div>
+                </div>
             </div>
-          )}
-          
-          {/* Status Filter Tabs - Owner Only */}
-          {user.active_role === 'owner' && (
-            <div className="mt-3 sm:mt-4 space-y-3">
-              {/* Recurring Services Link */}
-              <div className="flex justify-end">
-                <button
-                  onClick={() => navigate('/recurring-services')}
-                  className="px-4 py-2 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 text-sm font-bold rounded-lg hover:bg-purple-200 dark:hover:bg-purple-500/30 transition-all flex items-center gap-2 border border-purple-200 dark:border-transparent"
-                >
-                  🔄 Manage Recurring Services
-                </button>
-              </div>
-              
-              {/* Status Filter Tabs */}
-              <div className="overflow-x-auto pb-2 -mx-3 sm:mx-0 px-3 sm:px-0">
-                <div className="flex gap-2 min-w-max p-1 bg-white/50 dark:bg-slate-900/50 rounded-xl border border-gray-200 dark:border-white/10">
-                  <button
-                    onClick={() => setStatusFilter('all')}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-                    statusFilter === 'all'
-                      ? 'bg-white dark:bg-[#4B244A] text-[#4B244A] dark:text-white shadow-md'
-                      : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
-                  }`}
-                >
-                  <ClipboardList className="inline w-4 h-4 mr-1" /> All Jobs
-                </button>
-                <button
-                  onClick={() => setStatusFilter('open')}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-                    statusFilter === 'open'
-                      ? 'bg-green-500 text-white shadow-md'
-                      : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
-                  }`}
-                >
-                  <CheckCircle className="inline w-4 h-4 mr-1" /> Open
-                </button>
-                <button
-                  onClick={() => setStatusFilter('ongoing')}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-                    statusFilter === 'ongoing'
-                      ? 'bg-blue-500 text-white shadow-md'
-                      : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
-                  }`}
-                >
-                  <RotateCw className="inline w-4 h-4 mr-1" /> Ongoing
-                </button>
-                <button
-                  onClick={() => setStatusFilter('completed')}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-                    statusFilter === 'completed'
-                      ? 'bg-purple-500 text-white shadow-md'
-                      : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
-                  }`}
-                >
-                  <Check className="inline w-4 h-4 mr-1" /> Completed
-                </button>
-                <button
-                  onClick={() => setStatusFilter('closed')}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${
-                    statusFilter === 'closed'
-                      ? 'bg-gray-500 text-white shadow-md'
-                      : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
-                  }`}
-                >
-                  🔒 Closed
-                </button>
+          ) : (
+            /* --- HOUSEKEEPER VIEW HEADER --- */
+            <div className="flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                        {housekeeperView === 'find' ? (
+                            <Briefcase className="w-6 h-6 text-[#4B244A] dark:text-white" />
+                        ) : (
+                            <Users className="w-6 h-6 text-[#4B244A] dark:text-white" />
+                        )}
+                        <h1 className="text-xl sm:text-2xl font-bold text-[#4B244A] dark:text-white">
+                            {housekeeperView === 'find' ? 'Find Jobs' : 'My Accepted Jobs'}
+                        </h1>
+                    </div>
                 </div>
-              </div>
+
+                {/* Housekeeper Actions */}
+                <div className="space-y-3">
+                     {/* Recurring Services Link */}
+                    <div className="flex justify-end">
+                        <button
+                          onClick={() => navigate('/recurring-services')}
+                          className="px-4 py-2 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 text-sm font-bold rounded-lg hover:bg-purple-200 dark:hover:bg-purple-500/30 transition-all flex items-center gap-2 border border-purple-200 dark:border-transparent"
+                        >
+                          <RotateCw className="w-4 h-4" /> Manage Recurring Services
+                        </button>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2">
+                        <button onClick={() => setShowPackageManagement(true)} className="py-2 px-3 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md flex items-center justify-center">
+                            <Package className="w-4 h-4 mr-1.5" /> Packages
+                        </button>
+                        <button onClick={() => setShowDirectHires(true)} className="py-2 px-3 bg-blue-500 text-white text-sm font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md flex items-center justify-center">
+                            <Briefcase className="w-4 h-4 mr-1.5" /> Direct Jobs
+                        </button>
+                        <button onClick={() => setShowAvailabilityCalendar(true)} className="py-2 px-3 bg-green-500 text-white text-sm font-bold rounded-lg hover:bg-green-600 transition-all shadow-md flex items-center justify-center">
+                            <Calendar className="w-4 h-4 mr-1.5" /> Availability
+                        </button>
+                    </div>
+
+                    <div className="flex gap-2 bg-gray-100/80 dark:bg-slate-800/50 p-1.5 rounded-xl border border-gray-200 dark:border-white/10">
+                        <button onClick={() => setHousekeeperView('find')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${housekeeperView === 'find' ? 'bg-[#EA526F] text-white shadow-md' : 'text-[#4B244A] dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'}`}>
+                            Find Jobs
+                        </button>
+                        <button onClick={() => setHousekeeperView('my-jobs')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${housekeeperView === 'my-jobs' ? 'bg-blue-500 text-white shadow-md' : 'text-[#4B244A] dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'}`}>
+                            My Jobs
+                        </button>
+                    </div>
+                    
+                    {/* Category Filter */}
+                    {housekeeperView === 'find' && (
+                        <div className="mt-2">
+                            <select
+                                value={selectedCategory}
+                                onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : '')}
+                                className="w-full px-4 py-2.5 bg-white/50 dark:bg-white/10 backdrop-blur-sm border border-gray-200 dark:border-white/30 rounded-xl text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                            >
+                                <option value="">All Categories</option>
+                                {categories.map(cat => (
+                                    <option key={cat.category_id} value={cat.category_id}>{cat.name}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                </div>
             </div>
           )}
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+      <main className="relative z-10 max-w-7xl mx-auto px-4 py-6">
         {loading && housekeeperView === 'find' ? (
           <div className="text-center py-20">
             <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#EA526F]"></div>
@@ -510,36 +457,25 @@ export default function JobsPage() {
 
       <TabBar role={user.active_role} />
       
-      {/* Job Detail Modal */}
+      {/* --- MODALS (Unchanged logic) --- */}
       {selectedJob && !showContract && (
         <JobDetailModal
           job={selectedJob}
           onClose={() => setSelectedJob(null)}
-          onApply={async () => {
-            // Show contract instead of applying directly
-            setShowContract(selectedJob);
-          }}
+          onApply={async () => { setShowContract(selectedJob); }}
           hasApplied={applicationStatuses[selectedJob.post_id]?.has_applied}
           applicationStatus={applicationStatuses[selectedJob.post_id]?.status}
           canReapply={applicationStatuses[selectedJob.post_id]?.can_reapply || false}
           onStatusRefresh={async () => {
-            // Refresh application status after re-applying
             const token = localStorage.getItem('access_token');
             if (token && selectedJob) {
-              try {
-                const statusResponse = await fetch(`http://127.0.0.1:8000/jobs/${selectedJob.post_id}/application-status`, {
-                  headers: { 'Authorization': `Bearer ${token}` }
-                });
-                if (statusResponse.ok) {
-                  const statusData = await statusResponse.json();
-                  setApplicationStatuses(prev => ({
-                    ...prev,
-                    [selectedJob.post_id]: statusData
-                  }));
-                }
-              } catch (err) {
-                console.error('Failed to refresh application status:', err);
-              }
+                try {
+                    const statusResponse = await fetch(`http://127.0.0.1:8000/jobs/${selectedJob.post_id}/application-status`, { headers: { 'Authorization': `Bearer ${token}` } });
+                    if (statusResponse.ok) {
+                        const statusData = await statusResponse.json();
+                        setApplicationStatuses(prev => ({ ...prev, [selectedJob.post_id]: statusData }));
+                    }
+                } catch (err) { console.error(err); }
             }
           }}
         />
@@ -566,29 +502,18 @@ export default function JobsPage() {
               const token = localStorage.getItem('access_token');
               const response = await fetch(`http://127.0.0.1:8000/jobs/${showContract.post_id}/apply`, {
                 method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${token}`
-                }
+                headers: { 'Authorization': `Bearer ${token}` }
               });
 
               if (response.ok) {
                 alert('Contract accepted! Application submitted successfully!');
                 setShowContract(null);
                 setSelectedJob(null);
-                
-                // Fetch updated application status
-                const statusResponse = await fetch(`http://127.0.0.1:8000/jobs/${showContract.post_id}/application-status`, {
-                  headers: { 'Authorization': `Bearer ${token}` }
-                });
+                const statusResponse = await fetch(`http://127.0.0.1:8000/jobs/${showContract.post_id}/application-status`, { headers: { 'Authorization': `Bearer ${token}` } });
                 if (statusResponse.ok) {
-                  const statusData = await statusResponse.json();
-                  setApplicationStatuses(prev => ({
-                    ...prev,
-                    [showContract.post_id]: statusData
-                  }));
+                    const statusData = await statusResponse.json();
+                    setApplicationStatuses(prev => ({ ...prev, [showContract.post_id]: statusData }));
                 }
-                
-                // Reload jobs to update applicant count
                 loadJobs();
               } else {
                 const errorData = await response.json();
@@ -599,10 +524,7 @@ export default function JobsPage() {
               alert('Failed to apply to job');
             }
           }}
-          onReject={() => {
-            setShowContract(null);
-            setSelectedJob(null);
-          }}
+          onReject={() => { setShowContract(null); setSelectedJob(null); }}
         />
       )}
       
@@ -613,11 +535,7 @@ export default function JobsPage() {
           jobTitle={showApplicants.title}
           peopleNeeded={showApplicants.people_needed}
           onClose={() => setShowApplicants(null)}
-          onJobStarted={() => {
-            // Job started - refresh the list to show updated status
-            setShowApplicants(null);
-            loadJobs();
-          }}
+          onJobStarted={() => { setShowApplicants(null); loadJobs(); }}
         />
       )}
       
@@ -630,7 +548,7 @@ export default function JobsPage() {
           onSuccess={(method, refNumber) => {
             alert(`Payment successful!\n\nWorker: ${showPayment.workerName}\nMethod: ${method.toUpperCase()}\nReference: ${refNumber}\n\nJob is now in progress!`);
             setShowPayment(null);
-            loadJobs(); // Refresh to update job status
+            loadJobs();
           }}
         />
       )}
@@ -638,132 +556,62 @@ export default function JobsPage() {
       {/* Payment Tracker Modal */}
       {showPaymentTracker && (
         user?.active_role === 'owner' ? (
-          <PaymentTrackerOwner
-            jobId={showPaymentTracker.post_id}
-            jobTitle={showPaymentTracker.title}
-            onClose={() => setShowPaymentTracker(null)}
-          />
+          <PaymentTrackerOwner jobId={showPaymentTracker.post_id} jobTitle={showPaymentTracker.title} onClose={() => setShowPaymentTracker(null)} />
         ) : (
-          <PaymentTrackerWorker
-            jobId={showPaymentTracker.post_id}
-            jobTitle={showPaymentTracker.title}
-            onClose={() => setShowPaymentTracker(null)}
-          />
+          <PaymentTrackerWorker jobId={showPaymentTracker.post_id} jobTitle={showPaymentTracker.title} onClose={() => setShowPaymentTracker(null)} />
         )
       )}
       
       {/* Job Progress Tracker Modal */}
       {showProgressTracker && (
-        <JobProgressTracker
-          jobId={showProgressTracker.post_id}
-          onClose={() => setShowProgressTracker(null)}
-          userRole={user?.active_role as 'owner' | 'housekeeper'}
-        />
+        <JobProgressTracker jobId={showProgressTracker.post_id} onClose={() => setShowProgressTracker(null)} userRole={user?.active_role as 'owner' | 'housekeeper'} />
       )}
       
       {/* Check In Modal */}
       {showCheckIn && (
-        <CheckInModal
-          jobId={showCheckIn.post_id}
-          jobTitle={showCheckIn.title}
-          onClose={() => setShowCheckIn(null)}
-          onSuccess={() => {
-            alert('Checked in successfully!');
-            setShowCheckIn(null);
-          }}
-        />
+        <CheckInModal jobId={showCheckIn.post_id} jobTitle={showCheckIn.title} onClose={() => setShowCheckIn(null)} onSuccess={() => { alert('Checked in successfully!'); setShowCheckIn(null); }} />
       )}
       
       {/* Housekeeper Progress Modal */}
       {showHousekeeperProgress && (
-        <HousekeeperProgressModal
-          jobId={showHousekeeperProgress.post_id}
-          onClose={() => setShowHousekeeperProgress(null)}
-          onSubmitCompletion={() => {
-            setShowHousekeeperProgress(null);
-            setShowJobCompletion(showHousekeeperProgress);
-          }}
-        />
+        <HousekeeperProgressModal jobId={showHousekeeperProgress.post_id} onClose={() => setShowHousekeeperProgress(null)} onSubmitCompletion={() => { setShowHousekeeperProgress(null); setShowJobCompletion(showHousekeeperProgress); }} />
       )}
       
       {/* Housekeeper Payment Tracker Modal */}
       {showHousekeeperPayments && (
-        <PaymentTrackerWorker
-          jobId={showHousekeeperPayments.post_id}
-          jobTitle={showHousekeeperPayments.title}
-          onClose={() => setShowHousekeeperPayments(null)}
-        />
+        <PaymentTrackerWorker jobId={showHousekeeperPayments.post_id} jobTitle={showHousekeeperPayments.title} onClose={() => setShowHousekeeperPayments(null)} />
       )}
       
       {/* Job Completion Modal */}
       {showJobCompletion && (
-        <JobCompletionModal
-          jobId={showJobCompletion.post_id}
-          jobTitle={showJobCompletion.title}
-          onClose={() => setShowJobCompletion(null)}
-          onSuccess={() => {
-            alert('Job completion submitted! Waiting for owner approval.');
-            setShowJobCompletion(null);
-          }}
-        />
+        <JobCompletionModal jobId={showJobCompletion.post_id} jobTitle={showJobCompletion.title} onClose={() => setShowJobCompletion(null)} onSuccess={() => { alert('Job completion submitted! Waiting for owner approval.'); setShowJobCompletion(null); }} />
       )}
       
       {/* Report Unpaid Modal */}
       {showReportUnpaid && (
-        <ReportUnpaidModal
-          jobId={showReportUnpaid.post_id}
-          jobTitle={showReportUnpaid.title}
-          pendingPayments={showReportUnpaid.payments.pending_payments}
-          onClose={() => setShowReportUnpaid(null)}
-          onSuccess={() => {
-            alert('Report submitted successfully. Our team will review this case.');
-            setShowReportUnpaid(null);
-          }}
-        />
+        <ReportUnpaidModal jobId={showReportUnpaid.post_id} jobTitle={showReportUnpaid.title} pendingPayments={showReportUnpaid.payments.pending_payments} onClose={() => setShowReportUnpaid(null)} onSuccess={() => { alert('Report submitted successfully. Our team will review this case.'); setShowReportUnpaid(null); }} />
       )}
       
       {/* Owner Completion Review Modal */}
       {showCompletionReview && (
-        <CompletionReviewModal
-          jobId={showCompletionReview.post_id}
-          jobTitle={showCompletionReview.title}
-          onClose={() => setShowCompletionReview(null)}
-          onApproved={() => {
-            alert('Job completion approved! Job is now marked as completed.');
-            setShowCompletionReview(null);
-            loadJobs();
-          }}
-        />
+        <CompletionReviewModal jobId={showCompletionReview.post_id} jobTitle={showCompletionReview.title} onClose={() => setShowCompletionReview(null)} onApproved={() => { alert('Job completion approved! Job is now marked as completed.'); setShowCompletionReview(null); loadJobs(); }} />
       )}
       
       {/* Package Management Modal (Housekeeper) */}
-      {showPackageManagement && (
-        <PackageManagement onClose={() => setShowPackageManagement(false)} />
-      )}
+      {showPackageManagement && ( <PackageManagement onClose={() => setShowPackageManagement(false)} /> )}
       
       {/* Direct Hires List Modal */}
-      {showDirectHires && (
-        <DirectHiresList 
-          role={user?.active_role as 'owner' | 'housekeeper'} 
-          onClose={() => setShowDirectHires(false)} 
-        />
-      )}
+      {showDirectHires && ( <DirectHiresList role={user?.active_role as 'owner' | 'housekeeper'} onClose={() => setShowDirectHires(false)} /> )}
       
       {/* Availability Calendar Modal */}
-      {showAvailabilityCalendar && (
-        <AvailabilityCalendar onClose={() => setShowAvailabilityCalendar(false)} />
-      )}
+      {showAvailabilityCalendar && ( <AvailabilityCalendar onClose={() => setShowAvailabilityCalendar(false)} /> )}
       
       {/* Edit Job Modal */}
       {showEditJob && (
         <EditJobModal
           job={showEditJob}
           onClose={() => setShowEditJob(null)}
-          onSuccess={() => {
-            setShowEditJob(null);
-            loadJobs();
-            alert('Job updated successfully!');
-          }}
+          onSuccess={() => { setShowEditJob(null); loadJobs(); alert('Job updated successfully!'); }}
         />
       )}
       
@@ -771,10 +619,7 @@ export default function JobsPage() {
       {ratingJobData && (
         <RatingModal
           isOpen={showRatingModal}
-          onClose={() => {
-            setShowRatingModal(false);
-            setRatingJobData(null);
-          }}
+          onClose={() => { setShowRatingModal(false); setRatingJobData(null); }}
           onSubmit={async (rating, review) => {
             const response = await apiClient.post('/ratings/', {
               rated_user_id: ratingJobData.worker.worker_user_id,
@@ -784,9 +629,7 @@ export default function JobsPage() {
             });
             if (response.status === 200 || response.status === 201) {
               setRatedContracts(prev => new Set(prev).add(ratingJobData.worker.contract_id));
-            } else {
-              throw new Error('Failed to submit rating');
-            }
+            } else { throw new Error('Failed to submit rating'); }
           }}
           workerName={ratingJobData.worker.name}
         />
@@ -796,10 +639,7 @@ export default function JobsPage() {
       {reportJobData && (
         <ReportModal
           isOpen={showReportModal}
-          onClose={() => {
-            setShowReportModal(false);
-            setReportJobData(null);
-          }}
+          onClose={() => { setShowReportModal(false); setReportJobData(null); }}
           onSubmit={async (reportData) => {
             const response = await apiClient.post('/reports/', {
               reported_user_id: reportJobData.worker.worker_user_id,
@@ -813,9 +653,7 @@ export default function JobsPage() {
             if (response.status === 200 || response.status === 201) {
               setReportedUsers(prev => new Set(prev).add(`${reportJobData.job.post_id}-${reportJobData.worker.worker_user_id}`));
               alert('Report submitted successfully. Our team will review this case.');
-            } else {
-              throw new Error('Failed to submit report');
-            }
+            } else { throw new Error('Failed to submit report'); }
           }}
           reportedUserName={reportJobData.worker.name}
           reportedUserRole="housekeeper"
@@ -826,10 +664,7 @@ export default function JobsPage() {
       {housekeeperReportData && (
         <ReportModal
           isOpen={showHousekeeperReportModal}
-          onClose={() => {
-            setShowHousekeeperReportModal(false);
-            setHousekeeperReportData(null);
-          }}
+          onClose={() => { setShowHousekeeperReportModal(false); setHousekeeperReportData(null); }}
           onSubmit={async (reportData) => {
             const response = await apiClient.post('/reports/', {
               reported_user_id: housekeeperReportData.employer.user_id,
@@ -843,9 +678,7 @@ export default function JobsPage() {
             if (response.status === 200 || response.status === 201) {
               setReportedUsers(prev => new Set(prev).add(`${housekeeperReportData.post_id}-${housekeeperReportData.employer.user_id}`));
               alert('Report submitted successfully. Our team will review this case.');
-            } else {
-              throw new Error('Failed to submit report');
-            }
+            } else { throw new Error('Failed to submit report'); }
           }}
           reportedUserName={housekeeperReportData.employer.name}
           reportedUserRole="owner"
@@ -853,6 +686,36 @@ export default function JobsPage() {
       )}
     </div>
   );
+}
+
+// --- SUBCOMPONENTS ---
+
+function FilterTab({ 
+    active, 
+    onClick, 
+    icon: Icon, 
+    label, 
+    activeColor = "bg-white dark:bg-[#4B244A] text-[#4B244A] dark:text-white"
+}: { 
+    active: boolean, 
+    onClick: () => void, 
+    icon: any, 
+    label: string,
+    activeColor?: string 
+}) {
+    return (
+        <button
+            onClick={onClick}
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                active
+                    ? `${activeColor} shadow-sm`
+                    : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
+            }`}
+        >
+            <Icon className="w-4 h-4" />
+            {label}
+        </button>
+    );
 }
 
 function OwnerJobsContent({ 
@@ -922,7 +785,7 @@ function OwnerJobsContent({
   return (
     <div className="space-y-4">
       {jobs.map((job) => (
-        <div key={job.post_id} className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border border-white/50 dark:border-white/10 hover:bg-white/80 dark:hover:bg-slate-900/80 transition-all shadow-lg">
+        <div key={job.post_id} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl p-5 border border-white/60 dark:border-white/10 hover:border-[#EA526F]/30 dark:hover:border-[#EA526F]/30 transition-all shadow-sm hover:shadow-md">
           <div className="flex items-start justify-between mb-3 gap-2">
             <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white break-words">{job.title}</h3>
             <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
@@ -936,214 +799,98 @@ function OwnerJobsContent({
             </span>
           </div>
           
-          <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 line-clamp-2">{job.description}</p>
+          <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 line-clamp-2 text-sm">{job.description}</p>
           
-          <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4">
-            <span className="px-2 sm:px-3 py-1 bg-[#EA526F]/10 text-[#EA526F] dark:bg-[#EA526F]/20 dark:text-[#EA526F] rounded-lg text-xs sm:text-sm font-semibold">
-              <Home className="inline w-4 h-4 mr-1" /> {job.house_type}
+          <div className="flex flex-wrap gap-2 mb-4">
+            <span className="px-2.5 py-1 bg-[#EA526F]/10 text-[#EA526F] dark:bg-[#EA526F]/20 dark:text-[#EA526F] rounded-md text-xs font-semibold flex items-center">
+              <Home className="w-3.5 h-3.5 mr-1" /> {job.house_type}
             </span>
-            <span className="px-2 sm:px-3 py-1 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 rounded-lg text-xs sm:text-sm font-semibold">
+            <span className="px-2.5 py-1 bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 rounded-md text-xs font-semibold flex items-center">
               🧹 {job.cleaning_type}
             </span>
-            <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300 rounded-lg text-xs sm:text-sm font-semibold">
-              <DollarSign className="inline w-4 h-4 mr-1" /> ₱{job.budget}
+            <span className="px-2.5 py-1 bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-300 rounded-md text-xs font-semibold flex items-center">
+              <DollarSign className="w-3.5 h-3.5 mr-1" /> ₱{job.budget}
             </span>
-            <span className="px-2 sm:px-3 py-1 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 rounded-lg text-xs sm:text-sm font-semibold">
-              <UsersIcon className="inline w-4 h-4 mr-1" /> {job.people_needed} {job.people_needed === 1 ? 'person' : 'people'}
+            <span className="px-2.5 py-1 bg-purple-50 text-purple-700 dark:bg-purple-500/10 dark:text-purple-300 rounded-md text-xs font-semibold flex items-center">
+              <UsersIcon className="w-3.5 h-3.5 mr-1" /> {job.people_needed} needed
             </span>
           </div>
           
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs sm:text-sm text-[#4B244A]/60 dark:text-white/60 font-medium">
-            <span><Calendar className="inline w-4 h-4 mr-1" /> {new Date(job.created_at).toLocaleDateString()}</span>
-            <span><Mail className="inline w-4 h-4 mr-1" /> {job.total_applicants} {job.total_applicants === 1 ? 'applicant' : 'applicants'}</span>
+          <div className="flex items-center justify-between pt-3 border-t border-gray-100 dark:border-white/5">
+            <div className="flex items-center gap-4 text-xs text-[#4B244A]/50 dark:text-white/50 font-medium">
+               <span className="flex items-center"><Calendar className="w-3.5 h-3.5 mr-1" /> {new Date(job.created_at).toLocaleDateString()}</span>
+               <span className="flex items-center"><UsersIcon className="w-3.5 h-3.5 mr-1" /> {job.total_applicants} Applicants</span>
+            </div>
           </div>
-          
-          {/* Show accepted housekeepers */}
+
+          {/* Accepted Workers Section */}
           {job.accepted_workers && job.accepted_workers.length > 0 && (
-            <div className="mt-3 bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-xl p-3">
-              <p className="text-green-800 dark:text-green-300 text-sm font-bold mb-2">
-                👷 Accepted Housekeepers ({job.accepted_workers.length}/{job.people_needed}):
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {job.accepted_workers.map((worker) => (
-                  <div key={worker.worker_id} className="flex items-center gap-2">
-                    <span 
-                      className="px-3 py-1 bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-200 rounded-full text-sm font-bold"
-                    >
-                      {worker.name}
-                    </span>
-                    {job.status === 'ongoing' && (
-                      <button
-                        onClick={() => {
-                          const params = new URLSearchParams({
-                            jobId: job.post_id.toString(),
-                            name: worker.name,
-                            title: job.title,
-                          });
-                          navigate(`/chat/new?${params.toString()}`);
-                        }}
-                        className="px-2 py-1 bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-xs rounded-lg hover:bg-purple-200 dark:hover:bg-purple-500/30"
-                      >
-                        💬
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
+            <div className="mt-4 bg-gray-50 dark:bg-white/5 rounded-xl p-3 border border-gray-100 dark:border-white/5">
+                <div className="text-xs font-bold text-[#4B244A]/70 dark:text-white/70 mb-2 uppercase tracking-wide">Accepted Housekeepers</div>
+                <div className="flex flex-wrap gap-2">
+                    {job.accepted_workers.map((worker) => (
+                        <div key={worker.worker_id} className="flex items-center gap-2 bg-white dark:bg-black/20 pl-2 pr-1 py-1 rounded-lg border border-gray-200 dark:border-white/10 shadow-sm">
+                            <span className="text-xs font-bold text-[#4B244A] dark:text-white">{worker.name}</span>
+                            {job.status === 'ongoing' && (
+                                <button
+                                    onClick={() => {
+                                        const params = new URLSearchParams({
+                                            jobId: job.post_id.toString(),
+                                            name: worker.name,
+                                            title: job.title,
+                                        });
+                                        navigate(`/chat/new?${params.toString()}`);
+                                    }}
+                                    className="p-1 hover:bg-gray-100 dark:hover:bg-white/10 rounded-md transition-colors"
+                                    title="Chat"
+                                >
+                                    <Mail className="w-3 h-3 text-[#EA526F]" />
+                                </button>
+                            )}
+                        </div>
+                    ))}
+                </div>
             </div>
           )}
-          
-          {/* Action buttons based on status */}
-          <div className="mt-3 sm:mt-4 space-y-2">
-            {job.status === 'open' && job.total_applicants > 0 && (
-              <button
-                onClick={() => onViewApplicants(job)}
-                className="w-full py-2 bg-[#EA526F] text-white text-sm sm:text-base font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
-              >
-                View Applicants ({job.total_applicants})
-              </button>
-            )}
-            
-            {job.status === 'open' && (
-              <>
-                <button
-                  onClick={() => onEditJob(job)}
-                  className="w-full py-2 bg-blue-500 text-white text-sm sm:text-base font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
-                >
-                  <Edit2 className="inline w-4 h-4 mr-1" /> Edit Job
+
+          {/* Action Buttons */}
+          <div className="mt-4 grid grid-cols-1 gap-2">
+             {job.status === 'open' && job.total_applicants > 0 && (
+                <button onClick={() => onViewApplicants(job)} className="w-full py-2 bg-[#4B244A] text-white text-sm font-bold rounded-lg hover:bg-[#361a35] transition-all">
+                    View Applicants ({job.total_applicants})
                 </button>
-                <button
-                  onClick={() => {
-                    if (confirm('Are you sure you want to cancel this job?')) {
-                      handleStatusUpdate(job.post_id, 'cancelled');
-                    }
-                  }}
-                  className="w-full py-2 bg-gray-500 text-white text-sm sm:text-base font-bold rounded-lg hover:bg-gray-600 transition-all shadow-md"
-                >
-                  🔒 Cancel Job
-                </button>
-              </>
-            )}
-            
-            {job.status === 'ongoing' && (
-              <>
-                {/* Warning for unpaid payments on long-term jobs */}
-                {job.duration_type === 'long_term' && job.pending_payments && job.pending_payments > 0 && (
-                  <div className="bg-red-100 dark:bg-red-500/20 border border-red-200 dark:border-red-500/50 rounded-lg p-3 mb-2">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="w-6 h-6" />
-                      <div>
-                        <p className="text-red-700 dark:text-red-300 font-bold">
-                          {job.pending_payments} Unpaid Payment{job.pending_payments > 1 ? 's' : ''}!
-                        </p>
-                        <p className="text-red-600 dark:text-red-300/80 text-sm">
-                          Please pay your housekeeper to avoid issues.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                {/* Only show Payment Tracker for long-term jobs */}
-                {job.duration_type === 'long_term' && (
-                  <button
+             )}
+             
+             {/* Dynamic Action Button based on status */}
+             {job.status === 'ongoing' && job.duration_type === 'long_term' && (
+                 <button
                     onClick={() => onShowPaymentTracker(job)}
-                    className={`w-full py-2 text-white text-sm sm:text-base font-bold rounded-lg transition-all shadow-md ${
-                      job.pending_payments && job.pending_payments > 0 
-                        ? 'bg-red-500 hover:bg-red-600 animate-pulse' 
-                        : 'bg-green-500 hover:bg-green-600'
+                    className={`w-full py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 ${
+                        job.pending_payments && job.pending_payments > 0 
+                        ? 'bg-red-500 text-white hover:bg-red-600' 
+                        : 'bg-green-500 text-white hover:bg-green-600'
                     }`}
-                  >
+                 >
                     {job.pending_payments && job.pending_payments > 0 
-                      ? `<DollarSign className="inline w-4 h-4 mr-1" /> Pay Now (${job.pending_payments} pending)` 
+                      ? <><AlertCircle className="w-4 h-4" /> Pay Now ({job.pending_payments})</>
                       : 'Payment Tracker'}
-                  </button>
-                )}
-                {/* Only show Progress Tracker for long-term jobs */}
-                {job.duration_type === 'long_term' && (
-                  <button
-                    onClick={() => onShowProgressTracker(job)}
-                    className="w-full py-2 bg-blue-500 text-white text-sm sm:text-base font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
-                  >
-                    Job Progress
-                  </button>
-                )}
-                {/* For short-term jobs, show info about waiting for housekeeper to complete */}
-                {job.duration_type === 'short_term' && (
-                  <div className="py-2 text-center text-blue-600 dark:text-blue-300 text-sm font-medium">
-                    <Clock className="inline w-4 h-4 mr-1" /> Waiting for housekeeper to complete and submit proof
-                  </div>
-                )}
-              </>
-            )}
-            
-            {job.status === 'pending_completion' && (
-              <>
-                <button
-                  onClick={() => onShowCompletionReview(job)}
-                  className="w-full py-2 bg-yellow-500 text-white text-sm sm:text-base font-bold rounded-lg hover:bg-yellow-600 transition-all shadow-md"
-                >
-                  <ClipboardList className="inline w-4 h-4 mr-1" /> Review Completion
-                </button>
-                <div className="py-2 text-center text-yellow-600 dark:text-yellow-300 text-sm font-medium">
-                  <Clock className="inline w-4 h-4 mr-1" /> Housekeeper has submitted completion proof
-                </div>
-              </>
-            )}
-            
-            {job.status === 'completed' && (
-              <>
-                <div className="py-2 text-center text-green-600 dark:text-green-300 font-bold">
-                  ✔️ Job Completed
-                </div>
-                {/* Show rate buttons for each accepted worker */}
-                {job.accepted_workers && job.accepted_workers.length > 0 && (
-                  <div className="space-y-2">
-                    {job.accepted_workers.map((worker) => {
-                      const contractId = worker.contract_id || 0;
-                      const isRated = ratedContracts.has(contractId);
-                      const isReported = reportedUsers.has(`${job.post_id}-${worker.worker_user_id}`);
-                      
-                      return (
-                        <div key={worker.worker_id} className="space-y-2">
-                          {isRated ? (
-                            <div className="py-2 text-center text-yellow-700 dark:text-yellow-300 font-bold bg-yellow-100 dark:bg-yellow-500/10 rounded-lg text-sm">
-                              <CheckCircle className="inline w-4 h-4 mr-1" /> You rated {worker.name}
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => onRateWorker(job, worker)}
-                              className="w-full py-2 bg-yellow-500 text-white text-sm sm:text-base font-bold rounded-lg hover:bg-yellow-600 transition-all shadow-md"
-                            >
-                              <Star className="inline w-4 h-4 mr-1" /> Rate {worker.name}
-                            </button>
-                          )}
-                          
-                          {isReported ? (
-                            <div className="py-2 text-center text-orange-700 dark:text-orange-300 font-bold bg-orange-100 dark:bg-orange-500/10 rounded-lg text-sm">
-                              <CheckCircle className="inline w-4 h-4 mr-1" /> You reported {worker.name}. Wait for admin review.
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => onReportWorker(job, worker)}
-                              className="w-full py-2 bg-red-500 text-white text-sm sm:text-base font-bold rounded-lg hover:bg-red-600 transition-all shadow-md"
-                            >
-                              🚨 Report {worker.name}
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
-            )}
-            
-            {(job.status === 'closed' || job.status === 'cancelled') && (
-              <div className="py-2 text-center text-gray-500 dark:text-gray-400 font-bold">
-                🔒 Job Cancelled
-              </div>
-            )}
+                 </button>
+             )}
+             
+             {/* Edit/Cancel actions for open jobs */}
+             {job.status === 'open' && (
+                 <div className="grid grid-cols-2 gap-2 mt-2">
+                    <button onClick={() => onEditJob(job)} className="py-2 bg-gray text-gray-700 dark:bg-white/10 dark :text-white text-sm font-bold rounded-lg hover:bg-gray-200 dark:hover:bg-white/20">
+                        Edit
+                    </button>
+                    <button 
+                        onClick={() => { if (confirm('Are you sure?')) handleStatusUpdate(job.post_id, 'cancelled'); }} 
+                        className="py-2 bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white text-sm font-bold rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors"
+                    >
+                        Cancel
+                    </button>
+                 </div>
+             )}
           </div>
         </div>
       ))}
@@ -1201,65 +948,47 @@ function HousekeeperJobsContent({
               </span>
             </div>
           
-          <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 text-sm sm:text-base">{job.description}</p>
+            <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 text-sm sm:text-base">{job.description}</p>
           
-          {/* Display multiple categories */}
-          {job.category_names && job.category_names.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-3">
-              {job.category_names.map((categoryName, idx) => (
-                <span key={idx} className="px-2 sm:px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg text-xs sm:text-sm font-bold border border-purple-200 dark:border-purple-700/50">
-                  <Tag className="inline w-4 h-4 mr-1" /> {categoryName}
-                </span>
-              ))}
+            {/* Display multiple categories */}
+            {job.category_names && job.category_names.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {job.category_names.map((categoryName, idx) => (
+                  <span key={idx} className="px-2 sm:px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg text-xs sm:text-sm font-bold border border-purple-200 dark:border-purple-700/50">
+                    <Tag className="inline w-4 h-4 mr-1" /> {categoryName}
+                  </span>
+                ))}
+              </div>
+            )}
+          
+            <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4">
+              <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
+                🏠 {job.house_type}
+              </span>
+              <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
+                🧹 {job.cleaning_type}
+              </span>
+              <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
+                👥 {job.people_needed} needed
+              </span>
+              <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
+                ⏱️ {job.duration_type}
+              </span>
             </div>
-          )}
           
-          <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4">
-            <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
-              🏠 {job.house_type}
-            </span>
-            <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
-              🧹 {job.cleaning_type}
-            </span>
-            <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
-              👥 {job.people_needed} needed
-            </span>
-            <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
-              ⏱️ {job.duration_type}
-            </span>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="text-xs sm:text-sm text-[#4B244A]/60 dark:text-white/60 space-y-1 font-medium">
+                <p><MapPin className="inline w-4 h-4 mr-1" /> {job.employer_address}</p>
+                <p><Users className="inline w-4 h-4 mr-1" /> {job.employer_name}</p>
+              </div>
+              <button 
+                onClick={() => onSelectJob(job)}
+                className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-[#EA526F] text-white text-sm sm:text-base font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-lg flex items-center justify-center gap-2"
+              >
+                View Details <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
-          
-          {job.image_urls && job.image_urls.length > 0 && (
-            <div className="flex gap-2 mb-3 sm:mb-4 overflow-x-auto pb-2">
-              {job.image_urls.slice(0, 3).map((url, idx) => (
-                <img 
-                  key={idx} 
-                  src={url} 
-                  alt={`Job ${idx + 1}`} 
-                  className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg border border-gray-200 dark:border-white/20 flex-shrink-0"
-                />
-              ))}
-              {job.image_urls.length > 3 && (
-                <div className="w-20 h-20 sm:w-24 sm:h-24 bg-gray-100 dark:bg-white/10 rounded-lg border border-gray-200 dark:border-white/20 flex items-center justify-center flex-shrink-0">
-                  <span className="text-[#4B244A]/70 dark:text-white/70 text-xs sm:text-sm font-bold">+{job.image_urls.length - 3}</span>
-                </div>
-              )}
-            </div>
-          )}
-          
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="text-xs sm:text-sm text-[#4B244A]/60 dark:text-white/60 space-y-1 font-medium">
-              <p><MapPin className="inline w-4 h-4 mr-1" /> {job.employer_address}</p>
-              <p><Users className="inline w-4 h-4 mr-1" /> {job.employer_name}</p>
-            </div>
-            <button 
-              onClick={() => onSelectJob(job)}
-              className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-[#EA526F] text-white text-sm sm:text-base font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-lg"
-            >
-              View Details
-            </button>
-          </div>
-        </div>
         );
       })}
     </div>

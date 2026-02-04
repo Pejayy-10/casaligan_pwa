@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User as UserIcon, Home, Briefcase, Check, Clock, AlertTriangle, ClipboardList, Package, CheckCircle } from 'lucide-react';
+import { User as UserIcon, ClipboardList, Briefcase, MapPin, FileText, CheckCircle, Clock, AlertCircle, Package } from 'lucide-react';
 import { authService } from '../services/auth';
 import TabBar from '../components/TabBar';
 import PackageManagement from '../components/PackageManagement';
@@ -22,6 +22,7 @@ export default function ProfilePage() {
     admin_notes?: string;
   } | null>(null);
   const [loadingApplication, setLoadingApplication] = useState(true);
+  
   // Check onboarding status once on mount
   const [showPackageOnboarding, setShowPackageOnboarding] = useState(() => {
     const stored = localStorage.getItem('user');
@@ -122,79 +123,6 @@ export default function ProfilePage() {
     }
   }, [navigate]);
 
-  const [showLocationPrompt, setShowLocationPrompt] = useState(false);
-  const [locationPromptLoading, setLocationPromptLoading] = useState(false);
-
-  const requestLocationForHousekeeper = async (): Promise<boolean> => {
-    if (!navigator.geolocation) {
-      alert('Geolocation is not supported by your browser');
-      return false;
-    }
-
-    return new Promise((resolve) => {
-      setLocationPromptLoading(true);
-      navigator.geolocation.getCurrentPosition(
-        async (position) => {
-          const coords = {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          };
-          
-          // Save GPS coordinates to user's address
-          try {
-            const token = localStorage.getItem('access_token');
-            const response = await fetch(
-              `http://127.0.0.1:8000/auth/update-address-gps?latitude=${coords.latitude}&longitude=${coords.longitude}`,
-              {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json',
-                },
-              }
-            );
-            
-            if (response.ok) {
-              console.log('GPS coordinates saved to address');
-              setLocationPromptLoading(false);
-              resolve(true);
-            } else {
-              console.error('Failed to save GPS coordinates');
-              setLocationPromptLoading(false);
-              resolve(false);
-            }
-          } catch (error) {
-            console.error('Error saving GPS coordinates:', error);
-            setLocationPromptLoading(false);
-            resolve(false);
-          }
-        },
-        (error) => {
-          let errorMessage = 'Failed to get your location';
-          switch (error.code) {
-            case error.PERMISSION_DENIED:
-              errorMessage = 'Location permission denied. Please enable location access in your browser settings.';
-              break;
-            case error.POSITION_UNAVAILABLE:
-              errorMessage = 'Location information is unavailable.';
-              break;
-            case error.TIMEOUT:
-              errorMessage = 'Location request timed out.';
-              break;
-          }
-          alert(errorMessage);
-          setLocationPromptLoading(false);
-          resolve(false);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        }
-      );
-    });
-  };
-
   const handleSwitchRole = async () => {
     if (!user) return;
     try {
@@ -205,14 +133,6 @@ export default function ProfilePage() {
       
       // Check if switching to housekeeper
       if (result.active_role === 'housekeeper') {
-        // Check if user has GPS coordinates in their address
-        const hasGPS = user.address?.latitude && user.address?.longitude;
-        
-        if (!hasGPS) {
-          // Prompt to enable location
-          setShowLocationPrompt(true);
-        }
-        
         // Check if switching to housekeeper for the first time (package onboarding)
         const skipped = localStorage.getItem('package_onboarding_skipped');
         const completed = localStorage.getItem('package_onboarding_completed');
@@ -226,397 +146,220 @@ export default function ProfilePage() {
     }
   };
 
-  const handleLocationPromptAccept = async () => {
-    const success = await requestLocationForHousekeeper();
-    if (success) {
-      setShowLocationPrompt(false);
-      // Refresh user data to get updated address
-      const updatedUser = await authService.getCurrentUser();
-      if (updatedUser) {
-        setUser(updatedUser);
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-      }
-      alert('✓ Location saved! Homeowners can now find you using GPS search.');
-    }
-  };
-
-  const handleLocationPromptDismiss = () => {
-    setShowLocationPrompt(false);
-    alert('⚠️ Note: Without GPS location, homeowners may have difficulty finding you when using GPS search. You can enable this later in your profile.');
-  };
-
   const handleLogout = () => {
     authService.logout();
     navigate('/login');
   };
 
-  const clearAllJobs = async () => {
-    if (!confirm('⚠️ This will delete ALL job posts, applications, payments, contracts, and check-ins. Users will not be affected. Continue?')) return;
-    
-    try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch('http://127.0.0.1:8000/debug/clear-jobs', {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        alert('✓ All jobs and related data cleared successfully');
-      } else {
-        alert('✗ Failed to clear data');
-      }
-    } catch (error) {
-      console.error('Clear jobs error:', error);
-      alert('✗ Failed to clear data');
-    }
-  };
-
-  const clearPayments = async () => {
-    if (!confirm('⚠️ This will delete ALL payment schedules and transactions. Continue?')) return;
-    
-    try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch('http://127.0.0.1:8000/debug/clear-payments', {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        alert('✓ All payment data cleared successfully');
-      } else {
-        alert('✗ Failed to clear payments');
-      }
-    } catch (error) {
-      console.error('Clear payments error:', error);
-      alert('✗ Failed to clear payments');
-    }
-  };
-
-  const clearContracts = async () => {
-    if (!confirm('⚠️ This will delete ALL contracts. Continue?')) return;
-    
-    try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch('http://127.0.0.1:8000/debug/clear-contracts', {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        alert('✓ All contracts cleared successfully');
-      } else {
-        alert('✗ Failed to clear contracts');
-      }
-    } catch (error) {
-      console.error('Clear contracts error:', error);
-      alert('✗ Failed to clear contracts');
-    }
-  };
-
-  const clearCheckIns = async () => {
-    if (!confirm('⚠️ This will delete ALL check-ins. Continue?')) return;
-    
-    try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch('http://127.0.0.1:8000/debug/clear-checkins', {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      
-      if (response.ok) {
-        alert('✓ All check-ins cleared successfully');
-      } else {
-        alert('✗ Failed to clear check-ins');
-      }
-    } catch (error) {
-      console.error('Clear check-ins error:', error);
-      alert('✗ Failed to clear check-ins');
-    }
-  };
-
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300 pb-20 relative">
-      {/* Decorative circles */}
+    <div className="min-h-screen bg-[#F4F2F0] dark:bg-slate-950 transition-colors duration-300 pb-24 relative font-sans">
+      
+      {/* Decorative Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob"></div>
-        <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#EA526F]/10 rounded-full blur-[100px]" />
+        <div className="absolute top-[20%] right-[-10%] w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-[100px]" />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-blue-400/10 rounded-full blur-[120px]" />
       </div>
 
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
-          <h1 className="text-xl sm:text-2xl font-bold text-[#4B244A] dark:text-white"><UserIcon className="inline w-6 h-6 mr-2" /> Profile</h1>
+      {/* Header (Original Structure Preserved) */}
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm pt-14 md:pt-4">
+        <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="space-y-5">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-[#4B244A]/5 dark:bg-white/10 rounded-xl">
+                            <UserIcon className="w-6 h-6 text-[#4B244A] dark:text-white" />
+                        </div>
+                        <h1 className="text-2xl font-bold text-[#4B244A] dark:text-white tracking-tight">
+                            Profile
+                        </h1>
+                    </div>
+                </div>
+            </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4">
-        {/* Profile Info Card */}
-        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-4 sm:p-6 border border-white/50 dark:border-white/10 shadow-xl transition-all">
-          <div className="flex items-center space-x-3 sm:space-x-4 mb-4 sm:mb-6">
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-[#EA526F] rounded-full flex items-center justify-center text-white text-2xl sm:text-3xl font-bold flex-shrink-0 shadow-lg">
-              {user.first_name.charAt(0)}
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-lg sm:text-2xl font-bold text-[#4B244A] dark:text-white break-words">
-                {user.first_name} {user.middle_name} {user.last_name} {user.suffix}
-              </h2>
-              <div className="flex flex-wrap items-center gap-2 mt-2">
-                <span className="px-2 sm:px-3 py-1 rounded-full text-xs font-bold bg-[#EA526F] text-white shadow-md">
-                  {user.active_role === 'owner' ? '🏠 House Owner' : '💼 Housekeeper'}
-                </span>
-                <span
-                  className={`px-2 sm:px-3 py-1 rounded-full text-xs font-bold shadow-sm ${
-                    user.status === 'active'
-                      ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300'
-                      : user.status === 'pending'
-                      ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300'
-                      : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'
-                  }`}
-                >
-                  {user.status === 'active' ? '✓ Active' : user.status === 'pending' ? '⏳ Pending' : '⚠ Suspended'}
-                </span>
-              </div>
-            </div>
-          </div>
+      <main className="relative z-10 max-w-4xl mx-auto px-4 py-8 space-y-6">
+        
+        {/* Profile Card */}
+        <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl rounded-3xl p-6 sm:p-8 border border-white/60 dark:border-white/5 shadow-lg relative overflow-hidden"> 
+            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 relative z-10">
+                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#EA526F] to-[#4B244A] flex items-center justify-center text-white text-3xl font-bold shadow-xl border-4 border-white dark:border-slate-800">
+                    {user.first_name.charAt(0)}
+                </div>
+                
+                <div className="text-center sm:text-left flex-1">
+                    <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">
+                        {user.first_name} {user.middle_name} {user.last_name} {user.suffix}
+                    </h2>
+                    
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-3">
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                            user.active_role === 'owner' 
+                            ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/20 dark:text-purple-200 dark:border-purple-500/30' 
+                            : 'bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-500/20 dark:text-pink-200 dark:border-pink-500/30'
+                        }`}>
+                            {user.active_role === 'owner' ? 'House Owner' : 'Housekeeper'}
+                        </span>
+                        
+                        <span className={`px-3 py-1 rounded-full text-xs font-bold border ${
+                            user.status === 'active' ? 'bg-green-50 text-green-700 border-green-200 dark:bg-green-500/20 dark:text-green-200' : 
+                            user.status === 'pending' ? 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-200' :
+                            'bg-red-50 text-red-700 border-red-200 dark:bg-red-500/20 dark:text-red-200'
+                        }`}>
+                            {user.status === 'active' ? 'Active Account' : user.status === 'pending' ? 'Pending Approval' : 'Suspended'}
+                        </span>
+                    </div>
 
-          <div className="space-y-3">
-            <div className="flex items-center text-[#4B244A]/80 dark:text-white/80 text-sm sm:text-base font-medium">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-              </svg>
-              <span className="break-all">{user.email}</span>
+                    <div className="mt-4 space-y-1 text-sm text-[#4B244A]/70 dark:text-white/70 font-medium">
+                        <p>{user.email}</p>
+                        <p>{user.phone_number}</p>
+                    </div>
+                </div>
             </div>
-            <div className="flex items-center text-[#4B244A]/80 dark:text-white/80 text-sm sm:text-base font-medium">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2 sm:mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-              </svg>
-              {user.phone_number}
-            </div>
-          </div>
         </div>
 
-        {/* Housekeeper Application Status Card */}
+        {/* Application Status Card (If pending or rejected) */}
         {!loadingApplication && !user.is_housekeeper && (
-          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border border-white/50 dark:border-white/10 shadow-lg transition-all">
-            <h3 className="text-base sm:text-lg font-bold text-[#4B244A] dark:text-white mb-3 flex items-center">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Housekeeper Application
-            </h3>
-            
-            {application ? (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-[#4B244A]/80 dark:text-white/80 font-medium">Status:</span>
-                  <span
-                    className={`px-3 py-1 rounded-full text-xs font-bold ${
-                      application.status === 'approved'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300'
-                        : application.status === 'pending'
-                        ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300'
-                        : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'
-                    }`}
-                  >
-                    {application.status === 'approved' ? '✓ Approved' : 
-                     application.status === 'pending' ? '⏳ Pending' : 
-                     '✗ Rejected'}
-                  </span>
+            <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl rounded-2xl p-6 border border-white/60 dark:border-white/5 shadow-md">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-blue-50 dark:bg-blue-500/20 rounded-lg text-blue-600 dark:text-blue-400">
+                        <ClipboardList className="w-5 h-5" />
+                    </div>
+                    <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Housekeeper Application</h3>
                 </div>
-                <div className="text-[#4B244A]/70 dark:text-white/70 text-sm">
-                  <p>Submitted: {new Date(application.submitted_at).toLocaleDateString()}</p>
-                  {application.reviewed_at && (
-                    <p>Reviewed: {new Date(application.reviewed_at).toLocaleDateString()}</p>
-                  )}
-                </div>
-                {application.notes && (
-                  <div className="bg-gray-100 dark:bg-white/10 rounded-lg p-3">
-                    <p className="text-[#4B244A]/80 dark:text-white/80 text-sm"><strong>Your Note:</strong> {application.notes}</p>
-                  </div>
+
+                {application ? (
+                    <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-4 border border-gray-100 dark:border-white/5">
+                        <div className="flex justify-between items-center mb-2">
+                            <span className="text-sm font-bold text-gray-500 uppercase tracking-wide">Status</span>
+                            <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                                application.status === 'approved' ? 'bg-green-100 text-green-700' :
+                                application.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-red-100 text-red-700'
+                            }`}>
+                                {application.status.toUpperCase()}
+                            </span>
+                        </div>
+                        <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                            <p>Submitted: {new Date(application.submitted_at).toLocaleDateString()}</p>
+                            {application.reviewed_at && <p>Reviewed: {new Date(application.reviewed_at).toLocaleDateString()}</p>}
+                        </div>
+                        
+                        {(application.notes || application.admin_notes) && (
+                            <div className="mt-3 pt-3 border-t border-gray-200 dark:border-white/10 space-y-2">
+                                {application.notes && <p className="text-sm text-gray-500 italic">" {application.notes} "</p>}
+                                {application.admin_notes && (
+                                    <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded text-xs text-blue-700 dark:text-blue-300">
+                                        <strong>Admin:</strong> {application.admin_notes}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="text-center py-4">
+                        <p className="text-[#4B244A]/60 dark:text-white/60 mb-4 text-sm">Join our team of housekeepers and start earning.</p>
+                        <button
+                            onClick={() => navigate('/apply-housekeeper')}
+                            className="w-full py-2.5 bg-[#EA526F] hover:bg-[#d4486a] text-white font-bold rounded-xl shadow-lg shadow-[#EA526F]/20 transition-all text-sm"
+                        >
+                            Apply Now
+                        </button>
+                    </div>
                 )}
-                {application.admin_notes && (
-                  <div className="bg-blue-100 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/50 rounded-lg p-3">
-                    <p className="text-blue-800 dark:text-blue-200 text-sm"><strong>Admin Note:</strong> {application.admin_notes}</p>
-                  </div>
-                )}
-                {application.status === 'approved' && (
-                  <div className="bg-green-100 dark:bg-green-500/20 border border-green-200 dark:border-green-500/50 rounded-lg p-3">
-                    <p className="text-green-800 dark:text-green-200 text-sm">
-                      🎉 Congratulations! Your application has been approved. You can now switch to housekeeper mode.
+            </div>
+        )}
+
+        {/* Info Grid */}
+        <div className="grid md:grid-cols-2 gap-4">
+            {/* Address */}
+            {user.address && (
+                <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl rounded-2xl p-5 border border-white/60 dark:border-white/5 shadow-sm hover:shadow-md transition-all">
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2 bg-orange-50 dark:bg-orange-500/20 rounded-lg text-orange-600 dark:text-orange-400">
+                            <MapPin className="w-5 h-5" />
+                        </div>
+                        <h3 className="font-bold text-[#4B244A] dark:text-white">Address</h3>
+                    </div>
+                    <p className="text-sm text-[#4B244A]/70 dark:text-white/70 pl-11">
+                        {user.address.region_name}, {user.address.province_name}<br/>
+                        {user.address.city_name}, {user.address.barangay_name}
                     </p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-[#4B244A]/70 dark:text-white/70 text-sm font-medium">
-                  Apply to become a housekeeper and start offering your services on our platform.
-                </p>
-                <button
-                  onClick={() => navigate('/apply-housekeeper')}
-                  className="w-full px-6 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30"
-                >
-                  Apply as Housekeeper
-                </button>
-              </div>
+                </div>
             )}
-          </div>
-        )}
 
-        {/* Address Card */}
-        {user.address && (
-          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border border-white/50 dark:border-white/10 shadow-lg transition-all">
-            <h3 className="text-base sm:text-lg font-bold text-[#4B244A] dark:text-white mb-3 flex items-center">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
-              Address
-            </h3>
-            <p className="text-[#4B244A]/80 dark:text-white/80 text-sm font-medium">
-              {user.address.region_name}, {user.address.province_name}, {user.address.city_name}, {user.address.barangay_name}
-            </p>
-          </div>
-        )}
-
-        {/* Documents Card */}
-        {user.documents && user.documents.length > 0 && (
-          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border border-white/50 dark:border-white/10 shadow-lg transition-all">
-            <h3 className="text-base sm:text-lg font-bold text-[#4B244A] dark:text-white mb-3 flex items-center">
-              <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Documents
-            </h3>
-            <div className="space-y-2">
-              {user.documents.map((doc: { id: number; document_type: string }) => (
-                <div key={doc.id} className="text-[#4B244A]/80 dark:text-white/80 text-sm font-medium">
-                  • {doc.document_type}
+            {/* Documents */}
+            {user.documents && user.documents.length > 0 && (
+                <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl rounded-2xl p-5 border border-white/60 dark:border-white/5 shadow-sm hover:shadow-md transition-all">
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className="p-2 bg-purple-50 dark:bg-purple-500/20 rounded-lg text-purple-600 dark:text-purple-400">
+                            <FileText className="w-5 h-5" />
+                        </div>
+                        <h3 className="font-bold text-[#4B244A] dark:text-white">Documents</h3>
+                    </div>
+                    <ul className="text-sm text-[#4B244A]/70 dark:text-white/70 pl-11 space-y-1">
+                        {user.documents.map((doc: any) => (
+                            <li key={doc.id} className="flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 bg-purple-400 rounded-full"></span>
+                                {doc.document_type}
+                            </li>
+                        ))}
+                    </ul>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+            )}
+        </div>
 
-        {/* My Packages Section - Housekeeper Only */}
+        {/* Housekeeper Package Manager */}
         {user.is_housekeeper && user.active_role === 'housekeeper' && (
-          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border border-white/50 dark:border-white/10 shadow-lg transition-all">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base sm:text-lg font-bold text-[#4B244A] dark:text-white flex items-center">
-                <span className="mr-2">📦</span>
-                My Service Packages
-              </h3>
-              <button
-                onClick={() => setShowPackageManagement(true)}
-                className="px-3 py-1.5 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d64460] transition-all shadow-md"
-              >
-                Manage
-              </button>
+            <div className="bg-gradient-to-br from-[#EA526F]/5 to-[#4B244A]/5 dark:from-[#EA526F]/10 dark:to-[#4B244A]/10 rounded-2xl p-6 border border-[#EA526F]/20 dark:border-[#EA526F]/30">
+                <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-[#EA526F] rounded-lg text-white shadow-md">
+                            <Package className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-[#4B244A] dark:text-white">Service Packages</h3>
+                            <p className="text-xs text-[#4B244A]/60 dark:text-white/60">Manage your offerings</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setShowPackageManagement(true)}
+                        className="px-4 py-2 bg-white dark:bg-white/10 text-[#EA526F] dark:text-white font-bold text-sm rounded-xl shadow-sm hover:bg-gray-50 dark:hover:bg-white/20 transition-colors"
+                    >
+                        Manage
+                    </button>
+                </div>
+                <p className="text-sm text-[#4B244A]/70 dark:text-white/70">
+                    Create packages to allow homeowners to book you directly with predefined services and prices.
+                </p>
             </div>
-            <p className="text-[#4B244A]/70 dark:text-white/70 text-sm font-medium">
-              Create and manage your service packages so homeowners can hire you directly. 
-              Packages help showcase your services and pricing.
-            </p>
-            <button
-              onClick={() => setShowPackageManagement(true)}
-              className="mt-3 w-full py-3 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all flex items-center justify-center gap-2"
-            >
-              <span>📋</span>
-              View & Edit Packages
-            </button>
-          </div>
         )}
 
-        {/* Actions */}
-        <div className="space-y-3">
-          {user.is_housekeeper && (
+        {/* Action Buttons */}
+        <div className="pt-4 space-y-3">
+            {user.is_housekeeper && (
+                <button
+                    onClick={handleSwitchRole}
+                    className="w-full py-3.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl shadow-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-all flex items-center justify-center gap-2"
+                >
+                    <Briefcase className="w-4 h-4" />
+                    Switch to {user.active_role === 'owner' ? 'Housekeeper' : 'Owner'} Mode
+                </button>
+            )}
+            
             <button
-              onClick={handleSwitchRole}
-              className="w-full px-6 py-3 bg-white/50 dark:bg-white/10 backdrop-blur-sm text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/20 shadow-md"
+                onClick={handleLogout}
+                className="w-full py-3.5 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 font-bold rounded-xl hover:bg-red-100 dark:hover:bg-red-500/20 transition-all"
             >
-              Switch to {user.active_role === 'owner' ? 'Housekeeper' : 'Owner'} Mode
+                Logout
             </button>
-          )}
-          
-          {/* Debug/Testing Actions
-          <div className="bg-red-50 dark:bg-red-500/10 backdrop-blur-xl rounded-2xl p-3 sm:p-4 border border-red-200 dark:border-red-500/30 shadow-md">
-            <h3 className="text-xs sm:text-sm font-bold text-red-600 dark:text-red-200 mb-2 sm:mb-3">🛠️ Testing Tools (Temporary)</h3>
-            <div className="space-y-2">
-              <button
-                onClick={clearAllJobs}
-                className="w-full px-3 sm:px-4 py-2 bg-red-100 text-red-700 dark:bg-red-500/80 dark:text-white text-xs sm:text-sm font-bold rounded-lg hover:bg-red-200 dark:hover:bg-red-600 transition-all"
-              >
-                🗑️ Clear All Jobs & Related Data
-              </button>
-              <button
-                onClick={clearPayments}
-                className="w-full px-3 sm:px-4 py-2 bg-orange-100 text-orange-700 dark:bg-orange-500/80 dark:text-white text-xs sm:text-sm font-bold rounded-lg hover:bg-orange-200 dark:hover:bg-orange-600 transition-all"
-              >
-                💸 Clear Payments Only
-              </button>
-              <button
-                onClick={clearContracts}
-                className="w-full px-3 sm:px-4 py-2 bg-yellow-100 text-yellow-700 dark:bg-yellow-500/80 dark:text-white text-xs sm:text-sm font-bold rounded-lg hover:bg-yellow-200 dark:hover:bg-yellow-600 transition-all"
-              >
-                📄 Clear Contracts Only
-              </button>
-              <button
-                onClick={clearCheckIns}
-                className="w-full px-3 sm:px-4 py-2 bg-blue-100 text-blue-700 dark:bg-blue-500/80 dark:text-white text-xs sm:text-sm font-bold rounded-lg hover:bg-blue-200 dark:hover:bg-blue-600 transition-all"
-              >
-                📍 Clear Check-Ins Only
-              </button>
-            </div>
-          </div> */}
-
-          <button
-            onClick={handleLogout}
-            className="w-full px-6 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-all shadow-lg shadow-red-500/30"
-          >
-            Logout
-          </button>
         </div>
+
       </main>
-
-      {/* Location Prompt Modal - When switching to housekeeper */}
-      {showLocationPrompt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-gray-200 dark:border-white/10 shadow-2xl">
-            <div className="flex items-start gap-4 mb-4">
-              <div className="text-4xl">📍</div>
-              <div className="flex-1">
-                <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-2">
-                  Enable Location Services
-                </h3>
-                <p className="text-[#4B244A]/80 dark:text-white/80 text-sm mb-4">
-                  To help homeowners find you when they search using GPS location, please allow us to access your current location. 
-                  This will save your location so you can be discovered by nearby homeowners.
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleLocationPromptAccept}
-                    disabled={locationPromptLoading}
-                    className="flex-1 px-4 py-2 bg-[#EA526F] hover:bg-[#d64460] text-white font-bold rounded-xl transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {locationPromptLoading ? '⏳ Getting Location...' : '✓ Enable Location'}
-                  </button>
-                  <button
-                    onClick={handleLocationPromptDismiss}
-                    disabled={locationPromptLoading}
-                    className="px-4 py-2 bg-white/50 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/20 text-[#4B244A] dark:text-white font-bold rounded-xl transition-all text-sm border border-gray-200 dark:border-white/10 disabled:opacity-50"
-                  >
-                    Not Now
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Package Onboarding Modal */}
       {showPackageOnboarding && (
@@ -628,19 +371,22 @@ export default function ProfilePage() {
 
       {/* Package Management Modal */}
       {showPackageManagement && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl relative">
-            <div className="p-6 border-b border-gray-200 dark:border-white/10 sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md z-10">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold text-[#4B244A] dark:text-white">📦 My Service Packages</h3>
-                <button 
-                  onClick={() => setShowPackageManagement(false)} 
-                  className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white text-xl transition-colors"
-                >
-                  ✕
-                </button>
+            <div className="p-6 border-b border-gray-200 dark:border-white/10 sticky top-0 bg-[#E8E4E1]/95 dark:bg-slate-900/95 backdrop-blur-md z-10 flex justify-between items-center">
+              <div>
+                  <h3 className="text-xl font-bold text-[#4B244A] dark:text-white flex items-center gap-2">
+                      <Package className="w-5 h-5 text-[#EA526F]" />
+                      My Service Packages
+                  </h3>
               </div>
-              <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mt-1 font-medium">Create packages that house owners can book directly</p>
+              <button 
+                onClick={() => setShowPackageManagement(false)} 
+                className="p-2 bg-gray-200 dark:bg-white/10 rounded-full text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white transition-colors"
+              >
+                <span className="sr-only">Close</span>
+                ✕
+              </button>
             </div>
             <div className="p-6">
               <PackageManagement embedded />

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin } from 'lucide-react';
+import { MapPin, Search, Filter, Star, ChevronDown, Navigation, X } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import StarRating from '../components/StarRating';
 import { authService } from '../services/auth';
@@ -37,7 +37,7 @@ interface WorkerProfile {
   total_ratings: number;
   proximity_score?: number;
   proximity_label?: string;
-  distance_km?: number | null;  // Distance in kilometers for GPS-based search
+  distance_km?: number | null;
 }
 
 export default function BrowseWorkersPage() {
@@ -96,14 +96,12 @@ export default function BrowseWorkersPage() {
       return;
     }
 
-    // Check if we've already asked for permission (stored in localStorage)
     const hasAskedBefore = localStorage.getItem('location_permission_asked');
     if (hasAskedBefore) {
       setLocationPermissionAsked(true);
       return;
     }
 
-    // Show prompt after a short delay to let the page load
     setTimeout(() => {
       setShowLocationPrompt(true);
     }, 1000);
@@ -286,7 +284,6 @@ export default function BrowseWorkersPage() {
       if (useGPSLocation && gpsLocation) {
         params.append('employer_latitude', gpsLocation.latitude.toString());
         params.append('employer_longitude', gpsLocation.longitude.toString());
-        // Also send saved address for fallback matching with workers who don't have GPS coordinates
         if (employerLocation) {
           params.append('employer_city', employerLocation.city);
           params.append('employer_province', employerLocation.province);
@@ -295,7 +292,6 @@ export default function BrowseWorkersPage() {
           }
         }
       }
-      // Otherwise, use address-based location
       else if (employerLocation && !useGPSLocation) {
         params.append('employer_city', employerLocation.city);
         params.append('employer_province', employerLocation.province);
@@ -313,9 +309,6 @@ export default function BrowseWorkersPage() {
       });
       if (response.ok) {
         const data = await response.json();
-        console.log('Workers loaded:', data.length, 'workers found');
-        console.log('GPS Location:', useGPSLocation ? gpsLocation : 'Not using GPS');
-        console.log('Employer Location:', employerLocation);
         setWorkers(data);
         setFilteredWorkers(data);
       } else {
@@ -376,10 +369,9 @@ export default function BrowseWorkersPage() {
         setUseGPSLocation(true);
         setGpsLoading(false);
         
-        // Save GPS coordinates to user's address in database
         try {
           const token = localStorage.getItem('access_token');
-          const response = await fetch(
+          await fetch(
             `http://127.0.0.1:8000/auth/update-address-gps?latitude=${coords.latitude}&longitude=${coords.longitude}`,
             {
               method: 'POST',
@@ -389,22 +381,15 @@ export default function BrowseWorkersPage() {
               },
             }
           );
-          
-          if (response.ok) {
-            console.log('GPS coordinates saved to address');
-          } else {
-            console.warn('Failed to save GPS coordinates to address, but location is still available for this session');
-          }
         } catch (error) {
           console.warn('Error saving GPS coordinates to address:', error);
-          // Don't show error to user - GPS still works for this session
         }
       },
       (error) => {
         let errorMessage = 'Failed to get your location';
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage = 'Location permission denied. Please enable location access in your browser settings to find nearby housekeepers.';
+            errorMessage = 'Location permission denied.';
             break;
           case error.POSITION_UNAVAILABLE:
             errorMessage = 'Location information is unavailable.';
@@ -443,434 +428,363 @@ export default function BrowseWorkersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300 pb-20 relative">
-      {/* Decorative circles */}
+    <div className="min-h-screen bg-[#F4F2F0] dark:bg-slate-950 transition-colors duration-300 pb-24 relative font-sans">
+      {/* Decorative Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob"></div>
-        <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-2000"></div>
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#EA526F]/10 rounded-full blur-[100px]" />
+        <div className="absolute top-[20%] right-[-10%] w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-[100px]" />
       </div>
 
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <button onClick={() => navigate(-1)} className="text-[#4B244A]/80 dark:text-white/80 hover:text-[#4B244A] dark:hover:text-white transition-colors">
-              ← Back
-            </button>
-            <h1 className="text-xl font-bold text-[#4B244A] dark:text-white">Browse Housekeepers</h1>
-            <div className="w-16"></div>
+      {/* Unified Sticky Header */}
+      <header className="sticky top-0 z-50 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-b border-gray-200 dark:border-white/5 shadow-sm pt-14 md:pt-4 transition-all duration-300">
+          <div className="max-w-5xl mx-auto px-4 py-3 space-y-3">
+              
+              {/* Top Row: Navigation & Title */}
+              <div className="flex items-center gap-3">
+                  <button 
+                      onClick={() => navigate(-1)} 
+                      className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-600 dark:text-white transition-colors active:scale-95"
+                  >
+                      <ChevronDown className="w-6 h-6 rotate-90" />
+                  </button>
+                  <h1 className="text-xl font-bold text-[#4B244A] dark:text-white tracking-tight">Browse Housekeepers</h1>
+              </div>
+      
+              {/* Middle Row: Location Controls */}
+              <div className="bg-gray-50/80 dark:bg-slate-900/50 rounded-2xl p-2 border border-gray-100 dark:border-white/5 shadow-inner">
+                  <div className="grid grid-cols-2 gap-1 mb-2">
+                      <button
+                          onClick={() => handleLocationModeChange(false)}
+                          className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                              !useGPSLocation
+                              ? 'bg-white dark:bg-slate-700 text-[#4B244A] dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/5'
+                              : 'text-gray-500 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-white/5'
+                          }`}
+                      >
+                          <MapPin className="w-3.5 h-3.5" /> Saved Address
+                      </button>
+                      <button
+                          onClick={() => {
+                              if (!gpsLocation) requestGPSLocation();
+                              else handleLocationModeChange(true);
+                          }}
+                          className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
+                              useGPSLocation
+                              ? 'bg-white dark:bg-slate-700 text-[#EA526F] dark:text-[#EA526F] shadow-sm ring-1 ring-black/5 dark:ring-white/5'
+                              : 'text-gray-500 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-white/5'
+                          }`}
+                      >
+                          <Navigation className={`w-3.5 h-3.5 ${useGPSLocation ? 'fill-current' : ''}`} /> 
+                          {gpsLoading ? 'Locating...' : 'GPS Location'}
+                      </button>
+                  </div>
+      
+                  {/* Location Text Display */}
+                  <div className="flex items-center justify-between px-2 pb-0.5">
+                          <div className="flex-1 min-w-0 mr-3">
+                          {useGPSLocation && gpsLocation ? (
+                              <p className="text-xs font-bold text-[#4B244A] dark:text-white truncate flex items-center gap-1.5 animate-in fade-in">
+                                  <Navigation className="w-3 h-3 text-[#EA526F]" /> 
+                                  <span className="truncate">Current GPS Position</span>
+                              </p>
+                          ) : employerLocation ? (
+                              <p className="text-xs font-bold text-[#4B244A] dark:text-white truncate flex items-center gap-1.5 animate-in fade-in">
+                                  <MapPin className="w-3 h-3 text-[#EA526F]" /> 
+                                  <span className="truncate">
+                                      {employerLocation.barangay && `${employerLocation.barangay}, `}{employerLocation.city}
+                                  </span>
+                              </p>
+                          ) : (
+                              <p className="text-xs text-gray-500 italic">No location set</p>
+                          )}
+                      </div>
+                      
+                      {!useGPSLocation && (
+                          <button
+                              onClick={() => setShowLocationEditor(!showLocationEditor)}
+                              className="text-[10px] font-bold text-[#EA526F] bg-[#EA526F]/5 hover:bg-[#EA526F]/10 px-2.5 py-1 rounded-lg transition-colors uppercase tracking-wide border border-[#EA526F]/20"
+                          >
+                              {showLocationEditor ? 'Close' : 'Change'}
+                          </button>
+                      )}
+                  </div>
+      
+                  {/* Manual Location Editor Dropdowns */}
+                  {showLocationEditor && !useGPSLocation && (
+                      <div className="mt-3 pt-3 border-t border-gray-200 dark:border-white/10 grid grid-cols-2 gap-2 animate-in slide-in-from-top-2 duration-200">
+                              <select 
+                              value={selectedRegion} 
+                              onChange={(e) => handleRegionChange(e.target.value)}
+                              className="w-full p-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 rounded-xl text-xs focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] outline-none transition-all"
+                          >
+                              <option value="">Region</option>
+                              {regions.map(r => <option key={r.code} value={r.code}>{r.name}</option>)}
+                          </select>
+                          <select 
+                              value={selectedProvince} 
+                              onChange={(e) => handleProvinceChange(e.target.value)}
+                              disabled={!selectedRegion}
+                              className="w-full p-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 rounded-xl text-xs focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] outline-none disabled:opacity-50 transition-all"
+                          >
+                                  <option value="">Province</option>
+                                  {provinces.map(p => <option key={p.code} value={p.code}>{p.name}</option>)}
+                          </select>
+                          <select 
+                              value={selectedCity} 
+                              onChange={(e) => handleCityChange(e.target.value)}
+                              disabled={!selectedProvince}
+                              className="w-full p-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 rounded-xl text-xs focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] outline-none disabled:opacity-50 transition-all"
+                          >
+                                  <option value="">City</option>
+                                  {cities.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+                          </select>
+                              <select 
+                              value={selectedBarangay} 
+                              onChange={(e) => setSelectedBarangay(e.target.value)}
+                              disabled={!selectedCity}
+                              className="w-full p-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 rounded-xl text-xs focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] outline-none disabled:opacity-50 transition-all"
+                          >
+                                  <option value="">Barangay</option>
+                                  {barangays.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
+                          </select>
+                          <button 
+                              onClick={handleSaveLocation}
+                              disabled={!selectedCity}
+                              className="col-span-2 py-2 bg-[#4B244A] text-white text-xs font-bold rounded-xl hover:bg-[#381b37] transition-all disabled:opacity-50 shadow-sm"
+                          >
+                              Update Location
+                          </button>
+                      </div>
+                  )}
+                  
+                  {gpsError && (
+                      <div className="mt-2 p-2 bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 text-xs rounded-xl border border-red-100 dark:border-red-500/20 flex items-center gap-1.5">
+                          <X className="w-3.5 h-3.5 flex-shrink-0" /> {gpsError}
+                      </div>
+                  )}
+              </div>
+      
+              {/* Bottom Row: Search & Filters */}
+              <div className="space-y-3 pt-1">
+                  {/* Search Input - Uniform Height */}
+                  <div className="relative group">
+                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                          <Search className="h-4 w-4 text-gray-400 group-focus-within:text-[#EA526F] transition-colors" />
+                      </div>
+                      <input
+                          type="text"
+                          value={searchCity}
+                          onChange={(e) => setSearchCity(e.target.value)}
+                          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                          className="block w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] transition-all"
+                          placeholder="Search city or area..."
+                      />
+                  </div>
+      
+                  {/* Scrollable Filters - Customized Dropdown Look */}
+                  <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+                      {/* Category Dropdown */}
+                      <div className="relative flex-shrink-0 group">
+                          <select
+                              value={selectedCategory}
+                              onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : '')}
+                              className="cursor-pointer appearance-none pl-3.5 pr-9 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 rounded-xl text-xs sm:text-sm font-semibold text-[#4B244A] dark:text-white shadow-sm hover:border-[#EA526F]/50 focus:border-[#EA526F] focus:ring-2 focus:ring-[#EA526F]/20 outline-none transition-all"
+                          >
+                              <option value="">All Categories</option>
+                              {categories.map(c => <option key={c.category_id} value={c.category_id}>{c.name}</option>)}
+                          </select>
+                          <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 group-hover:text-[#EA526F] transition-colors pointer-events-none" />
+                      </div>
+      
+                      {/* Rating Filter */}
+                      <div className="relative flex-shrink-0 group">
+                          <select
+                              value={minRating}
+                              onChange={(e) => handleFilterChange(e.target.value ? Number(e.target.value) : '', sortBy)}
+                              className="cursor-pointer appearance-none pl-3.5 pr-9 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 rounded-xl text-xs sm:text-sm font-semibold text-[#4B244A] dark:text-white shadow-sm hover:border-[#EA526F]/50 focus:border-[#EA526F] focus:ring-2 focus:ring-[#EA526F]/20 outline-none transition-all"
+                          >
+                              <option value="">Rating: Any</option>
+                              <option value="4">4+ Stars</option>
+                              <option value="3">3+ Stars</option>
+                              <option value="2">2+ Stars</option>
+                          </select>
+                          <Star className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 group-hover:text-yellow-400 transition-colors pointer-events-none fill-current" />
+                      </div>
+      
+                          {/* Sort Filter */}
+                      <div className="relative flex-shrink-0 group">
+                          <select
+                              value={sortBy}
+                              onChange={(e) => handleFilterChange(minRating, e.target.value)}
+                              className="cursor-pointer appearance-none pl-3.5 pr-9 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 rounded-xl text-xs sm:text-sm font-semibold text-[#4B244A] dark:text-white shadow-sm hover:border-[#EA526F]/50 focus:border-[#EA526F] focus:ring-2 focus:ring-[#EA526F]/20 outline-none transition-all"
+                          >
+                              <option value="">Sort: Default</option>
+                              <option value="rating">Highest Rated</option>
+                              <option value="jobs_completed">Most Jobs</option>
+                          </select>
+                          <Filter className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 group-hover:text-[#EA526F] transition-colors pointer-events-none" />
+                      </div>
+                  </div>
+              </div>
           </div>
-        </div>
       </header>
 
-      {/* Main Content */}
-      <main className="relative z-10 max-w-4xl mx-auto px-4 py-6">
-        {/* Location Permission Prompt */}
-        {showLocationPrompt && !locationPermissionAsked && (
-          <div className="bg-blue-50 dark:bg-blue-500/20 backdrop-blur-xl rounded-2xl p-5 mb-4 border border-blue-200 dark:border-blue-500/30 shadow-lg">
-            <div className="flex items-start gap-4">
-              <div className="text-3xl"><MapPin className="w-8 h-8" /></div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-[#4B244A] dark:text-white mb-2">
-                  Enable Location Services
-                </h3>
-                <p className="text-[#4B244A]/80 dark:text-white/80 text-sm mb-4">
-                  Allow us to access your location to find the nearest housekeepers based on your current position. 
-                  This helps you discover housekeepers closest to you for faster service.
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleLocationPromptAccept}
-                    className="px-4 py-2 bg-[#EA526F] hover:bg-[#d64460] text-white font-bold rounded-xl transition-all text-sm"
-                  >
-                    ✓ Enable Location
-                  </button>
-                  <button
-                    onClick={handleLocationPromptDismiss}
-                    className="px-4 py-2 bg-white/50 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/20 text-[#4B244A] dark:text-white font-bold rounded-xl transition-all text-sm border border-gray-200 dark:border-white/10"
-                  >
-                    Not Now
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Location Filter */}
-        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 mb-4 border border-white/50 dark:border-white/10 shadow-lg">
-          {/* Location Mode Toggle */}
-          <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-200 dark:border-white/10">
-            <div className="flex items-center gap-3">
-              <span className="text-[#4B244A]/70 dark:text-white/70 text-sm font-bold">Location Mode:</span>
-              <button
-                onClick={() => handleLocationModeChange(false)}
-                className={`px-4 py-2 rounded-xl transition-all text-sm font-bold border ${
-                  !useGPSLocation
-                    ? 'bg-[#EA526F] text-white border-[#EA526F]'
-                    : 'bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white border-gray-200 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/20'
-                }`}
-              >
-                <MapPin className="inline w-4 h-4 mr-1" /> Saved Address
-              </button>
-              <button
-                onClick={() => {
-                  if (!gpsLocation) {
-                    requestGPSLocation();
-                  } else {
-                    handleLocationModeChange(true);
-                  }
-                }}
-                disabled={gpsLoading}
-                className={`px-4 py-2 rounded-xl transition-all text-sm font-bold border ${
-                  useGPSLocation
-                    ? 'bg-[#EA526F] text-white border-[#EA526F]'
-                    : 'bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white border-gray-200 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/20'
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                {gpsLoading ? '⏳ Getting Location...' : gpsLocation ? '📱 Use GPS Location' : '📱 Enable GPS Location'}
-              </button>
-            </div>
-          </div>
-
-          {/* GPS Error Message */}
-          {gpsError && (
-            <div className="mb-3 p-3 bg-red-100 dark:bg-red-500/20 border border-red-300 dark:border-red-500/30 rounded-xl">
-              <p className="text-red-700 dark:text-red-300 text-sm font-medium">{gpsError}</p>
-            </div>
-          )}
-
-          {/* Location Display */}
-          {useGPSLocation && gpsLocation ? (
-            <div>
-              <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-1 font-medium">Showing workers near your current location:</p>
-              <p className="text-[#4B244A] dark:text-white font-bold">
-                📱 GPS Location (Lat: {gpsLocation.latitude.toFixed(6)}, Lng: {gpsLocation.longitude.toFixed(6)})
-              </p>
-              <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
-                Workers are sorted by distance from your current location
-              </p>
-            </div>
-          ) : employerLocation ? (
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-1 font-medium">Showing workers near:</p>
-                <p className="text-[#4B244A] dark:text-white font-bold">
-                  <MapPin className="inline w-4 h-4 mr-1" /> {employerLocation.barangay && `${employerLocation.barangay}, `}{employerLocation.city}, {employerLocation.province}
-                </p>
-                <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
-                  Workers in your barangay are shown first, then your city, then your province
-                </p>
-              </div>
-              <button
-                onClick={() => setShowLocationEditor(!showLocationEditor)}
-                className="px-4 py-2 bg-white/50 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/20 text-[#4B244A] dark:text-white rounded-xl transition-all text-sm font-bold border border-gray-200 dark:border-white/10"
-              >
-                {showLocationEditor ? 'Cancel' : '✏️ Edit Location'}
-              </button>
-            </div>
-          ) : null}
-             
-          {/* Location Editor */}
-          {showLocationEditor && !useGPSLocation && (
-              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-white/10">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
-                  <div>
-                    <label className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-1 block font-bold">Region</label>
-                    <select
-                      value={selectedRegion}
-                      onChange={(e) => handleRegionChange(e.target.value)}
-                      className="w-full px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                    >
-                      <option value="" className="text-gray-900 dark:text-gray-900">Select Region</option>
-                      {regions.map((region) => (
-                        <option key={region.code} value={region.code} className="text-gray-900 dark:text-gray-900">
-                          {region.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-1 block font-bold">Province</label>
-                    <select
-                      value={selectedProvince}
-                      onChange={(e) => handleProvinceChange(e.target.value)}
-                      disabled={!selectedRegion}
-                      className="w-full px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] disabled:opacity-50"
-                    >
-                      <option value="" className="text-gray-900 dark:text-gray-900">Select Province</option>
-                      {provinces.map((province) => (
-                        <option key={province.code} value={province.code} className="text-gray-900 dark:text-gray-900">
-                          {province.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  <div>
-                    <label className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-1 block font-bold">City/Municipality</label>
-                    <select
-                      value={selectedCity}
-                      onChange={(e) => handleCityChange(e.target.value)}
-                      disabled={!selectedProvince}
-                      className="w-full px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] disabled:opacity-50"
-                    >
-                      <option value="" className="text-gray-900 dark:text-gray-900">Select City</option>
-                      {cities.map((city) => (
-                        <option key={city.code} value={city.code} className="text-gray-900 dark:text-gray-900">
-                          {city.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-1 gap-3 mb-3">
-                  <div>
-                    <label className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-1 block font-bold">Barangay</label>
-                    <select
-                      value={selectedBarangay}
-                      onChange={(e) => setSelectedBarangay(e.target.value)}
-                      disabled={!selectedCity}
-                      className="w-full px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] disabled:opacity-50"
-                    >
-                      <option value="" className="text-gray-900 dark:text-gray-900">Select Barangay (Optional)</option>
-                      {barangays.map((barangay) => (
-                        <option key={barangay.code} value={barangay.code} className="text-gray-900 dark:text-gray-900">
-                          {barangay.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                
-                <button
-                  onClick={handleSaveLocation}
-                  disabled={!selectedCity}
-                  className="w-full px-4 py-2 bg-[#EA526F] hover:bg-[#d64460] text-white font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
-                >
-                  Save Location
-                </button>
-              </div>
-            )}
-          </div>
-
-        {/* Search Bar */}
-        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 mb-6 border border-white/50 dark:border-white/10 shadow-lg">
-          <div className="flex gap-3 mb-4">
-            <input
-              type="text"
-              value={searchCity}
-              onChange={(e) => setSearchCity(e.target.value)}
-              placeholder="Search by city..."
-              className="flex-1 px-4 py-3 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-            />
-            <button
-              onClick={handleSearch}
-              className="px-6 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all shadow-md"
-            >
-              🔍 Search
-            </button>
-          </div>
-          
-          {/* Filters */}
-          <div className="flex flex-wrap gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-[#4B244A]/70 dark:text-white/70 text-sm font-bold">Category:</span>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : '')}
-                className="px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-              >
-                <option value="" className="text-gray-900 dark:text-gray-900">All Categories</option>
-                {categories.map((cat) => (
-                  <option key={cat.category_id} value={cat.category_id} className="text-gray-900 dark:text-gray-900">
-                    {cat.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-[#4B244A]/70 dark:text-white/70 text-sm font-bold">Min Rating:</span>
-              <select
-                value={minRating}
-                onChange={(e) => handleFilterChange(e.target.value ? Number(e.target.value) : '', sortBy)}
-                className="px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-              >
-                <option value="" className="text-gray-900 dark:text-gray-900">Any</option>
-                <option value="4" className="text-gray-900 dark:text-gray-900">4+ Stars</option>
-                <option value="3" className="text-gray-900 dark:text-gray-900">3+ Stars</option>
-                <option value="2" className="text-gray-900 dark:text-gray-900">2+ Stars</option>
-              </select>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <span className="text-[#4B244A]/70 dark:text-white/70 text-sm font-bold">Sort By:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => handleFilterChange(minRating, e.target.value)}
-                className="px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-              >
-                <option value="" className="text-gray-900 dark:text-gray-900">Default (Nearby First)</option>
-                <option value="rating" className="text-gray-900 dark:text-gray-900">Highest Rated</option>
-                <option value="jobs_completed" className="text-gray-900 dark:text-gray-900">Most Jobs</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Category Filter Info */}
-        {selectedCategory && (
-          <div className="bg-[#EA526F]/10 dark:bg-[#EA526F]/20 backdrop-blur-xl rounded-xl p-3 mb-4 border border-[#EA526F]/30 dark:border-[#EA526F]/40 shadow-sm">
-            <p className="text-[#EA526F] dark:text-pink-300 text-sm font-medium">
-              🏷️ Filtering by: <span className="font-bold">{categories.find(c => c.category_id === selectedCategory)?.name}</span>
-              {' '}- Workers with this category are shown first
-            </p>
-          </div>
-        )}
-
-        {/* Workers List */}
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#EA526F]"></div>
-            <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading housekeepers...</p>
-          </div>
-        ) : filteredWorkers.length === 0 ? (
-          <div className="text-center py-12 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-white/50 dark:border-white/10 shadow-lg">
-            <div className="text-6xl mb-4 opacity-50">🔍</div>
-            <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-2">No housekeepers found</h3>
-            <p className="text-[#4B244A]/70 dark:text-white/70">
-              {selectedCategory 
-                ? `No housekeepers have packages in the selected category` 
-                : 'Try a different city or check back later'}
-            </p>
-          </div>
-        ) : selectedCategory && !filteredWorkers.some(w => w.packages.some(p => p.category_ids && p.category_ids.includes(selectedCategory as number))) ? (
-          <div className="mb-4 bg-yellow-100 dark:bg-yellow-500/20 backdrop-blur-xl rounded-xl p-4 border border-yellow-200 dark:border-yellow-500/30">
-            <p className="text-yellow-700 dark:text-yellow-200 text-sm font-medium">
-              ⚠️ No housekeepers with packages in this category. Showing all available housekeepers below.
-            </p>
-          </div>
-        ) : null}
+      <main className="relative z-10 max-w-5xl mx-auto px-4 py-6 space-y-6">
         
-        {!loading && filteredWorkers.length > 0 && (
-          <div className="grid gap-4">
-            {filteredWorkers.map((worker) => {
-              const hasSelectedCategory = selectedCategory 
-                ? worker.packages.some(p => p.category_ids && p.category_ids.includes(selectedCategory as number))
-                : false;
-              
-              return (
-              <div
-                key={worker.worker_id}
-                className={`bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 border transition-all shadow-lg ${
-                  hasSelectedCategory 
-                    ? 'border-[#EA526F] ring-2 ring-[#EA526F]/30' 
-                    : 'border-white/50 dark:border-white/10 hover:bg-white/80 dark:hover:bg-slate-900/80'
-                }`}
-              >
-                {hasSelectedCategory && (
-                  <div className="mb-3 inline-block px-3 py-1 bg-[#EA526F]/10 dark:bg-[#EA526F]/20 text-[#EA526F] dark:text-pink-300 text-xs font-bold rounded-full border border-[#EA526F]/30">
-                    ✓ Has {categories.find(c => c.category_id === selectedCategory)?.name} packages
-                  </div>
-                )}
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-4">
-                    {/* Avatar */}
-                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-[#EA526F] to-[#6B3468] dark:from-[#EA526F] dark:to-[#d4486a] flex items-center justify-center text-2xl text-white font-bold shadow-md">
-                      {worker.first_name[0]}{worker.last_name[0]}
-                    </div>
-                    
-                    <div>
-                      <h3 className="text-xl font-bold text-[#4B244A] dark:text-white">
-                        {worker.first_name} {worker.last_name}
-                      </h3>
-                      
-                      {/* Rating Display */}
-                      <div className="flex items-center gap-2 mt-1">
-                        <StarRating 
-                          rating={worker.average_rating || 0} 
-                          size="sm" 
-                          showValue={worker.total_ratings > 0}
-                        />
-                        {worker.total_ratings > 0 ? (
-                          <span className="text-[#4B244A]/60 dark:text-white/60 text-sm font-medium">
-                            ({worker.total_ratings} {worker.total_ratings === 1 ? 'review' : 'reviews'})
-                          </span>
-                        ) : (
-                          <span className="text-[#4B244A]/50 dark:text-white/50 text-sm italic">No reviews yet</span>
-                        )}
-                      </div>
-                      
-                      {worker.city && (
-                        <div className="flex items-center gap-2 mt-1">
-                          <p className="text-[#4B244A]/70 dark:text-white/70 text-sm font-medium">
-                            <MapPin className="inline w-4 h-4 mr-1" />{worker.barangay && `${worker.barangay}, `}{worker.city}
-                            {worker.province && `, ${worker.province}`}
-                          </p>
-                          {worker.distance_km !== null && worker.distance_km !== undefined ? (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-300">
-                              <MapPin className="inline w-3 h-3 mr-1" />{worker.distance_km} km away
-                            </span>
-                          ) : worker.proximity_label && (
-                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                              worker.proximity_label === 'same_barangay'
-                                ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/30 dark:text-emerald-300'
-                                : worker.proximity_label === 'same_city' 
-                                ? 'bg-green-100 text-green-700 dark:bg-green-500/30 dark:text-green-300' 
-                                : worker.proximity_label === 'same_province'
-                                ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/30 dark:text-yellow-300'
-                                : 'bg-gray-100 text-gray-700 dark:bg-gray-500/30 dark:text-gray-300'
-                            }`}>
-                              {worker.proximity_label === 'same_barangay'
-                                ? <><MapPin className="inline w-3 h-3 mr-1" />Same Barangay</>
-                                : worker.proximity_label === 'same_city' 
-                                ? <><MapPin className="inline w-3 h-3 mr-1" />Same City</> 
-                                : worker.proximity_label === 'same_province'
-                                ? <><MapPin className="inline w-3 h-3 mr-1" />Same Province</>
-                                : <><MapPin className="inline w-3 h-3 mr-1" />Other Location</>}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      
-                      {/* Package Summary */}
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {worker.packages.slice(0, 3).map((pkg) => (
-                          <span
-                            key={pkg.package_id}
-                            className="px-3 py-1 bg-[#EA526F]/10 dark:bg-[#EA526F]/20 text-[#EA526F] dark:text-pink-300 text-sm rounded-full font-medium"
-                          >
-                            {pkg.name} - ₱{pkg.price.toLocaleString()}
-                          </span>
-                        ))}
-                        {worker.packages.length > 3 && (
-                          <span className="px-3 py-1 bg-gray-100 dark:bg-white/10 text-[#4B244A]/70 dark:text-white/70 text-sm rounded-full font-medium">
-                            +{worker.packages.length - 3} more
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => handleViewProfile(worker.worker_id)}
-                    className="px-4 py-2 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all whitespace-nowrap shadow-md"
-                  >
-                    View Profile
-                  </button>
+        {/* 3. Workers List (Filtered) */}
+        {loading ? (
+           <div className="flex flex-col items-center justify-center py-20">
+             <div className="w-12 h-12 border-4 border-[#EA526F]/30 border-t-[#EA526F] rounded-full animate-spin"></div>
+             <p className="mt-4 text-gray-500 font-medium">Finding housekeepers...</p>
+           </div>
+        ) : filteredWorkers.length === 0 ? (
+            <div className="text-center py-20 px-6 bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-gray-300 dark:border-white/10">
+                <div className="w-16 h-16 bg-gray-100 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Search className="w-8 h-8 text-gray-400" />
                 </div>
-              </div>
-              );
-            })}
-          </div>
+                <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">No housekeepers found</h3>
+                <p className="text-gray-500 mt-2 text-sm">
+                    {selectedCategory 
+                    ? "Try removing the category filter or changing your location." 
+                    : "There are no housekeepers in this area yet."}
+                </p>
+                <button 
+                    onClick={() => { setSelectedCategory(''); setSearchCity(''); }}
+                    className="mt-4 text-[#EA526F] font-bold text-sm hover:underline"
+                >
+                    Clear all filters
+                </button>
+            </div>
+        ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {filteredWorkers.map((worker) => {
+                     const hasSelectedCategory = selectedCategory 
+                         ? worker.packages.some(p => p.category_ids && p.category_ids.includes(selectedCategory as number))
+                         : false;
+
+                     return (
+                        <div 
+                            key={worker.worker_id}
+                            className={`group relative bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${
+                                hasSelectedCategory 
+                                ? 'border-[#EA526F] ring-1 ring-[#EA526F]/20' 
+                                : 'border-gray-200 dark:border-white/5 hover:border-[#EA526F]/30'
+                            }`}
+                        >
+                            {/* Proximity Badge (Absolute Top Right) */}
+                            <div className="absolute top-4 right-4 flex flex-col items-end gap-1">
+                                {worker.distance_km !== null && worker.distance_km !== undefined ? (
+                                    <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 flex items-center gap-1">
+                                        <Navigation className="w-3 h-3 fill-current" /> {worker.distance_km} km
+                                    </span>
+                                ) : worker.proximity_label && (
+                                    <span className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 ${
+                                        worker.proximity_label === 'same_barangay' ? 'bg-emerald-100 text-emerald-700' :
+                                        worker.proximity_label === 'same_city' ? 'bg-green-50 text-green-700' :
+                                        'bg-gray-100 text-gray-600'
+                                    }`}>
+                                        <MapPin className="w-3 h-3" />
+                                        {worker.proximity_label === 'same_barangay' ? 'Neighbor' :
+                                         worker.proximity_label === 'same_city' ? 'Same City' : 'Nearby'}
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="flex items-start gap-4">
+                                {/* Avatar */}
+                                <div className="relative">
+                                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-[#EA526F] to-[#4B244A] flex items-center justify-center text-white text-xl sm:text-2xl font-bold shadow-md group-hover:shadow-lg transition-all">
+                                        {worker.first_name[0]}{worker.last_name[0]}
+                                    </div>
+                                    <div className="absolute -bottom-1 -right-1 bg-white dark:bg-slate-900 rounded-full p-1 shadow-sm">
+                                        <div className="bg-green-500 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900"></div>
+                                    </div>
+                                </div>
+
+                                {/* Main Info */}
+                                <div className="flex-1 min-w-0 pr-16">
+                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white truncate">
+                                        {worker.first_name} {worker.last_name}
+                                    </h3>
+                                    
+                                    <div className="flex items-center gap-1.5 mt-1">
+                                        <Star className="w-4 h-4 text-yellow-400 fill-current" />
+                                        <span className="text-sm font-bold text-gray-900 dark:text-white">{worker.average_rating.toFixed(1)}</span>
+                                        <span className="text-xs text-gray-500">({worker.total_ratings} reviews)</span>
+                                    </div>
+
+                                    <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">
+                                        <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                                        {worker.barangay && `${worker.barangay}, `}{worker.city}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Divider */}
+                            <div className="h-px bg-gray-100 dark:bg-white/5 my-4"></div>
+
+                            {/* Packages */}
+                            <div className="space-y-2">
+                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Starting Packages</p>
+                                <div className="flex flex-wrap gap-2">
+                                    {worker.packages.slice(0, 3).map((pkg) => (
+                                        <div key={pkg.package_id} className="px-3 py-1.5 bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-lg flex items-center gap-2 group-hover:border-[#EA526F]/20 transition-colors">
+                                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{pkg.name}</span>
+                                            <span className="text-xs font-bold text-[#EA526F]">₱{pkg.price}</span>
+                                        </div>
+                                    ))}
+                                    {worker.packages.length > 3 && (
+                                        <span className="px-2 py-1.5 text-xs font-medium text-gray-400">
+                                            +{worker.packages.length - 3} more
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Action Button */}
+                            <button
+                                onClick={() => handleViewProfile(worker.worker_id)}
+                                className="mt-4 w-full py-2.5 bg-[#4B244A] hover:bg-[#381b37] text-white text-sm font-bold rounded-xl transition-all shadow-md group-hover:shadow-lg flex items-center justify-center gap-2"
+                            >
+                                View Profile
+                            </button>
+                        </div>
+                     );
+                })}
+            </div>
         )}
       </main>
 
       <TabBar role="owner" />
+
+       {/* Permission Modal */}
+       {showLocationPrompt && !locationPermissionAsked && (
+         <div className="fixed inset-0 z-[60] flex items-center justify-center px-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 max-w-sm w-full shadow-2xl scale-100 animate-in zoom-in-95 duration-200">
+                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-500/20 rounded-full flex items-center justify-center mb-4">
+                    <Navigation className="w-6 h-6 text-blue-600 dark:text-blue-400 fill-current" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Use your location?</h3>
+                <p className="text-gray-500 dark:text-gray-400 text-sm mb-6 leading-relaxed">
+                    We can show you housekeepers closest to you by accessing your GPS location.
+                </p>
+                <div className="flex gap-3">
+                    <button 
+                        onClick={handleLocationPromptDismiss}
+                        className="flex-1 py-3 text-gray-600 dark:text-gray-300 font-bold text-sm bg-gray-100 dark:bg-white/5 rounded-xl hover:bg-gray-200 transition-colors"
+                    >
+                        Not Now
+                    </button>
+                    <button 
+                        onClick={handleLocationPromptAccept}
+                        className="flex-1 py-3 text-white font-bold text-sm bg-blue-600 hover:bg-blue-700 rounded-xl shadow-lg shadow-blue-500/30 transition-all"
+                    >
+                        Allow Access
+                    </button>
+                </div>
+            </div>
+         </div>
+       )}
     </div>
   );
 }
