@@ -137,7 +137,7 @@ export async function getVerificationById(verificationId: number) {
 }
 
 // Approve a verification (set status to approved in user_documents)
-export async function approveVerification(verificationId: number, adminId: number) {
+export async function approveVerification(verificationId: number, _adminId: number) {
   const supabase = createClient()
   
   // Get the document to find the user_id
@@ -219,7 +219,7 @@ export async function approveVerification(verificationId: number, adminId: numbe
 }
 
 // Reject a verification (set status to rejected in user_documents)
-export async function rejectVerification(verificationId: number, adminId: number) {
+export async function rejectVerification(verificationId: number, _adminId: number) {
   const supabase = createClient()
   
   // Get the document to find the user_id

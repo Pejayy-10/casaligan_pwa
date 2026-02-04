@@ -160,7 +160,7 @@ export async function restrictWorker(userId: number, reason?: string) {
     return { data: null, error: adminError || new Error("Admin not authenticated") };
   }
 
-  const updateData: any = { 
+  const updateData: Record<string, string | number | null> = { 
     status: 'restricted',
     restricted_at: new Date().toISOString(),
     restricted_by_admin_id: admin_id
@@ -236,8 +236,8 @@ export async function getWorkerAnalytics(newAccountsStartDate?: Date, newAccount
 
   // Calculate activity statistics (Active vs Inactive)
   // Note: banned and restricted users are counted as inactive
-  const activeCount = workers?.filter((w: any) => w.users?.status === 'active').length || 0
-  const inactiveCount = workers?.filter((w: any) => 
+  const activeCount = workers?.filter((w: { users?: { status?: string } }) => w.users?.status === 'active').length || 0
+  const inactiveCount = workers?.filter((w: { users?: { status?: string } }) => 
     w.users?.status === 'inactive' || w.users?.status === 'banned' || w.users?.status === 'restricted'
   ).length || 0
   
@@ -247,8 +247,8 @@ export async function getWorkerAnalytics(newAccountsStartDate?: Date, newAccount
   ]
 
   // Calculate restricted/banned statistics
-  const restrictedCount = workers?.filter((w: any) => w.users?.status === 'restricted').length || 0
-  const bannedCount = workers?.filter((w: any) => w.users?.status === 'banned').length || 0
+  const restrictedCount = workers?.filter((w: { users?: { status?: string } }) => w.users?.status === 'restricted').length || 0
+  const bannedCount = workers?.filter((w: { users?: { status?: string } }) => w.users?.status === 'banned').length || 0
   
   const restrictedData = [
     { name: "Restricted", value: restrictedCount },
@@ -261,17 +261,19 @@ export async function getWorkerAnalytics(newAccountsStartDate?: Date, newAccount
     .select('worker_id, user_id, users(name), interestcheck(interest_id)')
   
   // Sort by number of applications and get top 2
+  type WorkerWithInterests = { worker_id: number; user_id: number; users?: { name?: string }; interestcheck?: unknown[] }
+  type MappedWorker = { worker_id: number; user_id: number; name: string; applicationCount: number }
   const sortedWorkers = allWorkersWithInterests
-    ?.map((worker: any) => ({
+    ?.map((worker: WorkerWithInterests) => ({
       worker_id: worker.worker_id,
       user_id: worker.user_id,
       name: worker.users?.name || 'N/A',
       applicationCount: worker.interestcheck?.length || 0
     }))
-    .sort((a: any, b: any) => b.applicationCount - a.applicationCount)
+    .sort((a: MappedWorker, b: MappedWorker) => b.applicationCount - a.applicationCount)
     .slice(0, 2) || []
 
-  const topWorkers = sortedWorkers.map((worker: any, index: number) => ({
+  const topWorkers = sortedWorkers.map((worker: MappedWorker, index: number) => ({
     name: worker.name,
     jobs: `${worker.applicationCount} Jobs Applied`,
     rank: index + 1
@@ -291,7 +293,7 @@ export async function getWorkerAnalytics(newAccountsStartDate?: Date, newAccount
     endDate = new Date()
   }
   
-  const { data: newAccounts, error: newAccountsError } = await supabase
+  const { data: newAccounts, error: _newAccountsError } = await supabase
     .from('workers')
     .select('worker_id, user_id, users(created_at)')
     .gte('users.created_at', startDate.toISOString())
@@ -299,7 +301,7 @@ export async function getWorkerAnalytics(newAccountsStartDate?: Date, newAccount
 
   // Group by month
   const monthCounts: { [key: string]: number } = {}
-  newAccounts?.forEach((worker: any) => {
+  newAccounts?.forEach((worker: { users?: { created_at?: string } }) => {
     if (worker.users?.created_at) {
       const date = new Date(worker.users.created_at)
       const monthKey = date.toLocaleString('en-US', { month: 'short' })

@@ -145,7 +145,7 @@ export async function restrictReviewer(reviewId: number, userId: number, reason?
 	if (reviewUpdate.error) return reviewUpdate;
 
 	// Also restrict the user account with reason
-	const userUpdateData: any = {
+	const userUpdateData: Record<string, string | number | null> = {
 		status: "restricted",
 		restricted_at: new Date().toISOString(),
 		restricted_by_admin_id: admin_id,
