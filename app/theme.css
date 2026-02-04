@@ -1,0 +1,75 @@
+:root {
+	--color-background: #e8e4e1; /* light background */
+	--color-foreground: #020215; /* text */
+	--color-primary: #EA526F; /* plum */
+	--color-primary-foreground: #ffffff;
+	--color-secondary: #4B244A; /* rose */
+	--color-accent: #FFC857; /* saffron */
+	--color-tertiary: #084C61; /* deep teal */
+	--color-danger: #74131e; /* maroon */
+	--color-muted: #F6F4F2; /* subtle surface */
+	--color-border: #e8e4e9; /* subtle border */
+
+	/* Typography (hooked to next/font variables from layout) */
+	--font-sans: var(--font-karla);
+	--font-heading: var(--font-spectral);
+	--font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+
+	/* Misc tokens */
+	--radius-sm: 0.25rem;
+	--radius-md: 0.5rem;
+	--radius-lg: 0.75rem;
+
+	/* Back-compat aliases used by existing styles */
+	--background: var(--color-background);
+	--foreground: var(--color-foreground);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		/* Dark mode keeps dark surfaces, reuses brand hues */
+		--color-background: #0c0c0f;
+		--color-foreground: #EEEAE6;
+		--color-primary: #4B244A; /* same as light */
+		--color-primary-foreground: #ffffff;
+		--color-secondary: #EA526F; /* same as light */
+		--color-accent: #FFC857; /* same as light */
+		--color-tertiary: #084C61; /* same as light */
+		--color-danger: #74131e; /* same as light */
+		--color-muted: #111216;
+		--color-border: #1f1b1f;
+	}
+}
+
+/* Also allow manual dark mode via a .dark class on html/body */
+.dark {
+	--color-background: #0c0c0f;
+	--color-foreground: #EEEAE6;
+	--color-primary: #4B244A; /* same as light */
+	--color-primary-foreground: #ffffff;
+	--color-secondary: #EA526F; /* same as light */
+	--color-accent: #FFC857; /* same as light */
+	--color-tertiary: #084C61; /* same as light */
+	--color-danger: #74131e; /* same as light */
+	--color-muted: #111216;
+	--color-border: #2A2A30;
+}
+
+/* Tailwind v4 theme mapping so you can use utilities like text-foreground bg-background */
+@theme inline {
+	--color-background: var(--color-background);
+	--color-foreground: var(--color-foreground);
+	--color-primary: var(--color-primary);
+	--color-secondary: var(--color-secondary);
+	--color-accent: var(--color-accent);
+	--color-tertiary: var(--color-tertiary);
+	--color-danger: var(--color-danger);
+	--color-muted: var(--color-muted);
+	--color-border: var(--color-border);
+
+	--font-sans: var(--font-sans);
+	--font-heading: var(--font-heading);
+	--font-mono: var(--font-mono);
+}
+
+
