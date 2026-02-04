@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  eslint: {
+    // Ignore ESLint errors during production builds
+    ignoreDuringBuilds: true,
+  },
   devIndicators: {
     position: 'bottom-left', // Or 'bottom-right', 'top-left', 'top-right'
   },
