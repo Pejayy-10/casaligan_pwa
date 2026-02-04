@@ -102,7 +102,7 @@ export default function PaymentsPage() {
 		};
 	});
 
-	const handleAction = async (action: "view" | "ban" | "restrict" | "unban" | "unrestrict", row: any) => {
+	const handleAction = (action: "delete" | "restrict" | "warn" | "view" | "ban" | "unban" | "unrestrict" | "dismiss", row: Record<string, unknown>) => {
 		if (action === "view") {
 			// Handle view action - you can add a modal here
 			const payment = payments.find(p => p.payment_id === row.payment_id);
@@ -111,31 +111,31 @@ export default function PaymentsPage() {
 				const worker = payment.workers?.users || {};
 				const paymentMethod = payment.payment_methods || {};
 				
-				alert(`Payment Details:\nPayment ID: ${row.payment_id}\nPayer (Employer): ${employer.name || "N/A"}\nPayee (Worker): ${worker.name || "N/A"}\nAmount: ₱${row.amount}\nStatus: ${row.status}\nPayment Method: ${paymentMethod.provider_name || "N/A"}\nDate: ${new Date(row.date).toLocaleString()}`);
+				alert(`Payment Details:\nPayment ID: ${row.payment_id}\nPayer (Employer): ${employer.name || "N/A"}\nPayee (Worker): ${worker.name || "N/A"}\nAmount: ₱${row.amount}\nStatus: ${row.status}\nPayment Method: ${paymentMethod.provider_name || "N/A"}\nDate: ${new Date(row.date as string).toLocaleString()}`);
 			}
-		} else if (action === "ban") {
+		} else if (action === "ban" || action === "delete") {
 			// Delete payment
 			if (confirm(`Are you sure you want to delete payment ${row.userId} for ${row.employer_name}?`)) {
-				const { error } = await deletePayment(row.payment_id);
-				
-				if (error) {
-					alert(`Error deleting payment: ${error.message}`);
-				} else {
-					alert(`Payment has been deleted successfully.`);
-					loadPayments(); // Reload data
-				}
+				deletePayment(row.payment_id as number).then(({ error }) => {
+					if (error) {
+						alert(`Error deleting payment: ${error.message}`);
+					} else {
+						alert(`Payment has been deleted successfully.`);
+						loadPayments(); // Reload data
+					}
+				});
 			}
 		} else if (action === "restrict") {
 			// Update payment status (e.g., mark as completed)
 			if (confirm(`Are you sure you want to mark payment ${row.userId} as completed?`)) {
-				const { error } = await updatePaymentStatus(row.payment_id, "completed");
-				
-				if (error) {
-					alert(`Error updating payment: ${error.message}`);
-				} else {
-					alert(`Payment has been marked as completed successfully.`);
-					loadPayments(); // Reload data
-				}
+				updatePaymentStatus(row.payment_id as number, "completed").then(({ error }) => {
+					if (error) {
+						alert(`Error updating payment: ${error.message}`);
+					} else {
+						alert(`Payment has been marked as completed successfully.`);
+						loadPayments(); // Reload data
+					}
+				});
 			}
 		}
 	};
