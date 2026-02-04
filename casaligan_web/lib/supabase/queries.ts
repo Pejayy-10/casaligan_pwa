@@ -1,5 +1,4 @@
 import { createClient } from './server'
-import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
  * Common database queries for admin dashboard
@@ -132,7 +131,7 @@ export async function getBookings(limit = 50, offset = 0) {
 
   // Get schedule IDs and fetch schedules
   const scheduleIds = bookings.map(b => b.schedule_id).filter(Boolean)
-  const { data: schedules, error: schedulesError } = await supabase
+  const { data: schedules, error: _schedulesError } = await supabase
     .from('schedules')
     .select('schedule_id, package_id, employer_id, available_date, start_time, end_time, status')
     .in('schedule_id', scheduleIds)
@@ -150,7 +149,8 @@ export async function getBookings(limit = 50, offset = 0) {
 export async function getRecentActivities(limit = 20) {
   const supabase = await createClient()
   
-  const activities: any[] = []
+  type Activity = { type: string; title: string; description: string; date: string; user_name: string }
+  const activities: Activity[] = []
 
   // Get recent job posts
   const { data: jobPosts } = await supabase
@@ -171,7 +171,8 @@ export async function getRecentActivities(limit = 20) {
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  jobPosts?.forEach((post: any) => {
+  type PostType = { post_id?: number; title?: string; created_at?: string; employers?: { user_id?: number; users?: { id?: number; first_name?: string; last_name?: string } | { id?: number; first_name?: string; last_name?: string }[] } | { user_id?: number; users?: { id?: number; first_name?: string; last_name?: string } | { id?: number; first_name?: string; last_name?: string }[] }[] }
+  jobPosts?.forEach((post: PostType) => {
     const employer = Array.isArray(post.employers) ? post.employers[0] : post.employers
     const user = Array.isArray(employer?.users) ? employer.users[0] : employer?.users
     if (user) {
@@ -212,7 +213,8 @@ export async function getRecentActivities(limit = 20) {
     .order('created_at', { ascending: false })
     .limit(limit)
 
-  contracts?.forEach((contract: any) => {
+  type ContractType = { created_at?: string; workers?: { users?: { first_name?: string; last_name?: string } | { first_name?: string; last_name?: string }[] } | { users?: { first_name?: string; last_name?: string } | { first_name?: string; last_name?: string }[] }[]; employers?: { users?: { first_name?: string; last_name?: string } | { first_name?: string; last_name?: string }[] } | { users?: { first_name?: string; last_name?: string } | { first_name?: string; last_name?: string }[] }[] }
+  contracts?.forEach((contract: ContractType) => {
     const worker = Array.isArray(contract.workers) ? contract.workers[0] : contract.workers
     const employer = Array.isArray(contract.employers) ? contract.employers[0] : contract.employers
     const workerUser = Array.isArray(worker?.users) ? worker.users[0] : worker?.users

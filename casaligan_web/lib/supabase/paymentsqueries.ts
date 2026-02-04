@@ -446,7 +446,7 @@ export async function getPaymentStats() {
   
   try {
     // Get counts by status in parallel - use direct_hires table
-    const [pendingResult, completedResult, cancelledResult, totalResult] = await Promise.all([
+    const [pendingResult, completedResult, _cancelledResult, totalResult] = await Promise.all([
       supabase.from('direct_hires').select('*', { count: 'exact', head: true }).in('status', ['completed', 'in_progress']),
       supabase.from('direct_hires').select('*', { count: 'exact', head: true }).eq('status', 'paid'),
       supabase.from('direct_hires').select('*', { count: 'exact', head: true }).eq('status', 'cancelled'),
@@ -523,11 +523,11 @@ export async function updatePaymentStatus(hireId: number, status: string) {
   if (!mappedStatus) {
     return { 
       data: null, 
-      error: { message: `Invalid status. Must be one of: ${Object.keys(statusMap).join(', ')}` } as any
+      error: { message: `Invalid status. Must be one of: ${Object.keys(statusMap).join(', ')}` }
     }
   }
 
-  const updateData: any = { status: mappedStatus }
+  const updateData: Record<string, string> = { status: mappedStatus }
   
   // If marking as paid, set paid_at timestamp
   if (mappedStatus === 'paid') {
@@ -599,7 +599,7 @@ export async function createPayment(paymentData: {
   if (!paymentData.contract_id || !paymentData.amount) {
     return { 
       data: null, 
-      error: { message: 'contract_id and amount are required' } as any
+      error: { message: 'contract_id and amount are required' }
     }
   }
 
@@ -608,7 +608,7 @@ export async function createPayment(paymentData: {
   if (!validStatuses.includes(paymentData.status.toLowerCase())) {
     return { 
       data: null, 
-      error: { message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` } as any
+      error: { message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` }
     }
   }
 
