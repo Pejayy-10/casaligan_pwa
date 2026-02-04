@@ -542,7 +542,7 @@ export default function ProfilePage() {
             </button>
           )}
           
-          {/* Debug/Testing Actions */}
+          {/* Debug/Testing Actions
           <div className="bg-red-50 dark:bg-red-500/10 backdrop-blur-xl rounded-2xl p-3 sm:p-4 border border-red-200 dark:border-red-500/30 shadow-md">
             <h3 className="text-xs sm:text-sm font-bold text-red-600 dark:text-red-200 mb-2 sm:mb-3">🛠️ Testing Tools (Temporary)</h3>
             <div className="space-y-2">
@@ -571,7 +571,7 @@ export default function ProfilePage() {
                 📍 Clear Check-Ins Only
               </button>
             </div>
-          </div>
+          </div> */}
 
           <button
             onClick={handleLogout}

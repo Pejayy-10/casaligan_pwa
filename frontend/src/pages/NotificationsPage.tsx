@@ -175,8 +175,10 @@ export default function NotificationsPage() {
                 onClick={() => handleNotificationClick(notification)}
                 className={`p-4 rounded-lg transition-all cursor-pointer border ${
                   notification.is_read
-                    ? 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/10'
-                    : 'bg-blue-50 dark:bg-white/15 border-blue-200 dark:border-white/30 hover:bg-blue-100 dark:hover:bg-white/20'
+                    ? // Read Styles (Gray/Neutral)
+                      'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 hover:bg-gray-100 dark:hover:bg-white/10'
+                    : // Unread Styles (Pink Highlight)
+                      'bg-[#EA526F]/10 dark:bg-[#EA526F]/10 border-[#EA526F]/30 dark:border-[#EA526F]/30 hover:bg-[#EA526F]/20 dark:hover:bg-[#EA526F]/20'
                 }`}
               >
                 <div className="flex items-start justify-between gap-3">
