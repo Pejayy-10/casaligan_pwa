@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { MapPin } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import StarRating from '../components/StarRating';
 import { authService } from '../services/auth';
@@ -468,7 +469,7 @@ export default function BrowseWorkersPage() {
         {showLocationPrompt && !locationPermissionAsked && (
           <div className="bg-blue-50 dark:bg-blue-500/20 backdrop-blur-xl rounded-2xl p-5 mb-4 border border-blue-200 dark:border-blue-500/30 shadow-lg">
             <div className="flex items-start gap-4">
-              <div className="text-3xl">📍</div>
+              <div className="text-3xl"><MapPin className="w-8 h-8" /></div>
               <div className="flex-1">
                 <h3 className="text-lg font-bold text-[#4B244A] dark:text-white mb-2">
                   Enable Location Services
@@ -510,7 +511,7 @@ export default function BrowseWorkersPage() {
                     : 'bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white border-gray-200 dark:border-white/10 hover:bg-white/80 dark:hover:bg-white/20'
                 }`}
               >
-                📍 Saved Address
+                <MapPin className="inline w-4 h-4 mr-1" /> Saved Address
               </button>
               <button
                 onClick={() => {
@@ -555,7 +556,7 @@ export default function BrowseWorkersPage() {
               <div>
                 <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-1 font-medium">Showing workers near:</p>
                 <p className="text-[#4B244A] dark:text-white font-bold">
-                  📍 {employerLocation.barangay && `${employerLocation.barangay}, `}{employerLocation.city}, {employerLocation.province}
+                  <MapPin className="inline w-4 h-4 mr-1" /> {employerLocation.barangay && `${employerLocation.barangay}, `}{employerLocation.city}, {employerLocation.province}
                 </p>
                 <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
                   Workers in your barangay are shown first, then your city, then your province
@@ -807,12 +808,12 @@ export default function BrowseWorkersPage() {
                       {worker.city && (
                         <div className="flex items-center gap-2 mt-1">
                           <p className="text-[#4B244A]/70 dark:text-white/70 text-sm font-medium">
-                            📍 {worker.barangay && `${worker.barangay}, `}{worker.city}
+                            <MapPin className="inline w-4 h-4 mr-1" />{worker.barangay && `${worker.barangay}, `}{worker.city}
                             {worker.province && `, ${worker.province}`}
                           </p>
                           {worker.distance_km !== null && worker.distance_km !== undefined ? (
                             <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-300">
-                              📍 {worker.distance_km} km away
+                              <MapPin className="inline w-3 h-3 mr-1" />{worker.distance_km} km away
                             </span>
                           ) : worker.proximity_label && (
                             <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
@@ -825,12 +826,12 @@ export default function BrowseWorkersPage() {
                                 : 'bg-gray-100 text-gray-700 dark:bg-gray-500/30 dark:text-gray-300'
                             }`}>
                               {worker.proximity_label === 'same_barangay'
-                                ? '📍 Same Barangay'
+                                ? <><MapPin className="inline w-3 h-3 mr-1" />Same Barangay</>
                                 : worker.proximity_label === 'same_city' 
-                                ? '📍 Same City' 
+                                ? <><MapPin className="inline w-3 h-3 mr-1" />Same City</> 
                                 : worker.proximity_label === 'same_province'
-                                ? '📍 Same Province'
-                                : '📍 Other Location'}
+                                ? <><MapPin className="inline w-3 h-3 mr-1" />Same Province</>
+                                : <><MapPin className="inline w-3 h-3 mr-1" />Other Location</>}
                             </span>
                           )}
                         </div>

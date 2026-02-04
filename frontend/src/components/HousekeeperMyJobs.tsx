@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle } from 'lucide-react';
 
 interface AcceptedJob {
   post_id: number;
@@ -94,9 +95,9 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
     const effectiveStatus = contractStatus || status;
     switch (effectiveStatus) {
       case 'active':
-      case 'ongoing': return '🔄 Ongoing';
-      case 'pending_completion': return '⏳ Pending Approval';
-      case 'completed': return '✅ Completed';
+      case 'ongoing': return '<RotateCw className="inline w-4 h-4 mr-1" /> Ongoing';
+      case 'pending_completion': return '<Clock className="inline w-4 h-4 mr-1" /> Pending Approval';
+      case 'completed': return '<CheckCircle className="inline w-4 h-4 mr-1" /> Completed';
       default: return effectiveStatus;
     }
   };
@@ -133,7 +134,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                 : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
             }`}
           >
-            📋 All Jobs
+            <ClipboardList className="inline w-4 h-4 mr-1" /> All Jobs
           </button>
           <button
             onClick={() => setStatusFilter('ongoing')}
@@ -143,7 +144,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                 : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
             }`}
           >
-            🔄 Ongoing
+            <RotateCw className="inline w-4 h-4 mr-1" /> Ongoing
           </button>
           <button
             onClick={() => setStatusFilter('pending_completion')}
@@ -153,7 +154,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                 : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
             }`}
           >
-            ⏳ Pending
+            <Clock className="inline w-4 h-4 mr-1" /> Pending
           </button>
           <button
             onClick={() => setStatusFilter('completed')}
@@ -163,14 +164,14 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                 : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
             }`}
           >
-            ✅ Completed
+            <CheckCircle className="inline w-4 h-4 mr-1" /> Completed
           </button>
         </div>
       </div>
 
       {jobs.length === 0 ? (
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-12 text-center border border-white/50 dark:border-white/10 shadow-lg">
-          <div className="text-6xl mb-4 opacity-50">💼</div>
+          <div className="flex justify-center mb-4 opacity-50"><Briefcase className="w-16 h-16" /></div>
           <h3 className="text-2xl font-bold text-[#4B244A] dark:text-white mb-2">No Accepted Jobs</h3>
           <p className="text-[#4B244A]/70 dark:text-white/70 mb-6 font-medium">
             {statusFilter === 'all' 
@@ -200,7 +201,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
               {/* Job Details */}
               <div className="flex flex-wrap gap-2 mb-4">
                 <span className="px-3 py-1 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300 rounded-lg text-sm font-semibold">
-                  💰 ₱{job.budget}
+                  <DollarSign className="inline w-4 h-4 mr-1" /> ₱{job.budget}
                 </span>
                 <span className="px-3 py-1 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 rounded-lg text-sm font-semibold">
                   📍 {job.location}
@@ -214,18 +215,18 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
 
               {/* Employer Info */}
               <div className="bg-white/50 dark:bg-white/5 rounded-lg p-3 mb-4 border border-gray-200 dark:border-white/10">
-                <h4 className="text-sm font-bold text-[#4B244A] dark:text-white mb-2">👤 Employer</h4>
+                <h4 className="text-sm font-bold text-[#4B244A] dark:text-white mb-2"><User className="inline w-4 h-4 mr-1" /> Employer</h4>
                 <div className="text-sm text-[#4B244A]/70 dark:text-white/70 space-y-1 font-medium">
                   <p>{job.employer.name}</p>
-                  {job.employer.phone && <p>📞 {job.employer.phone}</p>}
-                  {job.employer.email && <p>✉️ {job.employer.email}</p>}
+                  {job.employer.phone && <p><Phone className="inline w-4 h-4 mr-1" />{job.employer.phone}</p>}
+                  {job.employer.email && <p><Mail className="inline w-4 h-4 mr-1" />{job.employer.email}</p>}
                 </div>
               </div>
 
               {/* Payment Summary (for long-term jobs) */}
               {job.is_longterm && job.payments && (
                 <div className="bg-white/50 dark:bg-white/5 rounded-lg p-3 mb-4 border border-gray-200 dark:border-white/10">
-                  <h4 className="text-sm font-bold text-[#4B244A] dark:text-white mb-2">💳 Payment Summary</h4>
+                  <h4 className="text-sm font-bold text-[#4B244A] dark:text-white mb-2"><CreditCard className="inline w-4 h-4 mr-1" /> Payment Summary</h4>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div className="bg-green-100 dark:bg-green-500/10 rounded-lg p-2 text-center border border-green-200 dark:border-transparent">
                       <div className="text-green-700 dark:text-green-300 font-bold">₱{job.payments.total_earned.toLocaleString()}</div>
@@ -238,7 +239,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                   </div>
                   {job.payments.next_payment_due && (
                     <p className="text-xs text-[#4B244A]/60 dark:text-white/60 mt-2 font-medium">
-                      📅 Next payment due: {new Date(job.payments.next_payment_due).toLocaleDateString()}
+                      <Calendar className="inline w-4 h-4 mr-1" /> Next payment due: {new Date(job.payments.next_payment_due).toLocaleDateString()}
                     </p>
                   )}
                 </div>
@@ -247,7 +248,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
               {/* Date Range */}
               {job.start_date && job.end_date && (
                 <div className="text-sm text-[#4B244A]/60 dark:text-white/60 mb-4 font-medium">
-                  📅 {new Date(job.start_date).toLocaleDateString()} - {new Date(job.end_date).toLocaleDateString()}
+                  <Calendar className="inline w-4 h-4 mr-1" /> {new Date(job.start_date).toLocaleDateString()} - {new Date(job.end_date).toLocaleDateString()}
                 </div>
               )}
 
@@ -256,7 +257,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                 {hasPendingPaymentConfirmation(job) && (
                   <>
                     <div className="py-3 text-center text-blue-700 dark:text-blue-300 font-bold bg-blue-100 dark:bg-blue-500/10 rounded-lg border border-blue-200 dark:border-blue-500/30">
-                      💰 Payment Sent - Review Required!
+                      <DollarSign className="inline w-4 h-4 mr-1" /> Payment Sent - Review Required!
                     </div>
                     <button
                       onClick={async () => {
@@ -318,7 +319,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                       onClick={() => onShowProgress(job)}
                       className="w-full py-2 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
                     >
-                      📊 View Progress
+                      <BarChart2 className="inline w-4 h-4 mr-1" /> View Progress
                     </button>
                     {/* Show Payment Tracker button for all job types */}
                     {onShowPayments && (
@@ -326,7 +327,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                         onClick={() => onShowPayments(job)}
                         className="w-full py-2 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition-all shadow-md"
                       >
-                        💰 View Payments {job.payments.schedules?.some(s => s.status === 'sent' || s.status === 'SENT') && '(Action Required!)'}
+                        <DollarSign className="inline w-4 h-4 mr-1" /> View Payments {job.payments.schedules?.some(s => s.status === 'sent' || s.status === 'SENT') && '(Action Required!)'}
                       </button>
                     )}
                     {/* Only show Submit Completion for short-term jobs */}
@@ -335,13 +336,13 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                         onClick={() => onSubmitCompletion(job)}
                         className="w-full py-2 bg-yellow-500 text-white font-bold rounded-lg hover:bg-yellow-600 transition-all shadow-md"
                       >
-                        ✅ Submit Completion
+                        <CheckCircle className="inline w-4 h-4 mr-1" /> Submit Completion
                       </button>
                     )}
                     {/* For long-term jobs, show info about auto-completion */}
                     {job.is_longterm && (
                       <div className="py-2 text-center text-blue-700 dark:text-blue-300 text-sm bg-blue-100 dark:bg-blue-500/10 rounded-lg font-medium">
-                        💰 Job completes when all payments are confirmed
+                        <DollarSign className="inline w-4 h-4 mr-1" /> Job completes when all payments are confirmed
                       </div>
                     )}
                     {job.payments.pending_payments > 0 && (
@@ -349,7 +350,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                         onClick={() => onReportUnpaid(job)}
                         className="w-full py-2 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 transition-all shadow-md"
                       >
-                        ⚠️ Report Unpaid
+                        <AlertTriangle className="inline w-4 h-4 mr-1" /> Report Unpaid
                       </button>
                     )}
                   </>
@@ -357,14 +358,14 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
 
                 {myStatus === 'pending_completion' && (
                   <div className="py-3 text-center text-yellow-700 dark:text-yellow-300 font-bold bg-yellow-100 dark:bg-yellow-500/10 rounded-lg">
-                    ⏳ Waiting for owner to approve completion
+                    <Clock className="inline w-4 h-4 mr-1" /> Waiting for owner to approve completion
                   </div>
                 )}
 
                 {myStatus === 'completed' && !hasPendingPaymentConfirmation(job) && (
                   <>
                     <div className="py-3 text-center text-green-700 dark:text-green-300 font-bold bg-green-100 dark:bg-green-500/10 rounded-lg">
-                      ✅ Job completed! Payment received.
+                      <CheckCircle className="inline w-4 h-4 mr-1" /> Job completed! Payment received.
                     </div>
                     {onReportEmployer && (
                       reportedUsers?.has(`${job.post_id}-${job.employer.user_id}`) ? (

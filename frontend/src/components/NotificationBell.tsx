@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, X, Check, CheckCheck } from 'lucide-react';
+import { Bell, X, Check, CheckCheck, AlertTriangle } from 'lucide-react';
 import JobEditResponseModal from './JobEditResponseModal';
 
 interface Notification {
@@ -153,7 +153,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     if (notification.type === 'job_edited' && notification.reference_type === 'job' && notification.reference_id) {
       setShowJobEditModal({
         jobId: notification.reference_id,
-        jobTitle: notification.title.replace(' ⚠️', '').replace('Job Post Updated', '').trim() || 'Job',
+        jobTitle: notification.title.replace(' ⚠️', '').replace('Job Post Updated', '').replace('AlertTriangle', '').trim() || 'Job',
         message: notification.message
       });
       setIsOpen(false);

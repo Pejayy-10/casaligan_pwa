@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Phone, Mail, Calendar, MapPin, Star, Check, Clock, X, MessageCircle, Package, User, Briefcase, AlertTriangle, AlertCircle } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import StarRating from '../components/StarRating';
 import { psgcService } from '../services/psgc';
@@ -391,11 +392,11 @@ export default function WorkerProfilePage() {
               <div className="flex flex-wrap items-center gap-2 mt-2">
                 {profile.is_verified ? (
                   <span className="px-3 py-1 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300 text-sm font-bold rounded-full">
-                    ✓ Verified
+                    <Check className="inline w-4 h-4 mr-1" /> Verified
                   </span>
                 ) : (
                   <span className="px-3 py-1 bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300 text-sm font-bold rounded-full">
-                    ⏳ Pending Verification
+                    <Clock className="inline w-4 h-4 mr-1" /> Pending Verification
                   </span>
                 )}
                 <span className="px-3 py-1 bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white/70 text-sm font-bold rounded-full">
@@ -436,25 +437,25 @@ export default function WorkerProfilePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm font-medium">
               {profile.phone_masked && (
                 <div className="flex items-center gap-2 text-[#4B244A]/70 dark:text-white/70">
-                  <span>📱</span>
+                  <Phone className="w-4 h-4" />
                   <span>{profile.phone_masked}</span>
                 </div>
               )}
               {profile.email_masked && (
                 <div className="flex items-center gap-2 text-[#4B244A]/70 dark:text-white/70">
-                  <span>✉️</span>
+                  <Mail className="w-4 h-4" />
                   <span>{profile.email_masked}</span>
                 </div>
               )}
               {profile.member_since && (
                 <div className="flex items-center gap-2 text-[#4B244A]/70 dark:text-white/70">
-                  <span>📅</span>
+                  <Calendar className="w-4 h-4" />
                   <span>Member since {new Date(profile.member_since).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
                 </div>
               )}
               {profile.region && (
                 <div className="flex items-center gap-2 text-[#4B244A]/70 dark:text-white/70">
-                  <span>🗺️</span>
+                  <MapPin className="w-4 h-4" />
                   <span>{profile.region}</span>
                 </div>
               )}
@@ -468,7 +469,7 @@ export default function WorkerProfilePage() {
         {/* Reviews Section */}
         {profile.total_ratings > 0 && (
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 mb-6 border border-white/50 dark:border-white/10 shadow-lg transition-all">
-            <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">⭐ Reviews</h3>
+            <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4"><Star className="inline w-5 h-5 mr-2" /> Reviews</h3>
             
             {/* Rating Summary */}
             <div className="flex items-center gap-6 mb-6 pb-6 border-b border-gray-200 dark:border-white/10">
@@ -530,7 +531,7 @@ export default function WorkerProfilePage() {
 
         {/* Packages Section */}
         <div className="mb-6">
-          <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">📦 Service Packages</h3>
+<h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4"><Package className="inline w-5 h-5 mr-2" /> Service Packages</h3>
           
           {profile.packages.length === 0 ? (
             <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 border border-white/50 dark:border-white/10 text-center shadow-lg">
@@ -629,7 +630,7 @@ export default function WorkerProfilePage() {
           <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl relative">
             <div className="p-6 border-b border-gray-200 dark:border-white/10 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-10">
               <div className="flex items-center justify-between">
-                <h3 className="text-xl font-bold text-[#4B244A] dark:text-white">📅 Schedule Booking</h3>
+                <h3 className="text-xl font-bold text-[#4B244A] dark:text-white"><Calendar className="inline w-5 h-5 mr-2" /> Schedule Booking</h3>
                 <button onClick={() => setShowHireModal(false)} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white text-xl">✕</button>
               </div>
             </div>

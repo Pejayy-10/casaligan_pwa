@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { BarChart2, DollarSign, AlertTriangle, User, Phone, PartyPopper, CheckCircle, Check } from 'lucide-react';
 
 interface PaymentWarning {
   schedule_id: number;
@@ -78,7 +79,7 @@ export default function HousekeeperProgressModal({ jobId, onClose, onSubmitCompl
         {/* Header */}
         <div className="p-6 border-b border-gray-200 dark:border-white/10 sticky top-0 bg-[#E8E4E1]/95 dark:bg-slate-900/95 backdrop-blur z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">📊 Job Progress</h2>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white"><BarChart2 className="inline w-4 h-4 mr-1" /> Job Progress</h2>
             <button
               onClick={onClose}
               className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors"
@@ -138,7 +139,7 @@ export default function HousekeeperProgressModal({ jobId, onClose, onSubmitCompl
 
               {/* Earnings Summary */}
               <div className="bg-gradient-to-r from-green-100 to-blue-100 dark:from-green-500/20 dark:to-blue-500/20 rounded-xl p-4 border border-green-200 dark:border-green-500/30">
-                <h3 className="text-sm font-bold text-[#4B244A] dark:text-white/90 mb-3">💰 Earnings</h3>
+                <h3 className="text-sm font-bold text-[#4B244A] dark:text-white/90 mb-3"><DollarSign className="inline w-4 h-4 mr-1" /> Earnings</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <div className="text-2xl font-bold text-green-700 dark:text-green-300">
@@ -158,7 +159,7 @@ export default function HousekeeperProgressModal({ jobId, onClose, onSubmitCompl
               {/* Payment Warnings */}
               {progress.payment_warnings.length > 0 && (
                 <div className="bg-red-100 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl p-4">
-                  <h3 className="text-sm font-bold text-red-700 dark:text-red-300 mb-3">⚠️ Overdue Payments</h3>
+                  <h3 className="text-sm font-bold text-red-700 dark:text-red-300 mb-3"><AlertTriangle className="inline w-4 h-4 mr-1" /> Overdue Payments</h3>
                   <div className="space-y-2">
                     {progress.payment_warnings.map((warning) => (
                       <div key={warning.schedule_id} className="flex justify-between items-center text-sm">
@@ -176,10 +177,10 @@ export default function HousekeeperProgressModal({ jobId, onClose, onSubmitCompl
 
               {/* Employer Info */}
               <div className="bg-white/50 dark:bg-white/10 rounded-xl p-4 border border-gray-200 dark:border-white/10">
-                <h3 className="text-sm font-bold text-[#4B244A] dark:text-white/90 mb-2">👤 Employer</h3>
+                <h3 className="text-sm font-bold text-[#4B244A] dark:text-white/90 mb-2"><User className="inline w-4 h-4 mr-1" /> Employer</h3>
                 <p className="text-[#4B244A]/80 dark:text-white font-medium">{progress.employer_name}</p>
                 {progress.employer_contact && (
-                  <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mt-1">📞 {progress.employer_contact}</p>
+                  <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mt-1"><Phone className="inline w-4 h-4 mr-1" /> {progress.employer_contact}</p>
                 )}
               </div>
 
@@ -196,7 +197,7 @@ export default function HousekeeperProgressModal({ jobId, onClose, onSubmitCompl
                           {new Date(checkin.check_in_time).toLocaleString()}
                         </span>
                         {checkin.verified && (
-                          <span className="text-green-600 dark:text-green-400 text-xs font-bold">✓ Verified</span>
+                          <span className="text-green-600 dark:text-green-400 text-xs font-bold"><Check className="inline w-4 h-4 mr-1" /> Verified</span>
                         )}
                       </div>
                     ))}
@@ -208,13 +209,13 @@ export default function HousekeeperProgressModal({ jobId, onClose, onSubmitCompl
               {progress.can_submit_completion && (
                 <div className="bg-green-100 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-xl p-4">
                   <p className="text-green-800 dark:text-green-300 text-sm mb-3 font-medium">
-                    🎉 You're near the end date! You can now submit job completion.
+                    <PartyPopper className="inline w-4 h-4 mr-1" /> You're near the end date! You can now submit job completion.
                   </p>
                   <button
                     onClick={onSubmitCompletion}
                     className="w-full py-3 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition-all shadow-md"
                   >
-                    ✅ Submit Job Completion
+                    <CheckCircle className="inline w-4 h-4 mr-1" /> Submit Job Completion
                   </button>
                 </div>
               )}

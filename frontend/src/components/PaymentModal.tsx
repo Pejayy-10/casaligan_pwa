@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CreditCard } from 'lucide-react';
 
 interface PaymentModalProps {
   amount: number;

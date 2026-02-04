@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CheckCircle, Lightbulb, AlertTriangle } from 'lucide-react';
 
 interface CheckInModalProps {
   jobId: number;
@@ -130,7 +131,7 @@ export default function CheckInModal({ jobId, jobTitle, onClose, onSuccess }: Ch
           {/* Info */}
           <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-3">
             <p className="text-blue-800 dark:text-blue-200 text-sm font-medium">
-              <strong>💡 Remember:</strong> Make sure to check out when you finish work. 
+              <strong><Lightbulb className="inline w-4 h-4 mr-1" /> Remember:</strong> Make sure to check out when you finish work. 
               The employer will be able to see your check-in time and verify your attendance.
             </p>
           </div>
@@ -258,7 +259,7 @@ export function CheckOutModal({ jobId, jobTitle, checkinId, checkInTime, onClose
           {/* Info */}
           <div className="bg-green-100 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-xl p-3">
             <p className="text-green-800 dark:text-green-200 text-sm font-medium">
-              <strong>✅ Great work!</strong> Your attendance will be recorded and the employer can verify your hours.
+              <strong><CheckCircle className="inline w-4 h-4 mr-1" /> Great work!</strong> Your attendance will be recorded and the employer can verify your hours.
             </p>
           </div>
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Edit2 } from 'lucide-react';
 
 interface JobProgressData {
   job_title: string;

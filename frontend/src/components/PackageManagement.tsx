@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Plus, Edit2, Clock, Package, AlertTriangle } from 'lucide-react';
 
 interface Package {
   package_id: number;
@@ -202,7 +203,8 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     <div className="space-y-4">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">
-          {editingPackage ? '✏️ Edit Package' : '➕ New Package'}
+          {editingPackage ? <Edit2 className="inline w-4 h-4 mr-1" /> : <Plus className="inline w-4 h-4 mr-1" />}
+          {editingPackage ? 'Edit Package' : 'New Package'}
         </h3>
         <button onClick={resetForm} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white text-sm transition-colors">
           Cancel
@@ -245,7 +247,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
           ))}
         </div>
         {categories.length === 0 && (
-          <p className="text-yellow-600 dark:text-yellow-300 text-xs mt-1">⚠ No categories available. Contact admin to add categories.</p>
+          <p className="text-yellow-600 dark:text-yellow-300 text-xs mt-1 flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> No categories available. Contact admin to add categories.</p>
         )}
         {selectedCategoryIds.length === 0 && (
           <p className="text-red-500 dark:text-red-400 text-xs mt-1">Please select at least one category</p>
@@ -311,7 +313,8 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
         disabled={submitting}
         className="w-full py-4 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
       >
-        {submitting ? '⏳ Saving...' : editingPackage ? '✓ Update Package' : '✓ Create Package'}
+        {submitting ? <Clock className="inline w-4 h-4 mr-1 animate-spin" /> : null}
+        {submitting ? 'Saving...' : editingPackage ? 'Update Package' : 'Create Package'}
       </button>
     </div>
   );
@@ -323,7 +326,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
         onClick={() => setShowForm(true)}
         className="w-full py-4 border-2 border-dashed border-gray-300 dark:border-white/30 rounded-xl text-[#4B244A]/70 dark:text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all font-medium bg-white/50 dark:bg-white/5"
       >
-        ➕ Add New Package
+        <Plus className="inline w-4 h-4 mr-1" /> Add New Package
       </button>
 
       {loading ? (
@@ -332,7 +335,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
         </div>
       ) : packages.length === 0 ? (
         <div className="text-center py-8 bg-white/50 dark:bg-white/10 rounded-xl border border-gray-200 dark:border-white/10">
-          <div className="text-4xl mb-2 opacity-50">📦</div>
+          <div className="mb-2 opacity-50"><Package className="w-16 h-16 text-[#4B244A]/60 dark:text-white/60 mx-auto" /></div>
           <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">No packages yet</p>
           <p className="text-[#4B244A]/50 dark:text-white/50 text-sm">Create your first package to get direct bookings!</p>
         </div>
@@ -419,7 +422,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
         {/* Header */}
         <div className="sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md p-6 border-b border-gray-200 dark:border-white/10 z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">📦 My Service Packages</h2>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white"><Package className="inline w-5 h-5 mr-2" /> My Service Packages</h2>
             {onClose && <button onClick={onClose} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors">✕</button>}
           </div>
           <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mt-1 font-medium">Create packages that house owners can book directly</p>

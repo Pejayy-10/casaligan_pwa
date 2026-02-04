@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Clock, AlertTriangle, Upload, CheckCircle } from 'lucide-react';
 
 interface Payment {
   transaction_id: number;
@@ -212,7 +213,7 @@ export default function PaymentTrackerWorker({ jobId, jobTitle, onClose }: Payme
                     {payment.status === 'pending' && !overdue && (
                       <div className="mt-3 bg-yellow-100 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-xl p-3">
                         <p className="text-yellow-800 dark:text-yellow-200 text-sm font-medium">
-                          ⏳ Waiting for employer to send payment...
+                          <Clock className="inline w-4 h-4 mr-1" /> Waiting for employer to send payment...
                         </p>
                       </div>
                     )}
@@ -240,7 +241,7 @@ export default function PaymentTrackerWorker({ jobId, jobTitle, onClose }: Payme
                       <div className="mt-3 space-y-3">
                         <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-3">
                           <p className="text-blue-800 dark:text-blue-200 text-sm font-medium">
-                            📤 <strong>Payment sent by employer!</strong> Sent on {payment.sent_at && new Date(payment.sent_at).toLocaleDateString()}
+                            <Upload className="inline w-4 h-4 mr-1" /> <strong>Payment sent by employer!</strong> Sent on {payment.sent_at && new Date(payment.sent_at).toLocaleDateString()}
                           </p>
                         </div>
 
@@ -266,7 +267,7 @@ export default function PaymentTrackerWorker({ jobId, jobTitle, onClose }: Payme
                             disabled={processing}
                             className="flex-1 px-4 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-all disabled:opacity-50 shadow-md"
                           >
-                            ✅ Confirm Received
+                            <CheckCircle className="inline w-4 h-4 mr-1" /> Confirm Received
                           </button>
                           <button
                             onClick={() => {
@@ -285,7 +286,7 @@ export default function PaymentTrackerWorker({ jobId, jobTitle, onClose }: Payme
                     {payment.status === 'confirmed' && (
                       <div className="mt-3 bg-green-100 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-xl p-3">
                         <p className="text-green-800 dark:text-green-200 text-sm font-medium">
-                          ✅ <strong>Payment confirmed!</strong> Received on {payment.confirmed_at && new Date(payment.confirmed_at).toLocaleDateString()}
+                            <CheckCircle className="inline w-4 h-4 mr-1" /> <strong>Payment confirmed!</strong> Received on {payment.confirmed_at && new Date(payment.confirmed_at).toLocaleDateString()}
                         </p>
                       </div>
                     )}

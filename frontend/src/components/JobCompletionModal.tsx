@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { CheckCircle, ClipboardList, Camera, Clock, Upload, FileText, AlertTriangle } from 'lucide-react';
 
 interface Props {
   jobId: number;
@@ -108,7 +109,7 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
         {/* Header */}
         <div className="p-6 border-b border-gray-200 dark:border-white/10 sticky top-0 bg-[#E8E4E1]/95 dark:bg-slate-900/95 backdrop-blur z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">✅ Submit Job Completion</h2>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white"><CheckCircle className="inline w-4 h-4 mr-1" /> Submit Job Completion</h2>
             <button
               onClick={onClose}
               className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors text-2xl"
@@ -123,14 +124,14 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
         <div className="p-6 space-y-4">
           <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg p-4">
             <p className="text-blue-800 dark:text-blue-200 text-sm font-medium">
-              📋 Submit proof of job completion. Once submitted, the owner will review and approve your work.
+              <ClipboardList className="inline w-4 h-4 mr-1" /> Submit proof of job completion. Once submitted, the owner will review and approve your work.
             </p>
           </div>
 
           {/* File Upload */}
           <div>
             <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm font-bold mb-2">
-              📷 Upload Proof Photo
+              <Camera className="inline w-4 h-4 mr-1" /> Upload Proof Photo
             </label>
             <input
               type="file"
@@ -146,11 +147,11 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
             >
               {uploading ? (
                 <>
-                  <span className="animate-spin">⏳</span> Uploading...
+                  <span className="animate-spin"><Clock className="inline w-4 h-4 mr-1" /></span> Uploading...
                 </>
               ) : (
                 <>
-                  📤 Click to select image from device
+                  <Upload className="inline w-4 h-4 mr-1" /> Click to select image from device
                 </>
               )}
             </button>
@@ -163,7 +164,7 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
           {previewImage && (
             <div>
               <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm font-bold mb-2">
-                Preview {proofUrl && '✅'}
+                Preview {proofUrl && '<CheckCircle className="inline w-4 h-4 mr-1" />'}
               </label>
               <div className="relative group">
                 <img
@@ -188,7 +189,7 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
           {/* Notes */}
           <div>
             <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm font-bold mb-2">
-              📝 Completion Notes
+              <FileText className="inline w-4 h-4 mr-1" /> Completion Notes
             </label>
             <textarea
               value={notes}
@@ -213,7 +214,7 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
             disabled={submitting || uploading}
             className="flex-1 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
           >
-            {submitting ? 'Submitting...' : '✅ Submit Completion'}
+            {submitting ? 'Submitting...' : '<CheckCircle className="inline w-4 h-4 mr-1" /> Submit Completion'}
           </button>
         </div>
       </div>

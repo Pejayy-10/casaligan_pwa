@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Home, Zap, Users, Calendar, FileText, Camera, User, Clock, RotateCw, Check } from 'lucide-react';
 
 export interface AcceptedWorker {
   worker_id: number;
@@ -93,13 +94,13 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
           {/* Job Details Badges */}
           <div className="flex flex-wrap gap-2">
             <span className="px-4 py-2 bg-white/60 dark:bg-white/10 text-[#4B244A] dark:text-white/90 rounded-lg text-sm font-semibold border border-gray-200 dark:border-white/5">
-              🏠 {job.house_type}
+              <Home className="inline w-4 h-4 mr-1" /> {job.house_type}
             </span>
             <span className="px-4 py-2 bg-white/60 dark:bg-white/10 text-[#4B244A] dark:text-white/90 rounded-lg text-sm font-semibold border border-gray-200 dark:border-white/5">
-              🧹 {job.cleaning_type}
+              <Zap className="inline w-4 h-4 mr-1" /> {job.cleaning_type}
             </span>
             <span className="px-4 py-2 bg-white/60 dark:bg-white/10 text-[#4B244A] dark:text-white/90 rounded-lg text-sm font-semibold border border-gray-200 dark:border-white/5">
-              👥 {job.people_needed} {job.people_needed === 1 ? 'person' : 'people'} needed
+              <Users className="inline w-4 h-4 mr-1" /> {job.people_needed} {job.people_needed === 1 ? 'person' : 'people'} needed
             </span>
             <span className="px-4 py-2 bg-white/60 dark:bg-white/10 text-[#4B244A] dark:text-white/90 rounded-lg text-sm font-semibold border border-gray-200 dark:border-white/5">
               ⏱️ {job.duration_type}
@@ -109,7 +110,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
           {/* Duration Details */}
           {job.duration_type === 'long_term' && job.start_date && job.end_date && (
             <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
-              <h3 className="text-[#4B244A] dark:text-white font-bold mb-2">📅 Duration</h3>
+              <h3 className="text-[#4B244A] dark:text-white font-bold mb-2"><Calendar className="inline w-4 h-4 mr-1" /> Duration</h3>
               <p className="text-[#4B244A]/80 dark:text-white/80 text-sm">
                 From <span className="font-bold">{new Date(job.start_date).toLocaleDateString()}</span> to{' '}
                 <span className="font-bold">{new Date(job.end_date).toLocaleDateString()}</span>
@@ -119,7 +120,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
 
           {/* Description */}
           <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
-            <h3 className="text-[#4B244A] dark:text-white font-bold mb-2">📝 Description</h3>
+            <h3 className="text-[#4B244A] dark:text-white font-bold mb-2"><FileText className="inline w-4 h-4 mr-1" /> Description</h3>
             <p className="text-[#4B244A]/80 dark:text-white/80 whitespace-pre-wrap">{job.description}</p>
           </div>
 
@@ -134,7 +135,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
           {/* Images */}
           {job.image_urls && job.image_urls.length > 0 && (
             <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
-              <h3 className="text-[#4B244A] dark:text-white font-bold mb-3">📸 Images</h3>
+              <h3 className="text-[#4B244A] dark:text-white font-bold mb-3"><Camera className="inline w-4 h-4 mr-1" /> Images</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {job.image_urls.map((url, idx) => (
                   <img 
@@ -150,7 +151,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
 
           {/* Employer Info */}
           <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
-            <h3 className="text-[#4B244A] dark:text-white font-bold mb-2">👤 Employer</h3>
+            <h3 className="text-[#4B244A] dark:text-white font-bold mb-2"><User className="inline w-4 h-4 mr-1" /> Employer</h3>
             <p className="text-[#4B244A]/80 dark:text-white/80 text-sm font-medium">{job.employer_name}</p>
             {job.employer_address && <p className="text-[#4B244A]/60 dark:text-white/60 text-sm">📍 {job.employer_address}</p>}
           </div>
@@ -183,10 +184,10 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
                   applicationStatus === 'rejected' || applicationStatus === 'withdrawn' ? 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' :
                   'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300'
                 }`}>
-                  {applicationStatus === 'accepted' ? '✓ Application Accepted' :
-                   applicationStatus === 'rejected' ? '✗ Application Rejected' :
-                   applicationStatus === 'withdrawn' ? '🚫 Application Withdrawn' :
-                   '⏳ Application Pending'}
+                  {applicationStatus === 'accepted' ? <><Check className="inline w-4 h-4 mr-1" /> Application Accepted</> :
+                   applicationStatus === 'rejected' ? <>✗ Application Rejected</> :
+                   applicationStatus === 'withdrawn' ? <>🚫 Application Withdrawn</> :
+                   <><Clock className="inline w-4 h-4 mr-1" /> Application Pending</>}
                 </div>
                 {canReapply && applicationStatus === 'withdrawn' && (
                   <button
@@ -201,7 +202,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
                     disabled={isApplying}
                     className="w-full py-3 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white font-bold text-base rounded-xl hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
                   >
-                    {isApplying ? 'Re-applying...' : '🔄 Re-apply to this Job'}
+                    {isApplying ? 'Re-applying...' : <><RotateCw className="inline w-4 h-4 mr-1" /> Re-apply to this Job</>}
                   </button>
                 )}
               </div>

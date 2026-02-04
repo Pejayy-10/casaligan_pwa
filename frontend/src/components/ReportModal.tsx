@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Megaphone } from 'lucide-react';
 
 interface ReportModalProps {
   isOpen: boolean;

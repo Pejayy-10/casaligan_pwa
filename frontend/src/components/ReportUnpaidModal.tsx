@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { AlertTriangle, Calendar, FileText, Camera, Upload, Clock } from 'lucide-react';
 
 interface Props {
   jobId: number;

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { JobPost } from './JobDetailModal';
+import { Camera } from 'lucide-react';
 
 interface EditJobModalProps {
   job: JobPost;

@@ -9,6 +9,7 @@ import DashboardPage from './pages/DashboardPage';
 import JobsPage from './pages/JobsPage';
 import MessagesPage from './pages/MessagesPage';
 import ChatPage from './pages/ChatPage';
+import NotificationsPage from './pages/NotificationsPage';
 import ProfilePage from './pages/ProfilePage';
 import ApplyHousekeeperPage from './pages/ApplyHousekeeperPage';
 import CreateJobPage from './pages/CreateJobPage';
@@ -85,6 +86,14 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <ChatPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/notifications',
+    element: (
+      <ProtectedRoute>
+        <NotificationsPage />
       </ProtectedRoute>
     ),
   },

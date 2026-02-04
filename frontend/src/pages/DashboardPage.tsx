@@ -2,15 +2,24 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
 import TabBar from '../components/TabBar';
-import NotificationBell from '../components/NotificationBell';
 import StarRating from '../components/StarRating';
 import apiClient from '../services/api';
+import { Briefcase, ClipboardList, MessageCircle, CheckCircle, DollarSign, AlertCircle, Clock, MapPin } from 'lucide-react';
 import type { User } from '../types';
 
 interface RatingSummary {
   average_rating: number;
   total_ratings: number;
   rating_breakdown: { [key: number]: number };
+}
+
+interface Review {
+  rating_id: number;
+  rater_id: number;
+  rater_name: string;
+  stars: number;
+  review: string | null;
+  created_at: string;
 }
 
 export default function DashboardPage() {
@@ -20,6 +29,7 @@ export default function DashboardPage() {
     return stored ? JSON.parse(stored) : null;
   });
   const [ratingSummary, setRatingSummary] = useState<RatingSummary | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
 
   useEffect(() => {
     if (!user) {
@@ -27,20 +37,23 @@ export default function DashboardPage() {
     }
   }, [user, navigate]);
 
-  // Fetch rating summary for housekeepers
+  // Fetch rating summary and reviews for housekeepers
   useEffect(() => {
-    const fetchRatingSummary = async () => {
+    const fetchRatingsAndReviews = async () => {
       if (!user) return;
       
       try {
-        const response = await apiClient.get(`/ratings/user/${user.id}/summary`);
-        setRatingSummary(response.data);
+        const summaryResponse = await apiClient.get(`/ratings/user/${user.id}/summary`);
+        setRatingSummary(summaryResponse.data);
+
+        const reviewsResponse = await apiClient.get(`/ratings/user/${user.id}`);
+        setReviews(reviewsResponse.data);
       } catch (error) {
-        console.error('Failed to fetch rating summary:', error);
+        console.error('Failed to fetch ratings and reviews:', error);
       }
     };
     
-    fetchRatingSummary();
+    fetchRatingsAndReviews();
   }, [user]);
 
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
@@ -116,29 +129,6 @@ export default function DashboardPage() {
     });
   };
 
-  const handleSwitchRole = async () => {
-    if (!user) return;
-    try {
-      const result = await authService.switchRole();
-      const updatedUser = { ...user, active_role: result.active_role as 'owner' | 'housekeeper' };
-      setUser(updatedUser);
-      localStorage.setItem('user', JSON.stringify(updatedUser));
-      
-      // Check if switching to housekeeper
-      if (result.active_role === 'housekeeper') {
-        // Check if user has GPS coordinates in their address
-        const hasGPS = user.address?.latitude && user.address?.longitude;
-        
-        if (!hasGPS) {
-          // Prompt to enable location
-          setShowLocationPrompt(true);
-        }
-      }
-    } catch {
-      alert('Failed to switch role. You may not have housekeeper privileges yet.');
-    }
-  };
-
   const handleLocationPromptAccept = async () => {
     const success = await requestLocationForHousekeeper();
     if (success) {
@@ -161,7 +151,7 @@ export default function DashboardPage() {
   if (!user) return null;
 
   return (
-    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300 pb-24 relative">
+    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300 pb-24 relative pt-safe">
       {/* Decorative circles - Fixed position to stay while scrolling */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob"></div>
@@ -169,37 +159,18 @@ export default function DashboardPage() {
         <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-4000"></div>
       </div>
 
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
-        <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between">
-            <div className="w-10"></div> {/* Spacer for centering */}
-            <NotificationBell 
-              onNavigate={(referenceType) => {
-                if (referenceType === 'job' || referenceType === 'direct_hire') {
-                  navigate('/jobs');
-                }
-              }}
-            />
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="relative z-10 max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        {/* Welcome Section */}
-        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl shadow-xl p-6 md:p-8 mb-8 border border-white/50 dark:border-white/10 transition-all">
+      {/* Welcome Section - Full Width */}
+      <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-b-3xl shadow-lg border-b border-white/50 dark:border-white/10 transition-all">
+        <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
             <div>
               <h2 className="text-3xl md:text-4xl font-bold text-[#4B244A] dark:text-white mb-2">
                 Welcome back, {user.first_name}! 👋
               </h2>
-              <p className="text-[#4B244A]/70 dark:text-white/70 mb-5 text-sm md:text-base font-medium">
-                {user.email} • {user.phone_number}
-              </p>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3 mt-5">
                 <span className="inline-flex items-center px-4 py-2 rounded-full text-sm font-bold bg-[#EA526F] text-white shadow-md shadow-[#EA526F]/20">
-                  {user.active_role === 'owner' ? '🏠 House Owner' : '💼 Housekeeper'}
+                  {user.active_role === 'owner' ? <Briefcase className="inline w-5 h-5 mr-1" /> : <CheckCircle className="inline w-5 h-5 mr-1" />}
+                  {user.active_role === 'owner' ? 'House Owner' : 'Housekeeper'}
                 </span>
                 <span
                   className={`inline-flex items-center px-4 py-2 rounded-full text-sm font-bold shadow-sm border border-transparent ${
@@ -210,35 +181,32 @@ export default function DashboardPage() {
                       : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300'
                   }`}
                 >
-                  {user.status === 'active' ? '✓ Active' : user.status === 'pending' ? '⏳ Pending' : '⚠ Suspended'}
+                  {user.status === 'active' ? <CheckCircle className="inline w-4 h-4 mr-1" /> : user.status === 'pending' ? <Clock className="inline w-4 h-4 mr-1" /> : <AlertCircle className="inline w-4 h-4 mr-1" />}
+                  {user.status === 'active' ? 'Active' : user.status === 'pending' ? 'Pending' : 'Suspended'}
                 </span>
               </div>
             </div>
-            {user.is_housekeeper && (
-              <button
-                onClick={handleSwitchRole}
-                className="px-6 py-3 bg-white/50 dark:bg-white/10 backdrop-blur-sm text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/20 shadow-sm whitespace-nowrap"
-              >
-                Switch to {user.active_role === 'owner' ? 'Housekeeper' : 'Owner'} Mode
-              </button>
-            )}
           </div>
         </div>
+      </div>
+
+      {/* Main Content */}
+      <main className="relative z-10 max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
 
         {/* Quick Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 border border-white/50 dark:border-white/10 shadow-lg transition-all hover:scale-[1.02]">
-            <div className="text-3xl mb-3">📋</div>
+            <ClipboardList className="w-8 h-8" />
             <div className="text-2xl font-bold text-[#4B244A] dark:text-white">0</div>
             <div className="text-sm font-medium text-[#4B244A]/60 dark:text-white/60">{user.active_role === 'owner' ? 'Jobs Posted' : 'Jobs Applied'}</div>
           </div>
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 border border-white/50 dark:border-white/10 shadow-lg transition-all hover:scale-[1.02]">
-            <div className="text-3xl mb-3">💬</div>
+            <MessageCircle className="w-8 h-8" />
             <div className="text-2xl font-bold text-[#4B244A] dark:text-white">0</div>
             <div className="text-sm font-medium text-[#4B244A]/60 dark:text-white/60">Messages</div>
           </div>
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 border border-white/50 dark:border-white/10 shadow-lg transition-all hover:scale-[1.02]">
-            <div className="text-3xl mb-3">⭐</div>
+            <StarRating rating={ratingSummary && ratingSummary.total_ratings > 0 ? ratingSummary.average_rating : 0} size="lg" />
             <div className="text-2xl font-bold text-[#4B244A] dark:text-white">
               {ratingSummary && ratingSummary.total_ratings > 0 
                 ? ratingSummary.average_rating.toFixed(1) 
@@ -251,7 +219,7 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 border border-white/50 dark:border-white/10 shadow-lg transition-all hover:scale-[1.02]">
-            <div className="text-3xl mb-3">{user.active_role === 'owner' ? '✅' : '💰'}</div>
+            <div className="text-3xl mb-3">{user.active_role === 'owner' ? <CheckCircle className="w-8 h-8" /> : <DollarSign className="w-8 h-8" />}</div>
             <div className="text-2xl font-bold text-[#4B244A] dark:text-white">{user.active_role === 'owner' ? '0' : '₱0'}</div>
             <div className="text-sm font-medium text-[#4B244A]/60 dark:text-white/60">{user.active_role === 'owner' ? 'Completed' : 'Earnings'}</div>
           </div>
@@ -260,9 +228,9 @@ export default function DashboardPage() {
         {/* Rating Details for Housekeepers */}
         {user.active_role === 'housekeeper' && ratingSummary && ratingSummary.total_ratings > 0 && (
           <div className="mt-6 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 border border-white/50 dark:border-white/10 shadow-lg">
-            <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-6">⭐ Your Ratings</h3>
+            <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-6"><StarRating rating={ratingSummary?.average_rating || 0} size="sm" className="inline mr-2" /> Your Ratings</h3>
             
-            <div className="flex flex-col md:flex-row items-center gap-8">
+            <div className="flex flex-col md:flex-row items-start gap-8 mb-8">
               {/* Average Rating */}
               <div className="text-center min-w-[150px]">
                 <div className="text-5xl font-extrabold text-[#EA526F]">
@@ -298,6 +266,35 @@ export default function DashboardPage() {
                 })}
               </div>
             </div>
+
+            {/* Reviews List */}
+            {reviews.length > 0 && (
+              <div className="border-t border-white/10 pt-6">
+                <h4 className="font-bold text-[#4B244A] dark:text-white mb-4">Reviews</h4>
+                <div className="space-y-4">
+                  {reviews.map((review) => (
+                    <div key={review.rating_id} className="bg-white/30 dark:bg-white/5 rounded-lg p-4 border border-white/20 dark:border-white/10">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <p className="font-semibold text-[#4B244A] dark:text-white">{review.rater_name}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <StarRating rating={review.stars} size="sm" />
+                            <span className="text-xs text-[#4B244A]/60 dark:text-white/60">
+                              {new Date(review.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      {review.review && (
+                        <p className="text-[#4B244A]/80 dark:text-white/80 text-sm mt-2">
+                          {review.review}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
@@ -307,7 +304,7 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-gray-200 dark:border-white/10 shadow-2xl">
             <div className="flex items-start gap-4 mb-4">
-              <div className="text-4xl">📍</div>
+              <MapPin className="w-10 h-10 text-blue-600" />
               <div className="flex-1">
                 <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-2">
                   Enable Location Services
@@ -322,7 +319,8 @@ export default function DashboardPage() {
                     disabled={locationPromptLoading}
                     className="flex-1 px-4 py-2 bg-[#EA526F] hover:bg-[#d64460] text-white font-bold rounded-xl transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    {locationPromptLoading ? '⏳ Getting Location...' : '✓ Enable Location'}
+                    {locationPromptLoading ? <Clock className="inline w-4 h-4 mr-1 animate-spin" /> : <CheckCircle className="inline w-4 h-4 mr-1" />}
+                    {locationPromptLoading ? 'Getting Location...' : 'Enable Location'}
                   </button>
                   <button
                     onClick={handleLocationPromptDismiss}

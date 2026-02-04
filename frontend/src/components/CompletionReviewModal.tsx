@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { usePayment } from '../context/PaymentContext';
+import { DollarSign, Clock, CheckCircle, ClipboardList, Camera, FileText, Lightbulb, RotateCw, AlertTriangle } from 'lucide-react';
 
 interface WorkerCompletion {
   contract_id: number;
@@ -177,19 +178,19 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
 
   const getWorkerStatusBadge = (worker: WorkerCompletion) => {
     if (worker.paid_at) {
-      return { text: '💰 Paid', class: 'bg-green-500/20 text-green-300' };
+      return { text: '<DollarSign className="inline w-3 h-3 mr-1" /> Paid', class: 'bg-green-500/20 text-green-300' };
     }
     if (worker.payment_proof_url && !worker.paid_at) {
-      return { text: '⏳ Payment Pending', class: 'bg-blue-500/20 text-blue-300' };
+      return { text: '<Clock className="inline w-3 h-3 mr-1" /> Payment Pending', class: 'bg-blue-500/20 text-blue-300' };
     }
     if (worker.status === 'completed') {
-      return { text: '✅ Approved', class: 'bg-blue-500/20 text-blue-300' };
+      return { text: '<CheckCircle className="inline w-3 h-3 mr-1" /> Approved', class: 'bg-blue-500/20 text-blue-300' };
     }
     if (worker.status === 'pending_completion') {
-      return { text: '⏳ Awaiting Approval', class: 'bg-yellow-500/20 text-yellow-300' };
+      return { text: '<Clock className="inline w-3 h-3 mr-1" /> Awaiting Approval', class: 'bg-yellow-500/20 text-yellow-300' };
     }
     if (worker.status === 'active') {
-      return { text: '🔄 In Progress', class: 'bg-gray-500/20 text-gray-300' };
+      return { text: '<RotateCw className="inline w-3 h-3 mr-1" /> In Progress', class: 'bg-gray-500/20 text-gray-300' };
     }
     return { text: worker.status, class: 'bg-gray-500/20 text-gray-300' };
   };
@@ -202,7 +203,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
         {/* Header */}
         <div className="p-6 border-b border-gray-200 dark:border-white/10 sticky top-0 bg-[#E8E4E1]/95 dark:bg-slate-900/95 backdrop-blur z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">📋 Review Job Completion</h2>
+            <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white"><ClipboardList className="inline w-4 h-4 mr-1" /> Review Completion</h2>
             <button 
               onClick={onClose} 
               className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors text-2xl"
@@ -237,7 +238,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
               {/* Workers List */}
               <div>
                 <h3 className="text-[#4B244A] dark:text-white font-bold mb-3">
-                  👷 Housekeepers ({details.workers?.length || 0})
+                  Housekeepers ({details.workers?.length || 0})
                 </h3>
                 
                 {details.workers?.length === 0 ? (
@@ -269,7 +270,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                           {/* Completion Proof */}
                           {worker.completion_proof_url && (
                             <div className="mb-3">
-                              <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mb-2 font-medium">📷 Proof of Completion</p>
+                              <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mb-2 font-medium"><Camera className="inline w-4 h-4 mr-1" /> Proof of Completion</p>
                               <img 
                                 src={worker.completion_proof_url} 
                                 alt="Completion proof" 
@@ -281,7 +282,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                           {/* Completion Notes */}
                           {worker.completion_notes && (
                             <div className="mb-3 bg-white/50 dark:bg-white/5 rounded-lg p-3 border border-gray-100 dark:border-white/5">
-                              <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mb-1 font-bold">📝 Notes</p>
+                              <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mb-1 font-bold"><FileText className="inline w-4 h-4 mr-1" /> Notes</p>
                               <p className="text-[#4B244A]/80 dark:text-white/80 text-sm">{worker.completion_notes}</p>
                             </div>
                           )}
@@ -293,7 +294,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                               disabled={processingWorker === worker.contract_id}
                               className="w-full py-2 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition-all disabled:opacity-50 shadow-md"
                             >
-                              {processingWorker === worker.contract_id ? 'Approving...' : '✅ Approve & Pay'}
+                              {processingWorker === worker.contract_id ? 'Approving...' : (<><CheckCircle className="inline w-4 h-4 mr-1" /> Approve & Pay</>)}
                             </button>
                           )}
 
@@ -307,7 +308,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                           {worker.paid_at && (
                             <div className="bg-green-100 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-lg p-2 text-center">
                               <p className="text-green-700 dark:text-green-300 text-sm font-medium">
-                                ✅ Payment confirmed on {new Date(worker.paid_at).toLocaleDateString()}
+                                <CheckCircle className="inline w-4 h-4 mr-1" /> Payment confirmed on {new Date(worker.paid_at).toLocaleDateString()}
                               </p>
                             </div>
                           )}
@@ -315,7 +316,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                           {worker.payment_proof_url && !worker.paid_at && (
                             <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg p-2 text-center">
                               <p className="text-blue-700 dark:text-blue-300 text-sm font-medium">
-                                ⏳ Payment submitted - Waiting for housekeeper confirmation
+                                <Clock className="inline w-4 h-4 mr-1" /> Payment submitted - Waiting for housekeeper confirmation
                               </p>
                             </div>
                           )}
@@ -337,7 +338,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                               }}
                               className="w-full py-2 bg-[#EA526F] text-white font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
                             >
-                              💰 Pay Now
+                              <DollarSign className="inline w-4 h-4 mr-1" /> Pay Now
                             </button>
                           )}
                         </div>
@@ -350,7 +351,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
               {/* Info Box */}
               <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg p-4">
                 <p className="text-blue-800 dark:text-blue-300 text-sm font-medium">
-                  💡 Review each housekeeper's work and approve individually. 
+                  <Lightbulb className="inline w-4 h-4 mr-1" /> Review each housekeeper's work and approve individually. 
                   {details.duration_type === 'short_term' 
                     ? ' Payment screen will appear after each approval.' 
                     : ' For long-term jobs, payments follow the payment schedule.'}

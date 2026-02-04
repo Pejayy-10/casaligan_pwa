@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { MessageCircle } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import ConversationList from '../components/ConversationList';
 import type { User } from '../types';
@@ -33,7 +34,7 @@ export default function MessagesPage() {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-[#4B244A] dark:text-white">💬 Messages</h1>
+          <h1 className="text-2xl font-bold text-[#4B244A] dark:text-white"><MessageCircle className="inline w-6 h-6 mr-2" /> Messages</h1>
           
           {/* Tabs */}
           <div className="flex gap-2 mt-4 p-1 bg-white/50 dark:bg-slate-900/50 rounded-xl border border-gray-200 dark:border-white/10 w-fit">

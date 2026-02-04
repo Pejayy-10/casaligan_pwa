@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { usePayment } from '../context/PaymentContext';
+import { AlertTriangle, Upload, CheckCircle, DollarSign } from 'lucide-react';
 
 interface Payment {
   transaction_id: number;
@@ -279,7 +280,7 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
                         </div>
                         {workerPending > 0 && (
                           <div className="mt-3 bg-yellow-100 text-yellow-800 dark:bg-yellow-500/20 dark:text-yellow-200 text-sm px-3 py-2 rounded-lg font-medium border border-yellow-200 dark:border-yellow-500/30">
-                            ⚠️ {workerPending} payment{workerPending > 1 ? 's' : ''} pending
+                            <AlertTriangle className="inline w-3 h-3 mr-1" /> {workerPending} payment{workerPending > 1 ? 's' : ''} pending
                           </div>
                         )}
                       </div>
@@ -334,7 +335,7 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
                               {payment.status === 'confirmed' && (
                                 <div className="mt-2 bg-green-100 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-lg p-2">
                                   <p className="text-green-800 dark:text-green-200 text-xs font-medium">
-                                    <strong>✅ Payment confirmed!</strong> {payment.confirmed_at && new Date(payment.confirmed_at).toLocaleDateString()}
+                                    <strong><CheckCircle className="inline w-4 h-4 mr-1" /> Payment confirmed!</strong> {payment.confirmed_at && new Date(payment.confirmed_at).toLocaleDateString()}
                                   </p>
                                 </div>
                               )}
@@ -342,7 +343,7 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
                               {payment.dispute_reason && (
                                 <div className="mt-2 bg-red-100 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg p-2">
                                   <p className="text-red-800 dark:text-red-200 text-xs font-medium">
-                                    <strong>⚠️ Dispute:</strong> {payment.dispute_reason}
+                                    <strong><AlertTriangle className="inline w-4 h-4 mr-1" /> Dispute:</strong> {payment.dispute_reason}
                                   </p>
                                 </div>
                               )}
@@ -404,7 +405,7 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
 
                 <div className="bg-yellow-100 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-xl p-4">
                   <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
-                    <span className="font-bold">⚠️ Note:</span> Reports are reviewed by our team. 
+                    <span className="font-bold"><AlertTriangle className="inline w-4 h-4 mr-1" /> Note:</span> Reports are reviewed by our team. 
                     False reports may result in account restrictions. Only report genuine issues.
                   </p>
                 </div>

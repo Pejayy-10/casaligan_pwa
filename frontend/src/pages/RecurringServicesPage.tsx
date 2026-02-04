@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { RotateCw, X, ClipboardList, Briefcase, Calendar } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import type { User } from '../types';
 import apiClient from '../services/api';
@@ -190,7 +191,7 @@ export default function RecurringServicesPage() {
             <button onClick={() => navigate(-1)} className="text-[#4B244A]/80 dark:text-white/80 hover:text-[#4B244A] dark:hover:text-white transition-colors">
               ← Back
             </button>
-            <h1 className="text-xl font-bold text-[#4B244A] dark:text-white">🔄 Recurring Services</h1>
+            <h1 className="text-xl font-bold text-[#4B244A] dark:text-white"><RotateCw className="inline w-5 h-5 mr-2" /> Recurring Services</h1>
             <div className="w-16"></div>
           </div>
         </div>
@@ -242,7 +243,7 @@ export default function RecurringServicesPage() {
           </div>
         ) : allServices.length === 0 ? (
           <div className="text-center py-12 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-white/50 dark:border-white/10 shadow-lg">
-            <div className="text-6xl mb-4 opacity-50">🔄</div>
+            <div className="text-6xl mb-4 opacity-50"><RotateCw className="w-16 h-16 mx-auto" /></div>
             <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-2">No recurring services found</h3>
             <p className="text-[#4B244A]/70 dark:text-white/70 mb-6">
               {filter === 'active' 

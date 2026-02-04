@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { User as UserIcon, Home, Briefcase, Check, Clock, AlertTriangle, ClipboardList, Package, CheckCircle } from 'lucide-react';
 import { authService } from '../services/auth';
 import TabBar from '../components/TabBar';
 import PackageManagement from '../components/PackageManagement';
@@ -347,7 +348,7 @@ export default function ProfilePage() {
       {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
-          <h1 className="text-xl sm:text-2xl font-bold text-[#4B244A] dark:text-white">👤 Profile</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-[#4B244A] dark:text-white"><UserIcon className="inline w-6 h-6 mr-2" /> Profile</h1>
         </div>
       </header>
 

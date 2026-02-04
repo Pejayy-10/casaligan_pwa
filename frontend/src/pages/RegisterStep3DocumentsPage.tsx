@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FileText, Lock } from 'lucide-react';
 import { authService } from '../services/auth';
 
 export default function RegisterStep3DocumentsPage() {
@@ -143,7 +144,7 @@ export default function RegisterStep3DocumentsPage() {
 
           <div className="mb-6 p-4 bg-white/40 dark:bg-white/5 backdrop-blur-sm border border-white/40 dark:border-white/10 rounded-xl">
             <p className="text-sm text-[#4B244A] dark:text-white/90">
-              📄 Upload a valid government-issued ID for verification. This helps keep our platform safe and trusted.
+              <FileText className="inline w-4 h-4 mr-1" /> Upload a valid government-issued ID for verification. This helps keep our platform safe and trusted.
             </p>
           </div>
 
@@ -257,7 +258,7 @@ export default function RegisterStep3DocumentsPage() {
 
           <div className="mt-6 p-4 bg-white/40 dark:bg-white/5 backdrop-blur-sm rounded-xl border border-white/40 dark:border-white/10">
             <p className="text-xs text-[#4B244A]/80 dark:text-white/80">
-              🔒 Your documents are securely stored and will only be used for verification purposes. 
+              <Lock className="inline w-4 h-4 mr-1" /> Your documents are securely stored and will only be used for verification purposes.
               We respect your privacy and follow strict data protection guidelines.
             </p>
           </div>

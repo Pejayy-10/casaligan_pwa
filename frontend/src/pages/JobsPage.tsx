@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, DollarSign, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X } from 'lucide-react';
 import TabBar from '../components/TabBar';
-import NotificationBell from '../components/NotificationBell';
 import JobDetailModal, { type JobPost } from '../components/JobDetailModal';
 import ApplicantsListModal from '../components/ApplicantsListModal';
 import PaymentModal from '../components/PaymentModal';
@@ -239,29 +239,48 @@ export default function JobsPage() {
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <h1 className="text-xl sm:text-2xl font-bold text-[#4B244A] dark:text-white">
-                {user.active_role === 'owner' 
-                  ? '📋 My Job Posts' 
-                  : housekeeperView === 'find' 
-                    ? '🎯 Find Jobs' 
-                    : '💼 My Accepted Jobs'}
-              </h1>
+              {user.active_role === 'owner' 
+                ? (
+                  <>
+                    <ClipboardList className="w-6 h-6 text-[#4B244A] dark:text-white" />
+                    <h1 className="text-xl sm:text-2xl font-bold text-[#4B244A] dark:text-white">
+                      My Job Posts
+                    </h1>
+                  </>
+                )
+                : housekeeperView === 'find'
+                ? (
+                  <>
+                    <Briefcase className="w-6 h-6 text-[#4B244A] dark:text-white" />
+                    <h1 className="text-xl sm:text-2xl font-bold text-[#4B244A] dark:text-white">
+                      Find Jobs
+                    </h1>
+                  </>
+                )
+                : (
+                  <>
+                    <Users className="w-6 h-6 text-[#4B244A] dark:text-white" />
+                    <h1 className="text-xl sm:text-2xl font-bold text-[#4B244A] dark:text-white">
+                      My Accepted Jobs
+                    </h1>
+                  </>
+                )
+              }
             </div>
             <div className="flex items-center gap-2">
-              <NotificationBell />
               {user.active_role === 'owner' && (
                 <>
                   <button 
                     onClick={() => navigate('/browse-workers')}
                     className="px-4 py-2 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/20 text-sm"
                   >
-                    👤 Hire Directly
+                    <UserPlus className="inline w-4 h-4 mr-1" /> Hire Directly
                   </button>
                   <button 
                     onClick={() => setShowDirectHires(true)}
                     className="px-4 py-2 bg-blue-500/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold rounded-xl hover:bg-blue-500/20 dark:hover:bg-blue-500/30 transition-all text-sm border border-blue-500/20"
                   >
-                    📋 Direct Bookings
+                    <BookOpen className="inline w-4 h-4 mr-1" /> Direct Bookings
                   </button>
                   <button 
                     onClick={() => navigate('/jobs/create')}
@@ -293,19 +312,19 @@ export default function JobsPage() {
                   onClick={() => setShowPackageManagement(true)}
                   className="py-2 px-3 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
                 >
-                  📦 Packages
+                  <Package className="inline w-4 h-4 mr-1" /> Packages
                 </button>
                 <button
                   onClick={() => setShowDirectHires(true)}
                   className="py-2 px-3 bg-blue-500 text-white text-sm font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
                 >
-                  🎯 Direct Jobs
+                  <Briefcase className="inline w-4 h-4 mr-1" /> Direct Jobs
                 </button>
                 <button
                   onClick={() => setShowAvailabilityCalendar(true)}
                   className="py-2 px-3 bg-green-500 text-white text-sm font-bold rounded-lg hover:bg-green-600 transition-all shadow-md"
                 >
-                  📅 Availability
+                  <Calendar className="inline w-4 h-4 mr-1" /> Availability
                 </button>
               </div>
               
@@ -319,7 +338,7 @@ export default function JobsPage() {
                       : 'text-[#4B244A] dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
                   }`}
                 >
-                  🎯 Find Jobs
+                  Find Jobs
                 </button>
                 <button
                   onClick={() => setHousekeeperView('my-jobs')}
@@ -329,14 +348,14 @@ export default function JobsPage() {
                       : 'text-[#4B244A] dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
                   }`}
                 >
-                  💼 My Jobs
+                  My Jobs
                 </button>
               </div>
               
               {/* Category Filter - Find Jobs View Only */}
               {housekeeperView === 'find' && (
                 <div className="mt-3">
-                  <label className="block text-[#4B244A] dark:text-white/90 text-sm font-bold mb-2">📂 Filter by Category</label>
+                  <label className="block text-[#4B244A] dark:text-white/90 text-sm font-bold mb-2"><Folder className="inline w-4 h-4 mr-1" /> Filter by Category</label>
                   <select
                     value={selectedCategory}
                     onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : '')}
@@ -353,11 +372,11 @@ export default function JobsPage() {
                     <div className="mt-2">
                       {filteredJobs.filter(job => job.category_id === selectedCategory).length === 0 ? (
                         <div className="bg-orange-100 dark:bg-orange-500/20 border border-orange-200 dark:border-orange-500/50 rounded-lg p-3 text-sm">
-                          <p className="text-orange-700 dark:text-orange-200">⚠️ No jobs in this category. Showing all jobs below.</p>
+                          <p className="text-orange-700 dark:text-orange-200"><AlertTriangle className="inline w-4 h-4 mr-1" /> No jobs in this category. Showing all jobs below.</p>
                         </div>
                       ) : (
                         <div className="bg-[#EA526F]/10 dark:bg-[#EA526F]/20 border border-[#EA526F]/30 dark:border-[#EA526F]/50 rounded-lg p-3 text-sm">
-                          <p className="text-[#EA526F] dark:text-pink-300">✓ Showing jobs with <strong>{categories.find(c => c.category_id === selectedCategory)?.name}</strong> first, then others.</p>
+                          <p className="text-[#EA526F] dark:text-pink-300"><CheckCircle className="inline w-4 h-4 mr-1" /> Showing jobs with <strong>{categories.find(c => c.category_id === selectedCategory)?.name}</strong> first, then others.</p>
                         </div>
                       )}
                     </div>
@@ -391,7 +410,7 @@ export default function JobsPage() {
                       : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
                   }`}
                 >
-                  📋 All Jobs
+                  <ClipboardList className="inline w-4 h-4 mr-1" /> All Jobs
                 </button>
                 <button
                   onClick={() => setStatusFilter('open')}
@@ -401,7 +420,7 @@ export default function JobsPage() {
                       : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
                   }`}
                 >
-                  ✅ Open
+                  <CheckCircle className="inline w-4 h-4 mr-1" /> Open
                 </button>
                 <button
                   onClick={() => setStatusFilter('ongoing')}
@@ -411,7 +430,7 @@ export default function JobsPage() {
                       : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
                   }`}
                 >
-                  🔄 Ongoing
+                  <RotateCw className="inline w-4 h-4 mr-1" /> Ongoing
                 </button>
                 <button
                   onClick={() => setStatusFilter('completed')}
@@ -421,7 +440,7 @@ export default function JobsPage() {
                       : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
                   }`}
                 >
-                  ✔️ Completed
+                  <Check className="inline w-4 h-4 mr-1" /> Completed
                 </button>
                 <button
                   onClick={() => setStatusFilter('closed')}
@@ -887,7 +906,7 @@ function OwnerJobsContent({
   if (jobs.length === 0) {
     return (
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-12 text-center border border-white/50 dark:border-white/10 shadow-xl">
-        <div className="text-6xl mb-4">📋</div>
+        <div className="text-6xl mb-4"><ClipboardList className="w-16 h-16" /></div>
         <h3 className="text-2xl font-bold text-[#4B244A] dark:text-white mb-2">No Job Posts Yet</h3>
         <p className="text-[#4B244A]/70 dark:text-white/70 mb-6">Create your first job post to find housekeepers</p>
         <button 
@@ -921,22 +940,22 @@ function OwnerJobsContent({
           
           <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-3 sm:mb-4">
             <span className="px-2 sm:px-3 py-1 bg-[#EA526F]/10 text-[#EA526F] dark:bg-[#EA526F]/20 dark:text-[#EA526F] rounded-lg text-xs sm:text-sm font-semibold">
-              🏠 {job.house_type}
+              <Home className="inline w-4 h-4 mr-1" /> {job.house_type}
             </span>
             <span className="px-2 sm:px-3 py-1 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 rounded-lg text-xs sm:text-sm font-semibold">
               🧹 {job.cleaning_type}
             </span>
             <span className="px-2 sm:px-3 py-1 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300 rounded-lg text-xs sm:text-sm font-semibold">
-              💰 ₱{job.budget}
+              <DollarSign className="inline w-4 h-4 mr-1" /> ₱{job.budget}
             </span>
             <span className="px-2 sm:px-3 py-1 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 rounded-lg text-xs sm:text-sm font-semibold">
-              👥 {job.people_needed} {job.people_needed === 1 ? 'person' : 'people'}
+              <UsersIcon className="inline w-4 h-4 mr-1" /> {job.people_needed} {job.people_needed === 1 ? 'person' : 'people'}
             </span>
           </div>
           
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 text-xs sm:text-sm text-[#4B244A]/60 dark:text-white/60 font-medium">
-            <span>📅 {new Date(job.created_at).toLocaleDateString()}</span>
-            <span>📬 {job.total_applicants} {job.total_applicants === 1 ? 'applicant' : 'applicants'}</span>
+            <span><Calendar className="inline w-4 h-4 mr-1" /> {new Date(job.created_at).toLocaleDateString()}</span>
+            <span><Mail className="inline w-4 h-4 mr-1" /> {job.total_applicants} {job.total_applicants === 1 ? 'applicant' : 'applicants'}</span>
           </div>
           
           {/* Show accepted housekeepers */}
@@ -991,7 +1010,7 @@ function OwnerJobsContent({
                   onClick={() => onEditJob(job)}
                   className="w-full py-2 bg-blue-500 text-white text-sm sm:text-base font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
                 >
-                  ✏️ Edit Job
+                  <Edit2 className="inline w-4 h-4 mr-1" /> Edit Job
                 </button>
                 <button
                   onClick={() => {
@@ -1012,7 +1031,7 @@ function OwnerJobsContent({
                 {job.duration_type === 'long_term' && job.pending_payments && job.pending_payments > 0 && (
                   <div className="bg-red-100 dark:bg-red-500/20 border border-red-200 dark:border-red-500/50 rounded-lg p-3 mb-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-2xl">⚠️</span>
+                      <AlertTriangle className="w-6 h-6" />
                       <div>
                         <p className="text-red-700 dark:text-red-300 font-bold">
                           {job.pending_payments} Unpaid Payment{job.pending_payments > 1 ? 's' : ''}!
@@ -1036,7 +1055,7 @@ function OwnerJobsContent({
                     }`}
                   >
                     {job.pending_payments && job.pending_payments > 0 
-                      ? `💰 Pay Now (${job.pending_payments} pending)` 
+                      ? `<DollarSign className="inline w-4 h-4 mr-1" /> Pay Now (${job.pending_payments} pending)` 
                       : 'Payment Tracker'}
                   </button>
                 )}
@@ -1052,7 +1071,7 @@ function OwnerJobsContent({
                 {/* For short-term jobs, show info about waiting for housekeeper to complete */}
                 {job.duration_type === 'short_term' && (
                   <div className="py-2 text-center text-blue-600 dark:text-blue-300 text-sm font-medium">
-                    ⏳ Waiting for housekeeper to complete and submit proof
+                    <Clock className="inline w-4 h-4 mr-1" /> Waiting for housekeeper to complete and submit proof
                   </div>
                 )}
               </>
@@ -1064,10 +1083,10 @@ function OwnerJobsContent({
                   onClick={() => onShowCompletionReview(job)}
                   className="w-full py-2 bg-yellow-500 text-white text-sm sm:text-base font-bold rounded-lg hover:bg-yellow-600 transition-all shadow-md"
                 >
-                  📋 Review Completion
+                  <ClipboardList className="inline w-4 h-4 mr-1" /> Review Completion
                 </button>
                 <div className="py-2 text-center text-yellow-600 dark:text-yellow-300 text-sm font-medium">
-                  ⏳ Housekeeper has submitted completion proof
+                  <Clock className="inline w-4 h-4 mr-1" /> Housekeeper has submitted completion proof
                 </div>
               </>
             )}
@@ -1089,20 +1108,20 @@ function OwnerJobsContent({
                         <div key={worker.worker_id} className="space-y-2">
                           {isRated ? (
                             <div className="py-2 text-center text-yellow-700 dark:text-yellow-300 font-bold bg-yellow-100 dark:bg-yellow-500/10 rounded-lg text-sm">
-                              ✓ You rated {worker.name}
+                              <CheckCircle className="inline w-4 h-4 mr-1" /> You rated {worker.name}
                             </div>
                           ) : (
                             <button
                               onClick={() => onRateWorker(job, worker)}
                               className="w-full py-2 bg-yellow-500 text-white text-sm sm:text-base font-bold rounded-lg hover:bg-yellow-600 transition-all shadow-md"
                             >
-                              ⭐ Rate {worker.name}
+                              <Star className="inline w-4 h-4 mr-1" /> Rate {worker.name}
                             </button>
                           )}
                           
                           {isReported ? (
                             <div className="py-2 text-center text-orange-700 dark:text-orange-300 font-bold bg-orange-100 dark:bg-orange-500/10 rounded-lg text-sm">
-                              ✓ You reported {worker.name}. Wait for admin review.
+                              <CheckCircle className="inline w-4 h-4 mr-1" /> You reported {worker.name}. Wait for admin review.
                             </div>
                           ) : (
                             <button
@@ -1146,7 +1165,7 @@ function HousekeeperJobsContent({
   if (jobs.length === 0) {
     return (
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-12 text-center border border-white/50 dark:border-white/10 shadow-xl">
-        <div className="text-6xl mb-4">🎯</div>
+        <div className="text-6xl mb-4"><Briefcase className="w-16 h-16" /></div>
         <h3 className="text-2xl font-bold text-[#4B244A] dark:text-white mb-2">No Jobs Available</h3>
         <p className="text-[#4B244A]/70 dark:text-white/70 mb-6">Check back later for new job opportunities</p>
       </div>
@@ -1172,7 +1191,7 @@ function HousekeeperJobsContent({
           >
             {hasSelectedCategory && (
               <div className="mb-3 inline-block px-3 py-1 bg-[#EA526F]/10 dark:bg-[#EA526F]/30 text-[#EA526F] dark:text-pink-300 text-xs font-bold rounded-full border border-[#EA526F]/30">
-                ✓ Matches {categories.find(c => c.category_id === selectedCategory)?.name}
+                <CheckCircle className="inline w-4 h-4 mr-1" /> Matches {categories.find(c => c.category_id === selectedCategory)?.name}
               </div>
             )}
             <div className="flex items-start justify-between mb-3 gap-2">
@@ -1189,7 +1208,7 @@ function HousekeeperJobsContent({
             <div className="flex flex-wrap gap-2 mb-3">
               {job.category_names.map((categoryName, idx) => (
                 <span key={idx} className="px-2 sm:px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg text-xs sm:text-sm font-bold border border-purple-200 dark:border-purple-700/50">
-                  🏷️ {categoryName}
+                  <Tag className="inline w-4 h-4 mr-1" /> {categoryName}
                 </span>
               ))}
             </div>
@@ -1230,8 +1249,8 @@ function HousekeeperJobsContent({
           
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div className="text-xs sm:text-sm text-[#4B244A]/60 dark:text-white/60 space-y-1 font-medium">
-              <p>📍 {job.employer_address}</p>
-              <p>👤 {job.employer_name}</p>
+              <p><MapPin className="inline w-4 h-4 mr-1" /> {job.employer_address}</p>
+              <p><Users className="inline w-4 h-4 mr-1" /> {job.employer_name}</p>
             </div>
             <button 
               onClick={() => onSelectJob(job)}

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../services/api';
+import { Calendar, Edit2 } from 'lucide-react';
 
 interface BlockedDate {
   blocked_date_id: number;

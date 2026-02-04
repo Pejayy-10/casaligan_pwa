@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { Home, Search, Briefcase, Lock } from 'lucide-react';
 
 export default function LandingPage() {
   return (
@@ -15,7 +16,7 @@ export default function LandingPage() {
         <div className="text-center">
           <div className="mb-6 inline-block">
              {/* Logo placeholder or Icon */}
-             <span className="text-6xl">🏠</span>
+             <Home className="w-16 h-16 text-[#EA526F] mx-auto" />
           </div>
           <h1 className="text-5xl md:text-6xl font-extrabold text-[#4B244A] dark:text-white mb-6 tracking-tight">
             Casaligan
@@ -26,17 +27,17 @@ export default function LandingPage() {
           
           <div className="grid md:grid-cols-3 gap-6 mb-12">
             <div className="p-8 bg-white/50 dark:bg-white/5 backdrop-blur-sm rounded-2xl border border-white/40 dark:border-white/10 hover:transform hover:scale-105 transition-all shadow-lg">
-              <div className="text-4xl mb-4">🔍</div>
+              <Search className="w-12 h-12 text-[#EA526F] mx-auto" />
               <h3 className="font-bold text-lg text-[#4B244A] dark:text-white mb-2">Find Help</h3>
               <p className="text-[#4B244A]/70 dark:text-white/60 text-sm">Connect with verified housekeepers in your area quickly and easily.</p>
             </div>
             <div className="p-8 bg-white/50 dark:bg-white/5 backdrop-blur-sm rounded-2xl border border-white/40 dark:border-white/10 hover:transform hover:scale-105 transition-all shadow-lg">
-              <div className="text-4xl mb-4">💼</div>
+              <Briefcase className="w-12 h-12 text-[#EA526F] mx-auto" />
               <h3 className="font-bold text-lg text-[#4B244A] dark:text-white mb-2">Earn Money</h3>
               <p className="text-[#4B244A]/70 dark:text-white/60 text-sm">Offer your housekeeping services and grow your income on your terms.</p>
             </div>
             <div className="p-8 bg-white/50 dark:bg-white/5 backdrop-blur-sm rounded-2xl border border-white/40 dark:border-white/10 hover:transform hover:scale-105 transition-all shadow-lg">
-              <div className="text-4xl mb-4">🔒</div>
+              <Lock className="w-12 h-12 text-[#EA526F] mx-auto" />
               <h3 className="font-bold text-lg text-[#4B244A] dark:text-white mb-2">Safe & Secure</h3>
               <p className="text-[#4B244A]/70 dark:text-white/60 text-sm">Verified profiles and secure payment system for peace of mind.</p>
             </div>

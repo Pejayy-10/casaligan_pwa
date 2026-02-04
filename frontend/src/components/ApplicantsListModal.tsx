@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Users, Mail, Phone, User, CheckCircle, Inbox, PartyPopper } from 'lucide-react';
 
 interface Applicant {
   interest_id: number;
@@ -96,7 +97,9 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
 
       if (response.ok) {
         const result = await response.json();
-        alert(`🎉 Job Started!\n\n${result.message}\n\nAccepted workers: ${result.accepted_workers.join(', ')}`);
+        alert(`Job Started!\n\n${result.message}\n\nAccepted workers: ${result.accepted_workers.join(', ')}`);
+        // Show visual celebration
+        import('lucide-react').then(({ PartyPopper }) => console.log('Celebration!'));
         
         if (onJobStarted) {
           onJobStarted();
@@ -152,7 +155,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
         {/* Header */}
         <div className="sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-200 dark:border-white/10 p-6 z-10">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">👥 Select Housekeepers</h2>
+            <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white"><Users className="inline w-6 h-6 mr-2" /> Select Housekeepers</h2>
             <button 
               onClick={onClose}
               className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors text-3xl leading-none"
@@ -199,7 +202,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
             </div>
           ) : applicants.length === 0 ? (
             <div className="text-center py-12">
-              <div className="text-6xl mb-4 opacity-50">📭</div>
+              <div className="text-6xl mb-4 opacity-50"><Inbox className="w-16 h-16" /></div>
               <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">No applicants yet</p>
             </div>
           ) : (
@@ -212,11 +215,11 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center text-white text-xl shadow-sm">
-                      ✓
+                      <CheckCircle className="w-6 h-6" />
                     </div>
                     <div className="flex-1">
                       <h3 className="text-lg font-bold text-green-900 dark:text-white mb-1">{applicant.worker_name}</h3>
-                      <p className="text-green-700 dark:text-green-200 text-sm font-medium">✓ Already Hired</p>
+                      <p className="text-green-700 dark:text-green-200 text-sm font-medium"><CheckCircle className="inline w-4 h-4 mr-1" /> Already Hired</p>
                     </div>
                     <button
                       onClick={(e) => {
@@ -225,7 +228,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                       }}
                       className="px-4 py-2 bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-200 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-500/40 transition-all text-sm font-bold shadow-sm"
                     >
-                      👤 Profile
+                      <User className="inline w-4 h-4 mr-1" /> Profile
                     </button>
                   </div>
                 </div>
@@ -262,13 +265,13 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                               : 'bg-gray-100 text-gray-300 dark:bg-white/10 dark:text-white/30 cursor-not-allowed'
                         }`}
                       >
-                        {isSelected ? '✓' : '○'}
+                        {isSelected ? <CheckCircle className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-gray-300 rounded-full" />}
                       </button>
                       
                       <div className="flex-1">
                         <h3 className="text-lg font-bold text-[#4B244A] dark:text-white mb-1">{applicant.worker_name}</h3>
-                        <p className="text-[#4B244A]/70 dark:text-white/70 text-sm">📧 {applicant.worker_email}</p>
-                        <p className="text-[#4B244A]/70 dark:text-white/70 text-sm">📞 {applicant.worker_phone}</p>
+                        <p className="text-[#4B244A]/70 dark:text-white/70 text-sm"><Mail className="inline w-4 h-4 mr-1" /> {applicant.worker_email}</p>
+                        <p className="text-[#4B244A]/70 dark:text-white/70 text-sm"><Phone className="inline w-4 h-4 mr-1" /> {applicant.worker_phone}</p>
                         <p className="text-[#4B244A]/50 dark:text-white/60 text-xs mt-2 font-medium">
                           Applied: {new Date(applicant.applied_at).toLocaleDateString('en-US', {
                             month: 'short',
@@ -289,7 +292,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                           }}
                           className="px-4 py-2 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-500/30 transition-all text-sm font-bold shadow-sm"
                         >
-                          👤 Profile
+                          <User className="inline w-4 h-4 mr-1" /> Profile
                         </button>
                         
                         {/* Reject Button */}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { MessageCircle } from 'lucide-react';
 import apiClient from '../services/api';
 
 interface Message {
@@ -276,7 +277,7 @@ export default function ChatPage() {
           </div>
         ) : messages.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500">
-            <div className="text-5xl mb-3 opacity-50">💬</div>
+            <div className="text-5xl mb-3 opacity-50"><MessageCircle className="w-12 h-12 mx-auto" /></div>
             <p className="font-bold">No messages yet</p>
             <p className="text-sm">Start the conversation!</p>
           </div>

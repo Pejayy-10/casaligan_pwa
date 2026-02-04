@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { FileText, ImageIcon, RotateCw, DollarSign } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import type { User } from '../types';
 
@@ -224,7 +225,7 @@ export default function CreateJobPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className="text-2xl font-bold text-[#4B244A] dark:text-white">📝 Post a Job</h1>
+          <h1 className="text-2xl font-bold text-[#4B244A] dark:text-white"><FileText className="inline w-6 h-6 mr-2" /> Post a Job</h1>
         </div>
       </header>
 

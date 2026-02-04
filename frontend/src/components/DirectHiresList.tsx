@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Clock, RotateCw, FileText, CheckCircle, CreditCard, DollarSign, ClipboardList, Calendar, X, Star, Briefcase } from 'lucide-react';
 import RatingModal from './RatingModal';
 import apiClient from '../services/api';
 import { usePayment } from '../context/PaymentContext';
@@ -273,18 +274,18 @@ export default function DirectHiresList({ role, onClose }: Props) {
   };
 
   const getStatusBadge = (status: string) => {
-    const badges: Record<string, { text: string; class: string }> = {
-      pending: { text: '⏳ Pending', class: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300' },
-      accepted: { text: '✓ Accepted', class: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' },
-      rejected: { text: '✗ Rejected', class: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' },
-      in_progress: { text: '🔄 In Progress', class: 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300' },
-      pending_completion: { text: '📝 Review Needed', class: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' },
-      completed: { text: '✅ Completed', class: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' },
-      payment_pending: { text: '💳 Payment Pending Review', class: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' },
-      paid: { text: '💰 Paid', class: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' },
-      cancelled: { text: '🚫 Cancelled', class: 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300' }
+    const badges: Record<string, { text: JSX.Element; class: string }> = {
+      pending: { text: <><Clock className="inline w-3 h-3 mr-1" /> Pending</>, class: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300' },
+      accepted: { text: <>✓ Accepted</>, class: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' },
+      rejected: { text: <>✗ Rejected</>, class: 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300' },
+      in_progress: { text: <><RotateCw className="inline w-3 h-3 mr-1" /> In Progress</>, class: 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300' },
+      pending_completion: { text: <><FileText className="inline w-3 h-3 mr-1" /> Review Needed</>, class: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' },
+      completed: { text: <><CheckCircle className="inline w-3 h-3 mr-1" /> Completed</>, class: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' },
+      payment_pending: { text: <><CreditCard className="inline w-3 h-3 mr-1" /> Payment Pending Review</>, class: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' },
+      paid: { text: <><DollarSign className="inline w-3 h-3 mr-1" /> Paid</>, class: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' },
+      cancelled: { text: <><X className="inline w-3 h-3 mr-1" /> Cancelled</>, class: 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300' }
     };
-    return badges[status] || { text: status, class: 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300' };
+    return badges[status] || { text: <>{status}</>, class: 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300' };
   };
 
   // Message button - only show for active hire statuses
@@ -411,7 +412,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
         case 'payment_pending':
           return (
             <div className="text-blue-600 dark:text-blue-300 text-sm font-medium">
-              ⏳ Waiting for worker to confirm payment
+              <Clock className="inline w-4 h-4 mr-1" /> Waiting for worker to confirm payment
             </div>
           );
         case 'paid':
@@ -425,7 +426,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
                 }}
                 className="px-3 py-1 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600 font-semibold shadow-sm"
               >
-                ⭐ Rate
+                <Star className="inline w-4 h-4 mr-1" /> Rate
               </button>
             );
           }
@@ -533,8 +534,8 @@ export default function DirectHiresList({ role, onClose }: Props) {
         {/* Header */}
         <div className="sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md p-6 border-b border-gray-200 dark:border-white/10 z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">
-              {role === 'owner' ? '📋 My Direct Bookings' : '💼 Direct Hire Jobs'}
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white flex items-center gap-2">
+              {role === 'owner' ? <><ClipboardList className="inline w-5 h-5" /> My Direct Bookings</> : <><Briefcase className="inline w-5 h-5" /> Direct Hire Jobs</>}
             </h2>
             <button onClick={onClose} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors">✕</button>
           </div>
@@ -569,7 +570,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
                         {hire.is_recurring && (
                           <div className="mt-2">
                             <span className="px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 text-xs rounded-full mr-2 font-bold">
-                              🔄 Recurring: Every {hire.day_of_week} ({hire.frequency})
+                              <RotateCw className="inline w-4 h-4 mr-1" /> Recurring: Every {hire.day_of_week} ({hire.frequency})
                             </span>
                             {hire.recurring_status === 'cancelled' && (
                               <span className="px-2 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-xs rounded-full font-bold">
@@ -628,7 +629,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-gray-200 dark:border-white/20 shadow-2xl">
             <div className="p-6 border-b border-gray-200 dark:border-white/10">
-              <h3 className="text-xl font-bold text-[#4B244A] dark:text-white">✅ Submit Completion</h3>
+              <h3 className="text-xl font-bold text-[#4B244A] dark:text-white"><CheckCircle className="inline w-4 h-4 mr-1" /> Submit Completion</h3>
               <p className="text-[#4B244A]/60 dark:text-white/60 font-medium">For {selectedHire.employer_name}'s booking</p>
             </div>
 
@@ -647,7 +648,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
                   disabled={uploadingCompletion}
                   className="w-full py-4 border-2 border-dashed border-gray-300 dark:border-white/30 rounded-lg text-[#4B244A]/70 dark:text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all flex items-center justify-center gap-2 font-medium"
                 >
-                  {uploadingCompletion ? '⏳ Uploading...' : completionProof ? '✅ Uploaded - Click to change' : '📤 Click to upload photo of completed work'}
+                  {uploadingCompletion ? (<><Clock className="inline w-4 h-4 mr-1" /> Uploading...</>) : completionProof ? (<><CheckCircle className="inline w-4 h-4 mr-1" /> Uploaded - Click to change</>) : (<><FileText className="inline w-4 h-4 mr-1" /> Click to upload photo of completed work</>)}
                 </button>
                 <p className="text-[#4B244A]/50 dark:text-white/50 text-xs mt-1 font-medium">
                   Supports: JPEG, PNG, GIF, WebP (max 10MB)
@@ -825,7 +826,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
             {/* Completion Notes */}
             {reviewHire.completion_notes && (
               <div className="bg-white/50 dark:bg-white/10 rounded-xl p-4 mb-4 border border-gray-200 dark:border-white/10">
-                <h4 className="text-[#4B244A] dark:text-white font-bold mb-2">📝 Notes from Housekeeper</h4>
+                <h4 className="text-[#4B244A] dark:text-white font-bold mb-2"><FileText className="inline w-4 h-4 mr-1" /> Notes from Housekeeper</h4>
                 <p className="text-[#4B244A]/80 dark:text-white/80">{reviewHire.completion_notes}</p>
               </div>
             )}
