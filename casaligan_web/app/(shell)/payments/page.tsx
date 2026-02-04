@@ -77,7 +77,7 @@ export default function PaymentsPage() {
 				transaction = "Bank Transfer";
 			} else {
 				// Capitalize first letter of each word
-				transaction = transactionMethod.split(' ').map(word => 
+				transaction = transactionMethod.split(' ').map((word: string) => 
 					word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
 				).join(' ');
 			}
