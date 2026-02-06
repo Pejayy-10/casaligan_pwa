@@ -339,7 +339,7 @@ export default function JobsPage() {
           ) : (
             /* --- HOUSEKEEPER VIEW HEADER --- */
             <div className="flex flex-col gap-4">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="flex items-center justify-between sm:flex-row items-center sm:items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
                         {housekeeperView === 'find' ? (
                             <Briefcase className="w-6 h-6 text-[#4B244A] dark:text-white" />
@@ -350,29 +350,41 @@ export default function JobsPage() {
                             {housekeeperView === 'find' ? 'Find Jobs' : 'My Accepted Jobs'}
                         </h1>
                     </div>
+                    
+                        <button
+                        onClick={() => setShowPackageManagement(true)}
+                          className="group flex items-center gap-2 px-5 py-2.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center">
+                            <Package className="w-4 h-4 mr-1.5" /> Packages
+                        </button>
+                    
                 </div>
 
                 {/* Housekeeper Actions */}
                 <div className="space-y-3">
-                     {/* Recurring Services Link */}
-                    <div className="flex justify-end">
-                        <button
-                          onClick={() => navigate('/recurring-services')}
-                          className="px-4 py-2 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 text-sm font-bold rounded-lg hover:bg-purple-200 dark:hover:bg-purple-500/30 transition-all flex items-center gap-2 border border-purple-200 dark:border-transparent"
-                        >
-                          <RotateCw className="w-4 h-4" /> Manage Recurring Services
-                        </button>
-                    </div>
 
                     <div className="grid grid-cols-3 gap-2">
-                        <button onClick={() => setShowPackageManagement(true)} className="py-2 px-3 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md flex items-center justify-center">
-                            <Package className="w-4 h-4 mr-1.5" /> Packages
+                        <button
+                          onClick={() => navigate('/recurring-services')}
+                          className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 p-2 sm:p-3 bg-white/50 dark:bg-slate-900/50 text-[#4B244A] dark:text-white font-medium rounded-xl border border-gray-200/60 dark:border-white/10 hover:border-[#4B244A]/30 dark:hover:border-white/30 hover:bg-white dark:hover:bg-slate-800 transition-all text-xs sm:text-sm group text-center"
+                        >
+                          <div className="p-1.5 rounded-lg bg-[#4B244A]/5 dark:bg-white/5 group-hover:bg-[#4B244A]/10 dark:group-hover:bg-white/10 transition-colors">
+                            <RotateCw className="w-4 h-4 sm:w-5 sm:h-5 text-[#4B244A] dark:text-white" />
+                          </div>
+                        <span className="leading-tight">Manage Recurring</span>
                         </button>
-                        <button onClick={() => setShowDirectHires(true)} className="py-2 px-3 bg-blue-500 text-white text-sm font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md flex items-center justify-center">
-                            <Briefcase className="w-4 h-4 mr-1.5" /> Direct Jobs
+                        <button onClick={() => setShowDirectHires(true)}
+                          className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 p-2 sm:p-3 bg-white/50 dark:bg-slate-900/50 text-[#4B244A] dark:text-white font-medium rounded-xl border border-gray-200/60 dark:border-white/10 hover:border-[#4B244A]/30 dark:hover:border-white/30 hover:bg-white dark:hover:bg-slate-800 transition-all text-xs sm:text-sm group text-center">
+                          <div className="p-1.5 rounded-lg bg-[#4B244A]/5 dark:bg-white/5 group-hover:bg-[#4B244A]/10 dark:group-hover:bg-white/10 transition-colors">
+                            <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-[#4B244A] dark:text-white" />
+                          </div>
+                        <span className="leading-tight">Direct Jobs</span>
                         </button>
-                        <button onClick={() => setShowAvailabilityCalendar(true)} className="py-2 px-3 bg-green-500 text-white text-sm font-bold rounded-lg hover:bg-green-600 transition-all shadow-md flex items-center justify-center">
-                            <Calendar className="w-4 h-4 mr-1.5" /> Availability
+                        <button onClick={() => setShowAvailabilityCalendar(true)}
+                          className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 p-2 sm:p-3 bg-white/50 dark:bg-slate-900/50 text-[#4B244A] dark:text-white font-medium rounded-xl border border-gray-200/60 dark:border-white/10 hover:border-[#4B244A]/30 dark:hover:border-white/30 hover:bg-white dark:hover:bg-slate-800 transition-all text-xs sm:text-sm group text-center">
+                          <div className="p-1.5 rounded-lg bg-[#4B244A]/5 dark:bg-white/5 group-hover:bg-[#4B244A]/10 dark:group-hover:bg-white/10 transition-colors">
+                            <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-[#4B244A] dark:text-white" />
+                          </div>
+                          <span className="leading-tight">Availability</span>
                         </button>
                     </div>
 
@@ -380,7 +392,7 @@ export default function JobsPage() {
                         <button onClick={() => setHousekeeperView('find')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${housekeeperView === 'find' ? 'bg-[#EA526F] text-white shadow-md' : 'text-[#4B244A] dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'}`}>
                             Find Jobs
                         </button>
-                        <button onClick={() => setHousekeeperView('my-jobs')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${housekeeperView === 'my-jobs' ? 'bg-blue-500 text-white shadow-md' : 'text-[#4B244A] dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'}`}>
+                        <button onClick={() => setHousekeeperView('my-jobs')} className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${housekeeperView === 'my-jobs' ? 'bg-[#EA526F]  text-white shadow-md' : 'text-[#4B244A] dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'}`}>
                             My Jobs
                         </button>
                     </div>
@@ -391,7 +403,7 @@ export default function JobsPage() {
                             <select
                                 value={selectedCategory}
                                 onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : '')}
-                                className="w-full px-4 py-2.5 bg-white/50 dark:bg-white/10 backdrop-blur-sm border border-gray-200 dark:border-white/30 rounded-xl text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                                className="w-full appearance-none px-4 py-2.5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-gray-200 dark:border-white/10 rounded-xl text-sm font-medium text-gray-700 dark:text-white shadow-sm hover:border-[#EA526F]/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] transition-all cursor-pointer"
                             >
                                 <option value="">All Categories</option>
                                 {categories.map(cat => (
@@ -937,7 +949,7 @@ function HousekeeperJobsContent({
             }`}
           >
             {hasSelectedCategory && (
-              <div className="mb-3 inline-block px-3 py-1 bg-[#EA526F]/10 dark:bg-[#EA526F]/30 text-[#EA526F] dark:text-pink-300 text-xs font-bold rounded-full border border-[#EA526F]/30">
+              <div className="w-full appearance-none px-4 py-2.5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-gray-200 dark:border-white/10 rounded-xl text-sm font-medium text-gray-700 dark:text-white shadow-sm hover:border-[#EA526F]/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] transition-all cursor-pointer">
                 <CheckCircle className="inline w-4 h-4 mr-1" /> Matches {categories.find(c => c.category_id === selectedCategory)?.name}
               </div>
             )}
@@ -954,7 +966,7 @@ function HousekeeperJobsContent({
             {job.category_names && job.category_names.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-3">
                 {job.category_names.map((categoryName, idx) => (
-                  <span key={idx} className="px-2 sm:px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-lg text-xs sm:text-sm font-bold border border-purple-200 dark:border-purple-700/50">
+                  <span key={idx} className="mb-3 inline-block px-3 py-1 bg-[#EA526F]/10 dark:bg-[#EA526F]/30 text-[#EA526F] dark:text-pink-300 text-xs font-bold rounded-full border border-[#EA526F]/30">
                     <Tag className="inline w-4 h-4 mr-1" /> {categoryName}
                   </span>
                 ))}
