@@ -192,11 +192,9 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
                 {canReapply && applicationStatus === 'withdrawn' && (
                   <button
                     onClick={async () => {
-                      if (onApply) {
-                        await handleApply();
-                        if (onStatusRefresh) {
-                          onStatusRefresh();
-                        }
+                      await handleApply();
+                      if (onStatusRefresh) {
+                        onStatusRefresh();
                       }
                     }}
                     disabled={isApplying}

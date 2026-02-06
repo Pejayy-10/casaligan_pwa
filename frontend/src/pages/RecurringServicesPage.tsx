@@ -27,6 +27,7 @@ interface RecurringDirectHire {
   hire_id: number;
   worker_name?: string;
   employer_name?: string;
+  package_name?: string;
   total_amount: number;
   scheduled_date: string;
   status: string;

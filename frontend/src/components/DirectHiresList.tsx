@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type JSX } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { Clock, RotateCw, FileText, CheckCircle, CreditCard, DollarSign, ClipboardList, Calendar, X, Star, Briefcase } from 'lucide-react';
