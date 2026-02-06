@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Check, CheckCheck, X } from 'lucide-react';
 import TabBar from '../components/TabBar';
+import { API_BASE_URL } from '../config';
 
 interface Notification {
   notification_id: number;
@@ -20,8 +21,6 @@ export default function NotificationsPage() {
   const [userRole, setUserRole] = useState<'owner' | 'housekeeper'>('owner');
   const navigate = useNavigate();
 
-  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
   const getToken = () => localStorage.getItem('access_token');
 
   useEffect(() => {
@@ -38,7 +37,7 @@ export default function NotificationsPage() {
 
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE}/notifications/`, {
+      const response = await fetch(`${API_BASE_URL}/notifications/`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -58,7 +57,7 @@ export default function NotificationsPage() {
     if (!token) return;
 
     try {
-      await fetch(`${API_BASE}/notifications/${notificationId}/read`, {
+      await fetch(`${API_BASE_URL}/notifications/${notificationId}/read`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -78,7 +77,7 @@ export default function NotificationsPage() {
     if (!token) return;
 
     try {
-      await fetch(`${API_BASE}/notifications/mark-all-read`, {
+      await fetch(`${API_BASE_URL}/notifications/mark-all-read`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -94,7 +93,7 @@ export default function NotificationsPage() {
     if (!token) return;
 
     try {
-      await fetch(`${API_BASE}/notifications/${notificationId}`, {
+      await fetch(`${API_BASE_URL}/notifications/${notificationId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
