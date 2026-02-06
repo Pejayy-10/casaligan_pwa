@@ -50,7 +50,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
 
   const loadCategories = async () => {
     try {
-      const response = await fetch('${API_BASE_URL}/categories/?active_only=true');
+      const response = await fetch(`${API_BASE_URL}/categories/?active_only=true`);
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -64,7 +64,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     try {
       setLoading(true);
       const token = localStorage.getItem('access_token');
-      const response = await fetch('${API_BASE_URL}/packages/my-packages', {
+      const response = await fetch(`${API_BASE_URL}/packages/my-packages`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -124,7 +124,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
 
       const url = editingPackage 
         ? `${API_BASE_URL}/packages/${editingPackage.package_id}`
-        : '${API_BASE_URL}/packages/';
+        : `${API_BASE_URL}/packages/`;
       
       const method = editingPackage ? 'PUT' : 'POST';
 

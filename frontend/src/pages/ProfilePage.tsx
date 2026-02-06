@@ -57,7 +57,7 @@ export default function ProfilePage() {
               // Refresh user data to get updated is_housekeeper status
               const refreshUser = async () => {
                 try {
-                  const response = await fetch('${API_BASE_URL}/auth/me', {
+                  const response = await fetch(`${API_BASE_URL}/auth/me`, {
                     headers: {
                       'Authorization': `Bearer ${localStorage.getItem('access_token')}`
                     }
@@ -95,7 +95,7 @@ export default function ProfilePage() {
                 console.log('[Polling] Application approved! Fetching latest user data...');
                 const refreshUser = async () => {
                   try {
-                    const response = await fetch('${API_BASE_URL}/auth/me', {
+                    const response = await fetch(`${API_BASE_URL}/auth/me`, {
                       headers: {
                         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
                       }

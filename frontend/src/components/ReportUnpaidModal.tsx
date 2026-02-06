@@ -42,7 +42,7 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
         formData.append('file', file);
         formData.append('category', 'evidence');
 
-        const response = await fetch('${API_BASE_URL}/upload/image', {
+        const response = await fetch(`${API_BASE_URL}/upload/image`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` },
           body: formData

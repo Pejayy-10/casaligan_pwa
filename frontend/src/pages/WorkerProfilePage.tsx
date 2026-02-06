@@ -294,7 +294,7 @@ export default function WorkerProfilePage() {
         };
       }
       
-      const response = await fetch('${API_BASE_URL}/direct-hire/', {
+      const response = await fetch(`${API_BASE_URL}/direct-hire/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

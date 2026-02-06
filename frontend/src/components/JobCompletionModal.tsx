@@ -48,7 +48,7 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
       formData.append('file', file);
       formData.append('category', 'completion');
 
-      const response = await fetch('${API_BASE_URL}/upload/image', {
+      const response = await fetch(`${API_BASE_URL}/upload/image`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

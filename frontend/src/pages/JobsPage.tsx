@@ -83,7 +83,7 @@ export default function JobsPage() {
       const token = localStorage.getItem('access_token');
       const endpoint = user?.active_role === 'owner' 
         ? `${API_BASE_URL}/jobs/my-posts${statusFilter !== 'all' ? `?status_filter=${statusFilter}` : ''}`
-        : '${API_BASE_URL}/jobs/?status_filter=open';
+        : `${API_BASE_URL}/jobs/?status_filter=open`;
       
       const response = await fetch(endpoint, {
         headers: {
@@ -125,7 +125,7 @@ export default function JobsPage() {
   const loadReports = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch('${API_BASE_URL}/reports/my-reports', {
+      const response = await fetch(`${API_BASE_URL}/reports/my-reports`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -147,7 +147,7 @@ export default function JobsPage() {
   const loadRatings = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch('${API_BASE_URL}/ratings/my-ratings', {
+      const response = await fetch(`${API_BASE_URL}/ratings/my-ratings`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -168,7 +168,7 @@ export default function JobsPage() {
 
   const loadCategories = useCallback(async () => {
     try {
-      const response = await fetch('${API_BASE_URL}/categories/?active_only=true');
+      const response = await fetch(`${API_BASE_URL}/categories/?active_only=true`);
       if (response.ok) {
         const data = await response.json();
         setCategories(data);

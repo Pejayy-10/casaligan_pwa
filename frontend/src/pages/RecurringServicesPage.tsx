@@ -67,7 +67,7 @@ export default function RecurringServicesPage() {
       const token = localStorage.getItem('access_token');
 
       // Load recurring job posts
-      const jobsResponse = await fetch('${API_BASE_URL}/jobs/my-posts', {
+      const jobsResponse = await fetch(`${API_BASE_URL}/jobs/my-posts`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (jobsResponse.ok) {
@@ -95,8 +95,8 @@ export default function RecurringServicesPage() {
 
       // Load recurring direct hires
       const endpoint = user?.active_role === 'owner' 
-        ? '${API_BASE_URL}/direct-hire/my-bookings'
-        : '${API_BASE_URL}/direct-hire/my-jobs';
+        ? `${API_BASE_URL}/direct-hire/my-bookings`
+        : `${API_BASE_URL}/direct-hire/my-jobs`;
       
       const hiresResponse = await fetch(endpoint, {
         headers: { 'Authorization': `Bearer ${token}` }

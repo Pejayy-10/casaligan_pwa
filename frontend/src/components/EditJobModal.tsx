@@ -41,7 +41,7 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
 
   const loadCategories = async () => {
     try {
-      const response = await fetch('${API_BASE_URL}/categories/?active_only=true');
+      const response = await fetch(`${API_BASE_URL}/categories/?active_only=true`);
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -73,7 +73,7 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
       imageFormData.append('file', file);
 
       try {
-        const response = await fetch('${API_BASE_URL}/upload/image?category=job', {
+        const response = await fetch(`${API_BASE_URL}/upload/image?category=job`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`

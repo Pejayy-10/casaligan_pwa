@@ -65,7 +65,7 @@ export default function RegisterStep3DocumentsPage() {
       uploadFormData.append('file', file);
       uploadFormData.append('document_type', formData.document_type);
       
-      const response = await fetch('${API_BASE_URL}/upload/document', {
+      const response = await fetch(`${API_BASE_URL}/upload/document`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

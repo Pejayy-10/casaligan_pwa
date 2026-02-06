@@ -123,8 +123,8 @@ export default function DirectHiresList({ role, onClose }: Props) {
       setLoading(true);
       const token = localStorage.getItem('access_token');
       const endpoint = role === 'owner' 
-        ? '${API_BASE_URL}/direct-hire/my-bookings'
-        : '${API_BASE_URL}/direct-hire/my-jobs';
+        ? `${API_BASE_URL}/direct-hire/my-bookings`
+        : `${API_BASE_URL}/direct-hire/my-jobs`;
       
       const response = await fetch(endpoint, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -158,7 +158,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
       formData.append('file', file);
       formData.append('category', 'completion');
 
-      const response = await fetch('${API_BASE_URL}/upload/image', {
+      const response = await fetch(`${API_BASE_URL}/upload/image`, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData

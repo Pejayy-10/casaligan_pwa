@@ -122,7 +122,7 @@ export default function BrowseWorkersPage() {
 
   const loadCategories = async () => {
     try {
-      const response = await fetch('${API_BASE_URL}/categories/?active_only=true');
+      const response = await fetch(`${API_BASE_URL}/categories/?active_only=true`);
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
