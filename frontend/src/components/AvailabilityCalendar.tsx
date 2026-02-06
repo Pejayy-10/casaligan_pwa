@@ -153,9 +153,9 @@ export default function AvailabilityCalendar({ onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-2xl w-full border border-gray-200 dark:border-white/20 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full border border-gray-200 dark:border-white/20 shadow-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md p-6 border-b border-gray-200 dark:border-white/10 z-10">
+        <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-6 border-b border-gray-200 dark:border-white/10 z-10">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">📅 Manage Availability</h2>
             <button onClick={onClose} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white text-2xl transition-colors">✕</button>
@@ -303,7 +303,7 @@ export default function AvailabilityCalendar({ onClose }: Props) {
       {/* Block Date Modal */}
       {showBlockModal && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-gray-200 dark:border-white/20 shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-gray-200 dark:border-white/20 shadow-2xl">
             <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">Block Date</h3>
             <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 font-medium">
               Block <strong>{new Date(selectedDate).toLocaleDateString('en-US', {

@@ -143,9 +143,9 @@ export default function PaymentTrackerWorker({ jobId, jobTitle, onClose }: Payme
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-200 dark:border-white/10 px-6 py-4 z-10">
+        <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10 px-6 py-4 z-10">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">💵 My Payments</h2>
             <button 
@@ -310,7 +310,7 @@ export default function PaymentTrackerWorker({ jobId, jobTitle, onClose }: Payme
       {/* Report Issue Modal */}
       {showReportModal && selectedPayment && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-gray-200 dark:border-white/20 shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-gray-200 dark:border-white/20 shadow-2xl">
             <div className="border-b border-gray-200 dark:border-white/20 px-6 py-4">
               <h3 className="text-xl font-bold text-[#4B244A] dark:text-white">🚨 Report Payment Issue</h3>
               <p className="text-[#4B244A]/70 dark:text-white/70 text-sm font-medium">For payment due: {new Date(selectedPayment.due_date).toLocaleDateString()}</p>

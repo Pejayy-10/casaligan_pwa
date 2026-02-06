@@ -65,9 +65,9 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md border-b border-gray-200 dark:border-white/10 p-6 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10 p-6 flex items-center justify-between z-10">
           <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">{job.title}</h2>
           <button 
             onClick={onClose}
@@ -176,7 +176,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
 
         {/* Footer - Apply Button */}
         {onApply && (
-          <div className="sticky bottom-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-gray-200 dark:border-white/10 p-6 rounded-b-3xl">
+          <div className="sticky bottom-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-gray-200 dark:border-white/10 p-6 rounded-b-3xl">
             {hasApplied ? (
               <div className="text-center space-y-3">
                 <div className={`inline-flex items-center px-6 py-3 rounded-xl font-bold ${

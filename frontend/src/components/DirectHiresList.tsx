@@ -530,9 +530,9 @@ export default function DirectHiresList({ role, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md p-6 border-b border-gray-200 dark:border-white/10 z-10">
+        <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-6 border-b border-gray-200 dark:border-white/10 z-10">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-[#4B244A] dark:text-white flex items-center gap-2">
               {role === 'owner' ? <><ClipboardList className="inline w-5 h-5" /> My Direct Bookings</> : <><Briefcase className="inline w-5 h-5" /> Direct Hire Jobs</>}
@@ -627,7 +627,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
       {/* Completion Modal */}
       {showCompletionModal && selectedHire && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-gray-200 dark:border-white/20 shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-gray-200 dark:border-white/20 shadow-2xl">
             <div className="p-6 border-b border-gray-200 dark:border-white/10">
               <h3 className="text-xl font-bold text-[#4B244A] dark:text-white"><CheckCircle className="inline w-4 h-4 mr-1" /> Submit Completion</h3>
               <p className="text-[#4B244A]/60 dark:text-white/60 font-medium">For {selectedHire.employer_name}'s booking</p>
@@ -732,7 +732,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
       {/* Cancel Recurring Modal */}
       {showCancelRecurringModal && cancelRecurringHire && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-gray-200 dark:border-white/20 shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-gray-200 dark:border-white/20 shadow-2xl">
             <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">Stop Recurring Service</h3>
             <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 font-medium">
               Are you sure you want to stop this recurring booking? This will prevent future scheduled services.
@@ -778,7 +778,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
       {/* Completion Review Modal */}
       {showReviewModal && reviewHire && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-2xl p-6 max-w-2xl w-full border border-gray-200 dark:border-white/20 shadow-2xl">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-2xl w-full border border-gray-200 dark:border-white/20 shadow-2xl">
             <div className="mb-4">
               <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-2">📋 Review Completed Work</h3>
               <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">

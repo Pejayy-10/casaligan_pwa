@@ -68,7 +68,7 @@ export default function CheckInModal({ jobId, jobTitle, onClose, onSuccess }: Ch
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-gray-200 dark:border-white/20 shadow-2xl">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
         <div className="border-b border-gray-200 dark:border-white/20 px-6 py-4">
           <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">🕐 Check In</h2>
@@ -216,7 +216,7 @@ export function CheckOutModal({ jobId, jobTitle, checkinId, checkInTime, onClose
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-gray-200 dark:border-white/20 shadow-2xl">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
         <div className="border-b border-gray-200 dark:border-white/20 px-6 py-4">
           <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">🏁 Check Out</h2>

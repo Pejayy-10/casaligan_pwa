@@ -65,7 +65,7 @@ const RatingModal: React.FC<RatingModalProps> = ({
       />
 
       {/* Modal */}
-      <div className="relative bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md shadow-2xl border border-white/50 dark:border-white/10 transition-all">
+      <div className="relative bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md shadow-2xl border border-white/50 dark:border-white/10 transition-all">
         {/* Close button */}
         <button
           onClick={handleClose}

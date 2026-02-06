@@ -187,9 +187,9 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 bg-[#E8E4E1]/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10 px-6 py-4 z-10">
+        <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10 px-6 py-4 z-10">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">💰 Payment Tracker</h2>
             <button 
@@ -377,7 +377,7 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
       {/* Report Worker Modal */}
       {showReportModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl animate-fade-in border border-gray-200 dark:border-white/20">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md shadow-2xl animate-fade-in border border-gray-200 dark:border-white/20">
             <div className="p-6">
               <div className="flex items-center gap-3 mb-4">
                 <div className="w-12 h-12 bg-red-100 dark:bg-red-500/20 rounded-full flex items-center justify-center">

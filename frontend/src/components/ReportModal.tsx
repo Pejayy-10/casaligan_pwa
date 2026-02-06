@@ -170,7 +170,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
       />
 
       {/* Modal */}
-      <div className="relative bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl p-6 w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto border border-white/50 dark:border-white/10">
+      <div className="relative bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-2xl mx-4 shadow-2xl max-h-[90vh] overflow-y-auto border border-white/50 dark:border-white/10">
         {/* Close button */}
         <button
           onClick={handleClose}
