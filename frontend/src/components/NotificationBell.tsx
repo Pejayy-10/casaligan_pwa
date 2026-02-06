@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, X, Check, CheckCheck, AlertTriangle } from 'lucide-react';
 import JobEditResponseModal from './JobEditResponseModal';
+import { API_BASE_URL } from '../config';
 
 interface Notification {
   notification_id: number;
@@ -28,8 +29,6 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
   // Get token fresh each time to ensure we have the latest
   const getToken = () => localStorage.getItem('access_token');
 
@@ -40,7 +39,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     if (!token) return;
     
     try {
-      const response = await fetch(`${API_BASE}/notifications/`, {
+      const response = await fetch(`${API_BASE_URL}/notifications/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -67,7 +66,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     if (!token) return;
     
     try {
-      const response = await fetch(`${API_BASE}/notifications/count`, {
+      const response = await fetch(`${API_BASE_URL}/notifications/count`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       console.log('fetchUnreadCount response:', response.status);
@@ -87,7 +86,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     if (!token) return;
     
     try {
-      await fetch(`${API_BASE}/notifications/${notificationId}/read`, {
+      await fetch(`${API_BASE_URL}/notifications/${notificationId}/read`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -108,7 +107,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     
     setLoading(true);
     try {
-      await fetch(`${API_BASE}/notifications/read-all`, {
+      await fetch(`${API_BASE_URL}/notifications/read-all`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -128,7 +127,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     if (!token) return;
     
     try {
-      await fetch(`${API_BASE}/notifications/${notificationId}`, {
+      await fetch(`${API_BASE_URL}/notifications/${notificationId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
