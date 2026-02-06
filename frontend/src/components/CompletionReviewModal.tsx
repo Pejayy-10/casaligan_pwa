@@ -205,10 +205,10 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white"><ClipboardList className="inline w-4 h-4 mr-1" /> Review Completion</h2>
             <button 
-              onClick={onClose} 
-              className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors text-2xl"
+               onClick={onClose} 
+               className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white"
             >
-              ✕
+               ×
             </button>
           </div>
           <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mt-1 font-medium">{jobTitle}</p>

@@ -79,12 +79,12 @@ export default function HousekeeperProgressModal({ jobId, onClose, onSubmitCompl
         {/* Header */}
         <div className="p-6 border-b border-gray-200 dark:border-white/10 sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white"><BarChart2 className="inline w-4 h-4 mr-1" /> Job Progress</h2>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">Job Progress</h2>
             <button
               onClick={onClose}
-              className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors"
+              className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white"
             >
-              ✕
+              ×
             </button>
           </div>
           {progress && <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mt-1 font-medium">{progress.job_title}</p>}
@@ -188,7 +188,7 @@ export default function HousekeeperProgressModal({ jobId, onClose, onSubmitCompl
               {progress.recent_checkins.length > 0 && (
                 <div className="bg-white/50 dark:bg-white/10 rounded-xl p-4 border border-gray-200 dark:border-white/10">
                   <h3 className="text-sm font-bold text-[#4B244A] dark:text-white/90 mb-3">
-                    📍 Recent Check-ins ({progress.total_checkins} total)
+                    Recent Check-ins ({progress.total_checkins} total)
                   </h3>
                   <div className="space-y-2">
                     {progress.recent_checkins.map((checkin) => (

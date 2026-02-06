@@ -70,8 +70,8 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
         <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10 p-6 flex items-center justify-between z-10">
           <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">{job.title}</h2>
           <button 
-            onClick={onClose}
-            className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors text-3xl leading-none"
+             onClick={onClose}
+             className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white"
           >
             ×
           </button>
@@ -103,7 +103,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
               <Users className="inline w-4 h-4 mr-1" /> {job.people_needed} {job.people_needed === 1 ? 'person' : 'people'} needed
             </span>
             <span className="px-4 py-2 bg-white/60 dark:bg-white/10 text-[#4B244A] dark:text-white/90 rounded-lg text-sm font-semibold border border-gray-200 dark:border-white/5">
-              ⏱️ {job.duration_type}
+               {job.duration_type}
             </span>
           </div>
 
@@ -127,7 +127,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
           {/* Location */}
           {job.location && (
             <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
-              <h3 className="text-[#4B244A] dark:text-white font-bold mb-2">📍 Location</h3>
+               <h3 className="text-[#4B244A] dark:text-white font-bold mb-2">Location</h3>
               <p className="text-[#4B244A]/80 dark:text-white/80 text-sm">{job.location}</p>
             </div>
           )}
@@ -153,7 +153,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
           <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
             <h3 className="text-[#4B244A] dark:text-white font-bold mb-2"><User className="inline w-4 h-4 mr-1" /> Employer</h3>
             <p className="text-[#4B244A]/80 dark:text-white/80 text-sm font-medium">{job.employer_name}</p>
-            {job.employer_address && <p className="text-[#4B244A]/60 dark:text-white/60 text-sm">📍 {job.employer_address}</p>}
+             {job.employer_address && <p className="text-[#4B244A]/60 dark:text-white/60 text-sm">{job.employer_address}</p>}
           </div>
 
           {/* Applicants Counter */}
@@ -186,7 +186,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
                 }`}>
                   {applicationStatus === 'accepted' ? <><Check className="inline w-4 h-4 mr-1" /> Application Accepted</> :
                    applicationStatus === 'rejected' ? <>✗ Application Rejected</> :
-                   applicationStatus === 'withdrawn' ? <>🚫 Application Withdrawn</> :
+                   applicationStatus === 'withdrawn' ? <>Application Withdrawn</> :
                    <><Clock className="inline w-4 h-4 mr-1" /> Application Pending</>}
                 </div>
                 {canReapply && applicationStatus === 'withdrawn' && (

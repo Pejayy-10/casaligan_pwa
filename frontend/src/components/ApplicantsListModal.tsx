@@ -156,9 +156,10 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
         <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10 p-6 z-10">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white"><Users className="inline w-6 h-6 mr-2" /> Select Housekeepers</h2>
-            <button 
+            <button
               onClick={onClose}
-              className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors text-3xl leading-none"
+              aria-label="Close"
+              className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60"
             >
               ×
             </button>
@@ -186,8 +187,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
 
           {/* Instructions */}
           {needMoreSelections && pendingApplicants.length > 0 && (
-            <p className="text-yellow-600 dark:text-yellow-300/80 text-sm mt-3 flex items-center gap-2 font-medium">
-              <span className="text-lg">👆</span>
+            <p className="text-yellow-600 dark:text-yellow-300/80 text-sm mt-3 font-medium">
               Toggle {peopleNeeded - totalSelected} more {peopleNeeded - totalSelected === 1 ? 'person' : 'people'} to start the job
             </p>
           )}

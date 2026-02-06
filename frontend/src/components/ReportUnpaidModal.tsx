@@ -108,12 +108,12 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
         {/* Header */}
         <div className="p-6 border-b border-gray-200 dark:border-white/10 sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">⚠️ Report Unpaid Job</h2>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">Report Unpaid Job</h2>
             <button
               onClick={onClose}
-              className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors text-2xl"
+              className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white"
             >
-              ✕
+              ×
             </button>
           </div>
           <p className="text-[#4B244A]/70 dark:text-white/60 text-sm mt-1 font-medium">{jobTitle}</p>
@@ -123,7 +123,7 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
         <div className="p-6 space-y-4">
           <div className="bg-red-100 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg p-4">
             <p className="text-red-700 dark:text-red-300 text-sm font-medium">
-              📢 You have <strong>{pendingPayments}</strong> pending payment(s) for this job. 
+              You have <strong>{pendingPayments}</strong> pending payment(s) for this job. 
               If the owner hasn't paid as agreed, you can report the issue here.
             </p>
           </div>
@@ -131,7 +131,7 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
           {/* Days Overdue */}
           <div>
             <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm font-bold mb-2">
-              📅 How many days overdue? (Optional)
+              How many days overdue? (Optional)
             </label>
             <input
               type="number"
@@ -146,7 +146,7 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
           {/* Reason */}
           <div>
             <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm font-bold mb-2">
-              📝 Reason for Report <span className="text-red-500 dark:text-red-400">*</span>
+              Reason for Report <span className="text-red-500 dark:text-red-400">*</span>
             </label>
             <textarea
               value={reason}
@@ -160,7 +160,7 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
           {/* Evidence Upload */}
           <div>
             <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm font-bold mb-2">
-              📷 Upload Evidence (Optional)
+              Upload Evidence (Optional)
             </label>
             <input
               type="file"
@@ -175,7 +175,7 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
               disabled={uploading}
               className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-white/30 rounded-lg text-[#4B244A]/70 dark:text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all flex items-center justify-center gap-2 bg-white/50 dark:bg-white/5 font-medium"
             >
-              {uploading ? '⏳ Uploading...' : '📤 Add evidence photos'}
+              {uploading ? 'Uploading...' : 'Add evidence photos'}
             </button>
             {previewImages.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
@@ -235,7 +235,7 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
             disabled={submitting || uploading || !reason.trim()}
             className="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-red-500/30"
           >
-            {submitting ? 'Submitting...' : '⚠️ Submit Report'}
+            {submitting ? 'Submitting...' : 'Submit Report'}
           </button>
         </div>
       </div>

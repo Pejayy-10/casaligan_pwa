@@ -631,7 +631,7 @@ export default function WorkerProfilePage() {
             <div className="p-6 border-b border-gray-200 dark:border-white/10 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-10">
               <div className="flex items-center justify-between">
                 <h3 className="text-xl font-bold text-[#4B244A] dark:text-white"><Calendar className="inline w-5 h-5 mr-2" /> Schedule Booking</h3>
-                <button onClick={() => setShowHireModal(false)} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white text-xl">✕</button>
+                 <button onClick={() => setShowHireModal(false)} className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white">×</button>
               </div>
             </div>
 

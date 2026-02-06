@@ -157,7 +157,7 @@ export default function AvailabilityCalendar({ onClose }: Props) {
         {/* Header */}
         <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-6 border-b border-gray-200 dark:border-white/10 z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">📅 Manage Availability</h2>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">Manage Availability</h2>
             <button onClick={onClose} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white text-2xl transition-colors">✕</button>
           </div>
           <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mt-2 font-medium">
@@ -180,7 +180,7 @@ export default function AvailabilityCalendar({ onClose }: Props) {
                   onClick={() => navigateMonth('prev')}
                   className="px-4 py-2 bg-white/50 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/20 text-[#4B244A] dark:text-white rounded-lg transition-all font-bold border border-gray-200 dark:border-white/10"
                 >
-                  ← Previous
+                  ← 
                 </button>
                 <h3 className="text-xl font-bold text-[#4B244A] dark:text-white">
                   {monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}
@@ -189,7 +189,7 @@ export default function AvailabilityCalendar({ onClose }: Props) {
                   onClick={() => navigateMonth('next')}
                   className="px-4 py-2 bg-white/50 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/20 text-[#4B244A] dark:text-white rounded-lg transition-all font-bold border border-gray-200 dark:border-white/10"
                 >
-                  Next →
+                   →
                 </button>
               </div>
 
@@ -304,7 +304,19 @@ export default function AvailabilityCalendar({ onClose }: Props) {
       {showBlockModal && (
         <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full border border-gray-200 dark:border-white/20 shadow-2xl">
-            <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">Block Date</h3>
+             <div className="flex items-center justify-between mb-4">
+               <h3 className="text-xl font-bold text-[#4B244A] dark:text-white">Block Date</h3>
+               <button
+                 onClick={() => {
+                   setShowBlockModal(false);
+                   setSelectedDate('');
+                   setBlockReason('');
+                 }}
+                 className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white"
+               >
+                 ×
+               </button>
+             </div>
             <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 font-medium">
               Block <strong>{new Date(selectedDate).toLocaleDateString('en-US', {
                 weekday: 'long',

@@ -41,7 +41,7 @@ export default function RestrictionModal({ message, onClose }: RestrictionModalP
     >
       <div
         style={{
-          backgroundColor: 'white',
+          backgroundColor: '#ffffff',
           borderRadius: '12px',
           padding: '2rem',
           maxWidth: '90%',
@@ -52,12 +52,12 @@ export default function RestrictionModal({ message, onClose }: RestrictionModalP
       >
         <div
           style={{
-            fontSize: '4rem',
+            fontSize: '2rem',
             marginBottom: '1rem',
             color: '#e74c3c',
           }}
         >
-          🚫
+          ⚠
         </div>
         <h2
           style={{

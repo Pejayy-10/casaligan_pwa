@@ -87,7 +87,7 @@ export default function ContractModal({
         {/* Header */}
         <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10 px-6 py-4 flex items-center justify-between z-10">
           <div>
-            <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">📄 Employment Contract</h2>
+            <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">Employment Contract</h2>
             <p className="text-[#4B244A]/70 dark:text-white/70 text-sm font-medium">Please review and sign the contract</p>
           </div>
         </div>

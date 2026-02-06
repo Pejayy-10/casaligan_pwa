@@ -137,7 +137,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
       });
 
       if (response.ok) {
-        alert(editingPackage ? '✓ Package updated!' : '✓ Package created!');
+        alert(editingPackage ? 'Package updated!' : 'Package created!');
         resetForm();
         loadPackages();
       } else {
@@ -201,15 +201,6 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
   // Package form JSX
   const packageForm = (
     <div className="space-y-4">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">
-          {editingPackage ? <Edit2 className="inline w-4 h-4 mr-1" /> : <Plus className="inline w-4 h-4 mr-1" />}
-          {editingPackage ? 'Edit Package' : 'New Package'}
-        </h3>
-        <button onClick={resetForm} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white text-sm transition-colors">
-          Cancel
-        </button>
-      </div>
 
       <div>
         <label className={labelClass}>Package Name *</label>
@@ -418,14 +409,33 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
   // Modal mode
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white dark:bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 bg-white/95 dark:bg-white/95 backdrop-blur-md p-6 border-b border-gray-200 dark:border-white/10 z-10">
+        <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-6 border-b border-gray-200 dark:border-white/10 z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white"><Package className="inline w-5 h-5 mr-2" /> My Service Packages</h2>
-            {onClose && <button onClick={onClose} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors">✕</button>}
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">
+              {showForm ? (
+                editingPackage ? (
+                  <><Edit2 className="inline w-5 h-5 mr-2" /> Edit Package</>
+                ) : (
+                  <><Plus className="inline w-5 h-5 mr-2" /> New Package</>
+                )
+              ) : (
+                <><Package className="inline w-5 h-5 mr-2" /> My Service Packages</>
+              )}
+            </h2>
+
+            <button
+              onClick={showForm ? resetForm : (onClose ?? (() => {}))}
+              aria-label={showForm ? 'Cancel' : 'Close'}
+              className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60"
+            >
+              ×
+            </button>
           </div>
-          <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mt-1 font-medium">Create packages that house owners can book directly</p>
+          <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mt-1 font-medium">
+            {showForm ? (editingPackage ? 'Edit package details' : 'Fill in the package details') : 'Create packages that house owners can book directly'}
+          </p>
         </div>
 
         {/* Content */}

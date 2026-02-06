@@ -107,14 +107,14 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-white/10 sticky top-0 bg-whitedark:bg-slate-900/95 backdrop-blur z-10">
+        <div className="p-6 border-b border-gray-200 dark:border-white/10 sticky top-0 bg-white dark:bg-slate-900/95 backdrop-blur z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white"><CheckCircle className="inline w-4 h-4 mr-1" /> Submit Job Completion</h2>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">Submit Job Completion</h2>
             <button
               onClick={onClose}
-              className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors text-2xl"
+              className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white"
             >
-              ✕
+              ×
             </button>
           </div>
           <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mt-1 font-medium">{jobTitle}</p>

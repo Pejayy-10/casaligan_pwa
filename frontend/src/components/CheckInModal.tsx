@@ -70,9 +70,17 @@ export default function CheckInModal({ jobId, jobTitle, onClose, onSuccess }: Ch
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="border-b border-gray-200 dark:border-white/20 px-6 py-4">
-          <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">🕐 Check In</h2>
-          <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mt-1">{jobTitle}</p>
+        <div className="border-b border-gray-200 dark:border-white/20 px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">Check In</h2>
+            <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mt-1">{jobTitle}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white"
+          >
+            ×
+          </button>
         </div>
 
         {/* Content */}
@@ -106,7 +114,7 @@ export default function CheckInModal({ jobId, jobTitle, onClose, onSuccess }: Ch
                 disabled={gettingLocation}
                 className="px-4 py-3 bg-blue-500 text-white font-bold rounded-xl hover:bg-blue-600 transition-all disabled:opacity-50 shadow-md"
               >
-                {gettingLocation ? '...' : '📍'}
+                {gettingLocation ? 'Getting...' : 'GPS'}
               </button>
             </div>
             <p className="text-[#4B244A]/50 dark:text-white/50 text-xs mt-1 font-medium">
@@ -149,7 +157,7 @@ export default function CheckInModal({ jobId, jobTitle, onClose, onSuccess }: Ch
               disabled={processing}
               className="flex-1 px-6 py-4 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-all shadow-lg shadow-green-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {processing ? 'Checking In...' : '✅ Check In Now'}
+              {processing ? 'Checking In...' : 'Check In Now'}
             </button>
           </div>
         </div>
