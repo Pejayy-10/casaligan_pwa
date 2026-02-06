@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../config';
 import { usePayment } from '../context/PaymentContext';
 import { AlertTriangle, Upload, CheckCircle, DollarSign } from 'lucide-react';
 
@@ -46,7 +47,7 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
     setReportingWorker(true);
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/report-non-performance`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/report-non-performance`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -81,7 +82,7 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
   const loadPayments = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/payments`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/payments`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -112,7 +113,7 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
         try {
           const token = localStorage.getItem('access_token');
           const response = await fetch(
-            `http://127.0.0.1:8000/jobs/${jobId}/payments/${payment.transaction_id}/mark-sent`,
+            `${API_BASE_URL}/jobs/${jobId}/payments/${payment.transaction_id}/mark-sent`,
             {
               method: 'PUT',
               headers: {

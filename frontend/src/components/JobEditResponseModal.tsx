@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_BASE_URL } from '../config';
 import { X, AlertTriangle } from 'lucide-react';
 
 interface JobEditResponseModalProps {
@@ -26,7 +27,7 @@ export default function JobEditResponseModal({
     try {
       const token = localStorage.getItem('access_token');
       const responseData = await fetch(
-        `http://127.0.0.1:8000/jobs/${jobId}/respond-to-edit?response=${response}`,
+        `${API_BASE_URL}/jobs/${jobId}/respond-to-edit?response=${response}`,
         {
           method: 'POST',
           headers: {

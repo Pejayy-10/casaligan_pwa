@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 import { Plus, Edit2, Clock, Package, AlertTriangle } from 'lucide-react';
 
 interface Package {
@@ -49,7 +50,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
 
   const loadCategories = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/categories/?active_only=true');
+      const response = await fetch('${API_BASE_URL}/categories/?active_only=true');
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -63,7 +64,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     try {
       setLoading(true);
       const token = localStorage.getItem('access_token');
-      const response = await fetch('http://127.0.0.1:8000/packages/my-packages', {
+      const response = await fetch('${API_BASE_URL}/packages/my-packages', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -122,8 +123,8 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
       };
 
       const url = editingPackage 
-        ? `http://127.0.0.1:8000/packages/${editingPackage.package_id}`
-        : 'http://127.0.0.1:8000/packages/';
+        ? `${API_BASE_URL}/packages/${editingPackage.package_id}`
+        : '${API_BASE_URL}/packages/';
       
       const method = editingPackage ? 'PUT' : 'POST';
 
@@ -157,7 +158,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://127.0.0.1:8000/packages/${packageId}`, {
+      const response = await fetch(`${API_BASE_URL}/packages/${packageId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -176,7 +177,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
   const handleToggleActive = async (pkg: Package) => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://127.0.0.1:8000/packages/${pkg.package_id}`, {
+      const response = await fetch(`${API_BASE_URL}/packages/${pkg.package_id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

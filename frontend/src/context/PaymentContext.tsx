@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { API_BASE_URL } from '../config';
 
 // Payment types
 export type PaymentMethod = 'gcash' | 'maya' | 'cash' | 'bank_transfer';
@@ -115,7 +116,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
       formData.append('file', file);
       formData.append('category', 'payment');
 
-      const response = await fetch('http://127.0.0.1:8000/upload/image', {
+      const response = await fetch('${API_BASE_URL}/upload/image', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -123,7 +124,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
 
       if (response.ok) {
         const data = await response.json();
-        setProofUrl(`http://127.0.0.1:8000${data.url}`);
+        setProofUrl(`${API_BASE_URL}${data.url}`);
       } else {
         alert('Failed to upload proof');
         setProofPreview(null);

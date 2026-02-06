@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { API_BASE_URL } from '../config';
 import { CheckCircle, ClipboardList, Camera, Clock, Upload, FileText, AlertTriangle } from 'lucide-react';
 
 interface Props {
@@ -47,7 +48,7 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
       formData.append('file', file);
       formData.append('category', 'completion');
 
-      const response = await fetch('http://127.0.0.1:8000/upload/image', {
+      const response = await fetch('${API_BASE_URL}/upload/image', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -57,7 +58,7 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
 
       if (response.ok) {
         const data = await response.json();
-        setProofUrl(`http://127.0.0.1:8000${data.url}`);
+        setProofUrl(`${API_BASE_URL}${data.url}`);
       } else {
         const error = await response.json();
         alert(error.detail || 'Failed to upload image');
@@ -77,7 +78,7 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
       setSubmitting(true);
       const token = localStorage.getItem('access_token');
       
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/submit-completion`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/submit-completion`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

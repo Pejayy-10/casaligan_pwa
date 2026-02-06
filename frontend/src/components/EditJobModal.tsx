@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 import type { JobPost } from './JobDetailModal';
 import { Camera } from 'lucide-react';
 
@@ -40,7 +41,7 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
 
   const loadCategories = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/categories/?active_only=true');
+      const response = await fetch('${API_BASE_URL}/categories/?active_only=true');
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -72,7 +73,7 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
       imageFormData.append('file', file);
 
       try {
-        const response = await fetch('http://127.0.0.1:8000/upload/image?category=job', {
+        const response = await fetch('${API_BASE_URL}/upload/image?category=job', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -82,7 +83,7 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
 
         if (response.ok) {
           const data = await response.json();
-          setImages(prev => [...prev, `http://127.0.0.1:8000${data.url}`]);
+          setImages(prev => [...prev, `${API_BASE_URL}${data.url}`]);
         }
       } catch (err) {
         console.error('Error uploading image:', err);
@@ -124,7 +125,7 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
         category_ids: selectedCategories,
       };
       
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${job.post_id}`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${job.post_id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

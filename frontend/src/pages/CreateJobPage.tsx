@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { FileText, ImageIcon, RotateCw, DollarSign } from 'lucide-react';
 import TabBar from '../components/TabBar';
@@ -58,7 +59,7 @@ export default function CreateJobPage() {
 
   const loadCategories = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/categories/?active_only=true');
+      const response = await fetch('${API_BASE_URL}/categories/?active_only=true');
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -90,7 +91,7 @@ export default function CreateJobPage() {
       formData.append('file', file);
 
       try {
-        const response = await fetch('http://127.0.0.1:8000/upload/image?category=job', {
+        const response = await fetch('${API_BASE_URL}/upload/image?category=job', {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -101,7 +102,7 @@ export default function CreateJobPage() {
         if (response.ok) {
           const data = await response.json();
           // Store full URL for preview, but we'll send relative URL to backend
-          setImages(prev => [...prev, `http://127.0.0.1:8000${data.url}`]);
+          setImages(prev => [...prev, `${API_BASE_URL}${data.url}`]);
         } else {
           console.error('Failed to upload image');
         }
@@ -176,7 +177,7 @@ export default function CreateJobPage() {
         };
       }
       
-      const response = await fetch('http://127.0.0.1:8000/jobs/', {
+      const response = await fetch('${API_BASE_URL}/jobs/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

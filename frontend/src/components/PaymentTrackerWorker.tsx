@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../config';
 import { Clock, AlertTriangle, Upload, CheckCircle } from 'lucide-react';
 
 interface Payment {
@@ -32,7 +33,7 @@ export default function PaymentTrackerWorker({ jobId, jobTitle, onClose }: Payme
   const loadPayments = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/my-payments`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/my-payments`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -56,7 +57,7 @@ export default function PaymentTrackerWorker({ jobId, jobTitle, onClose }: Payme
     try {
       const token = localStorage.getItem('access_token');
       const response = await fetch(
-        `http://127.0.0.1:8000/jobs/${jobId}/payments/${transactionId}/confirm`,
+        `${API_BASE_URL}/jobs/${jobId}/payments/${transactionId}/confirm`,
         {
           method: 'PUT',
           headers: { 'Authorization': `Bearer ${token}` }
@@ -88,7 +89,7 @@ export default function PaymentTrackerWorker({ jobId, jobTitle, onClose }: Payme
     try {
       const token = localStorage.getItem('access_token');
       const response = await fetch(
-        `http://127.0.0.1:8000/jobs/${jobId}/payments/${selectedPayment.transaction_id}/report`,
+        `${API_BASE_URL}/jobs/${jobId}/payments/${selectedPayment.transaction_id}/report`,
         {
           method: 'PUT',
           headers: {

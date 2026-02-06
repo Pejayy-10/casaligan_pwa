@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { Clock, RotateCw, FileText, CheckCircle, CreditCard, DollarSign, ClipboardList, Calendar, X, Star, Briefcase } from 'lucide-react';
 import RatingModal from './RatingModal';
@@ -122,8 +123,8 @@ export default function DirectHiresList({ role, onClose }: Props) {
       setLoading(true);
       const token = localStorage.getItem('access_token');
       const endpoint = role === 'owner' 
-        ? 'http://127.0.0.1:8000/direct-hire/my-bookings'
-        : 'http://127.0.0.1:8000/direct-hire/my-jobs';
+        ? '${API_BASE_URL}/direct-hire/my-bookings'
+        : '${API_BASE_URL}/direct-hire/my-jobs';
       
       const response = await fetch(endpoint, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -157,7 +158,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
       formData.append('file', file);
       formData.append('category', 'completion');
 
-      const response = await fetch('http://127.0.0.1:8000/upload/image', {
+      const response = await fetch('${API_BASE_URL}/upload/image', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -165,7 +166,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
 
       if (response.ok) {
         const data = await response.json();
-        setCompletionProof(`http://127.0.0.1:8000${data.url}`);
+        setCompletionProof(`${API_BASE_URL}${data.url}`);
       } else {
         const error = await response.json();
         alert(error.detail || 'Failed to upload image');
@@ -191,7 +192,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
       onSuccess: async (paymentResult) => {
         try {
           const token = localStorage.getItem('access_token');
-          const response = await fetch(`http://127.0.0.1:8000/direct-hire/${hire.hire_id}/pay`, {
+          const response = await fetch(`${API_BASE_URL}/direct-hire/${hire.hire_id}/pay`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -230,7 +231,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
       setProcessing(true);
       const token = localStorage.getItem('access_token');
       
-      const url = `http://127.0.0.1:8000/direct-hire/${hire.hire_id}/${action}`;
+      const url = `${API_BASE_URL}/direct-hire/${hire.hire_id}/${action}`;
       const method = 'POST';
       let body = null;
 
@@ -318,7 +319,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
       const token = localStorage.getItem('access_token');
       
       const response = await fetch(
-        `http://127.0.0.1:8000/direct-hire/${cancelRecurringHire.hire_id}/cancel-recurring`,
+        `${API_BASE_URL}/direct-hire/${cancelRecurringHire.hire_id}/cancel-recurring`,
         {
           method: 'POST',
           headers: {
@@ -493,7 +494,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
                     try {
                       setProcessing(true);
                       const token = localStorage.getItem('access_token');
-                      const response = await fetch(`http://127.0.0.1:8000/direct-hire/${hire.hire_id}/confirm-payment`, {
+                      const response = await fetch(`${API_BASE_URL}/direct-hire/${hire.hire_id}/confirm-payment`, {
                         method: 'POST',
                         headers: {
                           'Authorization': `Bearer ${token}`

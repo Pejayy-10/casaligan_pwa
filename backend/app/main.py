@@ -19,6 +19,11 @@ origins = [
     "http://10.213.89.2:5173", # Network IP for mobile testing
     "https://localhost", # HTTPS
     "https://capacitor", # Capacitor HTTPS
+    # Production URLs
+    "https://casaligan-main.vercel.app", # Vercel frontend
+    "https://admin.casaligan.site", # Admin panel
+    "https://casaligan.site", # Main domain
+    "https://www.casaligan.site", # WWW subdomain
 ]
 
 app.add_middleware(

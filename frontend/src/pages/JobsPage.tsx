@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, DollarSign, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X, ChevronRight } from 'lucide-react';
 import TabBar from '../components/TabBar';
@@ -81,8 +82,8 @@ export default function JobsPage() {
     try {
       const token = localStorage.getItem('access_token');
       const endpoint = user?.active_role === 'owner' 
-        ? `http://127.0.0.1:8000/jobs/my-posts${statusFilter !== 'all' ? `?status_filter=${statusFilter}` : ''}`
-        : 'http://127.0.0.1:8000/jobs/?status_filter=open';
+        ? `${API_BASE_URL}/jobs/my-posts${statusFilter !== 'all' ? `?status_filter=${statusFilter}` : ''}`
+        : '${API_BASE_URL}/jobs/?status_filter=open';
       
       const response = await fetch(endpoint, {
         headers: {
@@ -100,7 +101,7 @@ export default function JobsPage() {
           const statuses: Record<number, { has_applied: boolean; status?: string; can_reapply?: boolean }> = {};
           for (const job of data) {
             try {
-              const statusResponse = await fetch(`http://127.0.0.1:8000/jobs/${job.post_id}/application-status`, {
+              const statusResponse = await fetch(`${API_BASE_URL}/jobs/${job.post_id}/application-status`, {
                 headers: { 'Authorization': `Bearer ${token}` }
               });
               if (statusResponse.ok) {
@@ -124,7 +125,7 @@ export default function JobsPage() {
   const loadReports = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch('http://127.0.0.1:8000/reports/my-reports', {
+      const response = await fetch('${API_BASE_URL}/reports/my-reports', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -146,7 +147,7 @@ export default function JobsPage() {
   const loadRatings = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch('http://127.0.0.1:8000/ratings/my-ratings', {
+      const response = await fetch('${API_BASE_URL}/ratings/my-ratings', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -167,7 +168,7 @@ export default function JobsPage() {
 
   const loadCategories = useCallback(async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/categories/?active_only=true');
+      const response = await fetch('${API_BASE_URL}/categories/?active_only=true');
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -482,7 +483,7 @@ export default function JobsPage() {
             const token = localStorage.getItem('access_token');
             if (token && selectedJob) {
                 try {
-                    const statusResponse = await fetch(`http://127.0.0.1:8000/jobs/${selectedJob.post_id}/application-status`, { headers: { 'Authorization': `Bearer ${token}` } });
+                    const statusResponse = await fetch(`${API_BASE_URL}/jobs/${selectedJob.post_id}/application-status`, { headers: { 'Authorization': `Bearer ${token}` } });
                     if (statusResponse.ok) {
                         const statusData = await statusResponse.json();
                         setApplicationStatuses(prev => ({ ...prev, [selectedJob.post_id]: statusData }));
@@ -512,7 +513,7 @@ export default function JobsPage() {
           onAccept={async () => {
             try {
               const token = localStorage.getItem('access_token');
-              const response = await fetch(`http://127.0.0.1:8000/jobs/${showContract.post_id}/apply`, {
+              const response = await fetch(`${API_BASE_URL}/jobs/${showContract.post_id}/apply`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}` }
               });
@@ -521,7 +522,7 @@ export default function JobsPage() {
                 alert('Contract accepted! Application submitted successfully!');
                 setShowContract(null);
                 setSelectedJob(null);
-                const statusResponse = await fetch(`http://127.0.0.1:8000/jobs/${showContract.post_id}/application-status`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const statusResponse = await fetch(`${API_BASE_URL}/jobs/${showContract.post_id}/application-status`, { headers: { 'Authorization': `Bearer ${token}` } });
                 if (statusResponse.ok) {
                     const statusData = await statusResponse.json();
                     setApplicationStatuses(prev => ({ ...prev, [showContract.post_id]: statusData }));
@@ -758,7 +759,7 @@ function OwnerJobsContent({
   const handleStatusUpdate = async (postId: number, newStatus: string) => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${postId}/status?new_status=${newStatus}`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${postId}/status?new_status=${newStatus}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`

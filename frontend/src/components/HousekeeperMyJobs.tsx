@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList } from 'lucide-react';
 
@@ -61,7 +62,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
       setLoading(true);
       const token = localStorage.getItem('access_token');
       const response = await fetch(
-        `http://127.0.0.1:8000/jobs/my-accepted-jobs${statusFilter !== 'all' ? `?status_filter=${statusFilter}` : ''}`,
+        `${API_BASE_URL}/jobs/my-accepted-jobs${statusFilter !== 'all' ? `?status_filter=${statusFilter}` : ''}`,
         {
           headers: { 'Authorization': `Bearer ${token}` }
         }
@@ -272,7 +273,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                             }
                             
                             const response = await fetch(
-                              `http://127.0.0.1:8000/jobs/${job.post_id}/payments/${sentPayment.schedule_id}/confirm`,
+                              `${API_BASE_URL}/jobs/${job.post_id}/payments/${sentPayment.schedule_id}/confirm`,
                               {
                                 method: 'PUT',
                                 headers: { 'Authorization': `Bearer ${token}` }

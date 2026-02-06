@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { User as UserIcon, ClipboardList, Briefcase, MapPin, FileText, CheckCircle, Clock, AlertCircle, Package } from 'lucide-react';
 import { authService } from '../services/auth';
@@ -56,7 +57,7 @@ export default function ProfilePage() {
               // Refresh user data to get updated is_housekeeper status
               const refreshUser = async () => {
                 try {
-                  const response = await fetch('http://127.0.0.1:8000/auth/me', {
+                  const response = await fetch('${API_BASE_URL}/auth/me', {
                     headers: {
                       'Authorization': `Bearer ${localStorage.getItem('access_token')}`
                     }
@@ -94,7 +95,7 @@ export default function ProfilePage() {
                 console.log('[Polling] Application approved! Fetching latest user data...');
                 const refreshUser = async () => {
                   try {
-                    const response = await fetch('http://127.0.0.1:8000/auth/me', {
+                    const response = await fetch('${API_BASE_URL}/auth/me', {
                       headers: {
                         'Authorization': `Bearer ${localStorage.getItem('access_token')}`
                       }

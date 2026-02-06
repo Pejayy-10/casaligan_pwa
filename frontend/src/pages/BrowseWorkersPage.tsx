@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Search, Filter, Star, ChevronDown, Navigation, X } from 'lucide-react';
 import TabBar from '../components/TabBar';
@@ -121,7 +122,7 @@ export default function BrowseWorkersPage() {
 
   const loadCategories = async () => {
     try {
-      const response = await fetch('http://127.0.0.1:8000/categories/?active_only=true');
+      const response = await fetch('${API_BASE_URL}/categories/?active_only=true');
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -300,7 +301,7 @@ export default function BrowseWorkersPage() {
         }
       }
       
-      const url = `http://127.0.0.1:8000/direct-hire/workers${params.toString() ? '?' + params.toString() : ''}`;
+      const url = `${API_BASE_URL}/direct-hire/workers${params.toString() ? '?' + params.toString() : ''}`;
       
       const response = await fetch(url, {
         headers: {
@@ -372,7 +373,7 @@ export default function BrowseWorkersPage() {
         try {
           const token = localStorage.getItem('access_token');
           await fetch(
-            `http://127.0.0.1:8000/auth/update-address-gps?latitude=${coords.latitude}&longitude=${coords.longitude}`,
+            `${API_BASE_URL}/auth/update-address-gps?latitude=${coords.latitude}&longitude=${coords.longitude}`,
             {
               method: 'POST',
               headers: {

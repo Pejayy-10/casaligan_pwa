@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { RotateCw, X, ClipboardList, Briefcase, Calendar, ChevronDown, CheckCircle } from 'lucide-react';
 import TabBar from '../components/TabBar';
@@ -66,7 +67,7 @@ export default function RecurringServicesPage() {
       const token = localStorage.getItem('access_token');
 
       // Load recurring job posts
-      const jobsResponse = await fetch('http://127.0.0.1:8000/jobs/my-posts', {
+      const jobsResponse = await fetch('${API_BASE_URL}/jobs/my-posts', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (jobsResponse.ok) {
@@ -94,8 +95,8 @@ export default function RecurringServicesPage() {
 
       // Load recurring direct hires
       const endpoint = user?.active_role === 'owner' 
-        ? 'http://127.0.0.1:8000/direct-hire/my-bookings'
-        : 'http://127.0.0.1:8000/direct-hire/my-jobs';
+        ? '${API_BASE_URL}/direct-hire/my-bookings'
+        : '${API_BASE_URL}/direct-hire/my-jobs';
       
       const hiresResponse = await fetch(endpoint, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -120,8 +121,8 @@ export default function RecurringServicesPage() {
       const token = localStorage.getItem('access_token');
       
       const endpoint = cancelTarget.type === 'job'
-        ? `http://127.0.0.1:8000/jobs/${cancelTarget.id}/cancel-recurring`
-        : `http://127.0.0.1:8000/direct-hire/${cancelTarget.id}/cancel-recurring`;
+        ? `${API_BASE_URL}/jobs/${cancelTarget.id}/cancel-recurring`
+        : `${API_BASE_URL}/direct-hire/${cancelTarget.id}/cancel-recurring`;
 
       const response = await fetch(endpoint, {
         method: 'POST',

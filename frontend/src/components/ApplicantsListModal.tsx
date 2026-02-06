@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { Users, Mail, Phone, User, CheckCircle, Inbox, PartyPopper } from 'lucide-react';
 
@@ -39,7 +40,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
   const loadApplicants = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/applicants`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/applicants`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -84,7 +85,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
       // Get the interest_ids of selected workers
       const selectedInterestIds = Array.from(selectedWorkers);
       
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/start-job`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/start-job`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -121,7 +122,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
     try {
       const token = localStorage.getItem('access_token');
       const response = await fetch(
-        `http://127.0.0.1:8000/jobs/${jobId}/applicants/${interestId}?status_update=rejected`,
+        `${API_BASE_URL}/jobs/${jobId}/applicants/${interestId}?status_update=rejected`,
         {
           method: 'PUT',
           headers: { 'Authorization': `Bearer ${token}` }

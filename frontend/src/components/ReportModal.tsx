@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_BASE_URL } from '../config';
 import { Megaphone } from 'lucide-react';
 
 interface ReportModalProps {
@@ -108,7 +109,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
           formData.append('file', file);
           formData.append('category', 'evidence');
 
-          const response = await fetch('http://127.0.0.1:8000/upload/image', {
+          const response = await fetch('${API_BASE_URL}/upload/image', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${token}` },
             body: formData
@@ -116,7 +117,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
 
           if (response.ok) {
             const data = await response.json();
-            evidenceUrls.push(`http://127.0.0.1:8000${data.url}`);
+            evidenceUrls.push(`${API_BASE_URL}${data.url}`);
           }
         }
       }

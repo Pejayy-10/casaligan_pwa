@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { API_BASE_URL } from '../config';
 import { AlertTriangle, Calendar, FileText, Camera, Upload, Clock } from 'lucide-react';
 
 interface Props {
@@ -41,7 +42,7 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
         formData.append('file', file);
         formData.append('category', 'evidence');
 
-        const response = await fetch('http://127.0.0.1:8000/upload/image', {
+        const response = await fetch('${API_BASE_URL}/upload/image', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` },
           body: formData
@@ -49,7 +50,7 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
 
         if (response.ok) {
           const data = await response.json();
-          setEvidenceUrls(prev => [...prev, `http://127.0.0.1:8000${data.url}`]);
+          setEvidenceUrls(prev => [...prev, `${API_BASE_URL}${data.url}`]);
         }
       } catch (error) {
         console.error('Upload error:', error);
@@ -75,7 +76,7 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
       setSubmitting(true);
       const token = localStorage.getItem('access_token');
       
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/report-unpaid`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/report-unpaid`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

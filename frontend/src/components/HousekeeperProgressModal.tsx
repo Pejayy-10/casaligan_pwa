@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 import { BarChart2, DollarSign, AlertTriangle, User, Phone, PartyPopper, CheckCircle, Check } from 'lucide-react';
 
 interface PaymentWarning {
@@ -54,7 +55,7 @@ export default function HousekeeperProgressModal({ jobId, onClose, onSubmitCompl
       setLoading(true);
       const token = localStorage.getItem('access_token');
       
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/housekeeper-progress`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/housekeeper-progress`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 

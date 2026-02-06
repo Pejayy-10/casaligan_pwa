@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
 import TabBar from '../components/TabBar';
@@ -78,7 +79,7 @@ export default function DashboardPage() {
           try {
             const token = localStorage.getItem('access_token');
             const response = await fetch(
-              `http://127.0.0.1:8000/auth/update-address-gps?latitude=${coords.latitude}&longitude=${coords.longitude}`,
+              `${API_BASE_URL}/auth/update-address-gps?latitude=${coords.latitude}&longitude=${coords.longitude}`,
               {
                 method: 'POST',
                 headers: {

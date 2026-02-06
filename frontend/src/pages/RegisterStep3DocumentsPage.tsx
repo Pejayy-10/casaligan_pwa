@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { FileText, Lock } from 'lucide-react';
 import { authService } from '../services/auth';
@@ -64,7 +65,7 @@ export default function RegisterStep3DocumentsPage() {
       uploadFormData.append('file', file);
       uploadFormData.append('document_type', formData.document_type);
       
-      const response = await fetch('http://127.0.0.1:8000/upload/document', {
+      const response = await fetch('${API_BASE_URL}/upload/document', {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -74,7 +75,7 @@ export default function RegisterStep3DocumentsPage() {
       
       if (response.ok) {
         const data = await response.json();
-        setFormData({ ...formData, file_path: `http://127.0.0.1:8000${data.url}` });
+        setFormData({ ...formData, file_path: `${API_BASE_URL}${data.url}` });
       } else {
         const errorData = await response.json();
         setError(errorData.detail || 'Failed to upload file');

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 import { usePayment } from '../context/PaymentContext';
 import { DollarSign, Clock, CheckCircle, ClipboardList, Camera, FileText, Lightbulb, RotateCw, AlertTriangle } from 'lucide-react';
 
@@ -50,7 +51,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
       setLoading(true);
       const token = localStorage.getItem('access_token');
       
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/completion-details`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/completion-details`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -90,7 +91,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
       const token = localStorage.getItem('access_token');
       
       const response = await fetch(
-        `http://127.0.0.1:8000/jobs/${jobId}/approve-completion?contract_id=${worker.contract_id}`, 
+        `${API_BASE_URL}/jobs/${jobId}/approve-completion?contract_id=${worker.contract_id}`, 
         {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` }
@@ -145,7 +146,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
       const token = localStorage.getItem('access_token');
       
       // Record the payment (completion was already approved in handleApproveWorker)
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/record-short-term-payment`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/record-short-term-payment`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

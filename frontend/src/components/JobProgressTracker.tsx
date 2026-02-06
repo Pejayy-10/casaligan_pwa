@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../config';
 import { Edit2 } from 'lucide-react';
 
 interface JobProgressData {
@@ -34,7 +35,7 @@ export default function JobProgressTracker({ jobId, onClose, userRole }: JobProg
   const loadProgressData = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/progress`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/progress`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       

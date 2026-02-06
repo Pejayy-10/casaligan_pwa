@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_BASE_URL } from '../config';
 import { CheckCircle, Lightbulb, AlertTriangle } from 'lucide-react';
 
 interface CheckInModalProps {
@@ -39,7 +40,7 @@ export default function CheckInModal({ jobId, jobTitle, onClose, onSuccess }: Ch
     setProcessing(true);
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/checkin`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/checkin`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -194,7 +195,7 @@ export function CheckOutModal({ jobId, jobTitle, checkinId, checkInTime, onClose
     try {
       const token = localStorage.getItem('access_token');
       const response = await fetch(
-        `http://127.0.0.1:8000/jobs/${jobId}/checkin/${checkinId}/checkout`,
+        `${API_BASE_URL}/jobs/${jobId}/checkin/${checkinId}/checkout`,
         {
           method: 'PUT',
           headers: {
