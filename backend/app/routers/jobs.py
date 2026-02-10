@@ -1486,6 +1486,86 @@ def update_job_status(
     }
 
 
+@router.post("/{post_id}/repost", response_model=JobPostResponse, status_code=status.HTTP_201_CREATED)
+def repost_job_post(
+    post_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new job post by cloning an existing finished job (owners only).
+
+    This lets owners quickly repost a completed/cancelled job with the same details.
+    """
+    # Find original post
+    post = db.query(ForumPost).filter(
+        ForumPost.post_id == post_id,
+        ForumPost.deleted_at.is_(None)
+    ).first()
+
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job post not found"
+        )
+
+    # Check ownership
+    employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+    if not employer or employer.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only repost your own job posts"
+        )
+
+    # Only allow reposting finished jobs
+    finished_statuses = {ForumPostStatus.COMPLETED, ForumPostStatus.CANCELLED}
+    current_status = post.status if isinstance(post.status, ForumPostStatus) else ForumPostStatus(str(post.status))
+    if current_status not in finished_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only completed or cancelled jobs can be reposted"
+        )
+
+    # Clone the job fields; keep the same details but reset status and timestamps
+    new_post = ForumPost(
+        employer_id=post.employer_id,
+        user_id=current_user.id,
+        title=post.title,
+        content=post.content,
+        location=post.location,
+        job_type=post.job_type,
+        salary=post.salary,
+        category_id=post.category_id,
+        is_longterm=post.is_longterm,
+        start_date=post.start_date,
+        end_date=post.end_date,
+        payment_frequency=getattr(post, "payment_frequency", None),
+        payment_amount=getattr(post, "payment_amount", None),
+        payment_schedule=getattr(post, "payment_schedule", None),
+        status=ForumPostStatus.OPEN,
+        is_recurring=getattr(post, "is_recurring", False),
+        day_of_week=getattr(post, "day_of_week", None),
+        start_time=getattr(post, "start_time", None),
+        end_time=getattr(post, "end_time", None),
+        frequency=getattr(post, "frequency", None),
+        recurring_status=getattr(post, "recurring_status", None)
+    )
+
+    db.add(new_post)
+    db.flush()  # Get post_id before assigning relationships
+
+    # Copy category relationships if present (multi-category)
+    if hasattr(post, "categories") and post.categories:
+        new_post.categories = post.categories[:]  # shallow copy list
+
+    db.commit()
+    db.refresh(new_post)
+
+    # Build response using employer user info
+    employer_user = db.query(User).filter(User.id == employer.user_id).first() or current_user
+
+    return JobPostResponse.from_orm_model(new_post, employer_user, applicants_count=0, pending_payments_count=0, accepted_workers_list=[])
+
+
 # ============== HOUSEKEEPER JOB COMPLETION ENDPOINTS ==============
 
 class JobCompletionRequest(BaseModel):

@@ -779,6 +779,31 @@ function OwnerJobsContent({
     }
   };
 
+  const handleRepost = async (postId: number) => {
+    if (!confirm('Repost this job with the same details?')) return;
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`http://127.0.0.1:8000/jobs/${postId}/repost`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        alert('Job reposted successfully! A new job post was created with the same details.');
+        window.location.reload();
+      } else {
+        const error = await response.json();
+        alert(error.detail || 'Failed to repost job');
+      }
+    } catch (error) {
+      console.error('Failed to repost job:', error);
+      alert('Failed to repost job');
+    }
+  };
+
   if (jobs.length === 0) {
     return (
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-12 text-center border border-white/50 dark:border-white/10 shadow-xl">
@@ -903,6 +928,16 @@ function OwnerJobsContent({
                         Cancel
                     </button>
                  </div>
+             )}
+
+             {/* Repost button for finished jobs */}
+             {(job.status === 'completed' || job.status === 'cancelled') && (
+               <button
+                 onClick={() => handleRepost(job.post_id)}
+                 className="mt-2 w-full py-2 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
+               >
+                 Repost Job
+               </button>
              )}
           </div>
         </div>
