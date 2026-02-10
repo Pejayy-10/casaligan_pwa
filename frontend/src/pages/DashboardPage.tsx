@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
 import TabBar from '../components/TabBar';
 import StarRating from '../components/StarRating';
+import AIChatModal from '../components/AIChatModal';
 import apiClient from '../services/api';
 import { Briefcase, ClipboardList, MessageCircle, CheckCircle, DollarSign, AlertCircle, Clock, MapPin, Star, ChevronRight, User as UserIcon } from 'lucide-react';
 import type { User } from '../types';
@@ -381,6 +382,7 @@ export default function DashboardPage() {
       )}
 
       <TabBar role={user.active_role} />
+      <AIChatModal />
     </div>
   );
 }
