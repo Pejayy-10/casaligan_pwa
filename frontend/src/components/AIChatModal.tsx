@@ -1,6 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Bot, X, Send, Sparkles } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+
+interface User {
+  id: number;
+  active_role: 'owner' | 'housekeeper';
+}
 
 interface Message {
   role: 'user' | 'assistant';
@@ -41,13 +46,10 @@ export default function AIChatModal() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [userRole, setUserRole] = useState<'owner' | 'housekeeper'>('owner');
-
+  
   // Get user role from localStorage
-  useState(() => {
-    const role = localStorage.getItem('user_role') as 'owner' | 'housekeeper' | null;
-    if (role) setUserRole(role);
-  }, []);
+  const user = localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) as User : null;
+  const userRole = user?.active_role || 'owner';
 
   const initialMessage = userRole === 'owner'
     ? "👋 Looking for a housekeeper? Describe the ideal person for you, and I'll find the best matches!"
@@ -114,7 +116,7 @@ export default function AIChatModal() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 z-50 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white rounded-full p-4 shadow-2xl hover:shadow-xl transition-all hover:scale-110 group"
+        className="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-50 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white rounded-full p-4 shadow-2xl hover:shadow-xl transition-all hover:scale-110 group"
         title="AI Assistant"
       >
         <Sparkles className="w-6 h-6 group-hover:rotate-12 transition-transform" />
@@ -123,7 +125,7 @@ export default function AIChatModal() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-96 h-[600px] bg-white dark:bg-slate-900 rounded-2xl shadow-2xl flex flex-col border border-gray-200 dark:border-white/10">
+    <div className="fixed bottom-24 left-4 right-4 md:left-auto md:bottom-6 md:right-6 z-50 w-auto md:w-96 h-[500px] md:h-[600px] max-w-md mx-auto md:mx-0 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl flex flex-col border border-gray-200 dark:border-white/10">
       {/* Header */}
       <div className="bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white p-4 rounded-t-2xl flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -170,7 +172,7 @@ export default function AIChatModal() {
                   <div
                     key={worker.worker_id}
                     className="bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 rounded-xl p-3 hover:shadow-md transition-all cursor-pointer"
-                    onClick={() => window.location.href = `/worker/${worker.user_id}`}
+                    onClick={() => window.location.href = `/worker/${worker.worker_id}`}
                   >
                     <div className="flex justify-between items-start mb-2">
                       <div>

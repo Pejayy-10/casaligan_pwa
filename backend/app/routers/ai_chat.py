@@ -1,7 +1,7 @@
 """AI Chat Router - Gemini-powered worker/job recommendations"""
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_, or_
+from sqlalchemy import func, and_, or_, String, cast
 from pydantic import BaseModel
 from typing import List, Optional
 from app.db import get_db
@@ -64,6 +64,8 @@ class ChatResponse(BaseModel):
 
 def get_worker_recommendations(db: Session, filters: dict, limit: int = 10) -> List[WorkerCard]:
     """Get worker recommendations based on filters"""
+    
+    # Start with base query
     query = db.query(
         Worker,
         User,
@@ -79,14 +81,28 @@ def get_worker_recommendations(db: Session, filters: dict, limit: int = 10) -> L
             Rating.target_user_id == User.id,
             Rating.is_hidden == False
         )
-    ).filter(
+    )
+    
+    # If skills filter exists, join with packages and categories
+    if filters.get('skills') and len(filters['skills']) > 0:
+        query = query.join(
+            WorkerPackage, Worker.worker_id == WorkerPackage.worker_id
+        ).join(
+            PackageCategory, WorkerPackage.category_id == PackageCategory.category_id
+        ).filter(
+            func.lower(PackageCategory.name).in_([s.lower() for s in filters['skills']])
+        )
+    
+    query = query.filter(
         User.is_housekeeper == True,
         User.status == 'active'
     ).group_by(Worker.worker_id, User.id, Address.address_id)
     
-    # Apply filters
+    # Apply other filters
     if filters.get('gender'):
-        query = query.filter(User.gender == filters['gender'])
+        gender_value = filters['gender'].lower()
+        # Cast ENUM to text before using lower()
+        query = query.filter(func.lower(cast(User.gender, String)) == gender_value)
     
     if filters.get('location'):
         loc = filters['location'].lower()
@@ -200,7 +216,7 @@ def extract_filters_from_text(text: str, role: str) -> dict:
         return {}
     
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         if role == "owner":
             prompt = f"""Extract filters for finding housekeepers from this request: "{text}"
@@ -233,9 +249,9 @@ Response must be valid JSON only, no extra text."""
         text_response = re.sub(r'^```json\s*', '', text_response)
         text_response = re.sub(r'\s*```$', '', text_response)
         
-        return json.loads(text_response)
+        filters = json.loads(text_response)
+        return filters
     except Exception as e:
-        print(f"Filter extraction error: {e}")
         return {}
 
 
@@ -249,16 +265,17 @@ def generate_ai_response(user_message: str, role: str, conversation_history: Lis
             return "I'm here to help you find jobs! Tell me what kind of work you prefer."
     
     try:
-        model = genai.GenerativeModel('gemini-pro')
+        model = genai.GenerativeModel('gemini-2.5-flash')
         
         # Build context
         history_text = "\n".join([f"{msg['role']}: {msg['content']}" for msg in conversation_history[-4:]])
         
         if role == "owner":
-            system_context = """You are a helpful assistant for Casaligan, a housekeeping service platform.
-You help homeowners find housekeepers. Be friendly, conversational, and helpful.
-When users ask for recommendations, acknowledge their request and explain you've found matches.
-Keep responses concise (2-3 sentences max). Use a warm, professional tone."""
+            system_context = """You are a helpful AI assistant for Casaligan, a housekeeping service platform.
+You help homeowners find and hire housekeepers. Be friendly, conversational, and helpful.
+You can answer general questions about the platform, housekeeping services, or just chat.
+When showing recommendations, keep responses brief (1-2 sentences).
+Use a warm, professional tone."""
             
             if workers:
                 prompt = f"""{system_context}
@@ -268,9 +285,9 @@ Conversation history:
 
 User: {user_message}
 
-You found {len(workers)} housekeeper{'s' if len(workers) != 1 else ''} matching their criteria.
-Write a brief, friendly response acknowledging their request and saying you've found matches. 
-Don't list the workers - they'll see cards below your message."""
+You found {len(workers)} housekeeper{'s' if len(workers) != 1 else ''} matching their request.
+Write a brief, enthusiastic response (1-2 sentences) acknowledging their request.
+Don't describe the workers - they'll see recommendation cards below."""
             else:
                 prompt = f"""{system_context}
 
@@ -279,13 +296,15 @@ Conversation history:
 
 User: {user_message}
 
-Respond conversationally. If they're asking for recommendations, help them describe what they're looking for."""
+Respond naturally and helpfully. If they're asking for recommendations, ask clarifying questions to understand their needs (gender preference, skills needed, location, etc.). 
+If they're asking general questions or just chatting, answer helpfully. Keep responses concise (2-3 sentences)."""
         
         else:  # housekeeper
-            system_context = """You are a helpful assistant for Casaligan, a housekeeping service platform.
-You help housekeepers find job opportunities. Be friendly, encouraging, and helpful.
-When users ask for job recommendations, acknowledge their request and explain you've found matches.
-Keep responses concise (2-3 sentences max). Use a warm, supportive tone."""
+            system_context = """You are a helpful AI assistant for Casaligan, a housekeeping service platform.
+You help housekeepers find job opportunities. Be friendly, encouraging, and supportive.
+You can answer questions about job searching, the platform, or just chat.
+When showing job recommendations, keep responses brief (1-2 sentences).
+Use a warm, encouraging tone."""
             
             if jobs:
                 prompt = f"""{system_context}
@@ -295,9 +314,9 @@ Conversation history:
 
 User: {user_message}
 
-You found {len(jobs)} job{'s' if len(jobs) != 1 else ''} matching their criteria.
-Write a brief, friendly response acknowledging their request and saying you've found opportunities.
-Don't list the jobs - they'll see cards below your message."""
+You found {len(jobs)} job opportunity{'ies' if len(jobs) != 1 else 'y'} matching their request.
+Write a brief, encouraging response (1-2 sentences) letting them know you've found opportunities.
+Don't describe the jobs - they'll see job cards below."""
             else:
                 prompt = f"""{system_context}
 
@@ -306,7 +325,8 @@ Conversation history:
 
 User: {user_message}
 
-Respond conversationally. If they're asking for job recommendations, help them describe what they're looking for."""
+Respond naturally and helpfully. If they're looking for jobs, ask what they're looking for (location, salary range, job type, etc.).
+If they're asking general questions or just chatting, answer supportively. Keep responses concise (2-3 sentences)."""
         
         response = model.generate_content(prompt)
         return response.text.strip()
@@ -315,12 +335,12 @@ Respond conversationally. If they're asking for job recommendations, help them d
         print(f"AI response error: {e}")
         if role == "owner":
             if workers:
-                return f"I found {len(workers)} housekeeper{'s' if len(workers) != 1 else ''} for you!"
-            return "Tell me what kind of housekeeper you're looking for, and I'll help you find the perfect match!"
+                return f"Great news! I found {len(workers)} housekeeper{'s' if len(workers) != 1 else ''} who match what you're looking for. Check them out below!"
+            return "I'm here to help you find the perfect housekeeper! Tell me what you're looking for - maybe specific skills, location, or gender preference?"
         else:
             if jobs:
-                return f"Great news! I found {len(jobs)} job opportunity{'ies' if len(jobs) != 1 else 'y'} for you!"
-            return "Tell me what kind of job you're interested in, and I'll find the best matches for you!"
+                return f"Excellent! I found {len(jobs)} job opportunity{'ies' if len(jobs) != 1 else 'y'} for you. Take a look below!"
+            return "I'm here to help you find great job opportunities! What kind of work are you interested in? Let me know about location, salary expectations, or job type."
 
 
 @router.post("/chat", response_model=ChatResponse)
