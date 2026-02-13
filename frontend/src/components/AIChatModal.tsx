@@ -132,7 +132,6 @@ export default function AIChatModal() {
           <Bot className="w-6 h-6" />
           <div>
             <h3 className="font-bold">AI Assistant</h3>
-            <p className="text-xs opacity-90">Powered by Gemini</p>
           </div>
         </div>
         <button
