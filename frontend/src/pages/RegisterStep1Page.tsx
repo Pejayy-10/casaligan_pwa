@@ -17,30 +17,73 @@ export default function RegisterStep1Page() {
   });
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone_number?: string }>({});
   const [loading, setLoading] = useState(false);
+
+  const isGmail = (email: string) => /^[^\s@]+@gmail\.com$/i.test(email.trim());
+  const isPhilippinePhone = (phone: string) => {
+    const raw = phone.replace(/[\s\-]/g, '').trim();
+    return /^\+63\d{10}$/.test(raw) || /^09\d{9}$/.test(raw) || /^9\d{9}$/.test(raw);
+  };
+  const getPhoneError = (phone: string) => {
+    const raw = phone.replace(/[\s\-]/g, '').trim();
+    if (!raw) return 'Phone number is required';
+    if (raw.startsWith('09') && raw.length !== 11)
+      return `09 number must be 11 digits (09 + 9 digits). You entered ${raw.length} digits. Example: 09123456789`;
+    return 'Use a Philippine number: 09 + 9 digits (11 total, e.g. 09123456789) or +639XXXXXXXXX';
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
 
     if (formData.password !== confirmPassword) {
       setError('Passwords do not match');
       return;
     }
 
+    const errors: { email?: string; phone_number?: string } = {};
+    if (!isGmail(formData.email)) {
+      errors.email = 'Only Gmail addresses are allowed (e.g. yourname@gmail.com)';
+    }
+    if (!isPhilippinePhone(formData.phone_number)) {
+      errors.phone_number = getPhoneError(formData.phone_number);
+    }
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setError('Please fix the fields below.');
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Register user - this now returns and stores the token automatically
-      await authService.register(formData);
+      const payload = {
+        ...formData,
+        middle_name: formData.middle_name.trim() || undefined,
+        suffix: formData.suffix.trim() || undefined,
+      };
+      await authService.register(payload);
       
       // Navigate to address step
       navigate('/register/address');
     } catch (err: unknown) {
-      const errorMessage = err instanceof Error && 'response' in err 
-        ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail 
-        : 'Registration failed. Please try again.';
-      setError(errorMessage || 'Registration failed. Please try again.');
+      const axioErr = err as { response?: { status?: number; data?: { detail?: string | Array<{ loc?: string[]; msg?: string }> } } };
+      const detail = axioErr.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        const errors: { email?: string; phone_number?: string } = {};
+        for (const item of detail) {
+          const loc = item.loc?.join('.') ?? '';
+          const msg = item.msg ?? '';
+          if (loc.includes('email')) errors.email = msg;
+          else if (loc.includes('phone')) errors.phone_number = msg;
+        }
+        setFieldErrors(errors);
+        setError('Please fix the fields below.');
+      } else {
+        setError(typeof detail === 'string' ? detail : 'Registration failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -99,7 +142,7 @@ export default function RegisterStep1Page() {
 
               <div>
                 <label htmlFor="middle_name" className={labelClass}>
-                  Middle Name
+                  Middle Name (optional)
                 </label>
                 <input
                   type="text"
@@ -128,7 +171,7 @@ export default function RegisterStep1Page() {
 
               <div>
                 <label htmlFor="suffix" className={labelClass}>
-                  Suffix (Jr., Sr., III)
+                  Suffix (optional, e.g. Jr., Sr., III)
                 </label>
                 <input
                   type="text"
@@ -168,12 +211,21 @@ export default function RegisterStep1Page() {
                 type="email"
                 id="email"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                className={inputClass}
-                placeholder="email@example.com"
+                onChange={(e) => {
+                  setFormData({ ...formData, email: e.target.value });
+                  if (fieldErrors.email) setFieldErrors((prev) => ({ ...prev, email: undefined }));
+                }}
+                className={`${inputClass} ${fieldErrors.email ? 'border-red-500 dark:border-red-400' : ''}`}
+                placeholder="yourname@gmail.com"
                 disabled={loading}
                 required
               />
+              <p className="mt-1 text-xs text-[#4B244A]/60 dark:text-white/60 font-medium">
+                Only Gmail accounts allowed (e.g. yourname@gmail.com)
+              </p>
+              {fieldErrors.email && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400 font-medium">{fieldErrors.email}</p>
+              )}
             </div>
 
             <div>
@@ -184,12 +236,21 @@ export default function RegisterStep1Page() {
                 type="tel"
                 id="phone_number"
                 value={formData.phone_number}
-                onChange={(e) => setFormData({ ...formData, phone_number: e.target.value })}
-                placeholder="+639XXXXXXXXX"
-                className={inputClass}
+                onChange={(e) => {
+                  setFormData({ ...formData, phone_number: e.target.value });
+                  if (fieldErrors.phone_number) setFieldErrors((prev) => ({ ...prev, phone_number: undefined }));
+                }}
+                placeholder="09123456789 or +639123456789"
+                className={`${inputClass} ${fieldErrors.phone_number ? 'border-red-500 dark:border-red-400' : ''}`}
                 disabled={loading}
                 required
               />
+              <p className="mt-1 text-xs text-[#4B244A]/60 dark:text-white/60 font-medium">
+                Philippine number only: +63 or 09 (e.g. 09123456789, like GCash)
+              </p>
+              {fieldErrors.phone_number && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400 font-medium">{fieldErrors.phone_number}</p>
+              )}
             </div>
 
             <div>
