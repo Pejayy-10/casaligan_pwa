@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, DollarSign, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X, ChevronRight } from 'lucide-react';
+import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, DollarSign, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X, ChevronRight, FileText } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import JobDetailModal, { type JobPost } from '../components/JobDetailModal';
 import ApplicantsListModal from '../components/ApplicantsListModal';
@@ -20,6 +20,7 @@ import PackageManagement from '../components/PackageManagement';
 import DirectHiresList from '../components/DirectHiresList';
 import AvailabilityCalendar from '../components/AvailabilityCalendar';
 import EditJobModal from '../components/EditJobModal';
+import JobSummaryModal from '../components/JobSummaryModal';
 import RatingModal from '../components/RatingModal';
 import ReportModal from '../components/ReportModal';
 import apiClient from '../services/api';
@@ -49,6 +50,7 @@ export default function JobsPage() {
   const [showJobCompletion, setShowJobCompletion] = useState<AcceptedJob | null>(null);
   const [showReportUnpaid, setShowReportUnpaid] = useState<AcceptedJob | null>(null);
   const [showCompletionReview, setShowCompletionReview] = useState<JobPost | null>(null);
+  const [showSummaryJobId, setShowSummaryJobId] = useState<number | null>(null);
   const [showHousekeeperPayments, setShowHousekeeperPayments] = useState<AcceptedJob | null>(null);
   
   // Category filter for housekeeper jobs
@@ -298,42 +300,53 @@ export default function JobsPage() {
                 </div>
 
                 {/* 3. Status Filters (Segmented Control) */}
-                <div className="overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
-                    <div className="flex gap-1.5 min-w-max p-1.5 bg-gray-100/80 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-white/5">
-                        <FilterTab 
-                            active={statusFilter === 'all'} 
-                            onClick={() => setStatusFilter('all')} 
-                            icon={ClipboardList} 
-                            label="All Jobs" 
-                        />
-                        <FilterTab 
-                            active={statusFilter === 'open'} 
-                            onClick={() => setStatusFilter('open')} 
-                            icon={CheckCircle} 
-                            label="Open" 
-                            activeColor="bg-green-500 text-white"
-                        />
-                        <FilterTab 
-                            active={statusFilter === 'ongoing'} 
-                            onClick={() => setStatusFilter('ongoing')} 
-                            icon={RotateCw} 
-                            label="Ongoing" 
-                            activeColor="bg-blue-500 text-white"
-                        />
-                        <FilterTab 
-                            active={statusFilter === 'completed'} 
-                            onClick={() => setStatusFilter('completed')} 
-                            icon={Check} 
-                            label="Completed" 
-                            activeColor="bg-purple-500 text-white"
-                        />
-                        <FilterTab 
-                            active={statusFilter === 'closed'} 
-                            onClick={() => setStatusFilter('closed')} 
-                            icon={X} 
-                            label="Closed" 
-                            activeColor="bg-gray-500 text-white"
-                        />
+                <div className="space-y-2">
+                    <p className="text-xs sm:text-sm font-bold text-[#4B244A]/80 dark:text-white/80 px-0.5">
+                        Showing: <span className="text-[#EA526F] dark:text-[#EA526F] font-extrabold" aria-live="polite">
+                            {statusFilter === 'all' && 'All Jobs'}
+                            {statusFilter === 'open' && 'Open'}
+                            {statusFilter === 'ongoing' && 'Ongoing'}
+                            {statusFilter === 'completed' && 'Completed'}
+                            {statusFilter === 'closed' && 'Closed'}
+                        </span>
+                    </p>
+                    <div className="overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
+                        <div className="flex gap-1.5 min-w-max p-1.5 bg-gray-100/80 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-white/5">
+                            <FilterTab 
+                                active={statusFilter === 'all'} 
+                                onClick={() => setStatusFilter('all')} 
+                                icon={ClipboardList} 
+                                label="All Jobs" 
+                            />
+                            <FilterTab 
+                                active={statusFilter === 'open'} 
+                                onClick={() => setStatusFilter('open')} 
+                                icon={CheckCircle} 
+                                label="Open" 
+                                activeColor="bg-green-500 text-white"
+                            />
+                            <FilterTab 
+                                active={statusFilter === 'ongoing'} 
+                                onClick={() => setStatusFilter('ongoing')} 
+                                icon={RotateCw} 
+                                label="Ongoing" 
+                                activeColor="bg-blue-500 text-white"
+                            />
+                            <FilterTab 
+                                active={statusFilter === 'completed'} 
+                                onClick={() => setStatusFilter('completed')} 
+                                icon={Check} 
+                                label="Completed" 
+                                activeColor="bg-purple-500 text-white"
+                            />
+                            <FilterTab 
+                                active={statusFilter === 'closed'} 
+                                onClick={() => setStatusFilter('closed')} 
+                                icon={X} 
+                                label="Closed" 
+                                activeColor="bg-gray-500 text-white"
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -435,6 +448,7 @@ export default function JobsPage() {
             onShowPaymentTracker={setShowPaymentTracker}
             onShowProgressTracker={setShowProgressTracker}
             onShowCompletionReview={setShowCompletionReview}
+            onShowSummary={(job) => setShowSummaryJobId(job.post_id)}
             onRateWorker={(job, worker) => {
               setRatingJobData({ job, worker });
               setShowRatingModal(true);
@@ -619,6 +633,11 @@ export default function JobsPage() {
       {/* Availability Calendar Modal */}
       {showAvailabilityCalendar && ( <AvailabilityCalendar onClose={() => setShowAvailabilityCalendar(false)} /> )}
       
+      {/* Job Summary Modal (completed jobs) */}
+      {showSummaryJobId !== null && (
+        <JobSummaryModal jobId={showSummaryJobId} onClose={() => setShowSummaryJobId(null)} />
+      )}
+
       {/* Edit Job Modal */}
       {showEditJob && (
         <EditJobModal
@@ -719,9 +738,12 @@ function FilterTab({
     return (
         <button
             onClick={onClick}
+            type="button"
+            aria-pressed={active}
+            aria-current={active ? 'true' : undefined}
             className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
                 active
-                    ? `${activeColor} shadow-sm`
+                    ? `${activeColor} shadow-md ring-2 ring-[#4B244A]/30 dark:ring-white/30 ring-offset-2 ring-offset-gray-100 dark:ring-offset-slate-800`
                     : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
             }`}
         >
@@ -738,6 +760,7 @@ function OwnerJobsContent({
   onShowPaymentTracker,
   onShowProgressTracker,
   onShowCompletionReview,
+  onShowSummary,
   onEditJob,
   onRateWorker,
   ratedContracts,
@@ -750,6 +773,7 @@ function OwnerJobsContent({
   onShowPaymentTracker: (job: JobPost) => void;
   onShowProgressTracker: (job: JobPost) => void;
   onShowCompletionReview: (job: JobPost) => void;
+  onShowSummary: (job: JobPost) => void;
   onEditJob: (job: JobPost) => void;
   onRateWorker: (job: JobPost, worker: any) => void;
   ratedContracts: Set<number>;
@@ -928,6 +952,16 @@ function OwnerJobsContent({
                         Cancel
                     </button>
                  </div>
+             )}
+
+             {/* Summary button for completed jobs */}
+             {job.status === 'completed' && onShowSummary && (
+               <button
+                 onClick={() => onShowSummary(job)}
+                 className="mt-2 w-full py-2 bg-[#4B244A] text-white text-sm font-bold rounded-lg hover:bg-[#361a35] transition-all shadow-md flex items-center justify-center gap-2"
+               >
+                 <FileText className="w-4 h-4" /> Summary
+               </button>
              )}
 
              {/* Repost button for finished jobs */}
