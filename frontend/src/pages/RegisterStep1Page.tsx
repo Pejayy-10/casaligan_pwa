@@ -61,8 +61,8 @@ export default function RegisterStep1Page() {
     try {
       const payload = {
         ...formData,
-        middle_name: formData.middle_name?.trim() || undefined,
-        suffix: formData.suffix?.trim() || undefined,
+        middle_name: formData.middle_name.trim() || undefined,
+        suffix: formData.suffix.trim() || undefined,
       };
       await authService.register(payload);
       
@@ -147,7 +147,7 @@ export default function RegisterStep1Page() {
                 <input
                   type="text"
                   id="middle_name"
-                  value={formData.middle_name ?? ''}
+                  value={formData.middle_name}
                   onChange={(e) => setFormData({ ...formData, middle_name: e.target.value })}
                   className={inputClass}
                   disabled={loading}
@@ -176,7 +176,7 @@ export default function RegisterStep1Page() {
                 <input
                   type="text"
                   id="suffix"
-                  value={formData.suffix ?? ''}
+                  value={formData.suffix}
                   onChange={(e) => setFormData({ ...formData, suffix: e.target.value })}
                   className={inputClass}
                   disabled={loading}
