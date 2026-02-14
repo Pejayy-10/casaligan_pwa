@@ -808,7 +808,7 @@ function OwnerJobsContent({
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${postId}/repost`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${postId}/repost`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

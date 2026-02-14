@@ -13,6 +13,7 @@ import {
   Receipt,
   X,
 } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 interface WorkerSummary {
   contract_id: number;
@@ -72,7 +73,7 @@ export default function JobSummaryModal({ jobId, onClose }: Props) {
         setLoading(true);
         setError('');
         const token = localStorage.getItem('access_token');
-        const res = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/summary`, {
+        const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/summary`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) {
