@@ -23,6 +23,7 @@ import EditJobModal from '../components/EditJobModal';
 import JobSummaryModal from '../components/JobSummaryModal';
 import RatingModal from '../components/RatingModal';
 import ReportModal from '../components/ReportModal';
+import ExtendContractModal from '../components/ExtendContractModal';
 import apiClient from '../services/api';
 import type { User } from '../types';
 
@@ -79,6 +80,9 @@ export default function JobsPage() {
   // Housekeeper report state
   const [showHousekeeperReportModal, setShowHousekeeperReportModal] = useState(false);
   const [housekeeperReportData, setHousekeeperReportData] = useState<AcceptedJob | null>(null);
+  
+  // Contract extension state
+  const [showExtendContract, setShowExtendContract] = useState<{ job: JobPost; worker: any } | null>(null);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -459,6 +463,9 @@ export default function JobsPage() {
               setReportJobData({ job, worker });
               setShowReportModal(true);
             }}
+            onExtendContract={(job, worker) => {
+              setShowExtendContract({ job, worker });
+            }}
           />
         ) : housekeeperView === 'my-jobs' ? (
           <HousekeeperMyJobs
@@ -692,6 +699,20 @@ export default function JobsPage() {
         />
       )}
       
+      {/* Extend Contract Modal */}
+      {showExtendContract && (
+        <ExtendContractModal
+          isOpen={true}
+          onClose={() => setShowExtendContract(null)}
+          jobTitle={showExtendContract.job.title}
+          contractId={showExtendContract.worker.contract_id}
+          currentEndDate={showExtendContract.job.end_date}
+          currentBudget={showExtendContract.job.budget}
+          workerName={showExtendContract.worker.name}
+          onSuccess={() => { setShowExtendContract(null); loadJobs(); }}
+        />
+      )}
+      
       {/* Housekeeper Report Modal */}
       {housekeeperReportData && (
         <ReportModal
@@ -765,7 +786,8 @@ function OwnerJobsContent({
   onRateWorker,
   ratedContracts,
   reportedUsers,
-  onReportWorker
+  onReportWorker,
+  onExtendContract
 }: { 
   jobs: JobPost[]; 
   navigate: (path: string) => void;
@@ -779,6 +801,7 @@ function OwnerJobsContent({
   ratedContracts: Set<number>;
   reportedUsers: Set<string>;
   onReportWorker: (job: JobPost, worker: any) => void;
+  onExtendContract: (job: JobPost, worker: any) => void;
 }) {
   const handleStatusUpdate = async (postId: number, newStatus: string) => {
     try {
@@ -937,6 +960,19 @@ function OwnerJobsContent({
                       ? <><AlertCircle className="w-4 h-4" /> Pay Now ({job.pending_payments})</>
                       : 'Payment Tracker'}
                  </button>
+             )}
+             
+             {/* Extend Contract button for ongoing jobs with accepted workers */}
+             {job.status === 'ongoing' && job.accepted_workers && job.accepted_workers.length > 0 && (
+                job.accepted_workers.map((worker) => (
+                  <button
+                    key={`extend-${worker.worker_id}`}
+                    onClick={() => onExtendContract(job, worker)}
+                    className="w-full py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 bg-purple-500 text-white hover:bg-purple-600"
+                  >
+                    <Calendar className="w-4 h-4" /> Extend Contract — {worker.name}
+                  </button>
+                ))
              )}
              
              {/* Edit/Cancel actions for open jobs */}

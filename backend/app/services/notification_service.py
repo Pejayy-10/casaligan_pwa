@@ -245,3 +245,44 @@ def notify_direct_hire_paid(db: Session, worker_user_id: int, employer_name: str
         reference_type="direct_hire",
         reference_id=hire_id
     )
+
+
+# Flow 3: Contract Extension Notifications
+
+def notify_contract_extension_proposed(db: Session, worker_user_id: int, employer_name: str, job_title: str, new_end_date: str, post_id: int):
+    """Notify worker when employer proposes a contract extension"""
+    return notify_user(
+        db=db,
+        user_id=worker_user_id,
+        notification_type=NotificationType.CONTRACT_EXTENSION_PROPOSED,
+        title="Contract Extension Proposed 📋",
+        message=f"{employer_name} wants to extend your contract for '{job_title}' until {new_end_date}. Please review and respond.",
+        reference_type="job",
+        reference_id=post_id
+    )
+
+
+def notify_contract_extension_accepted(db: Session, employer_user_id: int, worker_name: str, job_title: str, post_id: int):
+    """Notify employer when worker accepts the contract extension"""
+    return notify_user(
+        db=db,
+        user_id=employer_user_id,
+        notification_type=NotificationType.CONTRACT_EXTENSION_ACCEPTED,
+        title="Extension Accepted! ✅",
+        message=f"{worker_name} accepted the contract extension for '{job_title}'.",
+        reference_type="job",
+        reference_id=post_id
+    )
+
+
+def notify_contract_extension_rejected(db: Session, employer_user_id: int, worker_name: str, job_title: str, post_id: int):
+    """Notify employer when worker rejects the contract extension"""
+    return notify_user(
+        db=db,
+        user_id=employer_user_id,
+        notification_type=NotificationType.CONTRACT_EXTENSION_REJECTED,
+        title="Extension Declined ❌",
+        message=f"{worker_name} declined the contract extension for '{job_title}'.",
+        reference_type="job",
+        reference_id=post_id
+    )

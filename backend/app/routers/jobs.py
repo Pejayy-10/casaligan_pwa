@@ -14,6 +14,7 @@ from app.models_v2.user import User
 from app.models_v2.worker_employer import Employer, Worker
 from app.models_v2.forum import ForumPost, ForumPostStatus, InterestCheck, InterestStatus, JobType, EditResponseStatus
 from app.models_v2.contract import Contract
+from app.models_v2.contract_extension import ContractExtension, ExtensionStatus
 from app.models_v2.conversation import Conversation
 from app.models_v2.payment import PaymentSchedule, PaymentStatus, PaymentTransaction
 from app.security import get_current_user
@@ -370,6 +371,24 @@ def get_my_accepted_jobs(
         
         post_status = post.status.value if hasattr(post.status, 'value') else str(post.status)
         
+        # Get pending extension for this contract (if any)
+        pending_extension = None
+        if contract:
+            ext = db.query(ContractExtension).filter(
+                ContractExtension.contract_id == contract.contract_id,
+                ContractExtension.status == ExtensionStatus.PENDING
+            ).first()
+            if ext:
+                proposer = db.query(User).filter(User.id == ext.proposed_by).first()
+                pending_extension = {
+                    "extension_id": ext.extension_id,
+                    "proposed_end_date": ext.proposed_end_date,
+                    "proposed_budget": float(ext.proposed_budget) if ext.proposed_budget else None,
+                    "reason": ext.reason,
+                    "proposed_by_name": f"{proposer.first_name} {proposer.last_name}" if proposer else None,
+                    "created_at": ext.created_at.isoformat() if ext.created_at else None,
+                }
+
         result.append({
             "post_id": post.post_id,
             "title": post.title,
@@ -391,6 +410,7 @@ def get_my_accepted_jobs(
                 "contract_id": contract.contract_id if contract else None,
                 "status": contract.status.value if contract and hasattr(contract.status, 'value') else (str(contract.status) if contract else None)
             } if contract else None,
+            "pending_extension": pending_extension,
             "payments": {
                 "total_schedules": len(payment_schedules),
                 "pending_payments": pending_payments,
