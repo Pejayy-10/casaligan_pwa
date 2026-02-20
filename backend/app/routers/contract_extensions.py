@@ -120,21 +120,25 @@ def propose_extension(
     db.commit()
     db.refresh(extension)
 
-    # Notify the worker
-    worker = db.query(Worker).filter(Worker.worker_id == contract.worker_id).first()
-    if worker:
-        worker_user = db.query(User).filter(User.id == worker.user_id).first()
-        post = db.query(ForumPost).filter(ForumPost.post_id == contract.post_id).first()
-        if worker_user and post:
-            employer_name = f"{current_user.first_name} {current_user.last_name}"
-            notify_contract_extension_proposed(
-                db=db,
-                worker_user_id=worker_user.id,
-                employer_name=employer_name,
-                job_title=post.title,
-                new_end_date=payload.proposed_end_date,
-                post_id=post.post_id
-            )
+    # Notify the worker (non-fatal — extension is already saved)
+    try:
+        worker = db.query(Worker).filter(Worker.worker_id == contract.worker_id).first()
+        if worker:
+            worker_user = db.query(User).filter(User.id == worker.user_id).first()
+            post = db.query(ForumPost).filter(ForumPost.post_id == contract.post_id).first()
+            if worker_user and post:
+                employer_name = f"{current_user.first_name} {current_user.last_name}"
+                notify_contract_extension_proposed(
+                    db=db,
+                    worker_user_id=worker_user.id,
+                    employer_name=employer_name,
+                    job_title=post.title,
+                    new_end_date=payload.proposed_end_date,
+                    post_id=post.post_id
+                )
+    except Exception as e:
+        print(f"Warning: Failed to send extension notification: {e}")
+        db.rollback()
 
     return {
         "message": "Contract extension proposed successfully",
@@ -215,21 +219,26 @@ def respond_to_extension(
 
             contract.updated_at = now
 
-        # Notify the employer
-        employer = db.query(Employer).filter(Employer.employer_id == contract.employer_id).first()
-        if employer and post:
-            employer_user = db.query(User).filter(User.id == employer.user_id).first()
-            if employer_user:
-                worker_name = f"{current_user.first_name} {current_user.last_name}"
-                notify_contract_extension_accepted(
-                    db=db,
-                    employer_user_id=employer_user.id,
-                    worker_name=worker_name,
-                    job_title=post.title,
-                    post_id=post.post_id
-                )
-
         db.commit()
+
+        # Notify the employer (non-fatal — extension already accepted)
+        try:
+            employer = db.query(Employer).filter(Employer.employer_id == contract.employer_id).first()
+            if employer and post:
+                employer_user = db.query(User).filter(User.id == employer.user_id).first()
+                if employer_user:
+                    worker_name = f"{current_user.first_name} {current_user.last_name}"
+                    notify_contract_extension_accepted(
+                        db=db,
+                        employer_user_id=employer_user.id,
+                        worker_name=worker_name,
+                        job_title=post.title,
+                        post_id=post.post_id
+                    )
+        except Exception as e:
+            print(f"Warning: Failed to send extension accepted notification: {e}")
+            db.rollback()
+
         return {"message": "Contract extension accepted. The contract end date has been updated.", "status": "accepted"}
     else:
         # Reject the extension
@@ -237,22 +246,27 @@ def respond_to_extension(
         extension.responded_at = now
         extension.updated_at = now
 
-        # Notify the employer
-        post = db.query(ForumPost).filter(ForumPost.post_id == contract.post_id).first()
-        employer = db.query(Employer).filter(Employer.employer_id == contract.employer_id).first()
-        if employer and post:
-            employer_user = db.query(User).filter(User.id == employer.user_id).first()
-            if employer_user:
-                worker_name = f"{current_user.first_name} {current_user.last_name}"
-                notify_contract_extension_rejected(
-                    db=db,
-                    employer_user_id=employer_user.id,
-                    worker_name=worker_name,
-                    job_title=post.title,
-                    post_id=post.post_id
-                )
-
         db.commit()
+
+        # Notify the employer (non-fatal — rejection already saved)
+        try:
+            post = db.query(ForumPost).filter(ForumPost.post_id == contract.post_id).first()
+            employer = db.query(Employer).filter(Employer.employer_id == contract.employer_id).first()
+            if employer and post:
+                employer_user = db.query(User).filter(User.id == employer.user_id).first()
+                if employer_user:
+                    worker_name = f"{current_user.first_name} {current_user.last_name}"
+                    notify_contract_extension_rejected(
+                        db=db,
+                        employer_user_id=employer_user.id,
+                        worker_name=worker_name,
+                        job_title=post.title,
+                        post_id=post.post_id
+                    )
+        except Exception as e:
+            print(f"Warning: Failed to send extension rejected notification: {e}")
+            db.rollback()
+
         return {"message": "Contract extension declined.", "status": "rejected"}
 
 
