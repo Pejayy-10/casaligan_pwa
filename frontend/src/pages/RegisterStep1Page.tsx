@@ -61,8 +61,8 @@ export default function RegisterStep1Page() {
     try {
       const payload = {
         ...formData,
-        middle_name: formData.middle_name.trim() || undefined,
-        suffix: formData.suffix.trim() || undefined,
+        middle_name: formData.middle_name?.trim() || undefined,
+        suffix: formData.suffix?.trim() || undefined,
       };
       await authService.register(payload);
       
