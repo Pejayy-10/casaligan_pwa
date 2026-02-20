@@ -206,6 +206,17 @@ def respond_to_extension(
             if extension.proposed_budget is not None:
                 post.salary = extension.proposed_budget
 
+            # Also update the JSON content field so end_date stays in sync
+            if post.content and post.content.startswith('{'):
+                try:
+                    content_data = json.loads(post.content)
+                    content_data["end_date"] = extension.proposed_end_date
+                    if extension.proposed_budget is not None:
+                        content_data["budget"] = float(extension.proposed_budget)
+                    post.content = json.dumps(content_data)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+
             # Also update contract_terms if they contain end_date
             if contract.contract_terms:
                 try:
