@@ -20,6 +20,7 @@ from app.security import (
 from typing import List, Optional
 from pydantic import BaseModel
 import google.generativeai as genai
+import httpx
 import os
 import json
 import re
@@ -32,22 +33,29 @@ if GEMINI_API_KEY:
 
 
 def verify_document_with_ai(file_path: str, document_type: str, first_name: str, last_name: str) -> dict:
-    """Use Gemini Vision to automatically verify a user document"""
+    """Use Gemini Vision to automatically verify a user document.
+    file_path may be a Supabase public URL or a legacy local path.
+    """
     if not GEMINI_API_KEY:
         return {"status": "pending", "notes": "Pending admin review.", "rejection_reason": None}
 
     try:
-        # Build disk path from the URL path (strip leading slash)
-        full_path = Path(file_path.lstrip('/'))
-        if not full_path.exists():
-            return {"status": "pending", "notes": "Pending admin review.", "rejection_reason": None}
-
-        file_bytes = full_path.read_bytes()
-
-        # Determine MIME type
-        ext = full_path.suffix.lower()
+        # Determine MIME type from the URL/path extension
+        suffix = Path(file_path.split('?')[0]).suffix.lower()
         mime_map = {'.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif'}
-        mime_type = mime_map.get(ext, 'image/jpeg')
+        mime_type = mime_map.get(suffix, 'image/jpeg')
+
+        # Fetch file bytes — support both remote URLs and legacy local paths
+        if file_path.startswith('http://') or file_path.startswith('https://'):
+            with httpx.Client(timeout=30) as client:
+                resp = client.get(file_path)
+                resp.raise_for_status()
+                file_bytes = resp.content
+        else:
+            full_path = Path(file_path.lstrip('/'))
+            if not full_path.exists():
+                return {"status": "pending", "notes": "Pending admin review.", "rejection_reason": None}
+            file_bytes = full_path.read_bytes()
 
         model = genai.GenerativeModel('gemini-2.5-flash')
         doc_label = document_type.replace('_', ' ').title()
