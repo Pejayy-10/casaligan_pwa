@@ -24,6 +24,7 @@ import httpx
 import os
 import json
 import re
+import base64
 import logging
 from pathlib import Path
 from datetime import datetime
@@ -43,24 +44,30 @@ def verify_document_with_ai(file_path: str, document_type: str, first_name: str,
         return {"status": "pending", "notes": "Pending admin review.", "rejection_reason": None}
 
     try:
+        # Strip trailing ? that Supabase appends to public URLs
+        clean_path = file_path.rstrip('?').rstrip('&')
+
         # Determine MIME type from the URL/path extension
-        suffix = Path(file_path.split('?')[0]).suffix.lower()
+        suffix = Path(clean_path.split('?')[0]).suffix.lower()
         mime_map = {'.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif'}
         mime_type = mime_map.get(suffix, 'image/jpeg')
 
         # Fetch file bytes — support both remote URLs and legacy local paths
-        if file_path.startswith('http://') or file_path.startswith('https://'):
+        if clean_path.startswith('http://') or clean_path.startswith('https://'):
             with httpx.Client(timeout=30) as client:
-                resp = client.get(file_path)
+                resp = client.get(clean_path)
                 resp.raise_for_status()
                 file_bytes = resp.content
         else:
-            full_path = Path(file_path.lstrip('/'))
+            full_path = Path(clean_path.lstrip('/'))
             if not full_path.exists():
                 return {"status": "pending", "notes": "Pending admin review.", "rejection_reason": None}
             file_bytes = full_path.read_bytes()
 
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # google-generativeai SDK requires base64-encoded string for inline image data
+        file_b64 = base64.b64encode(file_bytes).decode('utf-8')
+
+        model = genai.GenerativeModel('gemini-2.5-flash')
         doc_label = document_type.replace('_', ' ').title()
 
         prompt = f"""You are a strict document verification officer for Casaligan, a Philippine housekeeping platform.
@@ -106,7 +113,7 @@ Return ONLY this JSON:
 
         response = model.generate_content([
             prompt,
-            {"mime_type": mime_type, "data": file_bytes}
+            {"mime_type": mime_type, "data": file_b64}
         ])
 
         text = response.text.strip()
