@@ -76,33 +76,47 @@ You must carefully analyze the uploaded image and return ONLY valid JSON — no 
 Expected document type: {doc_label}
 Registrant name: {first_name} {last_name}
 
-You MUST assess:
-1. Is this actually a government-issued or official document? (NOT a photo of a building, person, food, scenery, screenshot, blank paper, or anything else)
-2. Is the document legible — text is readable, not blurry, not cut off, not obstructed?
-3. Does the name on the document closely match "{first_name} {last_name}"?
-4. Is the document expired? (check visible expiry date if any)
-5. Does the document type match "{doc_label}"? For Philippine documents this includes:
-   - national_id = PhilSys National ID
+You MUST assess ALL of the following:
+
+1. IS IT A DOCUMENT AT ALL?
+   - Must be a real government-issued or official document.
+   - If it is a photo of a building, a person, food, scenery, a meme, a social media post, a chat screenshot, an app screenshot, or anything that is NOT a document → is_legitimate: false, confidence: 0.
+
+2. IS IT A DIRECT PHOTO OR A SCREENSHOT?
+   - REJECT if the image shows a document displayed on a phone/tablet/computer screen (visible status bar, browser chrome, app UI, device bezels, or screen glare around the document).
+   - REJECT if it is a photo of another photo of a document (printed or on screen).
+   - Only ACCEPT if the document was photographed directly — the physical card/paper fills most of the frame with no surrounding device UI.
+   - Set is_screenshot: true and is_legitimate: false if it appears to be shown on a screen.
+
+3. IS IT LEGIBLE?
+   - Text must be readable. Blurry, heavily cropped, or obstructed documents → is_legible: false.
+
+4. NAME MATCH?
+   - Does the name on the document closely match "{first_name} {last_name}"?
+   - Set name_matches: false if name is clearly different or unreadable.
+
+5. IS IT EXPIRED?
+   - Check visible expiry date. Set is_expired: true if expired.
+
+6. IS IT THE CORRECT DOCUMENT TYPE: {doc_label}?
+   Philippine document types:
+   - national_id = PhilSys National ID (card with QR code, PSA branding)
    - drivers_license = LTO Driver's License
-   - passport = Philippine Passport
-   - sss_id = SSS / UMID
-   - philhealth_id = PhilHealth ID
+   - passport = Philippine Passport (dark blue booklet)
+   - sss_id = SSS / UMID card
+   - philhealth_id = PhilHealth ID card
    - voters_id = COMELEC Voter's ID
    - postal_id = Philippine Postal ID
    - tin_id = BIR TIN ID
    - prc_id = PRC Professional ID
    - barangay_id = Barangay ID or Clearance
-   If the uploaded document is a completely different type, set correct_type to false.
+   Set correct_type: false if the document is clearly a different type.
 
-BE STRICT:
-- If it is NOT a document (random photo, selfie, building, meme, etc.) → is_legitimate: false, confidence: 0
-- If text is unreadable → is_legible: false
-- If wrong document type → correct_type: false
-
-Return ONLY this JSON:
+Return ONLY this JSON, no extra text:
 {{
   "is_legitimate": true,
   "is_legible": true,
+  "is_screenshot": false,
   "name_matches": true,
   "is_expired": false,
   "correct_type": true,
@@ -125,24 +139,35 @@ Return ONLY this JSON:
         is_legit = result.get("is_legitimate", False)
         is_legible = result.get("is_legible", False)
         is_expired = result.get("is_expired", False)
-        correct_type = result.get("correct_type", True)  # False = wrong document type uploaded
+        correct_type = result.get("correct_type", True)
+        is_screenshot = result.get("is_screenshot", False)
 
-        if confidence >= 85 and is_legit and is_legible and not is_expired and correct_type:
-            return {
-                "status": "approved",
-                "notes": f"AI verified ({confidence}% confidence): {result.get('notes', 'Document looks valid.')}",
-                "rejection_reason": None
-            }
-        elif not is_legit or not is_legible or is_expired or confidence < 50 or not correct_type:
+        # Hard reject conditions — any one of these fails the document
+        hard_reject = not is_legit or is_screenshot or is_expired or not correct_type or confidence < 50
+
+        if hard_reject:
             reason = result.get("rejection_reason") or result.get("notes", "Document failed verification.")
-            if not correct_type:
+            if is_screenshot:
+                reason = f"Screenshots are not accepted. Please upload a direct photo of your physical document. {reason}"
+            elif not is_legit:
+                reason = f"Image does not appear to be a valid document. {reason}"
+            elif not correct_type:
                 reason = f"Wrong document type. Expected: {doc_label}. {reason}"
+            elif is_expired:
+                reason = f"Document appears to be expired. {reason}"
             return {
                 "status": "rejected",
                 "notes": f"AI rejected ({confidence}% confidence): {result.get('notes', '')}",
                 "rejection_reason": reason
             }
+        elif confidence >= 80 and is_legible:
+            return {
+                "status": "approved",
+                "notes": f"AI verified ({confidence}% confidence): {result.get('notes', 'Document looks valid.')}",
+                "rejection_reason": None
+            }
         else:
+            # Legible but lower confidence or unreadable — send to admin
             return {
                 "status": "pending",
                 "notes": f"AI review ({confidence}% confidence): {result.get('notes', 'Requires admin review.')}",

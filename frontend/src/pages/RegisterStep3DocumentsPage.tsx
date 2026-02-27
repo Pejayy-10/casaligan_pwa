@@ -16,6 +16,7 @@ export default function RegisterStep3DocumentsPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [pendingReview, setPendingReview] = useState(false);
 
   // Shared styles from the design system
   const inputClass = "w-full px-4 py-3 bg-white/50 dark:bg-white/10 backdrop-blur-sm border border-gray-200 dark:border-white/20 rounded-xl text-gray-800 dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:ring-2 focus:ring-[#EA526F] focus:border-transparent transition-all outline-none disabled:opacity-50";
@@ -108,18 +109,22 @@ export default function RegisterStep3DocumentsPage() {
       const result = await authService.uploadDocument(formData);
 
       if (result.status === 'rejected') {
-        // AI rejected the document — block registration and tell the user why
         setError(
           `Document rejected: ${result.rejection_reason || result.notes || 'The document did not pass verification. Please upload a valid government-issued ID.'}`
         );
-        // Reset so they must re-upload
         setFormData({ ...formData, file_path: '' });
         setSelectedFile(null);
         setPreviewUrl('');
         return;
       }
 
-      // approved or pending — proceed to dashboard
+      if (result.status === 'pending') {
+        // Needs manual admin review — show waiting screen, do NOT go to dashboard
+        setPendingReview(true);
+        return;
+      }
+
+      // Only 'approved' reaches the dashboard
       navigate('/dashboard');
     } catch (err: unknown) {
       const errorDetail =
@@ -143,7 +148,26 @@ export default function RegisterStep3DocumentsPage() {
       </div>
 
       <div className="w-full max-w-2xl relative z-10 my-8">
-        {/* Glass morphism card */}
+        {/* Pending review screen */}
+        {pendingReview ? (
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl shadow-2xl p-8 border border-white/50 dark:border-white/10 text-center">
+            <div className="flex items-center justify-center w-16 h-16 bg-yellow-100 dark:bg-yellow-500/20 rounded-full mx-auto mb-4">
+              <svg className="w-8 h-8 text-yellow-600 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white mb-3">Document Under Review</h2>
+            <p className="text-[#4B244A]/80 dark:text-white/70 mb-2">
+              Your document has been submitted and is currently being reviewed by our team.
+            </p>
+            <p className="text-[#4B244A]/60 dark:text-white/50 text-sm mb-6">
+              You will be notified once your account has been approved. This usually takes 1–2 business days.
+            </p>
+            <div className="p-4 bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-xl text-sm text-yellow-700 dark:text-yellow-300">
+              Please make sure the document you uploaded is a clear, direct photo of your physical ID — not a screenshot.
+            </div>
+          </div>
+        ) : (
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl shadow-2xl p-6 md:p-8 border border-white/50 dark:border-white/10 transition-all">
           {/* Progress bar */}
           <div className="mb-6">
@@ -279,6 +303,7 @@ export default function RegisterStep3DocumentsPage() {
             </p>
           </div>
         </div>
+        )} {/* end pendingReview ternary */}
       </div>
     </div>
   );
