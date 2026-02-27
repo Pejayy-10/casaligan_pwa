@@ -19,6 +19,101 @@ from app.security import (
 )
 from typing import List, Optional
 from pydantic import BaseModel
+import google.generativeai as genai
+import os
+import json
+import re
+from pathlib import Path
+from datetime import datetime
+
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+
+
+def verify_document_with_ai(file_path: str, document_type: str, first_name: str, last_name: str) -> dict:
+    """Use Gemini Vision to automatically verify a user document"""
+    if not GEMINI_API_KEY:
+        return {"status": "pending", "notes": "Pending admin review.", "rejection_reason": None}
+
+    try:
+        # Build disk path from the URL path (strip leading slash)
+        full_path = Path(file_path.lstrip('/'))
+        if not full_path.exists():
+            return {"status": "pending", "notes": "Pending admin review.", "rejection_reason": None}
+
+        file_bytes = full_path.read_bytes()
+
+        # Determine MIME type
+        ext = full_path.suffix.lower()
+        mime_map = {'.pdf': 'application/pdf', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif'}
+        mime_type = mime_map.get(ext, 'image/jpeg')
+
+        model = genai.GenerativeModel('gemini-2.5-flash')
+        doc_label = document_type.replace('_', ' ').title()
+
+        prompt = f"""You are a document verification assistant for Casaligan, a Philippine housekeeping platform.
+Analyze this uploaded document and respond with ONLY valid JSON.
+
+Expected document type: {doc_label}
+Registrant name: {first_name} {last_name}
+
+Evaluate:
+1. Is this a real, legitimate document (not blank, not a test image, not a random photo)?
+2. Is it legible and clear (not blurry, cut off, or obscured)?
+3. Does the name on the document match "{first_name} {last_name}" (partial match is acceptable)?
+4. Is the document expired (check expiry date if visible)?
+5. Is the document type correct (does it look like a {doc_label})?
+
+Return ONLY this JSON, no extra text:
+{{
+  "is_legitimate": true,
+  "is_legible": true,
+  "name_matches": true,
+  "is_expired": false,
+  "correct_type": true,
+  "confidence": 90,
+  "notes": "brief summary",
+  "rejection_reason": null
+}}"""
+
+        response = model.generate_content([
+            prompt,
+            {"mime_type": mime_type, "data": file_bytes}
+        ])
+
+        text = response.text.strip()
+        text = re.sub(r'^```json\s*', '', text)
+        text = re.sub(r'\s*```$', '', text)
+        result = json.loads(text)
+
+        confidence = int(result.get("confidence", 0))
+        is_legit = result.get("is_legitimate", False)
+        is_legible = result.get("is_legible", False)
+        is_expired = result.get("is_expired", False)
+
+        if confidence >= 85 and is_legit and is_legible and not is_expired:
+            return {
+                "status": "approved",
+                "notes": f"AI verified ({confidence}% confidence): {result.get('notes', 'Document looks valid.')}",
+                "rejection_reason": None
+            }
+        elif not is_legit or not is_legible or is_expired or confidence < 50:
+            return {
+                "status": "rejected",
+                "notes": f"AI rejected ({confidence}% confidence): {result.get('notes', '')}",
+                "rejection_reason": result.get("rejection_reason") or result.get("notes", "Document failed verification.")
+            }
+        else:
+            return {
+                "status": "pending",
+                "notes": f"AI review ({confidence}% confidence): {result.get('notes', 'Requires admin review.')}",
+                "rejection_reason": None
+            }
+
+    except Exception as e:
+        return {"status": "pending", "notes": "Pending admin review.", "rejection_reason": None}
+
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -191,6 +286,22 @@ def upload_document(
     )
     
     db.add(db_document)
+    db.commit()
+    db.refresh(db_document)
+
+    # Run AI verification
+    ai_result = verify_document_with_ai(
+        file_path=db_document.file_path,
+        document_type=db_document.document_type,
+        first_name=current_user.first_name,
+        last_name=current_user.last_name
+    )
+    db_document.status = ai_result["status"]
+    db_document.notes = ai_result["notes"]
+    if ai_result["rejection_reason"]:
+        db_document.rejection_reason = ai_result["rejection_reason"]
+    if ai_result["status"] in ("approved", "rejected"):
+        db_document.reviewed_at = datetime.utcnow()
     db.commit()
     db.refresh(db_document)
     
