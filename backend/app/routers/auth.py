@@ -99,18 +99,22 @@ Return ONLY this JSON, no extra text:
         is_legit = result.get("is_legitimate", False)
         is_legible = result.get("is_legible", False)
         is_expired = result.get("is_expired", False)
+        correct_type = result.get("correct_type", True)  # False = wrong document type uploaded
 
-        if confidence >= 85 and is_legit and is_legible and not is_expired:
+        if confidence >= 85 and is_legit and is_legible and not is_expired and correct_type:
             return {
                 "status": "approved",
                 "notes": f"AI verified ({confidence}% confidence): {result.get('notes', 'Document looks valid.')}",
                 "rejection_reason": None
             }
-        elif not is_legit or not is_legible or is_expired or confidence < 50:
+        elif not is_legit or not is_legible or is_expired or confidence < 50 or not correct_type:
+            reason = result.get("rejection_reason") or result.get("notes", "Document failed verification.")
+            if not correct_type:
+                reason = f"Wrong document type. Expected: {doc_label}. {reason}"
             return {
                 "status": "rejected",
                 "notes": f"AI rejected ({confidence}% confidence): {result.get('notes', '')}",
-                "rejection_reason": result.get("rejection_reason") or result.get("notes", "Document failed verification.")
+                "rejection_reason": reason
             }
         else:
             return {
