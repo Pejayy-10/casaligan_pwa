@@ -141,9 +141,10 @@ Return ONLY this JSON, no extra text:
         is_expired = result.get("is_expired", False)
         correct_type = result.get("correct_type", True)
         is_screenshot = result.get("is_screenshot", False)
+        name_matches = result.get("name_matches", True)
 
         # Hard reject conditions — any one of these fails the document
-        hard_reject = not is_legit or is_screenshot or is_expired or not correct_type or confidence < 50
+        hard_reject = not is_legit or is_screenshot or is_expired or not correct_type or not name_matches or confidence < 50
 
         if hard_reject:
             reason = result.get("rejection_reason") or result.get("notes", "Document failed verification.")
@@ -151,6 +152,8 @@ Return ONLY this JSON, no extra text:
                 reason = f"Screenshots are not accepted. Please upload a direct photo of your physical document. {reason}"
             elif not is_legit:
                 reason = f"Image does not appear to be a valid document. {reason}"
+            elif not name_matches:
+                reason = f"Name on document does not match your registered name. {reason}"
             elif not correct_type:
                 reason = f"Wrong document type. Expected: {doc_label}. {reason}"
             elif is_expired:
