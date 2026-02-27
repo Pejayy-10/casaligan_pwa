@@ -75,7 +75,8 @@ export default function RegisterStep3DocumentsPage() {
       
       if (response.ok) {
         const data = await response.json();
-        setFormData({ ...formData, file_path: `${API_BASE_URL}${data.url}` });
+        // data.url is already a full Supabase URL — do NOT prepend API_BASE_URL
+        setFormData({ ...formData, file_path: data.url });
       } else {
         const errorData = await response.json();
         setError(errorData.detail || 'Failed to upload file');
@@ -104,7 +105,21 @@ export default function RegisterStep3DocumentsPage() {
     setLoading(true);
 
     try {
-      await authService.uploadDocument(formData);
+      const result = await authService.uploadDocument(formData);
+
+      if (result.status === 'rejected') {
+        // AI rejected the document — block registration and tell the user why
+        setError(
+          `Document rejected: ${result.rejection_reason || result.notes || 'The document did not pass verification. Please upload a valid government-issued ID.'}`
+        );
+        // Reset so they must re-upload
+        setFormData({ ...formData, file_path: '' });
+        setSelectedFile(null);
+        setPreviewUrl('');
+        return;
+      }
+
+      // approved or pending — proceed to dashboard
       navigate('/dashboard');
     } catch (err: unknown) {
       const errorDetail =
