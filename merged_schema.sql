@@ -16,6 +16,8 @@ CREATE TABLE public.addresses (
   barangay_code character varying,
   barangay_name character varying,
   street_address character varying,
+  latitude double precision,
+  longitude double precision,
   CONSTRAINT addresses_pkey PRIMARY KEY (address_id),
   CONSTRAINT addresses_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
@@ -227,9 +229,19 @@ CREATE TABLE public.interestcheck (
   worker_id integer NOT NULL,
   status USER-DEFINED NOT NULL DEFAULT 'pending'::interest_status,
   created_at timestamp with time zone DEFAULT now(),
+  edit_response USER-DEFINED,
+  edit_notified_at timestamp with time zone,
+  edit_responded_at timestamp with time zone,
   CONSTRAINT interestcheck_pkey PRIMARY KEY (interest_id),
   CONSTRAINT interestcheck_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forumposts(post_id),
   CONSTRAINT interestcheck_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id)
+);
+CREATE TABLE public.job_category_mapping (
+  post_id integer NOT NULL,
+  category_id integer NOT NULL,
+  CONSTRAINT job_category_mapping_pkey PRIMARY KEY (post_id, category_id),
+  CONSTRAINT job_category_mapping_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forumposts(post_id),
+  CONSTRAINT job_category_mapping_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.package_categories(category_id)
 );
 CREATE TABLE public.languages (
   language_id integer NOT NULL DEFAULT nextval('languages_language_id_seq'::regclass),
@@ -303,6 +315,14 @@ CREATE TABLE public.package_categories (
   updated_at timestamp with time zone,
   CONSTRAINT package_categories_pkey PRIMARY KEY (category_id)
 );
+CREATE TABLE public.package_category_mappings (
+  package_id integer NOT NULL,
+  category_id integer NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT package_category_mappings_pkey PRIMARY KEY (package_id, category_id),
+  CONSTRAINT package_category_mappings_package_id_fkey FOREIGN KEY (package_id) REFERENCES public.packages(package_id),
+  CONSTRAINT package_category_mappings_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.package_categories(category_id)
+);
 CREATE TABLE public.packages (
   package_id integer NOT NULL DEFAULT nextval('packages_package_id_seq'::regclass),
   worker_id integer NOT NULL,
@@ -318,7 +338,7 @@ CREATE TABLE public.packages (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone,
   deleted_at timestamp with time zone,
-  category_id integer NOT NULL,
+  category_id integer,
   CONSTRAINT packages_pkey PRIMARY KEY (package_id),
   CONSTRAINT packages_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.package_categories(category_id),
   CONSTRAINT packages_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id)
@@ -506,7 +526,6 @@ END,
   is_housekeeper boolean NOT NULL DEFAULT false,
   active_role USER-DEFINED NOT NULL DEFAULT 'owner'::user_role,
   role USER-DEFINED NOT NULL DEFAULT 'employer'::user_role,
-  address_id integer,
   gender USER-DEFINED,
   age integer,
   birthday date,
@@ -519,8 +538,10 @@ END,
   restricted_by_admin_id integer,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone,
+  is_restricted boolean NOT NULL DEFAULT false,
+  restriction_start timestamp with time zone,
+  restriction_end timestamp with time zone,
   CONSTRAINT users_pkey PRIMARY KEY (id),
-  CONSTRAINT users_address_id_fkey FOREIGN KEY (address_id) REFERENCES public.addresses(address_id),
   CONSTRAINT users_restricted_by_admin_id_fkey FOREIGN KEY (restricted_by_admin_id) REFERENCES public.admins(admin_id)
 );
 CREATE TABLE public.verification_logs (

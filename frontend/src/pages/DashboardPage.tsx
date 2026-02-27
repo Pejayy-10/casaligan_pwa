@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
-import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services/auth';
 import TabBar from '../components/TabBar';
 import StarRating from '../components/StarRating';
-import AIChatModal from '../components/AIChatModal';
 import apiClient from '../services/api';
 import { Briefcase, ClipboardList, MessageCircle, CheckCircle, DollarSign, AlertCircle, Clock, MapPin, Star, ChevronRight, User as UserIcon } from 'lucide-react';
 import type { User } from '../types';
@@ -24,6 +22,15 @@ interface Review {
   created_at: string;
 }
 
+interface Analytics {
+  jobs_posted?: number;
+  jobs_applied?: number;
+  messages: number;
+  reviews: number;
+  completed_jobs?: number;
+  total_earnings?: number;
+}
+
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(() => {
@@ -32,12 +39,40 @@ export default function DashboardPage() {
   });
   const [ratingSummary, setRatingSummary] = useState<RatingSummary | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
 
   useEffect(() => {
     if (!user) {
       navigate('/login');
     }
   }, [user, navigate]);
+
+  // Fetch analytics data
+  useEffect(() => {
+    const fetchAnalytics = async () => {
+      if (!user) return;
+      
+      try {
+        console.log('Fetching analytics for user:', user.id, 'Role:', user.active_role);
+        const response = await apiClient.get('/auth/analytics');
+        console.log('Analytics response:', response.data);
+        setAnalytics(response.data);
+      } catch (error) {
+        console.error('Failed to fetch analytics:', error);
+        // Set default values to show 0s instead of loading state
+        setAnalytics({
+          jobs_posted: 0,
+          jobs_applied: 0,
+          messages: 0,
+          reviews: 0,
+          completed_jobs: 0,
+          total_earnings: 0
+        });
+      }
+    };
+    
+    fetchAnalytics();
+  }, [user]);
 
   // Fetch rating summary and reviews for housekeepers
   useEffect(() => {
@@ -80,7 +115,7 @@ export default function DashboardPage() {
           try {
             const token = localStorage.getItem('access_token');
             const response = await fetch(
-              `${API_BASE_URL}/auth/update-address-gps?latitude=${coords.latitude}&longitude=${coords.longitude}`,
+              `http://127.0.0.1:8000/auth/update-address-gps?latitude=${coords.latitude}&longitude=${coords.longitude}`,
               {
                 method: 'POST',
                 headers: {
@@ -210,28 +245,40 @@ export default function DashboardPage() {
             icon={ClipboardList}
             iconColor="text-blue-600"
             bgColor="bg-blue-100 dark:bg-blue-500/20"
-            value="0"
+            value={analytics ? (user.active_role === 'owner' ? analytics.jobs_posted?.toString() || '0' : analytics.jobs_applied?.toString() || '0') : '...'}
             label={user.active_role === 'owner' ? 'Jobs Posted' : 'Jobs Applied'}
           />
           <StatCard 
             icon={MessageCircle}
             iconColor="text-purple-600"
             bgColor="bg-purple-100 dark:bg-purple-500/20"
-            value="0"
+            value={analytics ? analytics.messages.toString() : '...'}
             label="Messages"
           />
           <StatCard 
             icon={Star}
             iconColor="text-yellow-500"
             bgColor="bg-yellow-100 dark:bg-yellow-500/20"
-            value={ratingSummary && ratingSummary.total_ratings > 0 ? ratingSummary.average_rating.toFixed(1) : '—'}
-            label={ratingSummary && ratingSummary.total_ratings > 0 ? `${ratingSummary.total_ratings} Reviews` : 'No Reviews'}
+            value={
+              ratingSummary && ratingSummary.total_ratings > 0 
+                ? ratingSummary.average_rating.toFixed(1)
+                : analytics 
+                  ? analytics.reviews.toString()
+                  : '...'
+            }
+            label={
+              ratingSummary && ratingSummary.total_ratings > 0 
+                ? `${ratingSummary.total_ratings} Reviews`
+                : analytics && analytics.reviews > 0 
+                  ? `${analytics.reviews} Reviews`
+                  : 'No Reviews'
+            }
           />
           <StatCard 
             icon={user.active_role === 'owner' ? CheckCircle : DollarSign}
             iconColor="text-green-600"
             bgColor="bg-green-100 dark:bg-green-500/20"
-            value={user.active_role === 'owner' ? '0' : '₱0'}
+            value={analytics ? (user.active_role === 'owner' ? analytics.completed_jobs?.toString() || '0' : `₱${analytics.total_earnings?.toLocaleString() || '0'}`) : '...'}
             label={user.active_role === 'owner' ? 'Completed Jobs' : 'Total Earnings'}
           />
         </div>
@@ -382,7 +429,6 @@ export default function DashboardPage() {
       )}
 
       <TabBar role={user.active_role} />
-      <AIChatModal />
     </div>
   );
 }

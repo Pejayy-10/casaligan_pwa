@@ -143,7 +143,13 @@ export default function RegisterStep2AddressPage() {
     setLoading(true);
 
     try {
-      await authService.addAddress(formData);
+      const payload = {
+        ...formData,
+        street_address: formData.street_address?.trim() || undefined,
+        subdivision: formData.subdivision?.trim() || undefined,
+        zip_code: formData.zip_code?.trim() || undefined,
+      };
+      await authService.addAddress(payload);
       navigate('/register/documents');
     } catch (err: unknown) {
       const errorDetail =
@@ -279,7 +285,7 @@ export default function RegisterStep2AddressPage() {
 
             <div>
               <label htmlFor="street_address" className={labelClass}>
-                Street Address
+                Street Address (optional)
               </label>
               <input
                 type="text"
@@ -295,13 +301,14 @@ export default function RegisterStep2AddressPage() {
             <div className="grid md:grid-cols-2 gap-4">
               <div>
                 <label htmlFor="subdivision" className={labelClass}>
-                  Subdivision/Village
+                  Subdivision/Village (optional)
                 </label>
                 <input
                   type="text"
                   id="subdivision"
                   value={formData.subdivision}
                   onChange={(e) => setFormData({ ...formData, subdivision: e.target.value })}
+                  placeholder="e.g. Barangay Subdivision"
                   className={inputClass}
                   disabled={loading}
                 />
@@ -309,13 +316,14 @@ export default function RegisterStep2AddressPage() {
 
               <div>
                 <label htmlFor="zip_code" className={labelClass}>
-                  Zip Code
+                  Zip Code (optional)
                 </label>
                 <input
                   type="text"
                   id="zip_code"
                   value={formData.zip_code}
                   onChange={(e) => setFormData({ ...formData, zip_code: e.target.value })}
+                  placeholder="e.g. 1100"
                   className={inputClass}
                   disabled={loading}
                 />

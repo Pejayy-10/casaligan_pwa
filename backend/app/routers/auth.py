@@ -474,3 +474,114 @@ def approve_application(
     db.commit()
     
     return {"message": "Application approved successfully"}
+
+
+@router.get("/analytics")
+def get_user_analytics(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get dashboard analytics for the current user based on their active role"""
+    from app.models_v2.forum import ForumPost, InterestCheck
+    from app.models_v2.contract import Contract, ContractStatus
+    from app.models_v2.conversation import Conversation
+    from app.models_v2.rating import Rating
+    from app.models_v2.worker_employer import Worker, Employer
+    from sqlalchemy import and_, or_
+    
+    analytics = {}
+    
+    if current_user.active_role == 'owner':
+        # Get or create employer record
+        employer = db.query(Employer).filter(Employer.user_id == current_user.id).first()
+        if not employer:
+            employer = Employer(user_id=current_user.id)
+            db.add(employer)
+            db.commit()
+            db.refresh(employer)
+        employer_id = employer.employer_id
+        
+        # Jobs Posted (count all posts by this employer)
+        jobs_posted = db.query(ForumPost).filter(
+            ForumPost.employer_id == employer_id,
+            ForumPost.deleted_at.is_(None)
+        ).count()
+        
+        # Messages (conversations where user is a participant)
+        messages = db.query(Conversation).filter(
+            Conversation.participant_ids.contains([current_user.id])
+        ).count()
+        
+        # Reviews received (count ratings where this user is the target)
+        reviews = db.query(Rating).filter(
+            Rating.target_user_id == current_user.id,
+            Rating.deleted_at.is_(None)
+        ).count()
+        
+        # Completed Jobs (count contracts where employer has completed jobs)
+        completed_jobs = db.query(Contract).filter(
+            Contract.employer_id == employer_id,
+            Contract.status == ContractStatus.COMPLETED
+        ).count()
+        
+        analytics = {
+            "jobs_posted": jobs_posted,
+            "messages": messages,
+            "reviews": reviews,
+            "completed_jobs": completed_jobs
+        }
+    
+    else:  # housekeeper
+        # Get or create worker record
+        worker = db.query(Worker).filter(Worker.user_id == current_user.id).first()
+        if not worker:
+            worker = Worker(user_id=current_user.id)
+            db.add(worker)
+            db.commit()
+            db.refresh(worker)
+        worker_id = worker.worker_id
+        
+        # Jobs Applied (count interest checks submitted by this worker)
+        jobs_applied = db.query(InterestCheck).filter(
+            InterestCheck.worker_id == worker_id
+        ).count()
+        
+        # Messages (conversations where user is a participant)
+        messages = db.query(Conversation).filter(
+            Conversation.participant_ids.contains([current_user.id])
+        ).count()
+        
+        # Reviews received (count ratings where this user is the target)
+        reviews = db.query(Rating).filter(
+            Rating.target_user_id == current_user.id,
+            Rating.deleted_at.is_(None)
+        ).count()
+        
+        # Total Earnings (sum of completed and paid contracts)
+        total_earnings = 0
+        completed_contracts = db.query(Contract).filter(
+            Contract.worker_id == worker_id,
+            Contract.status == ContractStatus.COMPLETED,
+            Contract.paid_at.isnot(None)
+        ).all()
+        
+        # Calculate earnings from contract_terms JSON
+        import json
+        for contract in completed_contracts:
+            if contract.contract_terms:
+                try:
+                    terms = json.loads(contract.contract_terms)
+                    # Handle both budget and payment_amount fields
+                    amount = terms.get('budget') or terms.get('payment_amount') or 0
+                    total_earnings += float(amount)
+                except:
+                    pass
+        
+        analytics = {
+            "jobs_applied": jobs_applied,
+            "messages": messages,
+            "reviews": reviews,
+            "total_earnings": total_earnings
+        }
+    
+    return analytics

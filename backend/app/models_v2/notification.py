@@ -30,6 +30,11 @@ class NotificationType(str, enum.Enum):
     DIRECT_HIRE_APPROVED = "direct_hire_approved"     # Owner approved completion
     DIRECT_HIRE_PAID = "direct_hire_paid"             # Payment confirmed
     
+    # Contract Extension related
+    CONTRACT_EXTENSION_PROPOSED = "contract_extension_proposed"  # Owner proposed extension
+    CONTRACT_EXTENSION_ACCEPTED = "contract_extension_accepted"  # Worker accepted extension
+    CONTRACT_EXTENSION_REJECTED = "contract_extension_rejected"  # Worker rejected extension
+    
     # General
     SYSTEM = "system"                             # System notification
     REMINDER = "reminder"                         # General reminder

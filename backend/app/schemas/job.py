@@ -103,7 +103,7 @@ class JobPostResponse(BaseModel):
             image_urls=custom_fields.get('image_urls', []),
             duration_type=duration_type,
             start_date=custom_fields.get('start_date') or post.start_date,
-            end_date=custom_fields.get('end_date') or post.end_date,
+            end_date=post.end_date or custom_fields.get('end_date'),
             location=custom_fields.get('location') or post.location,
             category_id=post.category_id,
             category_name=post.category.name if post.category else None,

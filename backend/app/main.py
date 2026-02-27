@@ -5,7 +5,17 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
-from app.routers import auth, jobs, payments, checkins, progress, debug, upload, reports, packages, direct_hire, notifications, ratings, messaging, availability, categories, ai_chat
+from app.routers import auth, jobs, payments, checkins, progress, debug, upload, reports, packages, direct_hire, notifications, ratings, messaging, availability, categories, contract_extensions
+
+try:
+    from app.routers import ai_chat
+    _has_ai_chat = True
+except ModuleNotFoundError as e:
+    if "google" in str(e).lower():
+        _has_ai_chat = False
+        print("Note: AI chat disabled (install google-generativeai to enable)")
+    else:
+        raise
 
 app = FastAPI(title="Casaligan API", version="1.0.0")
 
@@ -59,7 +69,9 @@ app.include_router(notifications.router)
 app.include_router(ratings.router)
 app.include_router(messaging.router)
 app.include_router(availability.router)
-app.include_router(ai_chat.router)
+app.include_router(contract_extensions.router)
+if _has_ai_chat:
+    app.include_router(ai_chat.router)
 
 @app.on_event("startup")
 async def startup_event():

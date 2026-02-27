@@ -14,6 +14,7 @@ from app.models_v2.user import User
 from app.models_v2.worker_employer import Employer, Worker
 from app.models_v2.forum import ForumPost, ForumPostStatus, InterestCheck, InterestStatus, JobType, EditResponseStatus
 from app.models_v2.contract import Contract
+from app.models_v2.contract_extension import ContractExtension, ExtensionStatus
 from app.models_v2.conversation import Conversation
 from app.models_v2.payment import PaymentSchedule, PaymentStatus, PaymentTransaction
 from app.security import get_current_user
@@ -370,6 +371,24 @@ def get_my_accepted_jobs(
         
         post_status = post.status.value if hasattr(post.status, 'value') else str(post.status)
         
+        # Get pending extension for this contract (if any)
+        pending_extension = None
+        if contract:
+            ext = db.query(ContractExtension).filter(
+                ContractExtension.contract_id == contract.contract_id,
+                ContractExtension.status == ExtensionStatus.PENDING
+            ).first()
+            if ext:
+                proposer = db.query(User).filter(User.id == ext.proposed_by).first()
+                pending_extension = {
+                    "extension_id": ext.extension_id,
+                    "proposed_end_date": ext.proposed_end_date,
+                    "proposed_budget": float(ext.proposed_budget) if ext.proposed_budget else None,
+                    "reason": ext.reason,
+                    "proposed_by_name": f"{proposer.first_name} {proposer.last_name}" if proposer else None,
+                    "created_at": ext.created_at.isoformat() if ext.created_at else None,
+                }
+
         result.append({
             "post_id": post.post_id,
             "title": post.title,
@@ -391,6 +410,7 @@ def get_my_accepted_jobs(
                 "contract_id": contract.contract_id if contract else None,
                 "status": contract.status.value if contract and hasattr(contract.status, 'value') else (str(contract.status) if contract else None)
             } if contract else None,
+            "pending_extension": pending_extension,
             "payments": {
                 "total_schedules": len(payment_schedules),
                 "pending_payments": pending_payments,
@@ -1486,6 +1506,86 @@ def update_job_status(
     }
 
 
+@router.post("/{post_id}/repost", response_model=JobPostResponse, status_code=status.HTTP_201_CREATED)
+def repost_job_post(
+    post_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new job post by cloning an existing finished job (owners only).
+
+    This lets owners quickly repost a completed/cancelled job with the same details.
+    """
+    # Find original post
+    post = db.query(ForumPost).filter(
+        ForumPost.post_id == post_id,
+        ForumPost.deleted_at.is_(None)
+    ).first()
+
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job post not found"
+        )
+
+    # Check ownership
+    employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+    if not employer or employer.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only repost your own job posts"
+        )
+
+    # Only allow reposting finished jobs
+    finished_statuses = {ForumPostStatus.COMPLETED, ForumPostStatus.CANCELLED}
+    current_status = post.status if isinstance(post.status, ForumPostStatus) else ForumPostStatus(str(post.status))
+    if current_status not in finished_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only completed or cancelled jobs can be reposted"
+        )
+
+    # Clone the job fields; keep the same details but reset status and timestamps
+    new_post = ForumPost(
+        employer_id=post.employer_id,
+        user_id=current_user.id,
+        title=post.title,
+        content=post.content,
+        location=post.location,
+        job_type=post.job_type,
+        salary=post.salary,
+        category_id=post.category_id,
+        is_longterm=post.is_longterm,
+        start_date=post.start_date,
+        end_date=post.end_date,
+        payment_frequency=getattr(post, "payment_frequency", None),
+        payment_amount=getattr(post, "payment_amount", None),
+        payment_schedule=getattr(post, "payment_schedule", None),
+        status=ForumPostStatus.OPEN,
+        is_recurring=getattr(post, "is_recurring", False),
+        day_of_week=getattr(post, "day_of_week", None),
+        start_time=getattr(post, "start_time", None),
+        end_time=getattr(post, "end_time", None),
+        frequency=getattr(post, "frequency", None),
+        recurring_status=getattr(post, "recurring_status", None)
+    )
+
+    db.add(new_post)
+    db.flush()  # Get post_id before assigning relationships
+
+    # Copy category relationships if present (multi-category)
+    if hasattr(post, "categories") and post.categories:
+        new_post.categories = post.categories[:]  # shallow copy list
+
+    db.commit()
+    db.refresh(new_post)
+
+    # Build response using employer user info
+    employer_user = db.query(User).filter(User.id == employer.user_id).first() or current_user
+
+    return JobPostResponse.from_orm_model(new_post, employer_user, applicants_count=0, pending_payments_count=0, accepted_workers_list=[])
+
+
 # ============== HOUSEKEEPER JOB COMPLETION ENDPOINTS ==============
 
 class JobCompletionRequest(BaseModel):
@@ -1808,6 +1908,102 @@ def get_completion_details(
         "completion_proof_url": post.completion_proof_url,
         "completion_notes": post.completion_notes,
         "completed_at": post.completed_at.isoformat() if post.completed_at else None
+    }
+
+
+@router.get("/{post_id}/summary")
+def get_job_summary(
+    post_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get full job summary for a completed job (owner only): details, images, workers, completion proofs, total paid."""
+    post = db.query(ForumPost).filter(
+        ForumPost.post_id == post_id,
+        ForumPost.deleted_at.is_(None)
+    ).first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job post not found")
+
+    employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+    if not employer or employer.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the job owner can view the summary")
+
+    if post.status != ForumPostStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Summary is only available for completed jobs"
+        )
+
+    job_details = {}
+    if post.content and post.content.startswith("{"):
+        try:
+            job_details = json.loads(post.content)
+        except Exception:
+            pass
+
+    budget = float(post.salary) if post.salary else job_details.get("budget", 0)
+    contracts = db.query(Contract).filter(Contract.post_id == post_id).all()
+
+    workers_summary = []
+    total_amount_paid = 0
+    payments_list = []
+
+    for contract in contracts:
+        worker = db.query(Worker).filter(Worker.worker_id == contract.worker_id).first()
+        worker_user = db.query(User).filter(User.id == worker.user_id).first() if worker else None
+        worker_name = f"{worker_user.first_name} {worker_user.last_name}" if worker_user else "Unknown"
+
+        schedules = db.query(PaymentSchedule).filter(
+            PaymentSchedule.contract_id == contract.contract_id
+        ).order_by(PaymentSchedule.due_date).all()
+
+        worker_total = 0
+        for s in schedules:
+            status_val = s.status.value if hasattr(s.status, "value") else str(s.status)
+            amount_float = float(s.amount)
+            payments_list.append({
+                "worker_name": worker_name,
+                "due_date": s.due_date,
+                "amount": amount_float,
+                "status": status_val,
+                "schedule_id": s.schedule_id,
+            })
+            if status_val == "confirmed":
+                worker_total += amount_float
+                total_amount_paid += amount_float
+
+        workers_summary.append({
+            "contract_id": contract.contract_id,
+            "worker_id": contract.worker_id,
+            "worker_name": worker_name,
+            "completion_proof_url": contract.completion_proof_url,
+            "completion_notes": contract.completion_notes,
+            "completed_at": contract.completed_at.isoformat() if contract.completed_at else None,
+            "payment_proof_url": contract.payment_proof_url,
+            "paid_at": contract.paid_at.isoformat() if contract.paid_at else None,
+            "total_paid_for_worker": worker_total,
+        })
+
+    return {
+        "post_id": post.post_id,
+        "title": post.title,
+        "description": job_details.get("description", ""),
+        "house_type": job_details.get("house_type", "house"),
+        "cleaning_type": job_details.get("cleaning_type", "general"),
+        "budget": budget,
+        "people_needed": job_details.get("people_needed", 1),
+        "image_urls": job_details.get("image_urls", []),
+        "location": post.location or job_details.get("location", ""),
+        "duration_type": "long_term" if post.is_longterm else "short_term",
+        "start_date": post.start_date or job_details.get("start_date"),
+        "end_date": post.end_date or job_details.get("end_date"),
+        "created_at": post.created_at.isoformat() if post.created_at else None,
+        "completed_at": post.completed_at.isoformat() if post.completed_at else None,
+        "payment_schedule": job_details.get("payment_schedule"),
+        "workers": workers_summary,
+        "payments": payments_list,
+        "total_amount_paid": total_amount_paid,
     }
 
 

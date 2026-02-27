@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList } from 'lucide-react';
+import ContractExtensionResponseModal, { type PendingExtension } from './ContractExtensionResponseModal';
 
 interface AcceptedJob {
   post_id: number;
@@ -23,6 +24,14 @@ interface AcceptedJob {
   contract: {
     contract_id: number | null;
     status: string | null;
+  } | null;
+  pending_extension: {
+    extension_id: number;
+    proposed_end_date: string;
+    proposed_budget: number | null;
+    reason: string | null;
+    proposed_by_name: string | null;
+    created_at: string | null;
   } | null;
   payments: {
     total_schedules: number;
@@ -52,6 +61,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
   const [jobs, setJobs] = useState<AcceptedJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'all' | 'ongoing' | 'pending_completion' | 'completed'>('all');
+  const [showExtensionResponse, setShowExtensionResponse] = useState<PendingExtension | null>(null);
 
   useEffect(() => {
     loadMyJobs();
@@ -253,6 +263,46 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                 </div>
               )}
 
+              {/* Pending Extension Request Banner */}
+              {job.pending_extension && (myStatus === 'ongoing' || myStatus === 'active') && (
+                <div className="bg-purple-50 dark:bg-purple-500/10 rounded-xl p-4 mb-4 border-2 border-purple-300 dark:border-purple-500/30 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    <h4 className="text-sm font-bold text-purple-700 dark:text-purple-300">Contract Extension Proposed</h4>
+                  </div>
+                  <p className="text-sm text-[#4B244A]/80 dark:text-white/80">
+                    <span className="font-semibold">{job.pending_extension.proposed_by_name || 'Your employer'}</span> wants to extend this contract until{' '}
+                    <span className="font-bold text-purple-700 dark:text-purple-300">{new Date(job.pending_extension.proposed_end_date).toLocaleDateString()}</span>
+                    {job.pending_extension.proposed_budget !== null && (
+                      <> with a new budget of <span className="font-bold text-green-700 dark:text-green-300">₱{job.pending_extension.proposed_budget.toLocaleString()}</span></>  
+                    )}
+                  </p>
+                  {job.pending_extension.reason && (
+                    <p className="text-xs text-[#4B244A]/60 dark:text-white/60 italic">"{job.pending_extension.reason}"</p>
+                  )}
+                  <button
+                    onClick={() => {
+                      setShowExtensionResponse({
+                        extension_id: job.pending_extension!.extension_id,
+                        contract_id: job.contract?.contract_id || 0,
+                        post_id: job.post_id,
+                        job_title: job.title,
+                        current_end_date: job.end_date,
+                        proposed_end_date: job.pending_extension!.proposed_end_date,
+                        proposed_budget: job.pending_extension!.proposed_budget,
+                        reason: job.pending_extension!.reason,
+                        proposed_by_name: job.pending_extension!.proposed_by_name,
+                        status: 'pending',
+                        created_at: job.pending_extension!.created_at,
+                      });
+                    }}
+                    className="w-full py-2 bg-purple-500 text-white font-bold rounded-lg hover:bg-purple-600 transition-all shadow-md text-sm"
+                  >
+                    📋 Review Extension Request
+                  </button>
+                </div>
+              )}
+
               {/* Action Buttons - Use myStatus (contract status) for individual worker state */}
               <div className="space-y-2">                {/* Show payment confirmation if payment is sent but not confirmed */}
                 {hasPendingPaymentConfirmation(job) && (
@@ -389,6 +439,19 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
           );
           })}
         </div>
+      )}
+
+      {/* Contract Extension Response Modal */}
+      {showExtensionResponse && (
+        <ContractExtensionResponseModal
+          isOpen={true}
+          onClose={() => setShowExtensionResponse(null)}
+          extension={showExtensionResponse}
+          onSuccess={() => {
+            setShowExtensionResponse(null);
+            loadMyJobs();
+          }}
+        />
       )}
     </div>
   );
