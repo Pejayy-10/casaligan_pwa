@@ -24,8 +24,11 @@ import httpx
 import os
 import json
 import re
+import logging
 from pathlib import Path
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
@@ -57,23 +60,39 @@ def verify_document_with_ai(file_path: str, document_type: str, first_name: str,
                 return {"status": "pending", "notes": "Pending admin review.", "rejection_reason": None}
             file_bytes = full_path.read_bytes()
 
-        model = genai.GenerativeModel('gemini-2.5-flash')
+        model = genai.GenerativeModel('gemini-1.5-flash')
         doc_label = document_type.replace('_', ' ').title()
 
-        prompt = f"""You are a document verification assistant for Casaligan, a Philippine housekeeping platform.
-Analyze this uploaded document and respond with ONLY valid JSON.
+        prompt = f"""You are a strict document verification officer for Casaligan, a Philippine housekeeping platform.
+You must carefully analyze the uploaded image and return ONLY valid JSON — no extra text.
 
 Expected document type: {doc_label}
 Registrant name: {first_name} {last_name}
 
-Evaluate:
-1. Is this a real, legitimate document (not blank, not a test image, not a random photo)?
-2. Is it legible and clear (not blurry, cut off, or obscured)?
-3. Does the name on the document match "{first_name} {last_name}" (partial match is acceptable)?
-4. Is the document expired (check expiry date if visible)?
-5. Is the document type correct (does it look like a {doc_label})?
+You MUST assess:
+1. Is this actually a government-issued or official document? (NOT a photo of a building, person, food, scenery, screenshot, blank paper, or anything else)
+2. Is the document legible — text is readable, not blurry, not cut off, not obstructed?
+3. Does the name on the document closely match "{first_name} {last_name}"?
+4. Is the document expired? (check visible expiry date if any)
+5. Does the document type match "{doc_label}"? For Philippine documents this includes:
+   - national_id = PhilSys National ID
+   - drivers_license = LTO Driver's License
+   - passport = Philippine Passport
+   - sss_id = SSS / UMID
+   - philhealth_id = PhilHealth ID
+   - voters_id = COMELEC Voter's ID
+   - postal_id = Philippine Postal ID
+   - tin_id = BIR TIN ID
+   - prc_id = PRC Professional ID
+   - barangay_id = Barangay ID or Clearance
+   If the uploaded document is a completely different type, set correct_type to false.
 
-Return ONLY this JSON, no extra text:
+BE STRICT:
+- If it is NOT a document (random photo, selfie, building, meme, etc.) → is_legitimate: false, confidence: 0
+- If text is unreadable → is_legible: false
+- If wrong document type → correct_type: false
+
+Return ONLY this JSON:
 {{
   "is_legitimate": true,
   "is_legible": true,
@@ -81,7 +100,7 @@ Return ONLY this JSON, no extra text:
   "is_expired": false,
   "correct_type": true,
   "confidence": 90,
-  "notes": "brief summary",
+  "notes": "brief summary of what was found",
   "rejection_reason": null
 }}"""
 
@@ -124,6 +143,7 @@ Return ONLY this JSON, no extra text:
             }
 
     except Exception as e:
+        logger.error(f"AI document verification failed: {type(e).__name__}: {e}")
         return {"status": "pending", "notes": "Pending admin review.", "rejection_reason": None}
 
 
