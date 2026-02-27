@@ -660,15 +660,27 @@ export default function JobsPage() {
           isOpen={showRatingModal}
           onClose={() => { setShowRatingModal(false); setRatingJobData(null); }}
           onSubmit={async (rating, review) => {
-            const response = await apiClient.post('/ratings/', {
-              rated_user_id: ratingJobData.worker.worker_user_id,
-              contract_id: ratingJobData.worker.contract_id,
-              stars: rating,
-              review: review || null
-            });
-            if (response.status === 200 || response.status === 201) {
-              setRatedContracts(prev => new Set(prev).add(ratingJobData.worker.contract_id));
-            } else { throw new Error('Failed to submit rating'); }
+            try {
+              const response = await apiClient.post('/ratings/', {
+                rated_user_id: ratingJobData.worker.worker_user_id,
+                contract_id: ratingJobData.worker.contract_id,
+                stars: rating,
+                review: review || null
+              });
+              if (response.status === 200 || response.status === 201) {
+                setRatedContracts(prev => new Set(prev).add(ratingJobData.worker.contract_id));
+                // Reload ratings from backend to ensure persistence
+                loadRatings();
+              }
+            } catch (err: any) {
+              // If backend says already rated, mark as rated in frontend too
+              if (err?.response?.status === 400 && err?.response?.data?.detail?.includes('already rated')) {
+                setRatedContracts(prev => new Set(prev).add(ratingJobData.worker.contract_id));
+                loadRatings();
+                throw new Error('You have already rated this housekeeper for this job.');
+              }
+              throw err;
+            }
           }}
           workerName={ratingJobData.worker.name}
         />
@@ -946,6 +958,16 @@ function OwnerJobsContent({
                 </button>
              )}
              
+             {/* Review Completion & Pay button for pending_completion jobs */}
+             {job.status === 'pending_completion' && (
+                <button
+                  onClick={() => onShowCompletionReview(job)}
+                  className="w-full py-2.5 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-lg flex items-center justify-center gap-2 animate-pulse"
+                >
+                  <CheckCircle className="w-4 h-4" /> Review Completion & Pay
+                </button>
+             )}
+             
              {/* Dynamic Action Button based on status */}
              {job.status === 'ongoing' && job.duration_type === 'long_term' && (
                  <button
@@ -998,6 +1020,39 @@ function OwnerJobsContent({
                >
                  <FileText className="w-4 h-4" /> Summary
                </button>
+             )}
+
+             {/* Rate & Report buttons for completed jobs */}
+             {job.status === 'completed' && job.accepted_workers && job.accepted_workers.length > 0 && (
+               <div className="space-y-2 mt-2">
+                 {job.accepted_workers.map((worker) => (
+                   <div key={`rate-${worker.worker_id}`} className="flex gap-2">
+                     {ratedContracts.has(worker.contract_id) ? (
+                       <div className="flex-1 py-2.5 text-sm font-bold rounded-lg flex items-center justify-center gap-2 bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400 border border-green-200 dark:border-green-500/20">
+                         <CheckCircle className="w-4 h-4" />
+                         Rated {worker.name} ✓
+                       </div>
+                     ) : (
+                       <button
+                         onClick={() => onRateWorker(job, worker)}
+                         className="flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 shadow-sm bg-yellow-400 text-[#4B244A] hover:bg-yellow-500"
+                       >
+                         <Star className="w-4 h-4" />
+                         Rate {worker.name}
+                       </button>
+                     )}
+                     {!reportedUsers.has(`${job.post_id}-${worker.worker_user_id}`) && (
+                       <button
+                         onClick={() => onReportWorker(job, worker)}
+                         className="py-2 px-3 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-1 bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500 dark:bg-white/5 dark:text-white/40 dark:hover:bg-red-900/20 dark:hover:text-red-400 shadow-sm"
+                         title={`Report ${worker.name}`}
+                       >
+                         <AlertTriangle className="w-4 h-4" />
+                       </button>
+                     )}
+                   </div>
+                 ))}
+               </div>
              )}
 
              {/* Repost button for finished jobs */}

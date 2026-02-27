@@ -76,21 +76,38 @@ export default function DashboardPage() {
 
   // Fetch rating summary and reviews for housekeepers
   useEffect(() => {
-    const fetchRatingsAndReviews = async () => {
+    const fetchRatingSummary = async () => {
       if (!user) return;
-      
       try {
         const summaryResponse = await apiClient.get(`/ratings/user/${user.id}/summary`);
         setRatingSummary(summaryResponse.data);
-
-        const reviewsResponse = await apiClient.get(`/ratings/user/${user.id}`);
-        setReviews(reviewsResponse.data);
       } catch (error) {
-        console.error('Failed to fetch ratings and reviews:', error);
+        console.error('Failed to fetch rating summary:', error);
+      }
+    };
+
+    const fetchReviews = async () => {
+      if (!user) return;
+      try {
+        const reviewsResponse = await apiClient.get(`/ratings/user/${user.id}`);
+        console.log('Reviews fetched:', reviewsResponse.data);
+        // Map backend fields to ensure compatibility
+        const mappedReviews = (reviewsResponse.data || []).map((r: any) => ({
+          rating_id: r.rating_id,
+          rater_id: r.rater_id,
+          rater_name: r.rater_name || 'Anonymous',
+          stars: r.stars ?? r.rating ?? 0,
+          review: r.review ?? r.comment ?? null,
+          created_at: r.created_at || '',
+        }));
+        setReviews(mappedReviews);
+      } catch (error) {
+        console.error('Failed to fetch reviews:', error);
       }
     };
     
-    fetchRatingsAndReviews();
+    fetchRatingSummary();
+    fetchReviews();
   }, [user]);
 
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
@@ -284,7 +301,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Rating Details Section (Housekeeper Only) */}
-        {user.active_role === 'housekeeper' && ratingSummary && ratingSummary.total_ratings > 0 && (
+        {user.active_role === 'housekeeper' && (
           <div className="grid md:grid-cols-3 gap-6">
             
             {/* Rating Breakdown Card */}
@@ -296,45 +313,65 @@ export default function DashboardPage() {
                 </span>
               </div>
               
-              <div className="text-center mb-6">
-                <div className="text-5xl font-black text-[#4B244A] dark:text-white tracking-tight">
-                  {ratingSummary.average_rating.toFixed(1)}
-                </div>
-                <div className="flex justify-center my-2">
-                  <StarRating rating={ratingSummary.average_rating} size="md" />
-                </div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  Based on {ratingSummary.total_ratings} review{ratingSummary.total_ratings !== 1 ? 's' : ''}
-                </p>
-              </div>
-
-              <div className="space-y-2.5">
-                {[5, 4, 3, 2, 1].map((stars) => {
-                  const count = ratingSummary.rating_breakdown?.[stars] || 0;
-                  const percentage = ratingSummary.total_ratings > 0 
-                    ? (count / ratingSummary.total_ratings) * 100 
-                    : 0;
-                  return (
-                    <div key={stars} className="flex items-center gap-3 text-sm">
-                      <span className="font-bold text-gray-600 dark:text-gray-300 w-3">{stars}</span>
-                      <Star className="w-3 h-3 text-gray-400" />
-                      <div className="flex-1 h-2 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-[#EA526F] rounded-full transition-all duration-700 ease-out"
-                          style={{ width: `${percentage}%` }}
-                        />
-                      </div>
-                      <span className="text-gray-400 text-xs w-6 text-right">{count}</span>
+              {ratingSummary && ratingSummary.total_ratings > 0 ? (
+                <>
+                  <div className="text-center mb-6">
+                    <div className="text-5xl font-black text-[#4B244A] dark:text-white tracking-tight">
+                      {ratingSummary.average_rating.toFixed(1)}
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="flex justify-center my-2">
+                      <StarRating rating={ratingSummary.average_rating} size="md" />
+                    </div>
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                      Based on {ratingSummary.total_ratings} review{ratingSummary.total_ratings !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    {[5, 4, 3, 2, 1].map((stars) => {
+                      const count = ratingSummary.rating_breakdown?.[stars] || 0;
+                      const percentage = ratingSummary.total_ratings > 0 
+                        ? (count / ratingSummary.total_ratings) * 100 
+                        : 0;
+                      return (
+                        <div key={stars} className="flex items-center gap-3 text-sm">
+                          <span className="font-bold text-gray-600 dark:text-gray-300 w-3">{stars}</span>
+                          <Star className="w-3 h-3 text-gray-400" />
+                          <div className="flex-1 h-2 bg-gray-100 dark:bg-white/10 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-[#EA526F] rounded-full transition-all duration-700 ease-out"
+                              style={{ width: `${percentage}%` }}
+                            />
+                          </div>
+                          <span className="text-gray-400 text-xs w-6 text-right">{count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <div className="w-16 h-16 bg-gray-100 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Star className="w-8 h-8 text-gray-300 dark:text-gray-600" />
+                  </div>
+                  <div className="text-4xl font-black text-gray-300 dark:text-gray-600 tracking-tight mb-2">0.0</div>
+                  <div className="flex justify-center my-2">
+                    <StarRating rating={0} size="md" />
+                  </div>
+                  <p className="text-sm font-medium text-gray-400 dark:text-gray-500">
+                    No ratings yet
+                  </p>
+                  <p className="text-xs text-gray-400 dark:text-gray-600 mt-2">
+                    Complete jobs to start receiving reviews
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Recent Reviews Card */}
             <div className="md:col-span-2 bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl rounded-3xl p-6 border border-white/60 dark:border-white/5 shadow-lg flex flex-col">
               <div className="flex items-center justify-between mb-6">
-                <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Recent Reviews</h3>
+                <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Reviews Received</h3>
                 {reviews.length > 3 && (
                   <button className="text-sm font-bold text-[#EA526F] hover:text-[#d4486a] transition-colors flex items-center">
                     View All <ChevronRight className="w-4 h-4" />
@@ -373,8 +410,11 @@ export default function DashboardPage() {
                   ))
                 ) : (
                   <div className="text-center py-12 text-gray-400">
-                    <MessageCircle className="w-12 h-12 mx-auto mb-3 opacity-20" />
-                    <p>No reviews yet.</p>
+                    <Star className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                    <p className="font-medium text-gray-500 dark:text-gray-400">No reviews yet</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                      Reviews from homeowners will appear here after completing jobs
+                    </p>
                   </div>
                 )}
               </div>

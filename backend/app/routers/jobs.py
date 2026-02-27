@@ -209,7 +209,13 @@ def get_my_job_posts(
     if status_filter and status_filter.lower() != 'all':
         try:
             filter_status = ForumPostStatus(status_filter.lower())
-            query = query.filter(ForumPost.status == filter_status)
+            # When filtering by "ongoing", also include "pending_completion" jobs
+            if filter_status == ForumPostStatus.ONGOING:
+                query = query.filter(
+                    ForumPost.status.in_([ForumPostStatus.ONGOING, ForumPostStatus.PENDING_COMPLETION])
+                )
+            else:
+                query = query.filter(ForumPost.status == filter_status)
         except ValueError:
             # Invalid status, ignore filter
             pass

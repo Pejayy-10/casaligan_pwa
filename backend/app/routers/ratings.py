@@ -132,7 +132,9 @@ def get_user_ratings(
     """Get all ratings for a specific user"""
     
     ratings = db.query(Rating).filter(
-        Rating.target_user_id == user_id
+        Rating.target_user_id == user_id,
+        Rating.deleted_at.is_(None),
+        Rating.is_hidden == False
     ).order_by(Rating.created_at.desc()).offset(offset).limit(limit).all()
     
     result = []
@@ -147,6 +149,7 @@ def get_user_ratings(
             rated_user_id=rating.target_user_id,
             stars=rating.rating,
             review=rating.comment,
+            contract_id=rating.contract_id,
             post_id=rating.post_id,
             hire_id=rating.hire_id,
             created_at=rating.created_at.isoformat() if rating.created_at else ""
@@ -189,8 +192,12 @@ def get_user_rating_summary(
 ):
     """Get rating summary (average + breakdown) for a user"""
     
-    # Get all ratings for this user
-    ratings = db.query(Rating).filter(Rating.target_user_id == user_id).all()
+    # Get all ratings for this user (exclude deleted and hidden)
+    ratings = db.query(Rating).filter(
+        Rating.target_user_id == user_id,
+        Rating.deleted_at.is_(None),
+        Rating.is_hidden == False
+    ).all()
     
     if not ratings:
         return RatingSummary(
