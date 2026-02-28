@@ -251,22 +251,27 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                     onClick={() => (isSelected || canSelect) && toggleWorker(applicant.interest_id)}
                   >
                     <div className="flex items-center gap-4">
-                      {/* Toggle Circle */}
+                      {/* Toggle Checkbox */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           if (isSelected || canSelect) toggleWorker(applicant.interest_id);
                         }}
                         disabled={!isSelected && !canSelect}
-                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all shadow-sm ${
+                        role="checkbox"
+                        aria-checked={isSelected}
+                        className={`w-6 h-6 rounded-md flex items-center justify-center transition-all shadow-sm border-2 ${
                           isSelected 
-                            ? 'bg-green-500 text-white' 
+                            ? 'bg-green-500 text-white border-green-600' 
                             : canSelect
-                              ? 'bg-white text-gray-400 border border-gray-200 dark:bg-white/20 dark:text-white/50 dark:border-transparent hover:bg-gray-50 dark:hover:bg-white/30'
-                              : 'bg-gray-100 text-gray-300 dark:bg-white/10 dark:text-white/30 cursor-not-allowed'
+                              ? 'bg-white text-gray-400 border-gray-300 dark:bg-white/20 dark:text-white/50 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-white/30'
+                              : 'bg-gray-100 text-gray-300 border-gray-300 dark:bg-white/10 dark:text-white/30 cursor-not-allowed'
                         }`}
                       >
-                        {isSelected ? <CheckCircle className="w-4 h-4" /> : <div className="w-4 h-4 border-2 border-gray-300 rounded-full" />}
+                        {isSelected ? 
+                          <CheckCircle className="w-3 h-3" /> 
+                          : <CheckCircle className="w-3 h-3 text-gray-300/40" />
+                        }
                       </button>
                       
                       <div className="flex-1">
