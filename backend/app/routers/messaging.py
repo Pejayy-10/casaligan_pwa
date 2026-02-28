@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from app.db import get_db
 from app.security import get_current_user
 from app.models_v2.user import User
-from app.models_v2.conversation import Conversation, Message
+from app.models_v2.conversation import Conversation, Message, ConversationStatus
 from app.models_v2.direct_hire import DirectHire, DirectHireStatus
 from app.models_v2.forum import ForumPost
 
@@ -242,23 +242,178 @@ def create_or_get_conversation(
 @router.get("/conversations", response_model=List[ConversationResponse])
 def get_my_conversations(
     status: Optional[str] = None,
+    include_archived: bool = False,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get all conversations for the current user"""
     
     # Find conversations where user is a participant
-    conversations = db.query(Conversation).filter(
+    query = db.query(Conversation).filter(
         Conversation.participant_ids.contains([current_user.id])
-    ).order_by(Conversation.updated_at.desc()).all()
+    )
     
     # Filter by status if provided
     if status:
         valid_statuses = ['active', 'read_only', 'archived']
         if status in valid_statuses:
-            conversations = [c for c in conversations if c.status == status]
+            query = query.filter(Conversation.status == status)
+    elif not include_archived:
+        # By default, exclude archived conversations
+        query = query.filter(Conversation.status != ConversationStatus.ARCHIVED)
     
-    return [conversation_to_response(c, current_user.id, db) for c in conversations]
+    conversations = query.order_by(Conversation.updated_at.desc()).all()
+    
+    if not conversations:
+        return []
+    
+    conv_ids = [c.conversation_id for c in conversations]
+    
+    # Batch: collect all participant IDs and fetch users in one query
+    all_participant_ids = set()
+    for c in conversations:
+        all_participant_ids.update(c.participant_ids)
+    users = db.query(User).filter(User.id.in_(all_participant_ids)).all()
+    user_map = {u.id: f"{u.first_name} {u.last_name}" for u in users}
+    
+    # Batch: fetch all job/hire titles in one query each
+    job_ids = [c.job_id for c in conversations if c.job_id]
+    hire_ids = [c.hire_id for c in conversations if c.hire_id]
+    
+    job_title_map: dict = {}
+    if job_ids:
+        jobs = db.query(ForumPost.post_id, ForumPost.title).filter(ForumPost.post_id.in_(job_ids)).all()
+        job_title_map = {j.post_id: (j.title or f"Job #{j.post_id}") for j in jobs}
+    
+    hire_title_map: dict = {}
+    if hire_ids:
+        hires = db.query(DirectHire.hire_id).filter(DirectHire.hire_id.in_(hire_ids)).all()
+        hire_title_map = {h.hire_id: f"Direct Hire #{h.hire_id}" for h in hires}
+    
+    # Batch: get last message for each conversation using a subquery
+    from sqlalchemy.orm import aliased
+    last_msg_subq = (
+        db.query(
+            Message.conversation_id,
+            func.max(Message.message_id).label("max_id")
+        )
+        .filter(
+            Message.conversation_id.in_(conv_ids),
+            Message.deleted_at.is_(None)
+        )
+        .group_by(Message.conversation_id)
+        .subquery()
+    )
+    last_messages_rows = (
+        db.query(Message)
+        .join(last_msg_subq, and_(
+            Message.message_id == last_msg_subq.c.max_id
+        ))
+        .all()
+    )
+    last_msg_map = {m.conversation_id: m for m in last_messages_rows}
+    
+    # Batch: get unread counts per conversation in one query
+    unread_rows = (
+        db.query(
+            Message.conversation_id,
+            func.count(Message.message_id).label("cnt")
+        )
+        .filter(
+            Message.conversation_id.in_(conv_ids),
+            Message.sender_id != current_user.id,
+            Message.read_at.is_(None),
+            Message.deleted_at.is_(None)
+        )
+        .group_by(Message.conversation_id)
+        .all()
+    )
+    unread_map = {row.conversation_id: row.cnt for row in unread_rows}
+    
+    # Build responses without extra queries
+    results = []
+    for conv in conversations:
+        participant_names = [user_map.get(pid, "Unknown") for pid in conv.participant_ids]
+        other_names = [user_map.get(pid, "Unknown") for pid in conv.participant_ids if pid != current_user.id]
+        other_participant_name = ", ".join(other_names) if other_names else "Unknown"
+        
+        # Title
+        title = conv.title
+        if not title:
+            if conv.hire_id and conv.hire_id in hire_title_map:
+                title = hire_title_map[conv.hire_id]
+            elif conv.job_id and conv.job_id in job_title_map:
+                title = job_title_map[conv.job_id]
+            else:
+                title = "Conversation"
+        
+        last_msg = last_msg_map.get(conv.conversation_id)
+        unread_count = unread_map.get(conv.conversation_id, 0)
+        
+        results.append(ConversationResponse(
+            conversation_id=conv.conversation_id,
+            job_id=conv.job_id,
+            hire_id=conv.hire_id,
+            title=title,
+            status=conv.status if isinstance(conv.status, str) else conv.status.value,
+            participant_ids=conv.participant_ids,
+            participant_names=participant_names,
+            other_participant_name=other_participant_name,
+            last_message=last_msg.content if last_msg else None,
+            last_message_time=last_msg.sent_at.isoformat() if last_msg and last_msg.sent_at else None,
+            unread_count=unread_count,
+            created_at=conv.created_at.isoformat() if conv.created_at else ""
+        ))
+    
+    return results
+
+
+@router.post("/conversations/{conversation_id}/archive")
+def archive_conversation(
+    conversation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Archive a conversation"""
+    conversation = db.query(Conversation).filter(
+        Conversation.conversation_id == conversation_id
+    ).first()
+    
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    if current_user.id not in conversation.participant_ids:
+        raise HTTPException(status_code=403, detail="Not a participant in this conversation")
+    
+    conversation.status = ConversationStatus.ARCHIVED
+    conversation.archived_at = func.now()
+    db.commit()
+    
+    return {"message": "Conversation archived"}
+
+
+@router.post("/conversations/{conversation_id}/unarchive")
+def unarchive_conversation(
+    conversation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Unarchive a conversation"""
+    conversation = db.query(Conversation).filter(
+        Conversation.conversation_id == conversation_id
+    ).first()
+    
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    
+    if current_user.id not in conversation.participant_ids:
+        raise HTTPException(status_code=403, detail="Not a participant in this conversation")
+    
+    conversation.status = ConversationStatus.ACTIVE
+    conversation.archived_at = None
+    db.commit()
+    
+    return {"message": "Conversation unarchived"}
 
 
 @router.get("/conversations/{conversation_id}", response_model=ConversationDetailResponse)
@@ -410,20 +565,24 @@ def get_unread_count(
 ):
     """Get total unread message count for the user"""
     
-    # Get conversations user is part of
-    conversations = db.query(Conversation).filter(
-        Conversation.participant_ids.contains([current_user.id])
-    ).all()
+    # Get conversation IDs where user is a participant
+    conv_ids = [
+        c.conversation_id for c in
+        db.query(Conversation.conversation_id).filter(
+            Conversation.participant_ids.contains([current_user.id])
+        ).all()
+    ]
     
-    total_unread = 0
-    for conv in conversations:
-        unread = db.query(Message).filter(
-            Message.conversation_id == conv.conversation_id,
-            Message.sender_id != current_user.id,
-            Message.read_at.is_(None),
-            Message.deleted_at.is_(None)
-        ).count()
-        total_unread += unread
+    if not conv_ids:
+        return {"unread_count": 0}
+    
+    # Single query to count all unread messages across all conversations
+    total_unread = db.query(func.count(Message.message_id)).filter(
+        Message.conversation_id.in_(conv_ids),
+        Message.sender_id != current_user.id,
+        Message.read_at.is_(None),
+        Message.deleted_at.is_(None)
+    ).scalar() or 0
     
     return {"unread_count": total_unread}
 

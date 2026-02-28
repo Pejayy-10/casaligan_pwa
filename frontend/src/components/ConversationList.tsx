@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MessageSquare, Archive, Clock, CheckCircle, Circle } from 'lucide-react';
 import api from '../services/api';
@@ -51,24 +51,25 @@ export default function ConversationList({ filter = 'all', onConversationCountCh
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [archiving, setArchiving] = useState<number | null>(null);
+  // Tracks which filter value a request was made for, so stale responses are ignored
+  const activeFilterRef = useRef(filter);
 
-  const fetchConversations = useCallback(async () => {
+  const fetchConversations = useCallback(async (showLoader = false) => {
     try {
+      if (showLoader) setLoading(true);
       const params: Record<string, string> = {};
       if (filter === 'archived') {
-        params.include_archived = 'true';
+        params.status = 'archived';
       }
+      // For 'active' filter, backend excludes archived by default (no param needed)
+      // For 'all', also no param needed (gets everything)
       
       const response = await api.get('/messages/conversations', { params });
-      let data = response.data;
       
-      // Filter based on prop
-      if (filter === 'active') {
-        data = data.filter((c: Conversation) => c.status === 'active');
-      } else if (filter === 'archived') {
-        data = data.filter((c: Conversation) => c.status === 'archived');
-      }
+      // If the filter changed while this request was in-flight, discard the result
+      if (activeFilterRef.current !== filter) return;
       
+      const data = response.data;
       setConversations(data);
       onConversationCountChange?.(data.length);
       setError(null);
@@ -81,22 +82,57 @@ export default function ConversationList({ filter = 'all', onConversationCountCh
   }, [filter, onConversationCountChange]);
 
   useEffect(() => {
-    fetchConversations();
+    // Update the ref so in-flight requests from the old filter are discarded
+    activeFilterRef.current = filter;
     
-    // Poll for new conversations every 10 seconds
-    const interval = setInterval(fetchConversations, 10000);
-    return () => clearInterval(interval);
+    fetchConversations(true);
+    
+    // Poll for new conversations every 30 seconds (silently, no loader)
+    const interval = setInterval(() => fetchConversations(false), 30000);
+    return () => {
+      clearInterval(interval);
+    };
   }, [fetchConversations]);
 
   const handleArchive = async (conversationId: number, e: React.MouseEvent) => {
     e.stopPropagation();
     setArchiving(conversationId);
     
+    // Optimistically remove from the list immediately
+    setConversations(prev => {
+      const updated = prev.filter(c => c.conversation_id !== conversationId);
+      onConversationCountChange?.(updated.length);
+      return updated;
+    });
+    
     try {
       await api.post(`/messages/conversations/${conversationId}/archive`);
-      await fetchConversations();
     } catch (err) {
       console.error('Error archiving conversation:', err);
+      // Revert by re-fetching on error
+      fetchConversations(false);
+    } finally {
+      setArchiving(null);
+    }
+  };
+
+  const handleUnarchive = async (conversationId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setArchiving(conversationId);
+    
+    // Optimistically remove from the archived list immediately
+    setConversations(prev => {
+      const updated = prev.filter(c => c.conversation_id !== conversationId);
+      onConversationCountChange?.(updated.length);
+      return updated;
+    });
+    
+    try {
+      await api.post(`/messages/conversations/${conversationId}/unarchive`);
+    } catch (err) {
+      console.error('Error unarchiving conversation:', err);
+      // Revert by re-fetching on error
+      fetchConversations(false);
     } finally {
       setArchiving(null);
     }
@@ -141,7 +177,7 @@ export default function ConversationList({ filter = 'all', onConversationCountCh
       <div className="text-center py-8 text-red-600">
         <p>{error}</p>
         <button 
-          onClick={fetchConversations}
+          onClick={() => fetchConversations(true)}
           className="mt-2 text-primary-600 hover:underline"
         >
           Try again
@@ -224,7 +260,20 @@ export default function ConversationList({ filter = 'all', onConversationCountCh
                 </span>
               )}
               
-              {conversation.status !== 'archived' && (
+              {conversation.status === 'archived' ? (
+                <button
+                  onClick={(e) => handleUnarchive(conversation.conversation_id, e)}
+                  disabled={archiving === conversation.conversation_id}
+                  className="p-1.5 text-[#4B244A]/40 dark:text-white/40 hover:text-[#4B244A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 rounded-lg transition-colors"
+                  title="Unarchive conversation"
+                >
+                  {archiving === conversation.conversation_id ? (
+                    <div className="w-4 h-4 border-2 border-[#4B244A]/40 dark:border-white/40 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <MessageSquare className="w-4 h-4" />
+                  )}
+                </button>
+              ) : (
                 <button
                   onClick={(e) => handleArchive(conversation.conversation_id, e)}
                   disabled={archiving === conversation.conversation_id}

@@ -295,40 +295,77 @@ def get_my_accepted_jobs(
         return []
     
     # Get all accepted interest checks for this worker, ordered by most recent first
-    query = db.query(InterestCheck).filter(
+    accepted_interests = db.query(InterestCheck).filter(
         InterestCheck.worker_id == worker_record.worker_id,
         InterestCheck.status == InterestStatus.ACCEPTED
-    ).order_by(InterestCheck.created_at.desc())
-    
-    accepted_interests = query.all()
+    ).order_by(InterestCheck.created_at.desc()).all()
     
     if not accepted_interests:
         return []
     
+    post_ids = [i.post_id for i in accepted_interests]
+    
+    # Batch: fetch all job posts at once
+    posts = db.query(ForumPost).filter(
+        ForumPost.post_id.in_(post_ids),
+        ForumPost.deleted_at.is_(None)
+    ).all()
+    post_map = {p.post_id: p for p in posts}
+    
+    # Batch: fetch all contracts for this worker + these posts
+    contracts = db.query(Contract).filter(
+        Contract.post_id.in_(post_ids),
+        Contract.worker_id == worker_record.worker_id
+    ).all()
+    contract_map = {c.post_id: c for c in contracts}
+    
+    # Batch: fetch all employer records
+    employer_ids = list(set(p.employer_id for p in posts if p.employer_id))
+    employers = db.query(Employer).filter(Employer.employer_id.in_(employer_ids)).all() if employer_ids else []
+    employer_map = {e.employer_id: e for e in employers}
+    
+    # Batch: fetch all employer users
+    employer_user_ids = list(set(e.user_id for e in employers if e.user_id))
+    employer_users = db.query(User).filter(User.id.in_(employer_user_ids)).all() if employer_user_ids else []
+    employer_user_map = {u.id: u for u in employer_users}
+    
+    # Batch: fetch all payment schedules for these contracts
+    contract_ids = [c.contract_id for c in contracts]
+    all_schedules = db.query(PaymentSchedule).filter(
+        PaymentSchedule.contract_id.in_(contract_ids)
+    ).order_by(PaymentSchedule.due_date).all() if contract_ids else []
+    
+    schedules_by_contract: dict = {}
+    for s in all_schedules:
+        schedules_by_contract.setdefault(s.contract_id, []).append(s)
+    
+    # Batch: fetch all pending extensions for these contracts
+    all_extensions = db.query(ContractExtension).filter(
+        ContractExtension.contract_id.in_(contract_ids),
+        ContractExtension.status == ExtensionStatus.PENDING
+    ).all() if contract_ids else []
+    
+    ext_by_contract = {e.contract_id: e for e in all_extensions}
+    
+    # Batch: fetch proposers for extensions
+    proposer_ids = list(set(e.proposed_by for e in all_extensions if e.proposed_by))
+    proposers = db.query(User).filter(User.id.in_(proposer_ids)).all() if proposer_ids else []
+    proposer_map = {u.id: u for u in proposers}
+    
+    # Build results
     result = []
     for interest in accepted_interests:
-        # Get the job post
-        post = db.query(ForumPost).filter(
-            ForumPost.post_id == interest.post_id,
-            ForumPost.deleted_at.is_(None)
-        ).first()
-        
+        post = post_map.get(interest.post_id)
         if not post:
             continue
         
-        # Get contract first (needed for status filtering)
-        contract = db.query(Contract).filter(
-            Contract.post_id == post.post_id,
-            Contract.worker_id == worker_record.worker_id
-        ).first()
+        contract = contract_map.get(post.post_id)
         
         # Apply status filter based on CONTRACT status (worker's individual progress)
         if status_filter and status_filter.lower() != 'all':
-            # Use contract status if available, otherwise job status
             if contract:
                 contract_status = contract.status.value if hasattr(contract.status, 'value') else str(contract.status)
                 if contract_status.lower() != status_filter.lower():
-                    # Also check if 'active' should match 'ongoing'
                     if not (status_filter.lower() == 'ongoing' and contract_status.lower() == 'active'):
                         continue
             else:
@@ -336,22 +373,18 @@ def get_my_accepted_jobs(
                 if post_status.lower() != status_filter.lower():
                     continue
         
-        # Get employer info
-        employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
-        employer_user = db.query(User).filter(User.id == employer.user_id).first() if employer else None
+        # Employer info
+        employer = employer_map.get(post.employer_id)
+        employer_user = employer_user_map.get(employer.user_id) if employer and employer.user_id else None
         
-        # Get payment schedules for this contract (contract already queried above)
+        # Payment schedules
         payment_schedules = []
         pending_payments = 0
         total_earned = 0
         next_payment_due = None
         
         if contract:
-            schedules = db.query(PaymentSchedule).filter(
-                PaymentSchedule.contract_id == contract.contract_id
-            ).order_by(PaymentSchedule.due_date).all()
-            
-            for schedule in schedules:
+            for schedule in schedules_by_contract.get(contract.contract_id, []):
                 status_val = schedule.status.value if hasattr(schedule.status, 'value') else str(schedule.status)
                 payment_schedules.append({
                     "schedule_id": schedule.schedule_id,
@@ -377,15 +410,12 @@ def get_my_accepted_jobs(
         
         post_status = post.status.value if hasattr(post.status, 'value') else str(post.status)
         
-        # Get pending extension for this contract (if any)
+        # Pending extension
         pending_extension = None
         if contract:
-            ext = db.query(ContractExtension).filter(
-                ContractExtension.contract_id == contract.contract_id,
-                ContractExtension.status == ExtensionStatus.PENDING
-            ).first()
+            ext = ext_by_contract.get(contract.contract_id)
             if ext:
-                proposer = db.query(User).filter(User.id == ext.proposed_by).first()
+                proposer = proposer_map.get(ext.proposed_by)
                 pending_extension = {
                     "extension_id": ext.extension_id,
                     "proposed_end_date": ext.proposed_end_date,
@@ -913,6 +943,58 @@ def get_application_status(
             application.edit_response == EditResponseStatus.REJECTED
         )
     }
+
+
+@router.get("/application-statuses/bulk")
+def get_application_statuses_bulk(
+    post_ids: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get application statuses for multiple jobs in a single request.
+    post_ids should be a comma-separated list of post IDs."""
+    
+    if not current_user.is_housekeeper:
+        return {}
+
+    worker_record = db.query(Worker).filter(Worker.user_id == current_user.id).first()
+    if not worker_record:
+        return {}
+    
+    try:
+        ids = [int(x.strip()) for x in post_ids.split(",") if x.strip()]
+    except ValueError:
+        return {}
+    
+    if not ids:
+        return {}
+    
+    # Fetch all applications in one query
+    applications = db.query(InterestCheck).filter(
+        InterestCheck.post_id.in_(ids),
+        InterestCheck.worker_id == worker_record.worker_id
+    ).all()
+    
+    result = {}
+    for app in applications:
+        effective_status = app.status.value if hasattr(app.status, 'value') else str(app.status)
+        
+        if app.edit_response == EditResponseStatus.REJECTED:
+            effective_status = "withdrawn"
+        elif app.status == InterestStatus.REJECTED:
+            effective_status = "withdrawn"
+        
+        result[str(app.post_id)] = {
+            "has_applied": True,
+            "status": effective_status,
+            "can_reapply": (
+                app.status == InterestStatus.REJECTED or
+                app.edit_response == EditResponseStatus.REJECTED
+            )
+        }
+    
+    return result
+
 
 @router.get("/{post_id}/applicants")
 def get_job_applicants(

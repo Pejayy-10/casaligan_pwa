@@ -67,6 +67,8 @@ export default function NotificationsPage() {
           n.notification_id === notificationId ? { ...n, is_read: true } : n
         )
       );
+      // Notify other components (e.g. TabBar) to refresh their unread count
+      window.dispatchEvent(new Event('notifications-updated'));
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -77,12 +79,14 @@ export default function NotificationsPage() {
     if (!token) return;
 
     try {
-      await fetch(`${API_BASE_URL}/notifications/mark-all-read`, {
+      await fetch(`${API_BASE_URL}/notifications/read-all`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
 
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      // Notify other components (e.g. TabBar) to refresh their unread count
+      window.dispatchEvent(new Event('notifications-updated'));
     } catch (error) {
       console.error('Error marking all as read:', error);
     }
@@ -101,6 +105,8 @@ export default function NotificationsPage() {
       setNotifications((prev) =>
         prev.filter((n) => n.notification_id !== notificationId)
       );
+      // Notify other components (e.g. TabBar) to refresh their unread count
+      window.dispatchEvent(new Event('notifications-updated'));
     } catch (error) {
       console.error('Error deleting notification:', error);
     }

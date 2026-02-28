@@ -30,6 +30,12 @@ export default function TabBar({ role }: TabBarProps) {
       }
     };
 
+    // Listen for notification updates from other components (e.g. NotificationsPage)
+    const handleNotificationsUpdated = () => {
+      fetchUnreadNotifications();
+    };
+    window.addEventListener('notifications-updated', handleNotificationsUpdated);
+
     // Fetch initially
     fetchUnreadCount();
     fetchUnreadNotifications();
@@ -40,7 +46,10 @@ export default function TabBar({ role }: TabBarProps) {
       fetchUnreadNotifications();
     }, 30000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('notifications-updated', handleNotificationsUpdated);
+    };
   }, []);
 
   return (

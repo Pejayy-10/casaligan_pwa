@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageCircle, Archive, MessageSquare, Loader2} from 'lucide-react';
+import { MessageCircle, Archive, MessageSquare } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import ConversationList from '../components/ConversationList';
 import type { User } from '../types';
@@ -16,7 +16,6 @@ export default function MessagesPage() {
 
   const [activeTab, setActiveTab] = useState<'active' | 'archived'>('active');
   const [conversationCount, setConversationCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
 
   // Auth check
   useEffect(() => {
@@ -25,16 +24,10 @@ export default function MessagesPage() {
     }
   }, [user, navigate]);
 
-  // Trigger loading state when tab changes
-  useEffect(() => {
-    setIsLoading(true);
-  }, [activeTab]);
-
-  // Callback to handle data load completion
-  const handleConversationCountChange = (count: number) => {
+  // Stabilize the callback so ConversationList doesn't re-fetch unnecessarily
+  const handleConversationCountChange = useCallback((count: number) => {
     setConversationCount(count);
-    setIsLoading(false);
-  };
+  }, []);
 
   if (!user) return null;
 
@@ -88,41 +81,19 @@ export default function MessagesPage() {
 
       {/* Main Content */}
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-6">
-        
-        {/* Loading State */}
-        {isLoading && (
-          <div className="flex flex-col items-center justify-center py-20">
-            <Loader2 className="w-10 h-10 text-[#EA526F] animate-spin mb-4" />
-            <p className="text-gray-500 dark:text-white/60 font-medium animate-pulse">
-              Messages loading...
-            </p>
-          </div>
-        )}
 
         {/* Conversation List */}
-        <div className={`${isLoading ? 'hidden' : 'block'}`}>
-          <ConversationList 
-            filter={activeTab} 
-            onConversationCountChange={handleConversationCountChange}
-          />
-        </div>
+        <ConversationList 
+          filter={activeTab} 
+          onConversationCountChange={handleConversationCountChange}
+        />
         
         {/* Footer Count Text */}
-        {!isLoading && conversationCount > 0 && (
+        {conversationCount > 0 && (
           <div className="flex justify-center mt-6">
             <span className="px-3 py-1 rounded-full bg-gray-100 dark:bg-slate-800 text-gray-500 dark:text-white/50 text-xs font-medium border border-gray-200 dark:border-white/10">
               {conversationCount} {activeTab} conversation{conversationCount !== 1 ? 's' : ''}
             </span>
-          </div>
-        )}
-
-        {/* Empty State Fallback */}
-        {!isLoading && conversationCount === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 opacity-60">
-            <div className="w-16 h-16 bg-[#EA526F]/10 rounded-full flex items-center justify-center mb-4">
-              <MessageCircle className="w-8 h-8 text-[#EA526F]" />
-            </div>
-            <p className="text-gray-500 dark:text-white font-medium">No messages found</p>
           </div>
         )}
       </main>

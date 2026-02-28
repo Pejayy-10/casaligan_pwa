@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList } from 'lucide-react';
@@ -62,14 +62,22 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'all' | 'ongoing' | 'pending_completion' | 'completed'>('all');
   const [showExtensionResponse, setShowExtensionResponse] = useState<PendingExtension | null>(null);
+  const initialLoadDone = useRef(false);
 
   useEffect(() => {
-    loadMyJobs();
+    loadMyJobs(!initialLoadDone.current);
   }, [statusFilter]);
 
-  const loadMyJobs = async () => {
+  // Listen for external events that should trigger a refresh (e.g. after submitting completion)
+  useEffect(() => {
+    const handleRefresh = () => loadMyJobs();
+    window.addEventListener('my-jobs-updated', handleRefresh);
+    return () => window.removeEventListener('my-jobs-updated', handleRefresh);
+  }, [statusFilter]);
+
+  const loadMyJobs = async (showLoader = false) => {
     try {
-      setLoading(true);
+      if (showLoader) setLoading(true);
       const token = localStorage.getItem('access_token');
       const response = await fetch(
         `${API_BASE_URL}/jobs/my-accepted-jobs${statusFilter !== 'all' ? `?status_filter=${statusFilter}` : ''}`,
@@ -86,6 +94,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
       console.error('Failed to load my jobs:', error);
     } finally {
       setLoading(false);
+      initialLoadDone.current = true;
     }
   };
 

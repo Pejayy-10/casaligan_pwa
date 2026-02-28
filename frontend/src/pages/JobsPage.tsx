@@ -102,23 +102,25 @@ export default function JobsPage() {
         setJobs(data);
         setFilteredJobs(data);
         
-        // Load application statuses for housekeepers
-        if (user?.active_role === 'housekeeper') {
-          const statuses: Record<number, { has_applied: boolean; status?: string; can_reapply?: boolean }> = {};
-          for (const job of data) {
-            try {
-              const statusResponse = await fetch(`${API_BASE_URL}/jobs/${job.post_id}/application-status`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-              });
-              if (statusResponse.ok) {
-                const statusData = await statusResponse.json();
-                statuses[job.post_id] = statusData;
+        // Load application statuses for housekeepers in a single bulk request
+        if (user?.active_role === 'housekeeper' && data.length > 0) {
+          try {
+            const postIds = data.map((job: JobPost) => job.post_id).join(',');
+            const statusResponse = await fetch(`${API_BASE_URL}/jobs/application-statuses/bulk?post_ids=${postIds}`, {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (statusResponse.ok) {
+              const bulkStatuses = await statusResponse.json();
+              const statuses: Record<number, { has_applied: boolean; status?: string; can_reapply?: boolean }> = {};
+              for (const job of data) {
+                const s = bulkStatuses[String(job.post_id)];
+                statuses[job.post_id] = s || { has_applied: false };
               }
-            } catch (err) {
-              console.error(`Failed to load status for job ${job.post_id}`, err);
+              setApplicationStatuses(statuses);
             }
+          } catch (err) {
+            console.error('Failed to load application statuses', err);
           }
-          setApplicationStatuses(statuses);
         }
       }
     } catch (error) {
@@ -467,25 +469,31 @@ export default function JobsPage() {
               setShowExtendContract({ job, worker });
             }}
           />
-        ) : housekeeperView === 'my-jobs' ? (
-          <HousekeeperMyJobs
-            onShowProgress={setShowHousekeeperProgress}
-            onSubmitCompletion={setShowJobCompletion}
-            onReportUnpaid={setShowReportUnpaid}
-            onShowPayments={setShowHousekeeperPayments}
-            reportedUsers={reportedUsers}
-            onReportEmployer={(job) => {
-              setHousekeeperReportData(job);
-              setShowHousekeeperReportModal(true);
-            }}
-          />
         ) : (
-          <HousekeeperJobsContent 
-            jobs={filteredJobs} 
-            onSelectJob={setSelectedJob} 
-            selectedCategory={selectedCategory}
-            categories={categories}
-          />
+          <>
+            {/* Keep both views mounted but toggle visibility so data persists across tab switches */}
+            <div className={housekeeperView === 'my-jobs' ? 'block' : 'hidden'}>
+              <HousekeeperMyJobs
+                onShowProgress={setShowHousekeeperProgress}
+                onSubmitCompletion={setShowJobCompletion}
+                onReportUnpaid={setShowReportUnpaid}
+                onShowPayments={setShowHousekeeperPayments}
+                reportedUsers={reportedUsers}
+                onReportEmployer={(job) => {
+                  setHousekeeperReportData(job);
+                  setShowHousekeeperReportModal(true);
+                }}
+              />
+            </div>
+            <div className={housekeeperView === 'find' ? 'block' : 'hidden'}>
+              <HousekeeperJobsContent 
+                jobs={filteredJobs} 
+                onSelectJob={setSelectedJob} 
+                selectedCategory={selectedCategory}
+                categories={categories}
+              />
+            </div>
+          </>
         )}
       </main>
 
@@ -603,7 +611,7 @@ export default function JobsPage() {
       
       {/* Check In Modal */}
       {showCheckIn && (
-        <CheckInModal jobId={showCheckIn.post_id} jobTitle={showCheckIn.title} onClose={() => setShowCheckIn(null)} onSuccess={() => { alert('Checked in successfully!'); setShowCheckIn(null); }} />
+        <CheckInModal jobId={showCheckIn.post_id} jobTitle={showCheckIn.title} onClose={() => setShowCheckIn(null)} onSuccess={() => { alert('Checked in successfully!'); setShowCheckIn(null); window.dispatchEvent(new Event('my-jobs-updated')); }} />
       )}
       
       {/* Housekeeper Progress Modal */}
@@ -618,12 +626,12 @@ export default function JobsPage() {
       
       {/* Job Completion Modal */}
       {showJobCompletion && (
-        <JobCompletionModal jobId={showJobCompletion.post_id} jobTitle={showJobCompletion.title} onClose={() => setShowJobCompletion(null)} onSuccess={() => { alert('Job completion submitted! Waiting for owner approval.'); setShowJobCompletion(null); }} />
+        <JobCompletionModal jobId={showJobCompletion.post_id} jobTitle={showJobCompletion.title} onClose={() => setShowJobCompletion(null)} onSuccess={() => { alert('Job completion submitted! Waiting for owner approval.'); setShowJobCompletion(null); window.dispatchEvent(new Event('my-jobs-updated')); }} />
       )}
       
       {/* Report Unpaid Modal */}
       {showReportUnpaid && (
-        <ReportUnpaidModal jobId={showReportUnpaid.post_id} jobTitle={showReportUnpaid.title} pendingPayments={showReportUnpaid.payments.pending_payments} onClose={() => setShowReportUnpaid(null)} onSuccess={() => { alert('Report submitted successfully. Our team will review this case.'); setShowReportUnpaid(null); }} />
+        <ReportUnpaidModal jobId={showReportUnpaid.post_id} jobTitle={showReportUnpaid.title} pendingPayments={showReportUnpaid.payments.pending_payments} onClose={() => setShowReportUnpaid(null)} onSuccess={() => { alert('Report submitted successfully. Our team will review this case.'); setShowReportUnpaid(null); window.dispatchEvent(new Event('my-jobs-updated')); }} />
       )}
       
       {/* Owner Completion Review Modal */}
@@ -704,6 +712,7 @@ export default function JobsPage() {
             if (response.status === 200 || response.status === 201) {
               setReportedUsers(prev => new Set(prev).add(`${reportJobData.job.post_id}-${reportJobData.worker.worker_user_id}`));
               alert('Report submitted successfully. Our team will review this case.');
+              loadJobs();
             } else { throw new Error('Failed to submit report'); }
           }}
           reportedUserName={reportJobData.worker.name}
@@ -743,6 +752,7 @@ export default function JobsPage() {
             if (response.status === 200 || response.status === 201) {
               setReportedUsers(prev => new Set(prev).add(`${housekeeperReportData.post_id}-${housekeeperReportData.employer.user_id}`));
               alert('Report submitted successfully. Our team will review this case.');
+              window.dispatchEvent(new Event('my-jobs-updated'));
             } else { throw new Error('Failed to submit report'); }
           }}
           reportedUserName={housekeeperReportData.employer.name}

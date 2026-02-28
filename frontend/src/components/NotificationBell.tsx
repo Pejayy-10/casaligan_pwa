@@ -95,6 +95,8 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
         prev.map(n => n.notification_id === notificationId ? { ...n, is_read: true } : n)
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
+      // Notify other components (e.g. TabBar) to refresh their unread count
+      window.dispatchEvent(new Event('notifications-updated'));
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -114,6 +116,8 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
       
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       setUnreadCount(0);
+      // Notify other components (e.g. TabBar) to refresh their unread count
+      window.dispatchEvent(new Event('notifications-updated'));
     } catch (error) {
       console.error('Error marking all as read:', error);
     }
@@ -137,6 +141,8 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
       setNotifications(prev => prev.filter(n => n.notification_id !== notificationId));
+      // Notify other components (e.g. TabBar) to refresh their unread count
+      window.dispatchEvent(new Event('notifications-updated'));
     } catch (error) {
       console.error('Error deleting notification:', error);
     }
@@ -189,6 +195,13 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     console.log('NotificationBell mounted, fetching...');
     fetchUnreadCount();
     fetchNotifications();
+
+    // Listen for notification updates from other components (e.g. NotificationsPage)
+    const handleNotificationsUpdated = () => {
+      fetchUnreadCount();
+      fetchNotifications();
+    };
+    window.addEventListener('notifications-updated', handleNotificationsUpdated);
     
     const interval = setInterval(() => {
       fetchUnreadCount();
@@ -197,7 +210,10 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
       }
     }, 30000);
     
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('notifications-updated', handleNotificationsUpdated);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
