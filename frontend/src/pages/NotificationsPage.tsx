@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, Check, CheckCheck, X } from 'lucide-react';
 import TabBar from '../components/TabBar';
+import JobEditResponseModal from '../components/JobEditResponseModal';
 import { API_BASE_URL } from '../config';
 
 interface Notification {
@@ -19,6 +20,7 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<'owner' | 'housekeeper'>('owner');
+  const [showJobEditModal, setShowJobEditModal] = useState<{ jobId: number; jobTitle: string; message: string } | null>(null);
   const navigate = useNavigate();
 
   const getToken = () => localStorage.getItem('access_token');
@@ -115,6 +117,16 @@ export default function NotificationsPage() {
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.is_read) {
       markAsRead(notification.notification_id);
+    }
+
+    // Special handling for job_edited notifications
+    if (notification.type === 'job_edited' && notification.reference_type === 'job' && notification.reference_id) {
+      setShowJobEditModal({
+        jobId: notification.reference_id,
+        jobTitle: notification.title.replace(' ⚠️', '').replace('Job Post Updated', '').trim() || 'Job',
+        message: notification.message
+      });
+      return;
     }
 
     if (notification.reference_type && notification.reference_id) {
@@ -235,6 +247,17 @@ export default function NotificationsPage() {
           </div>
         )}
       </div>
+
+      {/* Job Edit Response Modal */}
+      {showJobEditModal && (
+        <JobEditResponseModal
+          jobId={showJobEditModal.jobId}
+          jobTitle={showJobEditModal.jobTitle}
+          message={showJobEditModal.message}
+          onClose={() => setShowJobEditModal(null)}
+          onResponse={() => setShowJobEditModal(null)}
+        />
+      )}
 
       <TabBar role={userRole} />
     </div>

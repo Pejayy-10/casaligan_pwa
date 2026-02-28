@@ -11,6 +11,8 @@ interface Applicant {
   worker_phone: string;
   status: string;
   applied_at: string;
+  edit_response?: string | null;
+  edit_notified_at?: string | null;
 }
 
 interface ApplicantsListModalProps {
@@ -60,6 +62,15 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
   }, [loadApplicants]);
 
   const toggleWorker = (interestId: number) => {
+    // Find the applicant to check if they have pending edit response
+    const applicant = applicants.find(a => a.interest_id === interestId);
+    
+    // Prevent selection if edit response is pending
+    if (applicant?.edit_response === 'pending') {
+      alert('Please wait for this applicant to respond to the job edit before accepting them.');
+      return;
+    }
+
     setSelectedWorkers(prev => {
       const newSet = new Set(prev);
       if (newSet.has(interestId)) {
@@ -239,43 +250,57 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
               {pendingApplicants.map((applicant) => {
                 const isSelected = selectedWorkers.has(applicant.interest_id);
                 const canSelect = selectedWorkers.size < (peopleNeeded - alreadyAcceptedCount);
+                const hasPendingEdit = applicant.edit_response === 'pending';
                 
                 return (
                   <div 
                     key={applicant.interest_id}
-                    className={`backdrop-blur-xl rounded-2xl p-4 border-2 transition-all cursor-pointer ${
-                      isSelected 
-                        ? 'bg-green-50 border-green-200 dark:bg-green-500/20 dark:border-green-400/50 shadow-md' 
-                        : 'bg-white/60 border-white/50 dark:bg-white/10 dark:border-white/20 hover:bg-white/80 dark:hover:border-white/40 shadow-sm'
+                    className={`backdrop-blur-xl rounded-2xl p-4 border-2 transition-all ${
+                      hasPendingEdit
+                        ? 'bg-yellow-50 border-yellow-300 dark:bg-yellow-500/10 dark:border-yellow-400/50 cursor-not-allowed'
+                        : isSelected 
+                          ? 'bg-green-50 border-green-200 dark:bg-green-500/20 dark:border-green-400/50 shadow-md cursor-pointer' 
+                          : 'bg-white/60 border-white/50 dark:bg-white/10 dark:border-white/20 hover:bg-white/80 dark:hover:border-white/40 shadow-sm cursor-pointer'
                     }`}
-                    onClick={() => (isSelected || canSelect) && toggleWorker(applicant.interest_id)}
+                    onClick={() => !hasPendingEdit && (isSelected || canSelect) && toggleWorker(applicant.interest_id)}
                   >
                     <div className="flex items-center gap-4">
                       {/* Toggle Checkbox */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (isSelected || canSelect) toggleWorker(applicant.interest_id);
+                          if (!hasPendingEdit && (isSelected || canSelect)) toggleWorker(applicant.interest_id);
                         }}
-                        disabled={!isSelected && !canSelect}
+                        disabled={!isSelected && (!canSelect || hasPendingEdit)}
                         role="checkbox"
                         aria-checked={isSelected}
                         className={`w-6 h-6 rounded-md flex items-center justify-center transition-all shadow-sm border-2 ${
-                          isSelected 
-                            ? 'bg-green-500 text-white border-green-600' 
-                            : canSelect
-                              ? 'bg-white text-gray-400 border-gray-300 dark:bg-white/20 dark:text-white/50 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-white/30'
-                              : 'bg-gray-100 text-gray-300 border-gray-300 dark:bg-white/10 dark:text-white/30 cursor-not-allowed'
+                          hasPendingEdit
+                            ? 'bg-yellow-100 text-yellow-600 border-yellow-400 dark:bg-yellow-500/30 dark:text-yellow-300 cursor-not-allowed'
+                            : isSelected 
+                              ? 'bg-green-500 text-white border-green-600' 
+                              : canSelect
+                                ? 'bg-white text-gray-400 border-gray-300 dark:bg-white/20 dark:text-white/50 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-white/30'
+                                : 'bg-gray-100 text-gray-300 border-gray-300 dark:bg-white/10 dark:text-white/30 cursor-not-allowed'
                         }`}
                       >
                         {isSelected ? 
                           <CheckCircle className="w-3 h-3" /> 
-                          : <CheckCircle className="w-3 h-3 text-gray-300/40" />
+                          : hasPendingEdit
+                            ? '⏳'
+                            : <CheckCircle className="w-3 h-3 text-gray-300/40" />
                         }
                       </button>
                       
                       <div className="flex-1">
-                        <h3 className="text-lg font-bold text-[#4B244A] dark:text-white mb-1">{applicant.worker_name}</h3>
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">{applicant.worker_name}</h3>
+                          {hasPendingEdit && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-200 dark:bg-yellow-500/30 text-yellow-800 dark:text-yellow-200 text-xs font-bold rounded-full border border-yellow-400/50">
+                              ⏳ Pending Response
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[#4B244A]/70 dark:text-white/70 text-sm"><Mail className="inline w-4 h-4 mr-1" /> {applicant.worker_email}</p>
                         <p className="text-[#4B244A]/70 dark:text-white/70 text-sm"><Phone className="inline w-4 h-4 mr-1" /> {applicant.worker_phone}</p>
                         <p className="text-[#4B244A]/50 dark:text-white/60 text-xs mt-2 font-medium">
@@ -287,6 +312,17 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                             minute: '2-digit'
                           })}
                         </p>
+                        {hasPendingEdit && applicant.edit_notified_at && (
+                          <p className="text-yellow-700 dark:text-yellow-300 text-xs mt-1 font-medium">
+                            Edit notified: {new Date(applicant.edit_notified_at).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        )}
                       </div>
 
                       {/* Action Buttons */}
@@ -301,16 +337,25 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                           <User className="inline w-4 h-4 mr-1" /> Profile
                         </button>
                         
-                        {/* Reject Button */}
+                        {/* Reject Button - disabled if pending edit response */}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
+                            if (hasPendingEdit) {
+                              alert('Cannot reject an applicant with a pending job edit response. Please wait for their response.');
+                              return;
+                            }
                             if (confirm(`Reject ${applicant.worker_name}?`)) {
                               handleReject(applicant.interest_id);
                             }
                           }}
-                          className="px-3 py-2 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 transition-all text-sm font-bold shadow-sm"
-                          title="Reject this applicant"
+                          disabled={hasPendingEdit}
+                          className={`px-3 py-2 rounded-lg transition-all text-sm font-bold shadow-sm ${
+                            hasPendingEdit
+                              ? 'bg-gray-100 text-gray-400 dark:bg-white/10 dark:text-white/40 cursor-not-allowed'
+                              : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-500/30'
+                          }`}
+                          title={hasPendingEdit ? "Cannot reject while edit response is pending" : "Reject this applicant"}
                         >
                           ✗
                         </button>

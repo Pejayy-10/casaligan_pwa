@@ -537,6 +537,75 @@ def update_job_post(
     
     has_applicants = len(existing_applicants) > 0
     
+    # Build change list BEFORE making updates to detect all changes
+    changes = []
+    
+    # Title change
+    if job_update.title and old_title != job_update.title:
+        changes.append(f"• Title: '{old_title}' → '{job_update.title}'")
+    
+    # Budget change
+    if job_update.budget and abs(float(job_update.budget) - old_budget) > 0.01:
+        changes.append(f"• Budget: ₱{old_budget:,.2f} → ₱{float(job_update.budget):,.2f}")
+    
+    # Description change
+    if job_update.description and old_description != job_update.description:
+        old_desc_preview = old_description[:100] + "..." if len(old_description) > 100 else old_description
+        new_desc_preview = job_update.description[:100] + "..." if len(job_update.description) > 100 else job_update.description
+        changes.append(f"• Description: '{old_desc_preview}' → '{new_desc_preview}'")
+    
+    # House type change
+    if job_update.house_type and old_house_type != job_update.house_type:
+        changes.append(f"• House Type: '{old_house_type or 'Not specified'}' → '{job_update.house_type}'")
+    
+    # Cleaning type change
+    if job_update.cleaning_type and old_cleaning_type != job_update.cleaning_type:
+        changes.append(f"• Cleaning Type: '{old_cleaning_type or 'Not specified'}' → '{job_update.cleaning_type}'")
+    
+    # People needed change
+    if job_update.people_needed and old_people_needed != job_update.people_needed:
+        changes.append(f"• People Needed: {old_people_needed} → {job_update.people_needed}")
+    
+    # Images change
+    if job_update.image_urls is not None and len(old_image_urls) != len(job_update.image_urls):
+        changes.append(f"• Images: {len(old_image_urls)} image(s) → {len(job_update.image_urls)} image(s)")
+    
+    # Location change
+    if job_update.location and old_location != job_update.location:
+        changes.append(f"• Location: '{old_location or 'Not specified'}' → '{job_update.location}'")
+    
+    # Category change - compare with first new category
+    if job_update.category_ids is not None and len(job_update.category_ids) > 0:
+        new_category_id = job_update.category_ids[0]
+        if old_category_id != new_category_id:
+            old_cat = db.query(PackageCategory).filter(PackageCategory.category_id == old_category_id).first() if old_category_id else None
+            new_cat = db.query(PackageCategory).filter(PackageCategory.category_id == new_category_id).first() if new_category_id else None
+            old_cat_name = old_cat.name if old_cat else 'None'
+            new_cat_name = new_cat.name if new_cat else 'None'
+            changes.append(f"• Category: '{old_cat_name}' → '{new_cat_name}'")
+    
+    # Duration type change
+    if job_update.duration_type:
+        new_duration_type = job_update.duration_type
+        if old_duration_type != new_duration_type:
+            changes.append(f"• Duration Type: '{old_duration_type}' → '{new_duration_type}'")
+    
+    # Start date change
+    if job_update.start_date:
+        new_start_date = job_update.start_date.isoformat() if job_update.start_date else ''
+        if old_start_date != new_start_date:
+            old_start = old_start_date if old_start_date else 'Not set'
+            new_start = new_start_date if new_start_date else 'Not set'
+            changes.append(f"• Start Date: {old_start} → {new_start}")
+    
+    # End date change
+    if job_update.end_date:
+        new_end_date = job_update.end_date.isoformat() if job_update.end_date else ''
+        if old_end_date != new_end_date:
+            old_end = old_end_date if old_end_date else 'Not set'
+            new_end = new_end_date if new_end_date else 'Not set'
+            changes.append(f"• End Date: {old_end} → {new_end}")
+    
     # Update fields
     if job_update.title:
         post.title = job_update.title
@@ -592,84 +661,8 @@ def update_job_post(
         
         post.content = json.dumps(current_details)
     
-    # If there are applicants, build detailed change list and notify them
+    # If there are applicants, notify them with detected changes
     if has_applicants:
-        # Get new values after update
-        new_details = json.loads(post.content) if post.content else {}
-        new_budget = float(post.salary) if post.salary else new_details.get('budget', 0)
-        new_title = post.title
-        new_description = new_details.get('description', '')
-        new_house_type = new_details.get('house_type', '')
-        new_cleaning_type = new_details.get('cleaning_type', '')
-        new_people_needed = new_details.get('people_needed', 1)
-        new_image_urls = new_details.get('image_urls', [])
-        new_location = post.location or new_details.get('location', '')
-        new_category_id = post.category_id
-        new_duration_type = "long_term" if post.is_longterm else "short_term"
-        new_start_date = post.start_date or new_details.get('start_date', '')
-        new_end_date = post.end_date or new_details.get('end_date', '')
-        
-        # Build detailed change list by comparing old vs new values
-        changes = []
-        
-        # Title change
-        if old_title != new_title:
-            changes.append(f"• Title: '{old_title}' → '{new_title}'")
-        
-        # Budget change
-        if abs(new_budget - old_budget) > 0.01:
-            changes.append(f"• Budget: ₱{old_budget:,.2f} → ₱{new_budget:,.2f}")
-        
-        # Description change
-        if old_description != new_description:
-            old_desc_preview = old_description[:100] + "..." if len(old_description) > 100 else old_description
-            new_desc_preview = new_description[:100] + "..." if len(new_description) > 100 else new_description
-            changes.append(f"• Description: '{old_desc_preview}' → '{new_desc_preview}'")
-        
-        # House type change
-        if old_house_type != new_house_type:
-            changes.append(f"• House Type: '{old_house_type or 'Not specified'}' → '{new_house_type or 'Not specified'}'")
-        
-        # Cleaning type change
-        if old_cleaning_type != new_cleaning_type:
-            changes.append(f"• Cleaning Type: '{old_cleaning_type or 'Not specified'}' → '{new_cleaning_type or 'Not specified'}'")
-        
-        # People needed change
-        if old_people_needed != new_people_needed:
-            changes.append(f"• People Needed: {old_people_needed} → {new_people_needed}")
-        
-        # Images change
-        if len(old_image_urls) != len(new_image_urls):
-            changes.append(f"• Images: {len(old_image_urls)} image(s) → {len(new_image_urls)} image(s)")
-        
-        # Location change
-        if old_location != new_location:
-            changes.append(f"• Location: '{old_location or 'Not specified'}' → '{new_location or 'Not specified'}'")
-        
-        # Category change
-        if old_category_id != new_category_id:
-            old_cat = db.query(PackageCategory).filter(PackageCategory.category_id == old_category_id).first() if old_category_id else None
-            new_cat = db.query(PackageCategory).filter(PackageCategory.category_id == new_category_id).first() if new_category_id else None
-            old_cat_name = old_cat.name if old_cat else 'None'
-            new_cat_name = new_cat.name if new_cat else 'None'
-            changes.append(f"• Category: '{old_cat_name}' → '{new_cat_name}'")
-        
-        # Duration type change
-        if old_duration_type != new_duration_type:
-            changes.append(f"• Duration Type: '{old_duration_type}' → '{new_duration_type}'")
-        
-        # Start date change
-        if old_start_date != new_start_date:
-            old_start = old_start_date if old_start_date else 'Not set'
-            new_start = new_start_date if new_start_date else 'Not set'
-            changes.append(f"• Start Date: {old_start} → {new_start}")
-        
-        # End date change
-        if old_end_date != new_end_date:
-            old_end = old_end_date if old_end_date else 'Not set'
-            new_end = new_end_date if new_end_date else 'Not set'
-            changes.append(f"• End Date: {old_end} → {new_end}")
-        
         # Build change summary message
         if changes:
             change_summary = "The following changes were made:\n" + "\n".join(changes)
@@ -691,7 +684,7 @@ def update_job_post(
                         user_id=worker.user_id,
                         notification_type=NotificationType.JOB_EDITED,
                         title="Job Post Updated ⚠️",
-                        message=f"The job '{new_title}' has been updated.\n\n{change_summary}\n\nPlease review and confirm if you want to continue with your application.",
+                        message=f"The job '{post.title}' has been updated.\n\n{change_summary}\n\nPlease review and confirm if you want to continue with your application.",
                         reference_type="job",
                         reference_id=post_id,
                         commit=False  # Don't commit yet, we'll commit all at once
@@ -1328,6 +1321,17 @@ def start_job(
             
         if application.status != InterestStatus.PENDING:
             continue
+        
+        # Check if applicant has a pending edit response - if so, cannot accept yet
+        if application.edit_response == EditResponseStatus.PENDING:
+            # Get worker info for error message
+            worker = db.query(Worker).filter(Worker.worker_id == application.worker_id).first()
+            worker_user = db.query(User).filter(User.id == worker.user_id).first() if worker else None
+            worker_name = f"{worker_user.first_name} {worker_user.last_name}" if worker_user else "Worker"
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Cannot accept {worker_name}. They have a pending response to the job edit. Please wait for them to respond before accepting."
+            )
         
         # Accept this applicant
         application.status = InterestStatus.ACCEPTED
