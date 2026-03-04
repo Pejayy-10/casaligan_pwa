@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
         port: '8000',
         pathname: '/uploads/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'nastfgpgsfkkshpbninf.supabase.co',
+        pathname: '/storage/**',
+      },
     ],
   },
 }

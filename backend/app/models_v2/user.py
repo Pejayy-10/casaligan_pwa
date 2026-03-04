@@ -50,6 +50,9 @@ class User(Base):
     active_role = Column(SQLEnum(UserRole, native_enum=False, values_callable=lambda x: [e.value for e in x]), default=UserRole.OWNER, nullable=False)
     status = Column(SQLEnum(UserStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), default=UserStatus.ACTIVE, nullable=False)
     
+    # Profile
+    profile_picture = Column(String, nullable=True)
+    
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())

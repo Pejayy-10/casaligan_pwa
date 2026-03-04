@@ -14,6 +14,7 @@ export interface User {
   last_name: string;
   suffix?: string;
   gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
+  profile_picture?: string;
   is_owner: boolean;
   is_housekeeper: boolean;
   active_role: 'owner' | 'housekeeper';

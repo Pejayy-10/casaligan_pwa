@@ -108,4 +108,20 @@ export const authService = {
     const response = await apiClient.get('/auth/application-status');
     return response.data;
   },
+
+  async updateProfile(data: { first_name?: string; middle_name?: string; last_name?: string; suffix?: string; profile_picture?: string }): Promise<UserProfile> {
+    const response = await apiClient.put<UserProfile>('/auth/profile', data);
+    const updatedUser = response.data;
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    return updatedUser;
+  },
+
+  async uploadProfilePicture(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<{ url: string }>('/upload/image?category=profile', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data.url;
+  },
 };

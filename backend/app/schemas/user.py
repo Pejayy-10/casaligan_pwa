@@ -55,6 +55,15 @@ class UserCreate(UserBase):
             raise ValueError("09 number must be 11 digits (09 + 9 digits). You entered %d digits. Example: 09123456789" % len(raw))
         raise ValueError("Use a Philippine number: 09 + 9 digits (11 total, e.g. 09123456789) or +639XXXXXXXXX")
 
+class UserUpdate(BaseModel):
+    """Schema for updating user profile fields (name and profile picture only)."""
+    first_name: Optional[str] = None
+    middle_name: Optional[str] = None
+    last_name: Optional[str] = None
+    suffix: Optional[str] = None
+    profile_picture: Optional[str] = None
+
+
 class UserResponse(UserBase):
     id: int
     is_owner: bool
@@ -62,6 +71,7 @@ class UserResponse(UserBase):
     active_role: str
     status: str
     created_at: datetime
+    profile_picture: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
     

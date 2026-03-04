@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { User as UserIcon, ClipboardList, Briefcase, MapPin, FileText, CheckCircle, Clock, AlertCircle, Package } from 'lucide-react';
+import { User as UserIcon, ClipboardList, Briefcase, MapPin, FileText, CheckCircle, Clock, AlertCircle, Package, Pencil, Camera, X, Loader2 } from 'lucide-react';
 import { authService } from '../services/auth';
 import TabBar from '../components/TabBar';
 import PackageManagement from '../components/PackageManagement';
@@ -40,6 +40,87 @@ export default function ProfilePage() {
     return false;
   });
   const [showPackageManagement, setShowPackageManagement] = useState(false);
+
+  // Profile edit state
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editMiddleName, setEditMiddleName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [editSuffix, setEditSuffix] = useState('');
+  const [editProfilePic, setEditProfilePic] = useState<string | undefined>(undefined);
+  const [previewPic, setPreviewPic] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const openEditProfile = () => {
+    if (!user) return;
+    setEditFirstName(user.first_name);
+    setEditMiddleName(user.middle_name || '');
+    setEditLastName(user.last_name);
+    setEditSuffix(user.suffix || '');
+    setEditProfilePic(user.profile_picture);
+    setPreviewPic(null);
+    setSelectedFile(null);
+    setEditError('');
+    setShowEditProfile(true);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      setEditError('Image must be less than 10MB');
+      return;
+    }
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/gif'].includes(file.type)) {
+      setEditError('Only JPEG, PNG, WebP, or GIF images are allowed');
+      return;
+    }
+    setSelectedFile(file);
+    setPreviewPic(URL.createObjectURL(file));
+    setEditError('');
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user) return;
+    if (!editFirstName.trim() || !editLastName.trim()) {
+      setEditError('First name and last name are required.');
+      return;
+    }
+    setSaving(true);
+    setEditError('');
+    try {
+      let pictureUrl = editProfilePic;
+
+      // Upload new picture first if selected
+      if (selectedFile) {
+        pictureUrl = await authService.uploadProfilePicture(selectedFile);
+      }
+
+      const updates: { first_name?: string; middle_name?: string; last_name?: string; suffix?: string; profile_picture?: string } = {};
+      if (editFirstName.trim() !== user.first_name) updates.first_name = editFirstName.trim();
+      if (editMiddleName.trim() !== (user.middle_name || '')) updates.middle_name = editMiddleName.trim();
+      if (editLastName.trim() !== user.last_name) updates.last_name = editLastName.trim();
+      if (editSuffix.trim() !== (user.suffix || '')) updates.suffix = editSuffix.trim();
+      if (pictureUrl !== user.profile_picture) updates.profile_picture = pictureUrl;
+
+      if (Object.keys(updates).length === 0) {
+        setShowEditProfile(false);
+        return;
+      }
+
+      const updatedUser = await authService.updateProfile(updates);
+      setUser(updatedUser as User);
+      setShowEditProfile(false);
+    } catch (err: any) {
+      const detail = err?.response?.data?.detail;
+      setEditError(typeof detail === 'string' ? detail : 'Failed to update profile. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) {
@@ -187,10 +268,25 @@ export default function ProfilePage() {
         
         {/* Profile Card */}
         <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl rounded-3xl p-6 sm:p-8 border border-white/60 dark:border-white/5 shadow-lg relative overflow-hidden"> 
+            <button
+              onClick={openEditProfile}
+              className="absolute top-4 right-4 z-20 p-2 bg-white/80 dark:bg-slate-800/80 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm transition-all"
+              title="Edit Profile"
+            >
+              <Pencil className="w-4 h-4 text-[#4B244A] dark:text-white" />
+            </button>
             <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 relative z-10">
-                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#EA526F] to-[#4B244A] flex items-center justify-center text-white text-3xl font-bold shadow-xl border-4 border-white dark:border-slate-800">
+                {user.profile_picture ? (
+                  <img
+                    src={user.profile_picture}
+                    alt="Profile"
+                    className="w-24 h-24 rounded-full object-cover shadow-xl border-4 border-white dark:border-slate-800"
+                  />
+                ) : (
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#EA526F] to-[#4B244A] flex items-center justify-center text-white text-3xl font-bold shadow-xl border-4 border-white dark:border-slate-800">
                     {user.first_name.charAt(0)}
-                </div>
+                  </div>
+                )}
                 
                 <div className="text-center sm:text-left flex-1">
                     <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">
@@ -361,6 +457,142 @@ export default function ProfilePage() {
         </div>
 
       </main>
+
+      {/* Edit Profile Modal */}
+      {showEditProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-200 dark:border-white/10 flex justify-between items-center">
+              <h3 className="text-xl font-bold text-[#4B244A] dark:text-white flex items-center gap-2">
+                <Pencil className="w-5 h-5 text-[#EA526F]" />
+                Edit Profile
+              </h3>
+              <button
+                onClick={() => setShowEditProfile(false)}
+                className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-6">
+              {/* Profile Picture */}
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative group">
+                  {(previewPic || editProfilePic) ? (
+                    <img
+                      src={previewPic || editProfilePic}
+                      alt="Profile"
+                      className="w-28 h-28 rounded-full object-cover border-4 border-white dark:border-slate-700 shadow-lg"
+                    />
+                  ) : (
+                    <div className="w-28 h-28 rounded-full bg-gradient-to-br from-[#EA526F] to-[#4B244A] flex items-center justify-center text-white text-4xl font-bold border-4 border-white dark:border-slate-700 shadow-lg">
+                      {user.first_name.charAt(0)}
+                    </div>
+                  )}
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute bottom-0 right-0 p-2.5 bg-[#EA526F] hover:bg-[#d4486a] text-white rounded-full shadow-lg transition-colors border-2 border-white dark:border-slate-700"
+                  >
+                    <Camera className="w-4 h-4" />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    onChange={handleFileSelect}
+                  />
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Tap the camera icon to change your photo</p>
+              </div>
+
+              {/* First Name */}
+              <div>
+                <label className="block text-sm font-bold text-[#4B244A] dark:text-white mb-2">First Name <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  value={editFirstName}
+                  onChange={(e) => setEditFirstName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]/50 focus:border-[#EA526F] transition-all text-sm"
+                  placeholder="First name"
+                />
+              </div>
+
+              {/* Middle Name */}
+              <div>
+                <label className="block text-sm font-bold text-[#4B244A] dark:text-white mb-2">Middle Name</label>
+                <input
+                  type="text"
+                  value={editMiddleName}
+                  onChange={(e) => setEditMiddleName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]/50 focus:border-[#EA526F] transition-all text-sm"
+                  placeholder="Middle name (optional)"
+                />
+              </div>
+
+              {/* Last Name */}
+              <div>
+                <label className="block text-sm font-bold text-[#4B244A] dark:text-white mb-2">Last Name <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  value={editLastName}
+                  onChange={(e) => setEditLastName(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]/50 focus:border-[#EA526F] transition-all text-sm"
+                  placeholder="Last name"
+                />
+              </div>
+
+              {/* Suffix */}
+              <div>
+                <label className="block text-sm font-bold text-[#4B244A] dark:text-white mb-2">Suffix</label>
+                <input
+                  type="text"
+                  value={editSuffix}
+                  onChange={(e) => setEditSuffix(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]/50 focus:border-[#EA526F] transition-all text-sm"
+                  placeholder="e.g. Jr., Sr., III (optional)"
+                />
+              </div>
+
+              {/* Error */}
+              {editError && (
+                <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  {editError}
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setShowEditProfile(false)}
+                  disabled={saving}
+                  className="flex-1 py-3 bg-gray-100 dark:bg-white/5 text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-white/10 transition-all text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={saving}
+                  className="flex-1 py-3 bg-[#EA526F] hover:bg-[#d4486a] text-white font-bold rounded-xl shadow-lg shadow-[#EA526F]/20 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-60"
+                >
+                  {saving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Changes'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Package Onboarding Modal */}
       {showPackageOnboarding && (
