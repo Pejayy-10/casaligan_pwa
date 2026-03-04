@@ -294,10 +294,10 @@ def get_my_accepted_jobs(
     if not worker_record:
         return []
     
-    # Get all accepted interest checks for this worker, ordered by most recent first
+    # Get all accepted AND pending interest checks for this worker, ordered by most recent first
     accepted_interests = db.query(InterestCheck).filter(
         InterestCheck.worker_id == worker_record.worker_id,
-        InterestCheck.status == InterestStatus.ACCEPTED
+        InterestCheck.status.in_([InterestStatus.ACCEPTED, InterestStatus.PENDING])
     ).order_by(InterestCheck.created_at.desc()).all()
     
     if not accepted_interests:
@@ -361,16 +361,26 @@ def get_my_accepted_jobs(
         
         contract = contract_map.get(post.post_id)
         
+        # Get the application status (pending vs accepted)
+        interest_status = interest.status.value if hasattr(interest.status, 'value') else str(interest.status)
+        
         # Apply status filter based on CONTRACT status (worker's individual progress)
         if status_filter and status_filter.lower() != 'all':
-            if contract:
+            # Handle the 'pending_application' filter for pending interests
+            if status_filter.lower() == 'pending_application':
+                if interest_status != 'pending':
+                    continue
+            elif interest_status == 'pending':
+                # Pending applications only show in 'all' or 'pending_application' filter
+                continue
+            elif contract:
                 contract_status = contract.status.value if hasattr(contract.status, 'value') else str(contract.status)
                 if contract_status.lower() != status_filter.lower():
                     if not (status_filter.lower() == 'ongoing' and contract_status.lower() == 'active'):
                         continue
             else:
-                post_status = post.status.value if hasattr(post.status, 'value') else str(post.status)
-                if post_status.lower() != status_filter.lower():
+                post_status_val = post.status.value if hasattr(post.status, 'value') else str(post.status)
+                if post_status_val.lower() != status_filter.lower():
                     continue
         
         # Employer info
@@ -432,6 +442,7 @@ def get_my_accepted_jobs(
             "location": post.location,
             "budget": float(post.salary) if post.salary else 0,
             "status": post_status,
+            "application_status": interest_status,
             "start_date": post.start_date,
             "end_date": post.end_date,
             "is_longterm": post.is_longterm,

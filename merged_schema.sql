@@ -42,6 +42,21 @@ CREATE TABLE public.certifications (
   name character varying NOT NULL UNIQUE,
   CONSTRAINT certifications_pkey PRIMARY KEY (certification_id)
 );
+CREATE TABLE public.contract_extensions (
+  extension_id integer NOT NULL DEFAULT nextval('contract_extensions_extension_id_seq'::regclass),
+  contract_id integer NOT NULL,
+  proposed_by integer NOT NULL,
+  proposed_end_date character varying NOT NULL,
+  proposed_budget numeric,
+  reason text,
+  status USER-DEFINED NOT NULL DEFAULT 'pending'::extension_status,
+  responded_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone,
+  CONSTRAINT contract_extensions_pkey PRIMARY KEY (extension_id),
+  CONSTRAINT contract_extensions_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(contract_id),
+  CONSTRAINT contract_extensions_proposed_by_fkey FOREIGN KEY (proposed_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.contracts (
   contract_id integer NOT NULL DEFAULT nextval('contracts_contract_id_seq'::regclass),
   post_id integer,

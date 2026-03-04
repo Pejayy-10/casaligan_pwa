@@ -539,6 +539,7 @@ export default function JobsPage() {
             payment_schedule: showContract.payment_schedule
           }}
           employerName={showContract.employer_name || 'Employer'}
+          workerName={user ? `${user.first_name}${user.middle_name ? ' ' + user.middle_name : ''} ${user.last_name}${user.suffix ? ' ' + user.suffix : ''}`.trim() : ''}
           onAccept={async () => {
             try {
               const token = localStorage.getItem('access_token');

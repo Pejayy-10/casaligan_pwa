@@ -20,6 +20,7 @@ interface ContractModalProps {
     };
   };
   employerName: string;
+  workerName?: string;
   onAccept: () => void;
   onReject: () => void;
 }
@@ -28,10 +29,11 @@ export default function ContractModal({
   jobTitle, 
   jobDetails, 
   employerName,
+  workerName,
   onAccept, 
   onReject 
 }: ContractModalProps) {
-  const [workerSignature, setWorkerSignature] = useState('');
+  const [workerSignature, setWorkerSignature] = useState(workerName || '');
   const [agreed, setAgreed] = useState(false);
 
   const handleAccept = () => {
@@ -111,7 +113,7 @@ export default function ContractModal({
             </div>
             <div>
               <p className={labelStyle}>SERVICE PROVIDER (Housekeeper)</p>
-              <p className={valueStyle}>[Your Name - To be signed below]</p>
+              <p className={valueStyle}>{workerName || '[Your Name - To be signed below]'}</p>
             </div>
           </div>
 

@@ -205,8 +205,11 @@ export default function ProfilePage() {
     }
   }, [navigate]);
 
+  const [switchingRole, setSwitchingRole] = useState(false);
+
   const handleSwitchRole = async () => {
-    if (!user) return;
+    if (!user || switchingRole) return;
+    setSwitchingRole(true);
     try {
       const result = await authService.switchRole();
       const updatedUser = { ...user, active_role: result.active_role as 'owner' | 'housekeeper' };
@@ -225,6 +228,8 @@ export default function ProfilePage() {
       }
     } catch {
       alert('Failed to switch role. You may not have housekeeper privileges yet.');
+    } finally {
+      setSwitchingRole(false);
     }
   };
 
@@ -441,10 +446,20 @@ export default function ProfilePage() {
             {user.is_housekeeper && (
                 <button
                     onClick={handleSwitchRole}
-                    className="w-full py-3.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl shadow-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-all flex items-center justify-center gap-2"
+                    disabled={switchingRole}
+                    className="w-full py-3.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl shadow-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                    <Briefcase className="w-4 h-4" />
-                    Switch to {user.active_role === 'owner' ? 'Housekeeper' : 'Owner'} Mode
+                    {switchingRole ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Switching...
+                      </>
+                    ) : (
+                      <>
+                        <Briefcase className="w-4 h-4" />
+                        Switch to {user.active_role === 'owner' ? 'Housekeeper' : 'Owner'} Mode
+                      </>
+                    )}
                 </button>
             )}
             

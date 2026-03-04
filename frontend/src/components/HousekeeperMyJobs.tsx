@@ -11,6 +11,7 @@ interface AcceptedJob {
   location: string;
   budget: number;
   status: string;
+  application_status?: string;
   start_date: string | null;
   end_date: string | null;
   is_longterm: boolean;
@@ -60,7 +61,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<AcceptedJob[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'ongoing' | 'pending_completion' | 'completed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed'>('all');
   const [showExtensionResponse, setShowExtensionResponse] = useState<PendingExtension | null>(null);
   const initialLoadDone = useRef(false);
 
@@ -104,6 +105,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
     switch (effectiveStatus) {
       case 'active':
       case 'ongoing': return 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300';
+      case 'pending_application': return 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300';
       case 'pending_completion': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300';
       case 'completed': return 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300';
       default: return 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300';
@@ -124,6 +126,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
 
   // Get the effective status for a job (use contract status for worker's individual progress)
   const getEffectiveStatus = (job: AcceptedJob): string => {
+    if (job.application_status === 'pending') return 'pending_application';
     return job.contract?.status || job.status;
   };
 
@@ -155,6 +158,16 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
             }`}
           >
             <ClipboardList className="inline w-4 h-4 mr-1" /> All Jobs
+          </button>
+          <button
+            onClick={() => setStatusFilter('pending_application')}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+              statusFilter === 'pending_application'
+                ? 'bg-orange-500 text-white shadow-md'
+                : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
+            }`}
+          >
+            <Clock className="inline w-4 h-4 mr-1" /> Applied
           </button>
           <button
             onClick={() => setStatusFilter('ongoing')}
@@ -192,10 +205,12 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
       {jobs.length === 0 ? (
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-12 text-center border border-white/50 dark:border-white/10 shadow-lg">
           <div className="flex justify-center mb-4 opacity-50"><Briefcase className="w-16 h-16" /></div>
-          <h3 className="text-2xl font-bold text-[#4B244A] dark:text-white mb-2">No Accepted Jobs</h3>
+          <h3 className="text-2xl font-bold text-[#4B244A] dark:text-white mb-2">No Jobs Found</h3>
           <p className="text-[#4B244A]/70 dark:text-white/70 mb-6 font-medium">
             {statusFilter === 'all' 
-              ? "You haven't been accepted to any jobs yet. Keep applying!" 
+              ? "You haven't applied to or been accepted to any jobs yet. Start applying!" 
+              : statusFilter === 'pending_application'
+              ? "You have no pending applications."
               : `No ${statusFilter.replace('_', ' ')} jobs found.`}
           </p>
         </div>
@@ -210,8 +225,8 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
               {/* Header */}
               <div className="flex items-start justify-between mb-3 gap-2">
                 <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white">{job.title}</h3>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(job.status, job.contract?.status)}`}>
-                  {getStatusLabel(job.status, job.contract?.status)}
+                <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(myStatus, job.contract?.status)}`}>
+                  {myStatus === 'pending_application' ? 'Pending' : getStatusLabel(job.status, job.contract?.status)}
                 </span>
               </div>
 
@@ -309,6 +324,13 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                   >
                     📋 Review Extension Request
                   </button>
+                </div>
+              )}
+
+              {/* Pending Application Banner */}
+              {myStatus === 'pending_application' && (
+                <div className="py-3 text-center text-orange-700 dark:text-orange-300 font-bold bg-orange-100 dark:bg-orange-500/10 rounded-lg border border-orange-200 dark:border-orange-500/30 mb-4">
+                  <Clock className="inline w-4 h-4 mr-1" /> Waiting for house owner to accept your application
                 </div>
               )}
 
