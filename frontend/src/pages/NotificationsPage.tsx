@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Check, CheckCheck, X } from 'lucide-react';
+import { Bell, Check, CheckCheck, X, Loader2 } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import JobEditResponseModal from '../components/JobEditResponseModal';
 import { API_BASE_URL } from '../config';
@@ -18,6 +18,8 @@ interface Notification {
 
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<'owner' | 'housekeeper'>('owner');
   const [showJobEditModal, setShowJobEditModal] = useState<{ jobId: number; jobTitle: string; message: string } | null>(null);
@@ -81,6 +83,7 @@ export default function NotificationsPage() {
     if (!token) return;
 
     try {
+      setMarkingAllRead(true);
       await fetch(`${API_BASE_URL}/notifications/read-all`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
@@ -91,6 +94,8 @@ export default function NotificationsPage() {
       window.dispatchEvent(new Event('notifications-updated'));
     } catch (error) {
       console.error('Error marking all as read:', error);
+    } finally {
+      setMarkingAllRead(false);
     }
   };
 
@@ -99,6 +104,7 @@ export default function NotificationsPage() {
     if (!token) return;
 
     try {
+      setDeletingId(notificationId);
       await fetch(`${API_BASE_URL}/notifications/${notificationId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
@@ -111,6 +117,8 @@ export default function NotificationsPage() {
       window.dispatchEvent(new Event('notifications-updated'));
     } catch (error) {
       console.error('Error deleting notification:', error);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -171,8 +179,10 @@ export default function NotificationsPage() {
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
-                className="text-sm text-[#E7467B] dark:text-[#EA526F] hover:text-gray-700 dark:hover:text-white transition-colors font-medium"
+                disabled={markingAllRead}
+                className="text-sm text-[#E7467B] dark:text-[#EA526F] hover:text-gray-700 dark:hover:text-white transition-colors font-medium disabled:opacity-50 flex items-center gap-1"
               >
+                {markingAllRead ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                 Mark all as read
               </button>
             )}
@@ -235,10 +245,11 @@ export default function NotificationsPage() {
                         e.stopPropagation();
                         deleteNotification(notification.notification_id);
                       }}
-                      className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors"
+                      disabled={deletingId === notification.notification_id}
+                      className="p-1.5 hover:bg-gray-200 dark:hover:bg-white/10 rounded-full transition-colors disabled:opacity-50"
                       aria-label="Delete notification"
                     >
-                      <X className="w-4 h-4 text-gray-400 dark:text-white/50 hover:text-red-500 dark:hover:text-red-400" />
+                      {deletingId === notification.notification_id ? <Loader2 className="w-4 h-4 animate-spin text-gray-400" /> : <X className="w-4 h-4 text-gray-400 dark:text-white/50 hover:text-red-500 dark:hover:text-red-400" />}
                     </button>
                   </div>
                 </div>

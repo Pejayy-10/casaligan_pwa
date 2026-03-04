@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
-import { Plus, Edit2, Clock, Package, AlertTriangle } from 'lucide-react';
+import { Plus, Edit2, Clock, Package, AlertTriangle, Loader2 } from 'lucide-react';
 
 interface Package {
   package_id: number;
@@ -153,10 +153,13 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     }
   };
 
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
   const handleDelete = async (packageId: number) => {
     if (!confirm('Are you sure you want to delete this package?')) return;
 
     try {
+      setActionLoading(`delete-${packageId}`);
       const token = localStorage.getItem('access_token');
       const response = await fetch(`${API_BASE_URL}/packages/${packageId}`, {
         method: 'DELETE',
@@ -171,11 +174,14 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     } catch (error) {
       console.error('Delete error:', error);
       alert('Failed to delete package');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleToggleActive = async (pkg: Package) => {
     try {
+      setActionLoading(`toggle-${pkg.package_id}`);
       const token = localStorage.getItem('access_token');
       const response = await fetch(`${API_BASE_URL}/packages/${pkg.package_id}`, {
         method: 'PUT',
@@ -191,6 +197,8 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
       }
     } catch (error) {
       console.error('Toggle error:', error);
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -376,18 +384,22 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
                   </button>
                   <button
                     onClick={() => handleToggleActive(pkg)}
-                    className={`px-3 py-1 text-sm font-bold rounded-lg transition-colors shadow-sm ${
+                    disabled={actionLoading === `toggle-${pkg.package_id}`}
+                    className={`px-3 py-1 text-sm font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1 ${
                       pkg.is_active 
                         ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-300 dark:hover:bg-yellow-500/30'
                         : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-500/20 dark:text-green-300 dark:hover:bg-green-500/30'
                     }`}
                   >
+                    {actionLoading === `toggle-${pkg.package_id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                     {pkg.is_active ? 'Deactivate' : 'Activate'}
                   </button>
                   <button
                     onClick={() => handleDelete(pkg.package_id)}
-                    className="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-500/20 dark:text-red-300 text-sm font-bold rounded-lg dark:hover:bg-red-500/30 transition-colors shadow-sm"
+                    disabled={actionLoading === `delete-${pkg.package_id}`}
+                    className="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-500/20 dark:text-red-300 text-sm font-bold rounded-lg dark:hover:bg-red-500/30 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1"
                   >
+                    {actionLoading === `delete-${pkg.package_id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                     Delete
                   </button>
                 </div>

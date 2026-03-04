@@ -5,7 +5,7 @@ import TabBar from '../components/TabBar';
 import StarRating from '../components/StarRating';
 import AIChatModal from '../components/AIChatModal';
 import apiClient from '../services/api';
-import { Briefcase, ClipboardList, MessageCircle, CheckCircle, DollarSign, AlertCircle, Clock, MapPin, Star, ChevronRight, User as UserIcon } from 'lucide-react';
+import { Briefcase, ClipboardList, MessageCircle, CheckCircle, DollarSign, AlertCircle, Clock, MapPin, Star, ChevronRight, User as UserIcon, Loader2 } from 'lucide-react';
 import type { User } from '../types';
 
 interface RatingSummary {
@@ -41,6 +41,8 @@ export default function DashboardPage() {
   const [ratingSummary, setRatingSummary] = useState<RatingSummary | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(true);
+  const [loadingRatings, setLoadingRatings] = useState(true);
 
   useEffect(() => {
     if (!user) {
@@ -52,7 +54,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchAnalytics = async () => {
       if (!user) return;
-      
+      setLoadingAnalytics(true);
       try {
         console.log('Fetching analytics for user:', user.id, 'Role:', user.active_role);
         const response = await apiClient.get('/auth/analytics');
@@ -69,6 +71,8 @@ export default function DashboardPage() {
           completed_jobs: 0,
           total_earnings: 0
         });
+      } finally {
+        setLoadingAnalytics(false);
       }
     };
     
@@ -107,8 +111,8 @@ export default function DashboardPage() {
       }
     };
     
-    fetchRatingSummary();
-    fetchReviews();
+    setLoadingRatings(true);
+    Promise.all([fetchRatingSummary(), fetchReviews()]).finally(() => setLoadingRatings(false));
   }, [user]);
 
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
@@ -258,19 +262,25 @@ export default function DashboardPage() {
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8 space-y-8">
 
         {/* Quick Stats Grid */}
+        {loadingAnalytics ? (
+          <div className="flex flex-col items-center justify-center py-16">
+            <Loader2 className="w-10 h-10 text-[#EA526F] animate-spin mb-4" />
+            <p className="text-sm font-medium text-gray-400 dark:text-gray-500">Loading dashboard...</p>
+          </div>
+        ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard 
             icon={ClipboardList}
             iconColor="text-blue-600"
             bgColor="bg-blue-100 dark:bg-blue-500/20"
-            value={analytics ? (user.active_role === 'owner' ? analytics.jobs_posted?.toString() || '0' : analytics.jobs_applied?.toString() || '0') : '...'}
+            value={analytics ? (user.active_role === 'owner' ? analytics.jobs_posted?.toString() || '0' : analytics.jobs_applied?.toString() || '0') : '0'}
             label={user.active_role === 'owner' ? 'Jobs Posted' : 'Jobs Applied'}
           />
           <StatCard 
             icon={MessageCircle}
             iconColor="text-purple-600"
             bgColor="bg-purple-100 dark:bg-purple-500/20"
-            value={analytics ? analytics.messages.toString() : '...'}
+            value={analytics ? analytics.messages.toString() : '0'}
             label="Messages"
           />
           <StatCard 
@@ -282,7 +292,7 @@ export default function DashboardPage() {
                 ? ratingSummary.average_rating.toFixed(1)
                 : analytics 
                   ? analytics.reviews.toString()
-                  : '...'
+                  : '0'
             }
             label={
               ratingSummary && ratingSummary.total_ratings > 0 
@@ -296,13 +306,20 @@ export default function DashboardPage() {
             icon={user.active_role === 'owner' ? CheckCircle : DollarSign}
             iconColor="text-green-600"
             bgColor="bg-green-100 dark:bg-green-500/20"
-            value={analytics ? (user.active_role === 'owner' ? analytics.completed_jobs?.toString() || '0' : `₱${analytics.total_earnings?.toLocaleString() || '0'}`) : '...'}
+            value={analytics ? (user.active_role === 'owner' ? analytics.completed_jobs?.toString() || '0' : `₱${analytics.total_earnings?.toLocaleString() || '0'}`) : '0'}
             label={user.active_role === 'owner' ? 'Completed Jobs' : 'Total Earnings'}
           />
         </div>
+        )}
 
         {/* Rating Details Section (Housekeeper Only) */}
-        {user.active_role === 'housekeeper' && (
+        {user.active_role === 'housekeeper' && loadingRatings && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-[#EA526F] animate-spin mb-3" />
+            <p className="text-sm font-medium text-gray-400 dark:text-gray-500">Loading ratings & reviews...</p>
+          </div>
+        )}
+        {user.active_role === 'housekeeper' && !loadingRatings && (
           <div className="grid md:grid-cols-3 gap-6">
             
             {/* Rating Breakdown Card */}

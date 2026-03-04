@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 
 interface ContractModalProps {
   jobTitle: string;
@@ -21,7 +21,7 @@ interface ContractModalProps {
   };
   employerName: string;
   workerName?: string;
-  onAccept: () => void;
+  onAccept: () => void | Promise<void>;
   onReject: () => void;
 }
 
@@ -35,8 +35,9 @@ export default function ContractModal({
 }: ContractModalProps) {
   const [workerSignature, setWorkerSignature] = useState(workerName || '');
   const [agreed, setAgreed] = useState(false);
+  const [accepting, setAccepting] = useState(false);
 
-  const handleAccept = () => {
+  const handleAccept = async () => {
     if (!workerSignature.trim()) {
       alert('Please enter your full name to sign the contract');
       return;
@@ -45,7 +46,12 @@ export default function ContractModal({
       alert('Please check the agreement box to continue');
       return;
     }
-    onAccept();
+    try {
+      setAccepting(true);
+      await onAccept();
+    } finally {
+      setAccepting(false);
+    }
   };
 
   const formatPaymentSchedule = () => {
@@ -267,16 +273,17 @@ export default function ContractModal({
           <div className="flex gap-3 pt-4">
             <button
               onClick={onReject}
-              className="flex-1 px-6 py-4 bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-white font-bold rounded-xl hover:bg-gray-300 dark:hover:bg-gray-500 transition-all border border-gray-300 dark:border-gray-500"
+              disabled={accepting}
+              className="flex-1 px-6 py-4 bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-white font-bold rounded-xl hover:bg-gray-300 dark:hover:bg-gray-500 transition-all border border-gray-300 dark:border-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               ❌ Decline Contract
             </button>
             <button
               onClick={handleAccept}
-              disabled={!workerSignature.trim() || !agreed}
-              className="flex-1 px-6 py-4 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!workerSignature.trim() || !agreed || accepting}
+              className="flex-1 px-6 py-4 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              ✅ Accept & Sign Contract
+              {accepting ? <><Loader2 className="w-5 h-5 animate-spin" /> Submitting...</> : '✅ Accept & Sign Contract'}
             </button>
           </div>
         </div>

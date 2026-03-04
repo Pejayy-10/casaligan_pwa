@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import { usePayment } from '../context/PaymentContext';
-import { DollarSign, Clock, CheckCircle, ClipboardList, Camera, FileText, Lightbulb, RotateCw, AlertTriangle } from 'lucide-react';
+import { DollarSign, Clock, CheckCircle, ClipboardList, Camera, FileText, Lightbulb, RotateCw, AlertTriangle, Loader2 } from 'lucide-react';
 
 interface WorkerCompletion {
   contract_id: number;
@@ -337,9 +337,10 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                                   onCancel: () => {}
                                 });
                               }}
-                              className="w-full py-2 bg-[#EA526F] text-white font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
+                              disabled={processingWorker === worker.contract_id}
+                              className="w-full py-2 bg-[#EA526F] text-white font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-1"
                             >
-                              <DollarSign className="inline w-4 h-4 mr-1" /> Pay Now
+                              {processingWorker === worker.contract_id ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="inline w-4 h-4" />} Pay Now
                             </button>
                           )}
                         </div>

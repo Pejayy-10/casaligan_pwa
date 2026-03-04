@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, DollarSign, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X, ChevronRight, FileText } from 'lucide-react';
+import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, DollarSign, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X, ChevronRight, FileText, Loader2 } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import JobDetailModal, { type JobPost } from '../components/JobDetailModal';
 import ApplicantsListModal from '../components/ApplicantsListModal';
@@ -826,8 +826,11 @@ function OwnerJobsContent({
   onReportWorker: (job: JobPost, worker: any) => void;
   onExtendContract: (job: JobPost, worker: any) => void;
 }) {
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
   const handleStatusUpdate = async (postId: number, newStatus: string) => {
     try {
+      setActionLoading(`status-${postId}`);
       const token = localStorage.getItem('access_token');
       const response = await fetch(`${API_BASE_URL}/jobs/${postId}/status?new_status=${newStatus}`, {
         method: 'PUT',
@@ -846,6 +849,8 @@ function OwnerJobsContent({
     } catch (error) {
       console.error('Failed to update status:', error);
       alert('Failed to update job status');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -853,6 +858,7 @@ function OwnerJobsContent({
     if (!confirm('Repost this job with the same details?')) return;
 
     try {
+      setActionLoading(`repost-${postId}`);
       const token = localStorage.getItem('access_token');
       const response = await fetch(`${API_BASE_URL}/jobs/${postId}/repost`, {
         method: 'POST',
@@ -871,6 +877,8 @@ function OwnerJobsContent({
     } catch (error) {
       console.error('Failed to repost job:', error);
       alert('Failed to repost job');
+    } finally {
+      setActionLoading(null);
     }
   };
 
@@ -1016,9 +1024,10 @@ function OwnerJobsContent({
                     </button>
                     <button 
                         onClick={() => { if (confirm('Are you sure?')) handleStatusUpdate(job.post_id, 'cancelled'); }} 
-                        className="py-2 bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white text-sm font-bold rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors"
+                        disabled={actionLoading === `status-${job.post_id}`}
+                        className="py-2 bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white text-sm font-bold rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
                     >
-                        Cancel
+                        {actionLoading === `status-${job.post_id}` ? <><Loader2 className="w-4 h-4 animate-spin" /> Cancelling...</> : 'Cancel'}
                     </button>
                  </div>
              )}
@@ -1070,9 +1079,10 @@ function OwnerJobsContent({
              {(job.status === 'completed' || job.status === 'cancelled') && (
                <button
                  onClick={() => handleRepost(job.post_id)}
-                 className="mt-2 w-full py-2 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
+                 disabled={actionLoading === `repost-${job.post_id}`}
+                 className="mt-2 w-full py-2 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-1"
                >
-                 Repost Job
+                 {actionLoading === `repost-${job.post_id}` ? <><Loader2 className="w-4 h-4 animate-spin" /> Reposting...</> : 'Repost Job'}
                </button>
              )}
           </div>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type JSX } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { Clock, RotateCw, FileText, CheckCircle, CreditCard, DollarSign, ClipboardList, Calendar, X, Star, Briefcase } from 'lucide-react';
+import { Clock, RotateCw, FileText, CheckCircle, CreditCard, DollarSign, ClipboardList, Calendar, X, Star, Briefcase, Loader2 } from 'lucide-react';
 import RatingModal from './RatingModal';
 import apiClient from '../services/api';
 import { usePayment } from '../context/PaymentContext';
@@ -375,9 +375,10 @@ export default function DirectHiresList({ role, onClose }: Props) {
           return (
             <button
               onClick={() => handleAction(hire, 'cancel')}
-              className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 font-semibold"
+              disabled={processing}
+              className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 font-semibold disabled:opacity-50 flex items-center gap-1"
             >
-              Cancel
+              {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Cancel
             </button>
           );
         case 'accepted':
@@ -403,7 +404,8 @@ export default function DirectHiresList({ role, onClose }: Props) {
             <div className="flex gap-2">
               <button
                 onClick={() => handlePayment(hire)}
-                className="px-3 py-1 bg-[#EA526F] text-white text-sm rounded-lg hover:bg-[#d64460] font-semibold shadow-sm"
+                disabled={processing}
+                className="px-3 py-1 bg-[#EA526F] text-white text-sm rounded-lg hover:bg-[#d64460] font-semibold shadow-sm disabled:opacity-50"
               >
                 Pay Now
               </button>
@@ -443,15 +445,17 @@ export default function DirectHiresList({ role, onClose }: Props) {
             <div className="flex gap-2">
               <button
                 onClick={() => handleAction(hire, 'accept')}
-                className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm"
+                disabled={processing}
+                className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm disabled:opacity-50 flex items-center gap-1"
               >
-                Accept
+                {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Accept
               </button>
               <button
                 onClick={() => handleAction(hire, 'reject')}
-                className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 font-semibold"
+                disabled={processing}
+                className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 font-semibold disabled:opacity-50 flex items-center gap-1"
               >
-                Reject
+                {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Reject
               </button>
             </div>
           );
@@ -460,9 +464,10 @@ export default function DirectHiresList({ role, onClose }: Props) {
             <div className="flex gap-2">
               <button
                 onClick={() => handleAction(hire, 'start')}
-                className="px-3 py-1 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 font-semibold shadow-sm"
+                disabled={processing}
+                className="px-3 py-1 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 font-semibold shadow-sm disabled:opacity-50 flex items-center gap-1"
               >
-                Start Work
+                {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Start Work
               </button>
               {messageButton}
             </div>
@@ -516,9 +521,10 @@ export default function DirectHiresList({ role, onClose }: Props) {
                     }
                   }
                 }}
-                className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm"
+                disabled={processing}
+                className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm disabled:opacity-50 flex items-center gap-1"
               >
-                ✓ Confirm Payment Received
+                {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : '✓'} Confirm Payment Received
               </button>
               {messageButton}
             </div>
