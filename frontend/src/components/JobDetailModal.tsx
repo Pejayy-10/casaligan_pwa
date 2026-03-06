@@ -108,13 +108,21 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
           </div>
 
           {/* Duration Details */}
-          {job.duration_type === 'long_term' && job.start_date && job.end_date && (
+          {(job.start_date || job.end_date) && (
             <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
-              <h3 className="text-[#4B244A] dark:text-white font-bold mb-2"><Calendar className="inline w-4 h-4 mr-1" /> Duration</h3>
-              <p className="text-[#4B244A]/80 dark:text-white/80 text-sm">
-                From <span className="font-bold">{new Date(job.start_date).toLocaleDateString()}</span> to{' '}
-                <span className="font-bold">{new Date(job.end_date).toLocaleDateString()}</span>
-              </p>
+              <h3 className="text-[#4B244A] dark:text-white font-bold mb-2"><Calendar className="inline w-4 h-4 mr-1" /> Timeline</h3>
+              <div className="space-y-2 text-sm">
+                {job.start_date && (
+                  <p className="text-[#4B244A]/80 dark:text-white/80">
+                    <span className="font-semibold">Start Date:</span> <span className="font-bold">{new Date(job.start_date).toLocaleDateString()}</span>
+                  </p>
+                )}
+                {job.end_date && (
+                  <p className="text-[#4B244A]/80 dark:text-white/80">
+                    <span className="font-semibold">End Date:</span> <span className="font-bold">{new Date(job.end_date).toLocaleDateString()}</span>
+                  </p>
+                )}
+              </div>
             </div>
           )}
 
