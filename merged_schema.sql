@@ -247,6 +247,8 @@ CREATE TABLE public.interestcheck (
   edit_response USER-DEFINED,
   edit_notified_at timestamp with time zone,
   edit_responded_at timestamp with time zone,
+  rejection_reason character varying,
+  withdrawn_due_to_conflict boolean NOT NULL DEFAULT false,
   CONSTRAINT interestcheck_pkey PRIMARY KEY (interest_id),
   CONSTRAINT interestcheck_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forumposts(post_id),
   CONSTRAINT interestcheck_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id)

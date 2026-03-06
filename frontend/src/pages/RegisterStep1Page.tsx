@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authService } from '../services/auth';
+import { Eye, EyeOff, Check, X } from 'lucide-react';
 import type { RegisterData } from '../types';
 
 export default function RegisterStep1Page() {
@@ -19,6 +20,8 @@ export default function RegisterStep1Page() {
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; phone_number?: string }>({});
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const isGmail = (email: string) => /^[^\s@]+@gmail\.com$/i.test(email.trim());
   const isPhilippinePhone = (phone: string) => {
@@ -40,6 +43,20 @@ export default function RegisterStep1Page() {
 
     if (formData.password !== confirmPassword) {
       setError('Passwords do not match');
+      return;
+    }
+
+    // Strong password validation
+    if (formData.password.length < 12) {
+      setError('Password must be at least 12 characters long');
+      return;
+    }
+    if (!/[A-Z]/.test(formData.password)) {
+      setError('Password must contain at least one uppercase letter');
+      return;
+    }
+    if (!/[0-9]/.test(formData.password)) {
+      setError('Password must contain at least one number');
       return;
     }
 
@@ -257,34 +274,71 @@ export default function RegisterStep1Page() {
               <label htmlFor="password" className={labelClass}>
                 Password *
               </label>
-              <input
-                type="password"
-                id="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                className={inputClass}
-                placeholder="Minimum 8 characters"
-                disabled={loading}
-                required
-                minLength={8}
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  className={`${inputClass} pr-12`}
+                  placeholder="Minimum 12 characters"
+                  disabled={loading}
+                  required
+                  minLength={12}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-white/50 hover:text-[#4B244A] dark:hover:text-white transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
+              {/* Password strength indicators */}
+              {formData.password && (
+                <div className="mt-2 space-y-1">
+                  <div className="flex items-center gap-2 text-xs font-medium">
+                    {formData.password.length >= 12 ? <Check className="w-3.5 h-3.5 text-green-500" /> : <X className="w-3.5 h-3.5 text-red-400" />}
+                    <span className={formData.password.length >= 12 ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}>At least 12 characters</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-medium">
+                    {/[A-Z]/.test(formData.password) ? <Check className="w-3.5 h-3.5 text-green-500" /> : <X className="w-3.5 h-3.5 text-red-400" />}
+                    <span className={/[A-Z]/.test(formData.password) ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}>At least one uppercase letter</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs font-medium">
+                    {/[0-9]/.test(formData.password) ? <Check className="w-3.5 h-3.5 text-green-500" /> : <X className="w-3.5 h-3.5 text-red-400" />}
+                    <span className={/[0-9]/.test(formData.password) ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'}>At least one number</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>
               <label htmlFor="confirm_password" className={labelClass}>
                 Confirm Password *
               </label>
-              <input
-                type="password"
-                id="confirm_password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className={inputClass}
-                placeholder="Re-enter password"
-                disabled={loading}
-                required
-                minLength={8}
-              />
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  id="confirm_password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className={`${inputClass} pr-12`}
+                  placeholder="Re-enter password"
+                  disabled={loading}
+                  required
+                  minLength={12}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-white/50 hover:text-[#4B244A] dark:hover:text-white transition-colors"
+                  tabIndex={-1}
+                >
+                  {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                </button>
+              </div>
             </div>
 
             <button
