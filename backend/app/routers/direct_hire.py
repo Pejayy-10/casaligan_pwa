@@ -564,6 +564,13 @@ def accept_hire(
     db: Session = Depends(get_db)
 ):
     """Accept a direct hire request (worker only)"""
+    from app.services.schedule_conflict_service import detect_schedule_conflicts
+    from app.services.notification_service import (
+        notify_direct_hire_rejected_due_to_conflict,
+        notify_application_withdrawn_due_to_conflict,
+        notify_applicant_withdrawn_due_to_conflict
+    )
+    
     worker = get_worker_for_user(current_user.id, db)
     
     hire = db.query(DirectHire).filter(
@@ -577,8 +584,103 @@ def accept_hire(
     if hire.status != DirectHireStatus.PENDING:
         raise HTTPException(status_code=400, detail="Can only accept pending requests")
     
+    # ========== SCHEDULE CONFLICT DETECTION ==========
+    # Check if this direct hire conflicts with existing jobs
+    is_recurring = hire.is_recurring
+    recurring_day = hire.day_of_week if is_recurring else None
+    
+    conflicts = detect_schedule_conflicts(
+        db=db,
+        worker_id=worker.worker_id,
+        new_job_start_date=hire.scheduled_date,
+        new_job_end_date=hire.scheduled_date,
+        new_job_employer_id=hire.employer_id,
+        new_job_is_recurring=is_recurring,
+        new_job_recurring_day=recurring_day,
+        new_job_type='direct_hire'
+    )
+    
+    if conflicts:
+        # Reject the hire request
+        hire.status = DirectHireStatus.REJECTED
+        db.commit()
+        
+        # Notify employer about conflict
+        employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
+        if employer:
+            conflict_titles = ", ".join([c['title'] for c in conflicts])
+            notify_direct_hire_rejected_due_to_conflict(
+                db=db,
+                employer_user_id=employer.user_id,
+                worker_name=f"{current_user.first_name} {current_user.last_name}",
+                conflicting_job_title=conflict_titles
+            )
+        
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot accept this hire. You have a conflicting job scheduled: {', '.join([c['title'] for c in conflicts])}"
+        )
+    
     hire.status = DirectHireStatus.ACCEPTED
     db.commit()
+    
+    # ========== WITHDRAW CONFLICTING APPLICATIONS ==========
+    # When accepting a direct hire, withdraw pending applications from conflicting job posts (from other employers)
+    from app.models_v2.forum import InterestCheck, InterestStatus
+    
+    conflicting_interests = detect_schedule_conflicts(
+        db=db,
+        worker_id=worker.worker_id,
+        new_job_start_date=hire.scheduled_date,
+        new_job_end_date=hire.scheduled_date,
+        new_job_employer_id=hire.employer_id,
+        new_job_is_recurring=is_recurring,
+        new_job_recurring_day=recurring_day,
+        new_job_type='direct_hire'
+    )
+    
+    if conflicting_interests:
+        for conflict in conflicting_interests:
+            if conflict['type'] == 'job_post':
+                # Withdraw pending applications from conflicting job posts
+                interest = db.query(InterestCheck).filter(
+                    InterestCheck.post_id == conflict['job_id'],
+                    InterestCheck.worker_id == worker.worker_id,
+                    InterestCheck.status == InterestStatus.PENDING
+                ).first()
+                
+                if interest:
+                    interest.status = InterestStatus.REJECTED
+                    interest.withdrawn_due_to_conflict = True
+                    db.commit()
+                    
+                    # Notify the job owner about the withdrawal
+                    from app.models_v2.forum import ForumPost
+                    post = db.query(ForumPost).filter(ForumPost.post_id == conflict['job_id']).first()
+                    if post:
+                        conflicting_employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+                        if conflicting_employer:
+                            worker_name = f"{current_user.first_name} {current_user.last_name}"
+                            notify_applicant_withdrawn_due_to_conflict(
+                                db=db,
+                                employer_user_id=conflicting_employer.user_id,
+                                worker_name=worker_name,
+                                job_title=post.title,
+                                accepted_job_title=f"Direct Hire from {db.query(Employer).filter(Employer.employer_id == hire.employer_id).first().user.first_name if db.query(Employer).filter(Employer.employer_id == hire.employer_id).first() else 'employer'}",
+                                job_id=post.post_id
+                            )
+        
+        # Notify the worker about withdrawn applications
+        withdrawn_titles = [c['title'] for c in conflicting_interests if c['type'] == 'job_post']
+        if withdrawn_titles:
+            employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
+            employer_name = f"{employer.user.first_name} {employer.user.last_name}" if employer else "Employer"
+            notify_application_withdrawn_due_to_conflict(
+                db=db,
+                worker_user_id=current_user.id,
+                withdrawn_job_titles=", ".join(withdrawn_titles),
+                accepted_job_title=f"Direct Hire from {employer_name}"
+            )
     
     # Send notification to employer that worker accepted
     employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()

@@ -36,7 +36,7 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<JobPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState<JobPost | null>(null);
-  const [applicationStatuses, setApplicationStatuses] = useState<Record<number, { has_applied: boolean; status?: string; can_reapply?: boolean }>>({});
+  const [applicationStatuses, setApplicationStatuses] = useState<Record<number, { has_applied: boolean; status?: string; can_reapply?: boolean; withdrawn_due_to_conflict?: boolean }>>({});
   const [showApplicants, setShowApplicants] = useState<JobPost | null>(null);
   const [showPayment, setShowPayment] = useState<{ jobTitle: string; amount: number; workerName: string } | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'ongoing' | 'completed' | 'closed'>('all');
@@ -111,7 +111,7 @@ export default function JobsPage() {
             });
             if (statusResponse.ok) {
               const bulkStatuses = await statusResponse.json();
-              const statuses: Record<number, { has_applied: boolean; status?: string; can_reapply?: boolean }> = {};
+              const statuses: Record<number, { has_applied: boolean; status?: string; can_reapply?: boolean; withdrawn_due_to_conflict?: boolean }> = {};
               for (const job of data) {
                 const s = bulkStatuses[String(job.post_id)];
                 statuses[job.post_id] = s || { has_applied: false };
@@ -508,6 +508,7 @@ export default function JobsPage() {
           hasApplied={applicationStatuses[selectedJob.post_id]?.has_applied}
           applicationStatus={applicationStatuses[selectedJob.post_id]?.status}
           canReapply={applicationStatuses[selectedJob.post_id]?.can_reapply || false}
+          withdrawnDueToConflict={applicationStatuses[selectedJob.post_id]?.withdrawn_due_to_conflict || false}
           onStatusRefresh={async () => {
             const token = localStorage.getItem('access_token');
             if (token && selectedJob) {

@@ -106,6 +106,9 @@ class InterestCheck(Base):
     edit_notified_at = Column(DateTime(timezone=True), nullable=True)  # When the applicant was notified of the edit
     edit_responded_at = Column(DateTime(timezone=True), nullable=True)  # When the applicant responded
     
+    # Schedule conflict tracking
+    withdrawn_due_to_conflict = Column(Boolean, default=False, nullable=False)  # True if withdrawn due to schedule conflict
+    
     # Relationships
     post = relationship("ForumPost", back_populates="interest_checks")
     worker = relationship("Worker", back_populates="interest_checks")

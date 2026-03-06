@@ -35,6 +35,12 @@ class NotificationType(str, enum.Enum):
     CONTRACT_EXTENSION_ACCEPTED = "contract_extension_accepted"  # Worker accepted extension
     CONTRACT_EXTENSION_REJECTED = "contract_extension_rejected"  # Worker rejected extension
     
+    # Schedule Conflict related
+    APPLICATION_WITHDRAWN_DUE_TO_CONFLICT = "application_withdrawn_due_to_conflict"  # Your application was withdrawn due to schedule conflict
+    APPLICANT_WITHDRAWN_DUE_TO_CONFLICT = "applicant_withdrawn_due_to_conflict"      # Applicant withdrew due to schedule conflict
+    DIRECT_HIRE_REJECTED_DUE_TO_CONFLICT = "direct_hire_rejected_due_to_conflict"    # Direct hire request rejected due to conflict
+    HIRE_CANCELED_WORKER_ACCEPTED_CONFLICT = "hire_canceled_worker_accepted_conflict" # Hire request canceled, worker accepted conflicting job
+    
     # General
     SYSTEM = "system"                             # System notification
     REMINDER = "reminder"                         # General reminder

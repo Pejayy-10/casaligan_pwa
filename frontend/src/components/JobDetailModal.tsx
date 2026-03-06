@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Home, Zap, Users, Calendar, FileText, Camera, User, Clock, RotateCw, Check } from 'lucide-react';
+import { Home, Zap, Users, Calendar, FileText, Camera, User, Clock, RotateCw, Check, AlertTriangle } from 'lucide-react';
 
 export interface AcceptedWorker {
   worker_id: number;
@@ -47,10 +47,11 @@ interface JobDetailModalProps {
   hasApplied?: boolean;
   applicationStatus?: string;
   canReapply?: boolean;
+  withdrawnDueToConflict?: boolean;
   onStatusRefresh?: () => void;
 }
 
-export default function JobDetailModal({ job, onClose, onApply, hasApplied = false, applicationStatus, canReapply = false, onStatusRefresh }: JobDetailModalProps) {
+export default function JobDetailModal({ job, onClose, onApply, hasApplied = false, applicationStatus, canReapply = false, withdrawnDueToConflict = false, onStatusRefresh }: JobDetailModalProps) {
   const [isApplying, setIsApplying] = useState(false);
 
   const handleApply = async () => {
@@ -193,11 +194,18 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
                   'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300'
                 }`}>
                   {applicationStatus === 'accepted' ? <><Check className="inline w-4 h-4 mr-1" /> Application Accepted</> :
-                   applicationStatus === 'rejected' ? <>✗ Application Rejected</> :
-                   applicationStatus === 'withdrawn' ? <>Application Withdrawn</> :
+                   applicationStatus === 'rejected' || applicationStatus === 'withdrawn' ? <>Application Withdrawn</> :
                    <><Clock className="inline w-4 h-4 mr-1" /> Application Pending</>}
                 </div>
-                {canReapply && applicationStatus === 'withdrawn' && (
+                {withdrawnDueToConflict && applicationStatus === 'withdrawn' && (
+                  <button
+                    disabled
+                    className="w-full py-3 bg-gray-300 text-gray-600 font-bold text-base rounded-xl cursor-not-allowed"
+                  >
+                    <AlertTriangle className="inline w-4 h-4 mr-1" /> Cannot Re-apply - Schedule Conflict
+                  </button>
+                )}
+                {canReapply && applicationStatus === 'withdrawn' && !withdrawnDueToConflict && (
                   <button
                     onClick={async () => {
                       await handleApply();

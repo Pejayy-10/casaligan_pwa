@@ -973,7 +973,35 @@ def get_application_statuses_bulk(
     if not ids:
         return {}
     
-    # Fetch all applications in one query
+    # Get worker's accepted applications with dates (to check for conflicts)
+    from app.services.schedule_conflict_service import parse_date_string, check_dates_overlap, check_day_overlap
+    
+    accepted_applications = db.query(InterestCheck).filter(
+        InterestCheck.worker_id == worker_record.worker_id,
+        InterestCheck.status == InterestStatus.ACCEPTED
+    ).all()
+    
+    # Build list of accepted job dates for conflict checking
+    accepted_job_dates = {}
+    for accepted_app in accepted_applications:
+        accepted_post = db.query(ForumPost).filter(ForumPost.post_id == accepted_app.post_id).first()
+        if accepted_post:
+            if accepted_post.is_recurring:
+                accepted_job_dates[accepted_app.post_id] = {
+                    'type': 'recurring',
+                    'day': accepted_post.day_of_week
+                }
+            else:
+                start_date = parse_date_string(accepted_post.start_date)
+                end_date = parse_date_string(accepted_post.end_date)
+                if start_date:
+                    accepted_job_dates[accepted_app.post_id] = {
+                        'type': 'single',
+                        'start': start_date,
+                        'end': end_date or start_date
+                    }
+    
+    # Fetch all applications for the requested job posts
     applications = db.query(InterestCheck).filter(
         InterestCheck.post_id.in_(ids),
         InterestCheck.worker_id == worker_record.worker_id
@@ -988,13 +1016,41 @@ def get_application_statuses_bulk(
         elif app.status == InterestStatus.REJECTED:
             effective_status = "withdrawn"
         
+        # Check if this job conflicts with any accepted job
+        has_conflict_with_accepted = False
+        if app.status == InterestStatus.REJECTED or app.edit_response == EditResponseStatus.REJECTED:
+            # Check if withdrawing was due to conflict
+            if app.withdrawn_due_to_conflict:
+                has_conflict_with_accepted = True
+            else:
+                # Also check if there's an accepted job with the same date
+                job = db.query(ForumPost).filter(ForumPost.post_id == app.post_id).first()
+                if job:
+                    job_start = parse_date_string(job.start_date)
+                    job_end = parse_date_string(job.end_date)
+                    job_is_recurring = job.is_recurring and job.recurring_status == 'active'
+                    
+                    for accepted_post_id, accepted_info in accepted_job_dates.items():
+                        if job_is_recurring and accepted_info['type'] == 'recurring':
+                            if check_day_overlap(job.day_of_week, accepted_info['day']):
+                                has_conflict_with_accepted = True
+                                break
+                        elif not job_is_recurring and accepted_info['type'] == 'single':
+                            if check_dates_overlap(job_start, job_end or job_start, accepted_info['start'], accepted_info['end']):
+                                has_conflict_with_accepted = True
+                                break
+        
+        # Can only re-apply if withdrawn AND NOT due to schedule conflict (with either flag or current accepted jobs)
+        can_reapply = (
+            (app.status == InterestStatus.REJECTED or app.edit_response == EditResponseStatus.REJECTED)
+            and not has_conflict_with_accepted
+        )
+        
         result[str(app.post_id)] = {
             "has_applied": True,
             "status": effective_status,
-            "can_reapply": (
-                app.status == InterestStatus.REJECTED or
-                app.edit_response == EditResponseStatus.REJECTED
-            )
+            "can_reapply": can_reapply,
+            "withdrawn_due_to_conflict": app.withdrawn_due_to_conflict or has_conflict_with_accepted
         }
     
     return result
@@ -1333,6 +1389,10 @@ def start_job(
         if application.status != InterestStatus.PENDING:
             continue
         
+        # Import conflict service
+        from app.services.schedule_conflict_service import detect_schedule_conflicts
+        from app.services.notification_service import notify_application_withdrawn_due_to_conflict, notify_applicant_withdrawn_due_to_conflict
+        
         # Check if applicant has a pending edit response - if so, cannot accept yet
         if application.edit_response == EditResponseStatus.PENDING:
             # Get worker info for error message
@@ -1352,6 +1412,88 @@ def start_job(
         worker_user = db.query(User).filter(User.id == worker.user_id).first() if worker else None
         worker_name = f"{worker_user.first_name} {worker_user.last_name}" if worker_user else "Worker"
         accepted_workers.append(worker_name)
+        
+        # ========== SCHEDULE CONFLICT DETECTION ==========
+        # When accepting a worker, withdraw their pending applications from conflicting jobs
+        if worker and worker_user:
+            try:
+                # Determine if this job is recurring
+                is_recurring = post.is_recurring and post.recurring_status == 'active'
+                recurring_day = post.day_of_week if is_recurring else None
+                
+                # Parse dates
+                job_start_date = None
+                job_end_date = None
+                if post.start_date:
+                    try:
+                        from datetime import datetime
+                        job_start_date = datetime.fromisoformat(post.start_date).date()
+                        if post.end_date:
+                            job_end_date = datetime.fromisoformat(post.end_date).date()
+                        else:
+                            job_end_date = job_start_date
+                    except:
+                        pass
+                
+                # Detect conflicts with other jobs
+                conflicts = detect_schedule_conflicts(
+                    db=db,
+                    worker_id=application.worker_id,
+                    new_job_start_date=job_start_date,
+                    new_job_end_date=job_end_date,
+                    new_job_employer_id=post.employer_id,
+                    new_job_is_recurring=is_recurring,
+                    new_job_recurring_day=recurring_day,
+                    new_job_type='job_post'
+                )
+                
+                if conflicts:
+                    # Withdraw pending applications from conflicting jobs with different employers
+                    withdrawn_count = 0
+                    withdrawn_titles = []
+                    
+                    for conflict in conflicts:
+                        # Only handle pending applications from other job posts
+                        if conflict['type'] == 'job_post':
+                            interest = db.query(InterestCheck).filter(
+                                InterestCheck.post_id == conflict['job_id'],
+                                InterestCheck.worker_id == application.worker_id,
+                                InterestCheck.status == InterestStatus.PENDING
+                            ).first()
+                            
+                            if interest:
+                                interest.status = InterestStatus.REJECTED
+                                interest.withdrawn_due_to_conflict = True
+                                withdrawn_count += 1
+                                withdrawn_titles.append(conflict['title'])
+                                
+                                # Notify the other employer
+                                conflicting_post = db.query(ForumPost).filter(ForumPost.post_id == conflict['job_id']).first()
+                                conflicting_employer = db.query(Employer).filter(Employer.employer_id == conflicting_post.employer_id).first()
+                                
+                                if conflicting_employer:
+                                    notify_applicant_withdrawn_due_to_conflict(
+                                        db=db,
+                                        employer_user_id=conflicting_employer.user_id,
+                                        worker_name=worker_name,
+                                        job_title=conflicting_post.title,
+                                        accepted_job_title=post.title,
+                                        job_id=conflicting_post.post_id
+                                    )
+                    
+                    # Notify the worker about withdrawn applications
+                    if withdrawn_count > 0:
+                        withdrawn_titles_str = ", ".join(withdrawn_titles)
+                        notify_application_withdrawn_due_to_conflict(
+                            db=db,
+                            worker_user_id=worker_user.id,
+                            withdrawn_job_titles=withdrawn_titles_str,
+                            accepted_job_title=post.title
+                        )
+                    
+                    db.commit()
+            except Exception as e:
+                print(f"Warning: Conflict detection error: {e}")
         
         # Notify worker that they've been accepted
         if worker_user:
