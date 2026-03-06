@@ -1,7 +1,7 @@
 import re
 from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
 from typing import Optional, Literal
-from datetime import datetime
+from datetime import datetime, date
 
 # Gmail-only and Philippines mobile validation
 GMAIL_DOMAIN = "gmail.com"
@@ -15,6 +15,7 @@ class UserBase(BaseModel):
     last_name: str
     suffix: Optional[str] = None
     gender: Optional[Literal['male', 'female', 'other', 'prefer_not_to_say']] = None
+    birthday: Optional[date] = None
 
 
 class UserCreate(UserBase):
@@ -72,6 +73,7 @@ class UserResponse(UserBase):
     status: str
     created_at: datetime
     profile_picture: Optional[str] = None
+    age: Optional[int] = None
     
     model_config = ConfigDict(from_attributes=True)
     
@@ -82,6 +84,16 @@ class UserResponse(UserBase):
             return None
         # Convert enum to string value before validation
         return value.value if hasattr(value, 'value') else value
+
+    def model_post_init(self, __context):
+        """Auto-calculate age from birthday"""
+        if self.birthday and self.age is None:
+            today = date.today()
+            bday = self.birthday
+            age = today.year - bday.year
+            if (today.month, today.day) < (bday.month, bday.day):
+                age -= 1
+            object.__setattr__(self, 'age', age)
 
 class UserProfileResponse(UserResponse):
     address: Optional["AddressResponse"] = None

@@ -14,6 +14,7 @@ export interface User {
   last_name: string;
   suffix?: string;
   gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
+  birthday?: string;
   profile_picture?: string;
   is_owner: boolean;
   is_housekeeper: boolean;
@@ -53,6 +54,7 @@ export interface RegisterData {
   last_name: string;
   suffix?: string;
   gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
+  birthday?: string;
 }
 
 export interface LoginData {

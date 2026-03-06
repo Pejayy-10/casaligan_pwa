@@ -214,6 +214,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
         last_name=user_data.last_name,
         suffix=user_data.suffix,
         gender=user_data.gender,
+        birthday=user_data.birthday,
         status="active",  # Owners are active immediately
     )
     

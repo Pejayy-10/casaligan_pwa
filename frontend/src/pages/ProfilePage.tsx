@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { User as UserIcon, ClipboardList, Briefcase, MapPin, FileText, CheckCircle, Clock, AlertCircle, Package, Pencil, Camera, X, Loader2 } from 'lucide-react';
+import { User as UserIcon, ClipboardList, Briefcase, MapPin, FileText, CheckCircle, Clock, AlertCircle, Package, Pencil, Camera, X, Loader2, Cake } from 'lucide-react';
 import { authService } from '../services/auth';
 import TabBar from '../components/TabBar';
 import PackageManagement from '../components/PackageManagement';
@@ -319,6 +319,19 @@ export default function ProfilePage() {
                     <div className="mt-4 space-y-1 text-sm text-[#4B244A]/70 dark:text-white/70 font-medium">
                         <p>{user.email}</p>
                         <p>{user.phone_number}</p>
+                        {user.birthday && (
+                          <p className="flex items-center gap-1.5">
+                            <Cake className="w-4 h-4" />
+                            {(() => {
+                              const bday = new Date(user.birthday);
+                              const today = new Date();
+                              let age = today.getFullYear() - bday.getFullYear();
+                              const m = today.getMonth() - bday.getMonth();
+                              if (m < 0 || (m === 0 && today.getDate() < bday.getDate())) age--;
+                              return `${age} years old`;
+                            })()}
+                          </p>
+                        )}
                     </div>
                 </div>
             </div>

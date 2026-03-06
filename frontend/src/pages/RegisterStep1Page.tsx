@@ -15,6 +15,7 @@ export default function RegisterStep1Page() {
     last_name: '',
     suffix: '',
     gender: undefined,
+    birthday: '',
   });
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -60,6 +61,21 @@ export default function RegisterStep1Page() {
       return;
     }
 
+    // Birthday validation - must be at least 18 years old
+    if (!formData.birthday) {
+      setError('Date of birth is required');
+      return;
+    }
+    const bday = new Date(formData.birthday);
+    const today = new Date();
+    let age = today.getFullYear() - bday.getFullYear();
+    const m = today.getMonth() - bday.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < bday.getDate())) age--;
+    if (age < 18) {
+      setError('You must be at least 18 years old to register');
+      return;
+    }
+
     const errors: { email?: string; phone_number?: string } = {};
     if (!isGmail(formData.email)) {
       errors.email = 'Only Gmail addresses are allowed (e.g. yourname@gmail.com)';
@@ -80,6 +96,7 @@ export default function RegisterStep1Page() {
         ...formData,
         middle_name: formData.middle_name?.trim() || undefined,
         suffix: formData.suffix?.trim() || undefined,
+        birthday: formData.birthday || undefined,
       };
       await authService.register(payload);
       
@@ -218,6 +235,25 @@ export default function RegisterStep1Page() {
                 <option value="other">Other</option>
                 <option value="prefer_not_to_say">Prefer not to say</option>
               </select>
+            </div>
+
+            <div>
+              <label htmlFor="birthday" className={labelClass}>
+                Date of Birth *
+              </label>
+              <input
+                type="date"
+                id="birthday"
+                value={formData.birthday || ''}
+                onChange={(e) => setFormData({ ...formData, birthday: e.target.value })}
+                max={new Date(new Date().setFullYear(new Date().getFullYear() - 18)).toISOString().split('T')[0]}
+                className={inputClass}
+                disabled={loading}
+                required
+              />
+              <p className="mt-1 text-xs text-[#4B244A]/60 dark:text-white/60 font-medium">
+                You must be at least 18 years old to register
+              </p>
             </div>
 
             <div>

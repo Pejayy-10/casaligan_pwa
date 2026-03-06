@@ -1,5 +1,5 @@
 """User model - Clean version"""
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db import Base
@@ -43,6 +43,7 @@ class User(Base):
     last_name = Column(String, nullable=False)
     suffix = Column(String, nullable=True)
     gender = Column(SQLEnum(Gender, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=True)
+    birthday = Column(Date, nullable=True)
     
     # Role and status
     is_owner = Column(Boolean, default=True, nullable=False)
