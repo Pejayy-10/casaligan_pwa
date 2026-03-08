@@ -16,6 +16,7 @@ import CreateJobPage from './pages/CreateJobPage';
 import BrowseWorkersPage from './pages/BrowseWorkersPage';
 import WorkerProfilePage from './pages/WorkerProfilePage';
 import RecurringServicesPage from './pages/RecurringServicesPage';
+import DirectHiresPage from './pages/DirectHiresPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import RestrictionModal from './components/RestrictionModal';
 import { PaymentProvider } from './context/PaymentContext';
@@ -142,6 +143,14 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <RecurringServicesPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/direct-hires',
+    element: (
+      <ProtectedRoute>
+        <DirectHiresPage />
       </ProtectedRoute>
     ),
   },
