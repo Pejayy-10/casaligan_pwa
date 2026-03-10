@@ -21,6 +21,7 @@ export interface User {
   active_role: 'owner' | 'housekeeper';
   status: 'pending' | 'active' | 'suspended';
   created_at: string;
+  email_verified?: boolean | null;
   address?: Address;
   documents?: UserDocument[];
 }
