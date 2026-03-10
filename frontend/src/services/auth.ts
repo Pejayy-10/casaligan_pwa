@@ -91,9 +91,42 @@ export const authService = {
     return userStr ? JSON.parse(userStr) : null;
   },
 
-  async applyHousekeeper(notes?: string): Promise<{ message: string }> {
-    const body = notes ? { notes } : {};
-    const response = await apiClient.post<{ message: string }>('/auth/apply-housekeeper', body);
+  async applyHousekeeper(data: {
+    bio?: string;
+    years_experience?: number;
+    skills?: string[];
+    availability?: string;
+    nbi_document_id?: number;
+    secondary_document_id?: number;
+    notes?: string;
+  }): Promise<{ id: number; status: string; is_housekeeper: boolean }> {
+    const response = await apiClient.post('/auth/apply-housekeeper', data);
+    // If approved, update localStorage
+    if (response.data.is_housekeeper) {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        user.is_housekeeper = true;
+        localStorage.setItem('user', JSON.stringify(user));
+      }
+    }
+    return response.data;
+  },
+
+  async sendPhoneOTP(): Promise<{ message: string; dev_otp?: string }> {
+    const response = await apiClient.post('/auth/send-phone-otp');
+    return response.data;
+  },
+
+  async verifyPhoneOTP(otp: string): Promise<{ message: string; phone_verified: boolean }> {
+    const response = await apiClient.post('/auth/verify-phone-otp', { otp });
+    // Update localStorage
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      user.phone_verified = true;
+      localStorage.setItem('user', JSON.stringify(user));
+    }
     return response.data;
   },
 

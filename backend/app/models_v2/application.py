@@ -1,5 +1,5 @@
 """Application model - Clean version"""
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Text, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db import Base
@@ -23,6 +23,19 @@ class HousekeeperApplication(Base):
     submitted_at = Column(DateTime(timezone=True), server_default=func.now())
     reviewed_at = Column(DateTime(timezone=True), nullable=True)
     admin_notes = Column(Text, nullable=True)
+    
+    # Professional info (submitted at application time)
+    bio = Column(Text, nullable=True)
+    years_experience = Column(Integer, nullable=True)
+    skills = Column(Text, nullable=True)          # JSON-encoded list of skill strings
+    availability = Column(String, nullable=True)  # 'full_time' | 'part_time' | 'weekends_only'
+    
+    # Document IDs submitted for housekeeper verification
+    nbi_document_id = Column(Integer, ForeignKey("user_documents.id"), nullable=True)
+    secondary_doc_id = Column(Integer, ForeignKey("user_documents.id"), nullable=True)
+    
+    # Phone OTP was verified before submission
+    phone_verified = Column(Boolean, default=False, nullable=True)
     
     # Relationship
     user = relationship("User", back_populates="housekeeper_application")

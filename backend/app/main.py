@@ -81,6 +81,20 @@ async def startup_event():
         # Safe column additions — IF NOT EXISTS means these are idempotent
         migrations = [
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT FALSE",
+            # Housekeeper application — professional info & doc refs
+            "ALTER TABLE housekeeper_applications ADD COLUMN IF NOT EXISTS bio TEXT",
+            "ALTER TABLE housekeeper_applications ADD COLUMN IF NOT EXISTS years_experience INTEGER",
+            "ALTER TABLE housekeeper_applications ADD COLUMN IF NOT EXISTS skills TEXT",
+            "ALTER TABLE housekeeper_applications ADD COLUMN IF NOT EXISTS availability VARCHAR",
+            "ALTER TABLE housekeeper_applications ADD COLUMN IF NOT EXISTS nbi_document_id INTEGER",
+            "ALTER TABLE housekeeper_applications ADD COLUMN IF NOT EXISTS secondary_doc_id INTEGER",
+            "ALTER TABLE housekeeper_applications ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT FALSE",
+            # Worker profile — professional info
+            "ALTER TABLE workers ADD COLUMN IF NOT EXISTS bio TEXT",
+            "ALTER TABLE workers ADD COLUMN IF NOT EXISTS years_experience INTEGER",
+            "ALTER TABLE workers ADD COLUMN IF NOT EXISTS skills TEXT",
+            "ALTER TABLE workers ADD COLUMN IF NOT EXISTS availability VARCHAR",
         ]
         with engine.connect() as conn:
             for sql in migrations:

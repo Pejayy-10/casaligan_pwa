@@ -75,6 +75,7 @@ class UserResponse(UserBase):
     profile_picture: Optional[str] = None
     age: Optional[int] = None
     email_verified: Optional[bool] = None  # None = grandfathered user, False = unverified, True = verified
+    phone_verified: Optional[bool] = None  # None = pre-housekeeper flow, True = verified
     
     model_config = ConfigDict(from_attributes=True)
     

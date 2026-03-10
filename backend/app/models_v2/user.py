@@ -54,12 +54,13 @@ class User(Base):
     # Profile
     profile_picture = Column(String, nullable=True)
     
+    # Verification flags
+    email_verified = Column(Boolean, default=False, nullable=True)
+    phone_verified = Column(Boolean, default=False, nullable=True)
+    
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    
-    # Email verification
-    email_verified = Column(Boolean, default=False, nullable=True)
 
     # Restriction fields
     is_restricted = Column(Boolean, default=False, nullable=False)

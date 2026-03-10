@@ -53,6 +53,54 @@ SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USER)
 
+# ─── Phone OTP Store (Semaphore SMS) ─────────────────────────────────────────
+# In-memory store: { user_id: { "otp": "123456", "expires_at": datetime } }
+_phone_otp_store: dict = {}
+
+SEMAPHORE_API_KEY = os.getenv("SEMAPHORE_API_KEY", "")
+
+
+def _normalize_ph_number(phone: str) -> str:
+    """Normalize a Philippine phone number to international format for Semaphore (e.g. 639XXXXXXXXX)."""
+    cleaned = ''.join(c for c in phone if c.isdigit())
+    if cleaned.startswith('63') and len(cleaned) == 12:
+        return cleaned
+    if cleaned.startswith('0') and len(cleaned) == 11:
+        return '63' + cleaned[1:]
+    # Best effort — return digits as-is
+    return cleaned
+
+
+def _send_phone_otp_sms(phone_number: str, otp: str, first_name: str) -> bool:
+    """Send a 6-digit OTP via Semaphore SMS. Returns True on success."""
+    if not SEMAPHORE_API_KEY:
+        logger.warning("SEMAPHORE_API_KEY not configured — skipping SMS send.")
+        return False
+    try:
+        normalized = _normalize_ph_number(phone_number)
+        message = (
+            f"Hi {first_name}, your Casaligan phone verification code is: {otp}. "
+            f"Valid for {OTP_EXPIRY_MINUTES} minutes. Do not share this with anyone."
+        )
+        with httpx.Client(timeout=15) as client:
+            resp = client.post(
+                "https://api.semaphore.co/api/v4/messages",
+                data={
+                    "apikey": SEMAPHORE_API_KEY,
+                    "number": normalized,
+                    "message": message,
+                    "sendername": "CASALIGAN",
+                },
+            )
+        if resp.status_code == 200:
+            logger.info(f"Phone OTP SMS sent to {normalized}")
+            return True
+        logger.error(f"Semaphore error {resp.status_code}: {resp.text}")
+        return False
+    except Exception as e:
+        logger.error(f"Failed to send phone OTP SMS: {type(e).__name__}: {e}")
+        return False
+
 
 def _build_otp_email_html(otp: str, first_name: str) -> str:
     """Build a professionally designed HTML email for OTP verification."""
@@ -633,6 +681,81 @@ def verify_email_otp(
     return {"message": "Email verified successfully.", "email_verified": True}
 
 
+# ─── Phone OTP Endpoints ──────────────────────────────────────────────────────
+
+class PhoneOTPVerifyRequest(BaseModel):
+    otp: str
+
+
+@router.post("/send-phone-otp")
+def send_phone_otp(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Generate and send a 6-digit OTP to the authenticated user's phone number."""
+    otp = "".join([str(secrets.randbelow(10)) for _ in range(6)])
+    expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXPIRY_MINUTES)
+    _phone_otp_store[current_user.id] = {"otp": otp, "expires_at": expires_at}
+
+    sms_sent = _send_phone_otp_sms(
+        phone_number=current_user.phone_number,
+        otp=otp,
+        first_name=current_user.first_name,
+    )
+
+    response: dict = {"message": f"OTP sent to {current_user.phone_number}"}
+    if not sms_sent:
+        # Dev/fallback: expose OTP when SMS is not configured
+        response["dev_otp"] = otp
+        response["message"] = "SMS not configured — use dev_otp for testing."
+    return response
+
+
+@router.post("/verify-phone-otp")
+def verify_phone_otp(
+    body: PhoneOTPVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Verify the 6-digit phone OTP and mark the user's phone as verified."""
+    if getattr(current_user, "phone_verified", False):
+        return {"message": "Phone already verified.", "phone_verified": True}
+
+    entry = _phone_otp_store.get(current_user.id)
+    if not entry:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No OTP found. Please request a new verification code."
+        )
+
+    if datetime.utcnow() > entry["expires_at"]:
+        del _phone_otp_store[current_user.id]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification code has expired. Please request a new one."
+        )
+
+    if body.otp.strip() != entry["otp"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect verification code. Please try again."
+        )
+
+    # Mark phone as verified
+    try:
+        from sqlalchemy import text
+        db.execute(
+            text("UPDATE users SET phone_verified = TRUE WHERE id = :uid"),
+            {"uid": current_user.id}
+        )
+        db.commit()
+    except Exception as e:
+        logger.error(f"Failed to set phone_verified for user {current_user.id}: {e}")
+
+    del _phone_otp_store[current_user.id]
+    return {"message": "Phone verified successfully.", "phone_verified": True}
+
+
 @router.post("/switch-role")
 def switch_role(
     current_user: User = Depends(get_current_user),
@@ -665,28 +788,84 @@ def switch_role(
     
     return {"active_role": new_role, "message": f"Switched to {new_role} mode"}
 
-# Housekeeper Application Schemas
+# ─── Housekeeper Application ─────────────────────────────────────────────────
+
 class HousekeeperApplicationRequest(BaseModel):
+    # Professional info
+    bio: Optional[str] = None
+    years_experience: Optional[int] = None
+    skills: Optional[List[str]] = []          # e.g. ["cleaning", "cooking", "laundry"]
+    availability: Optional[str] = None        # 'full_time' | 'part_time' | 'weekends_only'
+    # Documents uploaded during wizard (IDs from user_documents table)
+    nbi_document_id: Optional[int] = None
+    secondary_document_id: Optional[int] = None
+    # Legacy / no-op field kept for compatibility
     notes: Optional[str] = None
+
 
 class HousekeeperApplicationResponse(BaseModel):
     id: int
     status: str
     notes: Optional[str]
+    bio: Optional[str]
+    years_experience: Optional[int]
+    skills: Optional[str]
+    availability: Optional[str]
     submitted_at: str
     reviewed_at: Optional[str]
     admin_notes: Optional[str]
-    
+    is_housekeeper: bool = False
+
     @classmethod
-    def from_orm_model(cls, app: HousekeeperApplication):
+    def from_orm_model(cls, app: HousekeeperApplication, is_housekeeper: bool = False):
         return cls(
             id=app.application_id,
-            status=app.status.value,
+            status=str(app.status.value) if hasattr(app.status, 'value') else str(app.status),
             notes=app.notes,
+            bio=app.bio,
+            years_experience=app.years_experience,
+            skills=app.skills,
+            availability=app.availability,
             submitted_at=app.submitted_at.isoformat() if app.submitted_at else "",
             reviewed_at=app.reviewed_at.isoformat() if app.reviewed_at else None,
-            admin_notes=app.admin_notes
+            admin_notes=app.admin_notes,
+            is_housekeeper=is_housekeeper,
         )
+
+
+def _approve_housekeeper(user_id: int, application: HousekeeperApplication, db: Session):
+    """Shared helper: approve a housekeeper application and create/update Worker record."""
+    import json as _json
+    application.status = ApplicationStatus.APPROVED
+    application.reviewed_at = datetime.utcnow()
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if user:
+        user.is_housekeeper = True
+        user.status = UserStatus.ACTIVE
+
+    existing_worker = db.query(Worker).filter(Worker.user_id == user_id).first()
+    if existing_worker:
+        existing_worker.bio = application.bio
+        existing_worker.years_experience = application.years_experience
+        existing_worker.skills = application.skills
+        existing_worker.availability = application.availability
+    else:
+        new_worker = Worker(
+            user_id=user_id,
+            bio=application.bio,
+            years_experience=application.years_experience,
+            skills=application.skills,
+            availability=application.availability,
+        )
+        db.add(new_worker)
+
+    existing_employer = db.query(Employer).filter(Employer.user_id == user_id).first()
+    if not existing_employer:
+        db.add(Employer(user_id=user_id))
+
+    db.commit()
+
 
 @router.post("/apply-housekeeper", response_model=HousekeeperApplicationResponse)
 def apply_housekeeper(
@@ -694,43 +873,123 @@ def apply_housekeeper(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Submit application to become a housekeeper"""
-    
-    # Check if user already has an application
+    """Submit application to become a housekeeper (multi-step wizard final step)."""
+    import json as _json
+
+    # ── Already approved? ──────────────────────────────────────────────────
+    if current_user.is_housekeeper:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You are already a registered housekeeper."
+        )
+
+    # ── Check phone was verified this session ──────────────────────────────
+    if not getattr(current_user, "phone_verified", False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please verify your phone number before submitting."
+        )
+
+    # ── Handle existing application (allow re-apply after rejection) ───────
     existing_app = db.query(HousekeeperApplication).filter(
         HousekeeperApplication.user_id == current_user.id
     ).first()
-    
     if existing_app:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Application already exists with status: {existing_app.status.value}"
-        )
-    
-    # Check if user has uploaded required documents
-    doc_count = db.query(UserDocument).filter(
-        UserDocument.user_id == current_user.id
-    ).count()
-    
-    if doc_count == 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Please upload at least one verification document before applying"
-        )
-    
-    # Create application
+        app_status = str(existing_app.status.value) if hasattr(existing_app.status, 'value') else str(existing_app.status)
+        if app_status == "pending":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Your application is already under review."
+            )
+        if app_status == "approved":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Application already approved."
+            )
+        # Rejected — delete old and allow fresh submission
+        db.delete(existing_app)
+        db.commit()
+
+    # ── Validate NBI document (if provided) ──────────────────────────────
+    nbi_doc = None
+    if application_data.nbi_document_id:
+        nbi_doc = db.query(UserDocument).filter(
+            UserDocument.id == application_data.nbi_document_id,
+            UserDocument.user_id == current_user.id
+        ).first()
+        if not nbi_doc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Primary clearance document not found or does not belong to you."
+            )
+
+    # ── Validate secondary document (if provided) ──────────────────────────
+    sec_doc = None
+    if application_data.secondary_document_id:
+        sec_doc = db.query(UserDocument).filter(
+            UserDocument.id == application_data.secondary_document_id,
+            UserDocument.user_id == current_user.id
+        ).first()
+        if not sec_doc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Secondary document not found or does not belong to you."
+            )
+
+    # ── Re-run AI check on documents if still pending ─────────────────────
+    for doc in [d for d in [nbi_doc, sec_doc] if d is not None]:
+        if doc.status == "pending":
+            ai_result = verify_document_with_ai(
+                file_path=doc.file_path,
+                document_type=doc.document_type,
+                first_name=current_user.first_name,
+                last_name=current_user.last_name,
+            )
+            doc.status = ai_result["status"]
+            doc.notes = ai_result["notes"]
+            if ai_result["rejection_reason"]:
+                doc.rejection_reason = ai_result["rejection_reason"]
+            if ai_result["status"] in ("approved", "rejected"):
+                doc.reviewed_at = datetime.utcnow()
+    db.commit()
+    if nbi_doc: db.refresh(nbi_doc)
+    if sec_doc: db.refresh(sec_doc)
+
+    # ── Encode skills as JSON string ───────────────────────────────────────
+    skills_json = _json.dumps(application_data.skills or [])
+
+    # ── Create application record ──────────────────────────────────────────
     application = HousekeeperApplication(
         user_id=current_user.id,
         status=ApplicationStatus.PENDING,
-        notes=application_data.notes
+        notes=application_data.notes,
+        bio=application_data.bio,
+        years_experience=application_data.years_experience,
+        skills=skills_json,
+        availability=application_data.availability,
+        nbi_document_id=application_data.nbi_document_id,
+        secondary_doc_id=application_data.secondary_document_id,
+        phone_verified=True,
     )
-    
     db.add(application)
     db.commit()
     db.refresh(application)
-    
-    # Application stays as PENDING - admin must approve via verification page
-    return HousekeeperApplicationResponse.from_orm_model(application)
+
+    # ── Auto-approve if both provided docs passed AI ─────────────────────
+    both_approved = (
+        (nbi_doc is None or nbi_doc.status == "approved") and
+        (sec_doc is None or sec_doc.status == "approved") and
+        (nbi_doc is not None or sec_doc is not None)  # at least one doc provided
+    )
+    if both_approved:
+        _approve_housekeeper(current_user.id, application, db)
+        db.refresh(application)
+
+    return HousekeeperApplicationResponse.from_orm_model(
+        application,
+        is_housekeeper=both_approved
+    )
+
 
 @router.get("/application-status", response_model=Optional[HousekeeperApplicationResponse])
 def get_application_status(

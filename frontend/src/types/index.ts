@@ -22,6 +22,7 @@ export interface User {
   status: 'pending' | 'active' | 'suspended';
   created_at: string;
   email_verified?: boolean | null;
+  phone_verified?: boolean | null;
   address?: Address;
   documents?: UserDocument[];
 }

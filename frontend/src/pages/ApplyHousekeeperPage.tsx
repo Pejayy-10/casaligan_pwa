@@ -1,127 +1,840 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase } from 'lucide-react';
 import { authService } from '../services/auth';
+import { API_BASE_URL } from '../config';
 import TabBar from '../components/TabBar';
 import type { User } from '../types';
 
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const SKILLS = [
+  { value: 'general_housekeeping', label: 'General Housekeeping' },
+  { value: 'cleaning', label: 'House Cleaning' },
+  { value: 'cooking', label: 'Cooking' },
+  { value: 'laundry', label: 'Laundry & Ironing' },
+  { value: 'childcare', label: 'Childcare' },
+  { value: 'elderly_care', label: 'Elderly Care' },
+  { value: 'pet_care', label: 'Pet Care' },
+  { value: 'organizing', label: 'Organizing' },
+  { value: 'gardening', label: 'Gardening' },
+  { value: 'dishwashing', label: 'Dishwashing' },
+];
+
+const SECONDARY_DOC_TYPES = [
+  { value: 'barangay_clearance', label: 'Barangay Clearance' },
+  { value: 'police_clearance', label: 'Police Clearance' },
+  { value: 'medical_certificate', label: 'Medical Certificate' },
+  { value: 'drivers_license', label: "Driver's License" },
+  { value: 'passport', label: 'Passport' },
+];
+
+const PRIMARY_DOC_TYPES = [
+  { value: 'nbi_clearance', label: 'NBI Clearance' },
+  { value: 'police_clearance', label: 'Police Clearance' },
+  { value: 'barangay_clearance', label: 'Barangay Clearance' },
+];
+
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface DocResult {
+  id: number;
+  status: 'approved' | 'pending' | 'rejected';
+  notes?: string;
+  rejection_reason?: string;
+}
+
+// ─── Step indicator ───────────────────────────────────────────────────────────
+
+function StepBar({ current, total }: { current: number; total: number }) {
+  const labels = ['Professional Info', 'NBI Clearance', 'Supporting Doc', 'Phone Verify'];
+  return (
+    <div className="mb-6">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-white font-bold text-xl">Become a Housekeeper</span>
+        <span className="text-white/70 text-sm font-medium">Step {current} of {total}</span>
+      </div>
+      <div className="flex gap-1.5 mb-3">
+        {Array.from({ length: total }).map((_, i) => (
+          <div
+            key={i}
+            className={`flex-1 h-1.5 rounded-full transition-all duration-300 ${
+              i + 1 <= current ? 'bg-[#EA526F]' : 'bg-white/20'
+            }`}
+          />
+        ))}
+      </div>
+      <p className="text-white/70 text-sm">{labels[current - 1]}</p>
+    </div>
+  );
+}
+
+// ─── Main component ───────────────────────────────────────────────────────────
+
 export default function ApplyHousekeeperPage() {
   const navigate = useNavigate();
-  const [user] = useState<User | null>(() => {
+  const [user, setUser] = useState<User | null>(() => {
     const stored = localStorage.getItem('user');
     return stored ? JSON.parse(stored) : null;
   });
-  const [notes, setNotes] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+
+  // Step navigation
+  const [step, setStep] = useState(1);
+  const [globalError, setGlobalError] = useState('');
+
+  // Step 1: Professional info
+  const [bio, setBio] = useState('');
+  const [yearsExp, setYearsExp] = useState('');
+  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [availability, setAvailability] = useState('');
+  const [step1Error, setStep1Error] = useState('');
+
+  // Step 2: Primary clearance document
+  const [nbiDocType, setNbiDocType] = useState('nbi_clearance');
+  const [nbiSkipped, setNbiSkipped] = useState(false);
+  const [nbiResult, setNbiResult] = useState<DocResult | null>(null);
+  const [nbiUploading, setNbiUploading] = useState(false);
+  const [nbiError, setNbiError] = useState('');
+  const nbiFileRef = useRef<HTMLInputElement>(null);
+
+  // Step 3: Secondary document
+  const [secDocType, setSecDocType] = useState('barangay_clearance');
+  const [secSkipped, setSecSkipped] = useState(false);
+  const [secResult, setSecResult] = useState<DocResult | null>(null);
+  const [secUploading, setSecUploading] = useState(false);
+  const [secError, setSecError] = useState('');
+  const secFileRef = useRef<HTMLInputElement>(null);
+
+  // Step 4: Phone OTP
+  const [phoneVerified, setPhoneVerified] = useState(() => {
+    const u = localStorage.getItem('user');
+    return u ? (JSON.parse(u)?.phone_verified === true) : false;
+  });
+  const [otpSent, setOtpSent] = useState(false);
+  const [devOtp, setDevOtp] = useState('');
+  const [otp, setOtp] = useState(['', '', '', '', '', '']);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [countdown, setCountdown] = useState(0);
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Submission
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [approved, setApproved] = useState(false);
+
+  // ── Guards ─────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    if (!user) {
-      navigate('/login');
-    }
+    if (!user) navigate('/login');
+    if (user?.is_housekeeper) setSubmitted(true); // Already a housekeeper
   }, [user, navigate]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const t = setTimeout(() => setCountdown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [countdown]);
 
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  const toggleSkill = (skill: string) => {
+    setSelectedSkills(prev =>
+      prev.includes(skill) ? prev.filter(s => s !== skill) : [...prev, skill]
+    );
+  };
+
+  // Upload a document file, run AI check, return DocResult
+  const uploadDoc = async (
+    file: File,
+    docType: string,
+    setUploading: (v: boolean) => void,
+    setError: (v: string) => void
+  ): Promise<DocResult | null> => {
+    setUploading(true);
+    setError('');
     try {
-      await authService.applyHousekeeper(notes);
-      alert('Application submitted successfully! We will review your application and notify you once approved.');
-      navigate('/profile');
-    } catch (err) {
-      const errorMessage =
-        err instanceof Error
-          ? err.message
-          : 'Failed to submit application. Please try again.';
-      setError(errorMessage);
+      const token = localStorage.getItem('access_token');
+
+      // 1. Upload binary file to storage
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('document_type', docType);
+      const uploadRes = await fetch(`${API_BASE_URL}/upload/document`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        body: formData,
+      });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}));
+        setError(err.detail || 'Upload failed. Please try again.');
+        return null;
+      }
+      const uploadData = await uploadRes.json();
+      const fileUrl = uploadData.url?.startsWith('http')
+        ? uploadData.url
+        : `${API_BASE_URL}${uploadData.url}`;
+
+      // 2. Save to user_documents and run AI check
+      const docData = await authService.uploadDocument({ document_type: docType, file_path: fileUrl });
+      return {
+        id: docData.id,
+        status: docData.status as DocResult['status'],
+        notes: docData.notes,
+        rejection_reason: docData.rejection_reason,
+      };
+    } catch (e) {
+      setError('Upload error. Please try again.');
+      return null;
     } finally {
-      setLoading(false);
+      setUploading(false);
     }
+  };
+
+  // ── Step handlers ──────────────────────────────────────────────────────────
+
+  const handleStep1Next = () => {
+    setStep1Error('');
+    if (selectedSkills.length === 0) { setStep1Error('Please select at least one skill.'); return; }
+    if (!availability) { setStep1Error('Please select your availability.'); return; }
+    setStep(2);
+  };
+
+  const handleNbiFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setNbiResult(null);
+    setNbiSkipped(false);
+    const result = await uploadDoc(file, nbiDocType, setNbiUploading, setNbiError);
+    if (result) setNbiResult(result);
+    if (nbiFileRef.current) nbiFileRef.current.value = '';
+  };
+
+  const handleSecFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSecResult(null);
+    setSecSkipped(false);
+    const result = await uploadDoc(file, secDocType, setSecUploading, setSecError);
+    if (result) setSecResult(result);
+    if (secFileRef.current) secFileRef.current.value = '';
+  };
+
+  const handleSendOtp = async () => {
+    setSendingOtp(true);
+    setOtpError('');
+    try {
+      const res = await authService.sendPhoneOTP();
+      setOtpSent(true);
+      setCountdown(60);
+      setDevOtp(res.dev_otp || '');
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setOtpError(msg || 'Failed to send OTP. Please try again.');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleOtpChange = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    const newOtp = [...otp];
+    newOtp[index] = value.slice(-1);
+    setOtp(newOtp);
+    if (value && index < 5) otpRefs.current[index + 1]?.focus();
+  };
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const digits = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    const newOtp = [...otp];
+    for (let i = 0; i < 6; i++) newOtp[i] = digits[i] || '';
+    setOtp(newOtp);
+    const nextEmpty = newOtp.findIndex(d => !d);
+    otpRefs.current[nextEmpty === -1 ? 5 : nextEmpty]?.focus();
+  };
+
+  const handleVerifyOtp = async () => {
+    const code = otp.join('');
+    if (code.length < 6) { setOtpError('Enter all 6 digits.'); return; }
+    setVerifyingOtp(true);
+    setOtpError('');
+    try {
+      await authService.verifyPhoneOTP(code);
+      setPhoneVerified(true);
+      // Refresh user in state
+      const stored = localStorage.getItem('user');
+      if (stored) setUser(JSON.parse(stored));
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setOtpError(msg || 'Incorrect code. Please try again.');
+    } finally {
+      setVerifyingOtp(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    setGlobalError('');
+    setSubmitting(true);
+    try {
+      const res = await authService.applyHousekeeper({
+        bio: bio.trim() || undefined,
+        years_experience: yearsExp ? parseInt(yearsExp) : undefined,
+        skills: selectedSkills,
+        availability,
+        nbi_document_id: (!nbiSkipped && nbiResult) ? nbiResult.id : undefined,
+        secondary_document_id: (!secSkipped && secResult) ? secResult.id : undefined,
+      });
+      setApproved(res.is_housekeeper);
+      setSubmitted(true);
+      // Refresh user from storage (applyHousekeeper already updates it)
+      const stored = localStorage.getItem('user');
+      if (stored) setUser(JSON.parse(stored));
+    } catch (e: unknown) {
+      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+      setGlobalError(msg || 'Submission failed. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Status badge helper ────────────────────────────────────────────────────
+
+  const DocStatusBadge = ({ result }: { result: DocResult }) => {
+    if (result.status === 'approved') {
+      return (
+        <div className="mt-3 p-3 bg-green-500/20 border border-green-500/40 rounded-xl">
+          <p className="text-green-300 font-semibold text-sm">✅ Document verified successfully!</p>
+          {result.notes && <p className="text-green-200/70 text-xs mt-1">{result.notes}</p>}
+        </div>
+      );
+    }
+    if (result.status === 'pending') {
+      return (
+        <div className="mt-3 p-3 bg-yellow-500/20 border border-yellow-500/40 rounded-xl">
+          <p className="text-yellow-300 font-semibold text-sm">⏳ Document uploaded. Admin will review it shortly.</p>
+          {result.notes && <p className="text-yellow-200/70 text-xs mt-1">{result.notes}</p>}
+        </div>
+      );
+    }
+    // rejected
+    return (
+      <div className="mt-3 p-3 bg-red-500/20 border border-red-500/40 rounded-xl">
+        <p className="text-red-300 font-semibold text-sm">❌ Document rejected — please re-upload.</p>
+        {result.rejection_reason && (
+          <p className="text-red-200/70 text-xs mt-1">{result.rejection_reason}</p>
+        )}
+        <p className="text-white/50 text-xs mt-2">Upload a different photo of the same document.</p>
+      </div>
+    );
   };
 
   if (!user) return null;
 
-   // Shared styles
-  const inputClass = "w-full px-4 py-3 bg-white/50 dark:bg-white/10 backdrop-blur-sm border border-gray-200 dark:border-white/20 rounded-xl text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F] resize-none";
-  const labelClass = "block text-[#4B244A] dark:text-white font-bold mb-2";
+  // ── Shared styles ──────────────────────────────────────────────────────────
+  const inputClass = 'w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#EA526F] transition-all';
+  const labelClass = 'block text-white/80 font-semibold text-sm mb-2';
 
+  // ── Already housekeeper or submitted ──────────────────────────────────────
+  if (submitted) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-[#4B244A] via-[#6B3468] to-[#4B244A] flex items-center justify-center p-4 pb-24">
+        <div className="fixed inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" />
+          <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000" />
+          <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000" />
+        </div>
+        <div className="relative z-10 w-full max-w-md text-center bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
+          {approved || user.is_housekeeper ? (
+            <>
+              <div className="text-6xl mb-4">🎉</div>
+              <h2 className="text-2xl font-bold text-white mb-2">Welcome, Housekeeper!</h2>
+              <p className="text-white/70 mb-6">Your application has been approved. You can now switch to Housekeeper mode and start accepting jobs.</p>
+              <button
+                onClick={() => navigate('/profile')}
+                className="w-full py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg"
+              >
+                Go to Profile
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="text-6xl mb-4">📋</div>
+              <h2 className="text-2xl font-bold text-white mb-2">Application Submitted!</h2>
+              <p className="text-white/70 mb-2">Your application is now under review. We'll notify you once it's approved.</p>
+              <p className="text-white/50 text-sm mb-6">This usually takes 1–2 business days.</p>
+              <button
+                onClick={() => navigate('/profile')}
+                className="w-full py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg"
+              >
+                Go to Profile
+              </button>
+            </>
+          )}
+        </div>
+        <TabBar role={user.active_role} />
+      </div>
+    );
+  }
+
+  // ── Main wizard ────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300 pb-20 relative">
-      {/* Decorative circles */}
+    <div className="min-h-screen bg-gradient-to-br from-[#4B244A] via-[#6B3468] to-[#4B244A] pb-24">
+      {/* Blobs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob"></div>
-        <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" />
+        <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000" />
+        <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000" />
       </div>
 
-      {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-[#4B244A] dark:text-white"><Briefcase className="inline w-6 h-6 mr-2" /> Apply as Housekeeper</h1>
-        </div>
-      </header>
-
-      {/* Main Content */}
       <main className="relative z-10 max-w-2xl mx-auto px-4 py-8">
-        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-6 md:p-8 border border-white/50 dark:border-white/10 shadow-xl transition-all">
-          <div className="mb-6">
-            <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white mb-2">Become a Housekeeper</h2>
-            <p className="text-[#4B244A]/70 dark:text-white/80">
-              Join our platform as a verified housekeeper. Your application will be reviewed and you'll be notified once approved.
-            </p>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {error && (
-              <div className="bg-red-100 dark:bg-red-500/20 border border-red-200 dark:border-red-500/50 rounded-xl p-4">
-                <p className="text-red-600 dark:text-red-200 text-sm font-medium">{error}</p>
-              </div>
-            )}
-
-            {/* Info Box */}
-            <div className="bg-blue-100 dark:bg-blue-500/20 border border-blue-200 dark:border-blue-500/50 rounded-xl p-4">
-              <h3 className="text-blue-800 dark:text-blue-200 font-bold mb-2">Requirements:</h3>
-              <ul className="text-blue-700 dark:text-blue-200/80 text-sm space-y-1 font-medium">
-                <li>✓ Valid ID document uploaded</li>
-                <li>✓ Complete address information</li>
-                <li>✓ Active account status</li>
-              </ul>
-            </div>
-
-            {/* Notes */}
-            <div>
-              <label htmlFor="notes" className={labelClass}>
-                Additional Information (Optional)
-              </label>
-              <textarea
-                id="notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Tell us about your experience, availability, or any other relevant information..."
-                rows={5}
-                className={inputClass}
-              />
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full px-6 py-4 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Submitting...' : 'Submit Application'}
-            </button>
-
+        <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 md:p-8 border border-white/20 shadow-2xl">
+          <div className="flex justify-end mb-2">
             <button
               type="button"
               onClick={() => navigate('/profile')}
-              className="w-full px-6 py-3 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/10"
+              className="text-white/40 hover:text-white/80 text-sm transition-colors"
             >
-              Cancel
+              ✕ Cancel
             </button>
-          </form>
+          </div>
+          <StepBar current={step} total={4} />
+
+          {globalError && (
+            <div className="mb-4 p-3 bg-red-500/20 border border-red-500/40 rounded-xl">
+              <p className="text-red-200 text-sm">{globalError}</p>
+            </div>
+          )}
+
+          {/* ── Step 1: Professional Info ── */}
+          {step === 1 && (
+            <div className="space-y-5">
+              {/* Skills */}
+              <div>
+                <label className={labelClass}>Skills / Services Offered <span className="text-[#EA526F]">*</span></label>
+                <p className="text-white/50 text-xs mb-3">Select all that apply.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {SKILLS.map(skill => (
+                    <button
+                      key={skill.value}
+                      type="button"
+                      onClick={() => toggleSkill(skill.value)}
+                      className={`px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-all border ${
+                        selectedSkills.includes(skill.value)
+                          ? 'bg-[#EA526F]/30 border-[#EA526F] text-white'
+                          : 'bg-white/5 border-white/20 text-white/70 hover:bg-white/10'
+                      }`}
+                    >
+                      {selectedSkills.includes(skill.value) ? '✓ ' : ''}{skill.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Availability */}
+              <div>
+                <label className={labelClass}>Availability <span className="text-[#EA526F]">*</span></label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { value: 'full_time', label: 'Full-time' },
+                    { value: 'part_time', label: 'Part-time' },
+                    { value: 'weekends_only', label: 'Weekends' },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setAvailability(opt.value)}
+                      className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all border ${
+                        availability === opt.value
+                          ? 'bg-[#EA526F]/30 border-[#EA526F] text-white'
+                          : 'bg-white/5 border-white/20 text-white/70 hover:bg-white/10'
+                      }`}
+                    >
+                      {availability === opt.value ? '✓ ' : ''}{opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Years of experience */}
+              <div>
+                <label className={labelClass}>Years of Experience (Optional)</label>
+                <input
+                  type="number"
+                  min="0"
+                  max="50"
+                  value={yearsExp}
+                  onChange={e => setYearsExp(e.target.value)}
+                  placeholder="E.g. 3"
+                  className={inputClass}
+                />
+              </div>
+
+              {/* Bio */}
+              <div>
+                <label className={labelClass}>About Yourself (Optional)</label>
+                <textarea
+                  value={bio}
+                  onChange={e => setBio(e.target.value)}
+                  rows={3}
+                  placeholder="Tell house owners about your experience, work style, and what makes you a great housekeeper..."
+                  className={`${inputClass} resize-none`}
+                />
+              </div>
+
+              {step1Error && (
+                <p className="text-red-300 text-sm font-medium">{step1Error}</p>
+              )}
+
+              <button
+                type="button"
+                onClick={handleStep1Next}
+                className="w-full py-3.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30"
+              >
+                Next: Upload NBI Clearance →
+              </button>
+            </div>
+          )}
+
+          {/* ── Step 2: Primary Clearance Document ── */}
+          {step === 2 && (
+            <div className="space-y-5">
+              <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                <p className="text-blue-200 text-sm font-semibold mb-1">🪪 Primary Clearance Document</p>
+                <p className="text-blue-200/70 text-xs">
+                  Upload a government-issued clearance. Your name must match your registered name: <strong className="text-white">{user.first_name} {user.last_name}</strong>.
+                  Our AI (Gemini Vision) will verify the document automatically.
+                </p>
+              </div>
+
+              {/* Document type selector */}
+              <div>
+                <label className={labelClass}>Document Type <span className="text-[#EA526F]">*</span></label>
+                <div className="grid grid-cols-3 gap-2">
+                  {PRIMARY_DOC_TYPES.map(dt => (
+                    <button
+                      key={dt.value}
+                      type="button"
+                      onClick={() => { setNbiDocType(dt.value); setNbiResult(null); setNbiError(''); setNbiSkipped(false); }}
+                      className={`px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-all border ${
+                        nbiDocType === dt.value
+                          ? 'bg-[#EA526F]/30 border-[#EA526F] text-white'
+                          : 'bg-white/5 border-white/20 text-white/70 hover:bg-white/10'
+                      }`}
+                    >
+                      {nbiDocType === dt.value ? '✓ ' : ''}{dt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* File upload */}
+              <div>
+                <label className={labelClass}>Upload {PRIMARY_DOC_TYPES.find(d => d.value === nbiDocType)?.label} <span className="text-[#EA526F]">*</span></label>
+                <input
+                  type="file"
+                  ref={nbiFileRef}
+                  onChange={handleNbiFile}
+                  accept="image/*,.pdf"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => nbiFileRef.current?.click()}
+                  disabled={nbiUploading}
+                  className={`w-full py-8 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 transition-all ${
+                    nbiUploading
+                      ? 'border-white/20 text-white/40 cursor-wait'
+                      : nbiResult?.status === 'approved'
+                      ? 'border-green-500/50 text-green-300 hover:border-green-400'
+                      : nbiResult?.status === 'rejected'
+                      ? 'border-red-500/50 text-red-300 hover:border-red-400'
+                      : nbiSkipped
+                      ? 'border-yellow-500/30 text-yellow-300/60 hover:border-yellow-400'
+                      : 'border-white/20 text-white/60 hover:border-[#EA526F] hover:text-[#EA526F]'
+                  }`}
+                >
+                  {nbiUploading ? (
+                    <>
+                      <svg className="animate-spin h-8 w-8" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                      <span className="text-sm font-medium">Uploading & verifying…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-3xl">
+                        {nbiResult?.status === 'approved' ? '✅' : nbiResult?.status === 'rejected' ? '❌' : nbiSkipped ? '⏭️' : '📄'}
+                      </span>
+                      <span className="text-sm font-medium">
+                        {nbiSkipped ? 'Skipped — click to upload anyway' : nbiResult ? 'Click to re-upload' : `Click to upload ${PRIMARY_DOC_TYPES.find(d => d.value === nbiDocType)?.label}`}
+                      </span>
+                      <span className="text-xs opacity-60">JPEG, PNG, PDF — max 10MB</span>
+                    </>
+                  )}
+                </button>
+                {nbiError && <p className="mt-2 text-red-300 text-sm">{nbiError}</p>}
+                {nbiResult && !nbiSkipped && <DocStatusBadge result={nbiResult} />}
+
+                {/* Skip option for testing */}
+                {!nbiResult && !nbiSkipped && (
+                  <button
+                    type="button"
+                    onClick={() => setNbiSkipped(true)}
+                    className="mt-3 w-full text-center text-white/35 text-xs hover:text-white/60 transition-colors py-1"
+                  >
+                    ⏭ Skip for now (testing only)
+                  </button>
+                )}
+                {nbiSkipped && (
+                  <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg flex items-center justify-between">
+                    <p className="text-yellow-200/60 text-xs">⏭ Skipped — no document will be submitted</p>
+                    <button type="button" onClick={() => setNbiSkipped(false)} className="text-white/40 text-xs hover:text-white/70">Undo</button>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setStep(1)} className="flex-1 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
+                  ← Back
+                </button>
+                <button
+                  type="button"
+                  disabled={!nbiSkipped && (!nbiResult || nbiResult.status === 'rejected')}
+                  onClick={() => setStep(3)}
+                  className="flex-1 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next: Supporting Doc →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 3: Secondary Document ── */}
+          {step === 3 && (
+            <div className="space-y-5">
+              <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                <p className="text-blue-200 text-sm font-semibold mb-1">📄 Supporting Document</p>
+                <p className="text-blue-200/70 text-xs">
+                  Upload one more document to complete your verification. Any of the options below are accepted.
+                </p>
+              </div>
+
+              {/* Document type selector */}
+              <div>
+                <label className={labelClass}>Document Type <span className="text-[#EA526F]">*</span></label>
+                <div className="grid grid-cols-2 gap-2">
+                  {SECONDARY_DOC_TYPES.map(dt => (
+                    <button
+                      key={dt.value}
+                      type="button"
+                      onClick={() => { setSecDocType(dt.value); setSecResult(null); setSecError(''); setSecSkipped(false); }}
+                      className={`px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-all border ${
+                        secDocType === dt.value
+                          ? 'bg-[#EA526F]/30 border-[#EA526F] text-white'
+                          : 'bg-white/5 border-white/20 text-white/70 hover:bg-white/10'
+                      }`}
+                    >
+                      {secDocType === dt.value ? '✓ ' : ''}{dt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* File upload */}
+              <div>
+                <label className={labelClass}>Upload {SECONDARY_DOC_TYPES.find(d => d.value === secDocType)?.label} <span className="text-[#EA526F]">*</span></label>
+                <input ref={secFileRef} type="file" onChange={handleSecFile} accept="image/*,.pdf" className="hidden" />
+                <button
+                  type="button"
+                  onClick={() => secFileRef.current?.click()}
+                  disabled={secUploading}
+                  className={`w-full py-8 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 transition-all ${
+                    secUploading
+                      ? 'border-white/20 text-white/40 cursor-wait'
+                      : secResult?.status === 'approved'
+                      ? 'border-green-500/50 text-green-300 hover:border-green-400'
+                      : secResult?.status === 'rejected'
+                      ? 'border-red-500/50 text-red-300 hover:border-red-400'
+                      : 'border-white/20 text-white/60 hover:border-[#EA526F] hover:text-[#EA526F]'
+                  }`}
+                >
+                  {secUploading ? (
+                    <>
+                      <svg className="animate-spin h-8 w-8" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                      <span className="text-sm font-medium">Uploading & verifying…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-3xl">{secResult?.status === 'approved' ? '✅' : secResult?.status === 'rejected' ? '❌' : '📄'}</span>
+                      <span className="text-sm font-medium">
+                        {secResult ? 'Click to re-upload' : `Click to upload ${SECONDARY_DOC_TYPES.find(d => d.value === secDocType)?.label}`}
+                      </span>
+                      <span className="text-xs opacity-60">JPEG, PNG, PDF — max 10MB</span>
+                    </>
+                  )}
+                </button>
+                {secError && <p className="mt-2 text-red-300 text-sm">{secError}</p>}
+                {secResult && !secSkipped && <DocStatusBadge result={secResult} />}
+
+                {/* Skip option for testing */}
+                {!secResult && !secSkipped && (
+                  <button
+                    type="button"
+                    onClick={() => setSecSkipped(true)}
+                    className="mt-3 w-full text-center text-white/35 text-xs hover:text-white/60 transition-colors py-1"
+                  >
+                    ⏭ Skip for now (testing only)
+                  </button>
+                )}
+                {secSkipped && (
+                  <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg flex items-center justify-between">
+                    <p className="text-yellow-200/60 text-xs">⏭ Skipped — no document will be submitted</p>
+                    <button type="button" onClick={() => setSecSkipped(false)} className="text-white/40 text-xs hover:text-white/70">Undo</button>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setStep(2)} className="flex-1 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
+                  ← Back
+                </button>
+                <button
+                  type="button"
+                  disabled={!secSkipped && (!secResult || secResult.status === 'rejected')}
+                  onClick={() => setStep(4)}
+                  className="flex-1 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next: Phone Verify →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 4: Phone OTP ── */}
+          {step === 4 && (
+            <div className="space-y-5">
+              {phoneVerified ? (
+                // Phone already verified — show submit button
+                <div className="space-y-5">
+                  <div className="p-5 bg-green-500/20 border border-green-500/40 rounded-2xl text-center">
+                    <p className="text-4xl mb-2">✅</p>
+                    <p className="text-green-300 font-bold text-lg">Phone Verified!</p>
+                    <p className="text-green-200/70 text-sm mt-1">{user.phone_number}</p>
+                  </div>
+
+                  <div className="p-4 bg-white/5 border border-white/10 rounded-xl text-sm text-white/60 space-y-1">
+                    <p>📋 <strong className="text-white/80">Professional info:</strong> {selectedSkills.length} skills · {availability.replace('_', ' ')}</p>
+                    <p>🪪 <strong className="text-white/80">Primary clearance:</strong> {nbiSkipped ? '⏭ Skipped' : nbiResult?.status === 'approved' ? '✅ Verified' : '⏳ Pending review'}</p>
+                    <p>📄 <strong className="text-white/80">Supporting doc:</strong> {secSkipped ? '⏭ Skipped' : secResult?.status === 'approved' ? '✅ Verified' : '⏳ Pending review'}</p>
+                  </div>
+
+                  {globalError && (
+                    <div className="p-3 bg-red-500/20 border border-red-500/40 rounded-xl">
+                      <p className="text-red-200 text-sm">{globalError}</p>
+                    </div>
+                  )}
+
+                  <div className="flex gap-3">
+                    <button type="button" onClick={() => setStep(3)} className="flex-1 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
+                      ← Back
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSubmit}
+                      disabled={submitting}
+                      className="flex-1 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-50"
+                    >
+                      {submitting ? 'Submitting…' : 'Submit Application 🚀'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                // OTP verification flow
+                <div className="space-y-5">
+                  <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                    <p className="text-blue-200 text-sm font-semibold mb-1">📱 Verify Your Phone Number</p>
+                    <p className="text-blue-200/70 text-xs">
+                      We'll send a one-time code to <strong className="text-white">{user.phone_number}</strong>. This verifies that you're the owner of this number.
+                    </p>
+                  </div>
+
+                  {!otpSent ? (
+                    <button
+                      type="button"
+                      onClick={handleSendOtp}
+                      disabled={sendingOtp}
+                      className="w-full py-3.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-50"
+                    >
+                      {sendingOtp ? 'Sending…' : `Send OTP to ${user.phone_number}`}
+                    </button>
+                  ) : (
+                    <div className="space-y-4">
+                      <p className="text-center text-white/70 text-sm">Enter the 6-digit code sent to <strong className="text-white">{user.phone_number}</strong></p>
+
+                      {/* 6-digit input */}
+                      <div className="flex gap-2 justify-center" onPaste={handleOtpPaste}>
+                        {otp.map((digit, i) => (
+                          <input
+                            key={i}
+                            ref={el => { otpRefs.current[i] = el; }}
+                            type="text"
+                            inputMode="numeric"
+                            maxLength={1}
+                            value={digit}
+                            onChange={e => handleOtpChange(i, e.target.value)}
+                            onKeyDown={e => handleOtpKeyDown(i, e)}
+                            className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 bg-white/10 text-white focus:outline-none transition-all ${
+                              digit ? 'border-[#EA526F] bg-[#EA526F]/20' : 'border-white/30 focus:border-[#EA526F]'
+                            }`}
+                          />
+                        ))}
+                      </div>
+
+                      {devOtp && (
+                        <div className="p-2 bg-yellow-500/20 border border-yellow-500/40 rounded-lg text-center">
+                          <p className="text-yellow-200 text-xs">⚠️ SMS not configured — Dev OTP: <strong className="font-mono text-base">{devOtp}</strong></p>
+                        </div>
+                      )}
+
+                      {otpError && <p className="text-center text-red-300 text-sm">{otpError}</p>}
+
+                      <button
+                        type="button"
+                        onClick={handleVerifyOtp}
+                        disabled={verifyingOtp || otp.join('').length < 6}
+                        className="w-full py-3.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-50"
+                      >
+                        {verifyingOtp ? 'Verifying…' : 'Verify Code'}
+                      </button>
+
+                      {/* Resend */}
+                      <div className="text-center">
+                        {countdown > 0 ? (
+                          <p className="text-white/40 text-sm">Resend in {countdown}s</p>
+                        ) : (
+                          <button type="button" onClick={handleSendOtp} disabled={sendingOtp} className="text-[#EA526F] text-sm font-medium hover:underline disabled:opacity-50">
+                            Resend code
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {otpError && !otpSent && <p className="text-red-300 text-sm text-center">{otpError}</p>}
+
+                  <button type="button" onClick={() => setStep(3)} className="w-full py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
+                    ← Back
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </main>
 
