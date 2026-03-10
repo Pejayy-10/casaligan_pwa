@@ -26,14 +26,147 @@ import json
 import re
 import base64
 import logging
+import secrets
+import smtplib
+import ssl
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
+
+# ─── Email OTP Store ──────────────────────────────────────────────────────────
+# In-memory store: { user_id: { "otp": "123456", "expires_at": datetime } }
+# OTPs expire in 10 minutes. Safe for this use-case since they're short-lived.
+_otp_store: dict = {}
+
+OTP_EXPIRY_MINUTES = 10
+
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USER)
+
+
+def _build_otp_email_html(otp: str, first_name: str) -> str:
+    """Build a professionally designed HTML email for OTP verification."""
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Verify your Casaligan account</title>
+</head>
+<body style="margin:0;padding:0;background:#F4F1EE;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F1EE;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.10);">
+
+          <!-- Header Banner -->
+          <tr>
+            <td style="background:linear-gradient(135deg,#4B244A 0%,#EA526F 100%);padding:48px 40px 40px;text-align:center;">
+              <div style="display:inline-flex;align-items:center;gap:12px;">
+                <div style="width:48px;height:48px;background:rgba(255,255,255,0.20);border-radius:14px;display:flex;align-items:center;justify-content:center;">
+                  <span style="font-size:26px;">🏠</span>
+                </div>
+              </div>
+              <h1 style="margin:16px 0 0;color:#ffffff;font-size:28px;font-weight:800;letter-spacing:-0.5px;">Casaligan</h1>
+              <p style="margin:6px 0 0;color:rgba(255,255,255,0.75);font-size:14px;letter-spacing:1px;text-transform:uppercase;">Trusted Housekeeping Platform</p>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:44px 44px 32px;">
+              <h2 style="margin:0 0 10px;color:#4B244A;font-size:22px;font-weight:700;">Verify your email address</h2>
+              <p style="margin:0 0 24px;color:#666;font-size:15px;line-height:1.6;">
+                Hi <strong style="color:#4B244A;">{first_name}</strong>, welcome to Casaligan! 👋<br/>
+                Use the one-time code below to complete your registration. This code is valid for <strong>{OTP_EXPIRY_MINUTES} minutes</strong>.
+              </p>
+
+              <!-- OTP Box -->
+              <div style="background:linear-gradient(135deg,#FFF0F3,#F8F0FF);border:2px dashed #EA526F;border-radius:16px;padding:32px 24px;text-align:center;margin:0 0 28px;">
+                <p style="margin:0 0 8px;color:#888;font-size:12px;text-transform:uppercase;letter-spacing:2px;font-weight:600;">Your verification code</p>
+                <div style="letter-spacing:16px;font-size:44px;font-weight:900;color:#4B244A;font-family:'Courier New',monospace;padding-left:16px;">{otp}</div>
+              </div>
+
+              <!-- Security tip -->
+              <div style="background:#F9F9F9;border-left:4px solid #EA526F;border-radius:0 10px 10px 0;padding:14px 18px;margin:0 0 28px;">
+                <p style="margin:0;color:#888;font-size:13px;line-height:1.5;">
+                  🔒 <strong style="color:#4B244A;">Security tip:</strong> Never share this code with anyone. Casaligan staff will never ask for your OTP.
+                </p>
+              </div>
+
+              <p style="margin:0;color:#aaa;font-size:13px;line-height:1.5;">
+                Didn't create an account? You can safely ignore this email — no action is needed.
+              </p>
+            </td>
+          </tr>
+
+          <!-- Divider -->
+          <tr>
+            <td style="padding:0 44px;">
+              <hr style="border:none;border-top:1px solid #F0EBF0;margin:0;"/>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:24px 44px 36px;text-align:center;">
+              <p style="margin:0 0 6px;color:#bbb;font-size:12px;">© 2026 Casaligan. All rights reserved.</p>
+              <p style="margin:0;color:#bbb;font-size:12px;">Zamboanga City, Philippines</p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>"""
+
+
+def _send_otp_email(to_email: str, otp: str, first_name: str) -> bool:
+    """Send the OTP verification email. Returns True on success."""
+    if not SMTP_USER or not SMTP_PASSWORD:
+        logger.warning("SMTP credentials not configured — skipping email send.")
+        return False
+    try:
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = f"{otp} is your Casaligan verification code"
+        msg["From"] = f"Casaligan <{FROM_EMAIL}>"
+        msg["To"] = to_email
+
+        plain_text = (
+            f"Hi {first_name},\n\n"
+            f"Your Casaligan email verification code is: {otp}\n\n"
+            f"This code expires in {OTP_EXPIRY_MINUTES} minutes.\n\n"
+            "If you did not create an account, please ignore this email.\n\n"
+            "— The Casaligan Team"
+        )
+        msg.attach(MIMEText(plain_text, "plain"))
+        msg.attach(MIMEText(_build_otp_email_html(otp, first_name), "html"))
+
+        context = ssl.create_default_context()
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.ehlo()
+            server.starttls(context=context)
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.sendmail(FROM_EMAIL, to_email, msg.as_string())
+        logger.info(f"OTP email sent to {to_email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send OTP email to {to_email}: {type(e).__name__}: {e}")
+        return False
+
+
 
 
 def verify_document_with_ai(file_path: str, document_type: str, first_name: str, last_name: str) -> dict:
@@ -216,6 +349,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
         gender=user_data.gender,
         birthday=user_data.birthday,
         status="active",  # Owners are active immediately
+        email_verified=False,  # Must verify email after document approval
     )
     
     db.add(db_user)
@@ -408,6 +542,96 @@ def get_user_documents(
     """Get all documents for the current user"""
     documents = db.query(UserDocument).filter(UserDocument.user_id == current_user.id).all()
     return documents
+
+
+# ─── Email OTP Endpoints ──────────────────────────────────────────────────────
+
+class OTPRequest(BaseModel):
+    pass  # Uses the authenticated user's email
+
+
+class OTPVerifyRequest(BaseModel):
+    otp: str
+
+
+@router.post("/send-email-otp")
+def send_email_otp(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Generate and send a 6-digit OTP to the authenticated user's email."""
+    if getattr(current_user, "email_verified", False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email is already verified."
+        )
+
+    otp = "".join([str(secrets.randbelow(10)) for _ in range(6)])
+    expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXPIRY_MINUTES)
+
+    _otp_store[current_user.id] = {"otp": otp, "expires_at": expires_at}
+
+    sent = _send_otp_email(
+        to_email=current_user.email,
+        otp=otp,
+        first_name=current_user.first_name
+    )
+
+    # In dev / when SMTP not configured, surface the OTP in the response
+    # so the feature can still be tested without email setup.
+    response: dict = {"message": "Verification code sent to your email.", "email": current_user.email}
+    if not sent:
+        response["dev_otp"] = otp  # Remove in production after SMTP is confirmed
+    return response
+
+
+@router.post("/verify-email-otp")
+def verify_email_otp(
+    body: OTPVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Verify the 6-digit OTP and mark the user's email as verified."""
+    if getattr(current_user, "email_verified", False):
+        return {"message": "Email already verified.", "email_verified": True}
+
+    entry = _otp_store.get(current_user.id)
+    if not entry:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No OTP found. Please request a new verification code."
+        )
+
+    if datetime.utcnow() > entry["expires_at"]:
+        del _otp_store[current_user.id]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification code has expired. Please request a new one."
+        )
+
+    if body.otp.strip() != entry["otp"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect verification code. Please try again."
+        )
+
+    # Mark email as verified
+    try:
+        from sqlalchemy import text
+        db.execute(
+            text("UPDATE users SET email_verified = TRUE WHERE id = :uid"),
+            {"uid": current_user.id}
+        )
+        db.commit()
+    except Exception as e:
+        logger.error(f"Failed to set email_verified for user {current_user.id}: {e}")
+        # Non-fatal — we still clear the OTP and return success
+
+    # Clear the used OTP
+    del _otp_store[current_user.id]
+
+    return {"message": "Email verified successfully.", "email_verified": True}
+
 
 @router.post("/switch-role")
 def switch_role(

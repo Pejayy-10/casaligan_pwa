@@ -69,7 +69,7 @@ if _has_ai_chat:
 
 @app.on_event("startup")
 async def startup_event():
-    """Database already created via SQL - just verify connection"""
+    """Database already created via SQL - just verify connection and run safe migrations"""
     try:
         from app.db import engine
         from sqlalchemy import text
@@ -77,6 +77,18 @@ async def startup_event():
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         print("✓ Database connection verified")
+
+        # Safe column additions — IF NOT EXISTS means these are idempotent
+        migrations = [
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE",
+        ]
+        with engine.connect() as conn:
+            for sql in migrations:
+                try:
+                    conn.execute(text(sql))
+                    print(f"✓ Migration applied: {sql[:60]}...")
+                except Exception as me:
+                    print(f"⚠ Migration skipped (already exists or unsupported): {me}")
     except Exception as e:
         print(f"⚠ Warning: Could not connect to database: {e}")
         print("  The application will start but database operations may fail.")

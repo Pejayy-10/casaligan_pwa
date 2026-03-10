@@ -1,4 +1,4 @@
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { authService } from '../services/auth';
 
@@ -6,9 +6,26 @@ interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
+// These paths are part of the registration flow itself — exempt from the
+// email-verified guard so users can finish onboarding before verifying.
+const EXEMPT_FROM_EMAIL_GUARD = [
+  '/verify-email',
+  '/register/address',
+  '/register/documents',
+];
+
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const isAuthenticated = authService.isAuthenticated();
   const [checking, setChecking] = useState(true);
+  const location = useLocation();
+
+  // Email verification guard — only blocks users whose email_verified is
+  // strictly false (new accounts). null/undefined = grandfathered existing user.
+  const storedUser = authService.getCurrentUserFromStorage();
+  const needsEmailVerification =
+    isAuthenticated &&
+    storedUser?.email_verified === false &&
+    !EXEMPT_FROM_EMAIL_GUARD.includes(location.pathname);
 
   useEffect(() => {
     // Check restriction status when component mounts and periodically
@@ -40,6 +57,12 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Redirect unverified new users to email verification.
+  // Do this before the loading check so they never see protected content.
+  if (needsEmailVerification) {
+    return <Navigate to="/verify-email" replace />;
   }
 
   // Show loading while checking restriction (only on first mount)

@@ -74,6 +74,7 @@ class UserResponse(UserBase):
     created_at: datetime
     profile_picture: Optional[str] = None
     age: Optional[int] = None
+    email_verified: Optional[bool] = None  # None = grandfathered user, False = unverified, True = verified
     
     model_config = ConfigDict(from_attributes=True)
     

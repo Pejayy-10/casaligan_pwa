@@ -5,6 +5,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterStep1Page from './pages/RegisterStep1Page';
 import RegisterStep2AddressPage from './pages/RegisterStep2AddressPage';
 import RegisterStep3DocumentsPage from './pages/RegisterStep3DocumentsPage';
+import EmailVerificationPage from './pages/EmailVerificationPage';
 import DashboardPage from './pages/DashboardPage';
 import JobsPage from './pages/JobsPage';
 import MessagesPage from './pages/MessagesPage';
@@ -47,6 +48,14 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <RegisterStep3DocumentsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/verify-email',
+    element: (
+      <ProtectedRoute>
+        <EmailVerificationPage />
       </ProtectedRoute>
     ),
   },

@@ -124,8 +124,8 @@ export default function RegisterStep3DocumentsPage() {
         return;
       }
 
-      // Only 'approved' reaches the dashboard
-      navigate('/dashboard');
+      // Only 'approved' goes to email verification (then dashboard)
+      navigate('/verify-email');
     } catch (err: unknown) {
       const errorDetail =
         typeof err === 'object' && err !== null && 'response' in err
