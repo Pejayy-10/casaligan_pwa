@@ -294,6 +294,15 @@ export default function RegisterStep3DocumentsPage() {
                 'Submit & Complete'
               )}
             </button>
+
+            {/* Testing only — remove before final production build */}
+            <button
+              type="button"
+              onClick={() => navigate('/verify-email')}
+              className="w-full py-2.5 mt-2 bg-yellow-500/20 text-yellow-300 text-sm font-semibold rounded-xl border border-yellow-500/30 hover:bg-yellow-500/30 transition-all"
+            >
+              ⏭ Skip for now (testing only)
+            </button>
           </form>
 
           <div className="mt-6 p-4 bg-white/40 dark:bg-white/5 backdrop-blur-sm rounded-xl border border-white/40 dark:border-white/10">

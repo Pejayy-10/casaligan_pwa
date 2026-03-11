@@ -53,49 +53,53 @@ SMTP_USER = os.getenv("SMTP_USER", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USER)
 
-# ─── Phone OTP Store (Semaphore SMS) ─────────────────────────────────────────
+# ─── Phone OTP Store (Android SMS Gateway) ────────────────────────────────────
 # In-memory store: { user_id: { "otp": "123456", "expires_at": datetime } }
 _phone_otp_store: dict = {}
 
-SEMAPHORE_API_KEY = os.getenv("SEMAPHORE_API_KEY", "")
+# Android SMS Gateway (sms-gate.app) — free, uses your own phone's SIM
+# Local: set SMS_GATEWAY_URL to http://192.168.x.x:8080/api/v1
+# Cloud relay: set to https://api.sms-gate.app/3rdparty/v1
 
 
 def _normalize_ph_number(phone: str) -> str:
-    """Normalize a Philippine phone number to international format for Semaphore (e.g. 639XXXXXXXXX)."""
+    """Normalize a Philippine phone number to E.164 format (e.g. +639XXXXXXXXX)."""
     cleaned = ''.join(c for c in phone if c.isdigit())
     if cleaned.startswith('63') and len(cleaned) == 12:
-        return cleaned
+        return '+' + cleaned
     if cleaned.startswith('0') and len(cleaned) == 11:
-        return '63' + cleaned[1:]
-    # Best effort — return digits as-is
-    return cleaned
+        return '+63' + cleaned[1:]
+    return '+' + cleaned
 
 
 def _send_phone_otp_sms(phone_number: str, otp: str, first_name: str) -> bool:
-    """Send a 6-digit OTP via Semaphore SMS. Returns True on success."""
-    if not SEMAPHORE_API_KEY:
-        logger.warning("SEMAPHORE_API_KEY not configured — skipping SMS send.")
+    """Send a 6-digit OTP via Android SMS Gateway. Returns True on success."""
+    # Read env vars at call time so they're never frozen as empty at import time
+    gateway_url      = os.getenv("SMS_GATEWAY_URL", "")
+    gateway_user     = os.getenv("SMS_GATEWAY_USER", "")
+    gateway_password = os.getenv("SMS_GATEWAY_PASSWORD", "")
+
+    if not gateway_url or not gateway_user or not gateway_password:
+        logger.warning("SMS_GATEWAY_URL/USER/PASSWORD not configured — skipping SMS send.")
         return False
     try:
         normalized = _normalize_ph_number(phone_number)
         message = (
-            f"Hi {first_name}, your Casaligan phone verification code is: {otp}. "
+            f"Your Casaligan verification code is: {otp}. "
             f"Valid for {OTP_EXPIRY_MINUTES} minutes. Do not share this with anyone."
         )
+        # sms-gate.app API endpoint
+        url = gateway_url.rstrip('/') + '/message'
         with httpx.Client(timeout=15) as client:
             resp = client.post(
-                "https://api.semaphore.co/api/v4/messages",
-                data={
-                    "apikey": SEMAPHORE_API_KEY,
-                    "number": normalized,
-                    "message": message,
-                    "sendername": "CASALIGAN",
-                },
+                url,
+                auth=(gateway_user, gateway_password),
+                json={"phoneNumbers": [normalized], "message": message},
             )
-        if resp.status_code == 200:
-            logger.info(f"Phone OTP SMS sent to {normalized}")
+        if resp.status_code in (200, 201, 202):
+            logger.info(f"Phone OTP SMS sent to {normalized} via Android SMS Gateway")
             return True
-        logger.error(f"Semaphore error {resp.status_code}: {resp.text}")
+        logger.error(f"SMS Gateway error {resp.status_code}: {resp.text}")
         return False
     except Exception as e:
         logger.error(f"Failed to send phone OTP SMS: {type(e).__name__}: {e}")
