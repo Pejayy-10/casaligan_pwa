@@ -27,10 +27,7 @@ import re
 import base64
 import logging
 import secrets
-import smtplib
-import ssl
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+# smtplib removed — Render blocks outbound SMTP; using Resend HTTP API instead
 from pathlib import Path
 from datetime import datetime, timedelta
 
@@ -47,11 +44,10 @@ _otp_store: dict = {}
 
 OTP_EXPIRY_MINUTES = 10
 
-SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
-SMTP_USER = os.getenv("SMTP_USER", "")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
-FROM_EMAIL = os.getenv("FROM_EMAIL", SMTP_USER)
+# Email via Brevo HTTP API (https://brevo.com) — works on Render free tier
+# SMTP was blocked by Render (OSError 101). Brevo uses HTTPS port 443.
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+FROM_EMAIL    = os.getenv("FROM_EMAIL", "startapp.casaligan@gmail.com")
 
 # ─── Phone OTP Store (Android SMS Gateway) ────────────────────────────────────
 # In-memory store: { user_id: { "otp": "123456", "expires_at": datetime } }
@@ -108,94 +104,175 @@ def _send_phone_otp_sms(phone_number: str, otp: str, first_name: str) -> bool:
 
 def _build_otp_email_html(otp: str, first_name: str) -> str:
     """Build a professionally designed HTML email for OTP verification."""
+    # Render each OTP digit as its own styled box
+    digit_boxes = "".join(
+        f'<td style="padding:0 5px;">'
+        f'<div style="width:52px;height:64px;line-height:64px;text-align:center;'
+        f'background:#ffffff;border:2px solid #E8D5E8;border-radius:12px;'
+        f'font-size:36px;font-weight:900;color:#4B244A;'
+        f'font-family:\'Courier New\',monospace;'
+        f'box-shadow:0 4px 12px rgba(75,36,74,0.10);">{d}</div>'
+        f'</td>'
+        for d in otp
+    )
+
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Verify your Casaligan account</title>
 </head>
-<body style="margin:0;padding:0;background:#F4F1EE;font-family:'Segoe UI',Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F4F1EE;padding:40px 0;">
-    <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,0.10);">
+<body style="margin:0;padding:0;background:#F0EBF4;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
 
-          <!-- Header Banner -->
-          <tr>
-            <td style="background:linear-gradient(135deg,#4B244A 0%,#EA526F 100%);padding:48px 40px 40px;text-align:center;">
-              <div style="display:inline-flex;align-items:center;gap:12px;">
-                <div style="width:48px;height:48px;background:rgba(255,255,255,0.20);border-radius:14px;display:flex;align-items:center;justify-content:center;">
-                  <span style="font-size:26px;">🏠</span>
-                </div>
-              </div>
-              <h1 style="margin:16px 0 0;color:#ffffff;font-size:28px;font-weight:800;letter-spacing:-0.5px;">Casaligan</h1>
-              <p style="margin:6px 0 0;color:rgba(255,255,255,0.75);font-size:14px;letter-spacing:1px;text-transform:uppercase;">Trusted Housekeeping Platform</p>
-            </td>
-          </tr>
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F0EBF4;padding:48px 16px;">
+  <tr>
+    <td align="center">
 
-          <!-- Body -->
-          <tr>
-            <td style="padding:44px 44px 32px;">
-              <h2 style="margin:0 0 10px;color:#4B244A;font-size:22px;font-weight:700;">Verify your email address</h2>
-              <p style="margin:0 0 24px;color:#666;font-size:15px;line-height:1.6;">
-                Hi <strong style="color:#4B244A;">{first_name}</strong>, welcome to Casaligan! 👋<br/>
-                Use the one-time code below to complete your registration. This code is valid for <strong>{OTP_EXPIRY_MINUTES} minutes</strong>.
-              </p>
+      <!-- Card -->
+      <table width="600" cellpadding="0" cellspacing="0"
+             style="max-width:600px;width:100%;background:#ffffff;border-radius:24px;
+                    overflow:hidden;box-shadow:0 12px 48px rgba(75,36,74,0.14);">
 
-              <!-- OTP Box -->
-              <div style="background:linear-gradient(135deg,#FFF0F3,#F8F0FF);border:2px dashed #EA526F;border-radius:16px;padding:32px 24px;text-align:center;margin:0 0 28px;">
-                <p style="margin:0 0 8px;color:#888;font-size:12px;text-transform:uppercase;letter-spacing:2px;font-weight:600;">Your verification code</p>
-                <div style="letter-spacing:16px;font-size:44px;font-weight:900;color:#4B244A;font-family:'Courier New',monospace;padding-left:16px;">{otp}</div>
-              </div>
+        <!-- ═══ HEADER ═══ -->
+        <tr>
+          <td style="background:linear-gradient(150deg,#4B244A 0%,#7B3F7A 50%,#EA526F 100%);
+                     padding:52px 40px 44px;text-align:center;position:relative;">
 
-              <!-- Security tip -->
-              <div style="background:#F9F9F9;border-left:4px solid #EA526F;border-radius:0 10px 10px 0;padding:14px 18px;margin:0 0 28px;">
-                <p style="margin:0;color:#888;font-size:13px;line-height:1.5;">
-                  🔒 <strong style="color:#4B244A;">Security tip:</strong> Never share this code with anyone. Casaligan staff will never ask for your OTP.
-                </p>
-              </div>
+            <!-- Logo mark -->
+            <table cellpadding="0" cellspacing="0" style="margin:0 auto 18px;">
+              <tr>
+                <td align="center"
+                    style="width:68px;height:68px;background:rgba(255,255,255,0.18);
+                           border-radius:20px;border:2px solid rgba(255,255,255,0.30);">
+                  <span style="font-size:34px;line-height:68px;">🏠</span>
+                </td>
+              </tr>
+            </table>
 
-              <p style="margin:0;color:#aaa;font-size:13px;line-height:1.5;">
-                Didn't create an account? You can safely ignore this email — no action is needed.
-              </p>
-            </td>
-          </tr>
+            <h1 style="margin:0 0 6px;color:#ffffff;font-size:32px;font-weight:800;
+                       letter-spacing:-0.5px;">Casaligan</h1>
+            <p style="margin:0;color:rgba(255,255,255,0.70);font-size:13px;
+                      letter-spacing:2.5px;text-transform:uppercase;font-weight:500;">
+              Trusted Housekeeping Platform
+            </p>
 
-          <!-- Divider -->
-          <tr>
-            <td style="padding:0 44px;">
-              <hr style="border:none;border-top:1px solid #F0EBF0;margin:0;"/>
-            </td>
-          </tr>
+            <!-- Decorative arc at bottom of header -->
+            <div style="position:absolute;bottom:-1px;left:0;right:0;height:28px;
+                        background:#ffffff;border-radius:50% 50% 0 0 / 100% 100% 0 0;">
+            </div>
+          </td>
+        </tr>
 
-          <!-- Footer -->
-          <tr>
-            <td style="padding:24px 44px 36px;text-align:center;">
-              <p style="margin:0 0 6px;color:#bbb;font-size:12px;">© 2026 Casaligan. All rights reserved.</p>
-              <p style="margin:0;color:#bbb;font-size:12px;">Zamboanga City, Philippines</p>
-            </td>
-          </tr>
+        <!-- ═══ BODY ═══ -->
+        <tr>
+          <td style="padding:44px 48px 36px;">
 
-        </table>
-      </td>
-    </tr>
-  </table>
+            <!-- Greeting -->
+            <p style="margin:0 0 6px;color:#EA526F;font-size:13px;font-weight:700;
+                      text-transform:uppercase;letter-spacing:2px;">Email Verification</p>
+            <h2 style="margin:0 0 16px;color:#2D1A2D;font-size:24px;font-weight:800;
+                       line-height:1.3;">
+              Hi {first_name}, let's confirm<br/>your email address 👋
+            </h2>
+            <p style="margin:0 0 32px;color:#6B5B6E;font-size:15px;line-height:1.7;">
+              Enter the 6-digit code below in the Casaligan app to verify your account.
+              This code expires in <strong style="color:#4B244A;">{OTP_EXPIRY_MINUTES} minutes</strong>.
+            </p>
+
+            <!-- OTP Digit Boxes -->
+            <table cellpadding="0" cellspacing="0"
+                   style="margin:0 auto 12px;background:linear-gradient(135deg,#FDF5FF,#FFF0F3);
+                          border-radius:20px;padding:28px 24px;">
+              <tr>
+                <td>
+                  <p style="margin:0 0 20px;text-align:center;color:#9C7FA0;font-size:11px;
+                             font-weight:700;letter-spacing:3px;text-transform:uppercase;">
+                    Your one-time code
+                  </p>
+                  <table cellpadding="0" cellspacing="0" style="margin:0 auto;">
+                    <tr>{digit_boxes}</tr>
+                  </table>
+                  <p style="margin:18px 0 0;text-align:center;color:#C0A8C4;font-size:12px;">
+                    ⏱ Valid for {OTP_EXPIRY_MINUTES} minutes only
+                  </p>
+                </td>
+              </tr>
+            </table>
+
+          </td>
+        </tr>
+
+        <!-- ═══ SECURITY NOTICE ═══ -->
+        <tr>
+          <td style="padding:0 48px 32px;">
+            <table cellpadding="0" cellspacing="0" width="100%"
+                   style="background:#FFF8F0;border:1px solid #F5DFC0;border-radius:14px;
+                          overflow:hidden;">
+              <tr>
+                <td style="width:6px;background:linear-gradient(180deg,#F0A500,#EA526F);">
+                </td>
+                <td style="padding:16px 18px;">
+                  <p style="margin:0;color:#7A5500;font-size:13px;line-height:1.6;">
+                    <strong>🔒 Security reminder:</strong> Never share this code with anyone.
+                    Casaligan staff will <em>never</em> ask for your verification code.
+                  </p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- ═══ IGNORE NOTICE ═══ -->
+        <tr>
+          <td style="padding:0 48px 40px;">
+            <p style="margin:0;color:#B0A0B4;font-size:13px;line-height:1.6;text-align:center;">
+              Didn't request this? You can safely ignore this email.<br/>
+              Your account won't be created without completing verification.
+            </p>
+          </td>
+        </tr>
+
+        <!-- ═══ DIVIDER ═══ -->
+        <tr>
+          <td style="padding:0 40px;">
+            <hr style="border:none;border-top:1px solid #F0EBF0;margin:0;"/>
+          </td>
+        </tr>
+
+        <!-- ═══ FOOTER ═══ -->
+        <tr>
+          <td style="padding:24px 40px 36px;text-align:center;">
+            <p style="margin:0 0 4px;color:#4B244A;font-size:14px;font-weight:700;">Casaligan</p>
+            <p style="margin:0 0 10px;color:#C0B0C4;font-size:12px;">
+              Zamboanga City, Philippines
+            </p>
+            <p style="margin:0;color:#D0C0D4;font-size:11px;">
+              © 2026 Casaligan. All rights reserved.<br/>
+              This is an automated message — please do not reply.
+            </p>
+          </td>
+        </tr>
+
+      </table>
+      <!-- /Card -->
+
+    </td>
+  </tr>
+</table>
+
 </body>
 </html>"""
 
 
 def _send_otp_email(to_email: str, otp: str, first_name: str) -> bool:
-    """Send the OTP verification email. Returns True on success."""
-    if not SMTP_USER or not SMTP_PASSWORD:
-        logger.warning("SMTP credentials not configured — skipping email send.")
+    """Send the OTP verification email via Brevo HTTP API. Returns True on success."""
+    brevo_api_key = os.getenv("BREVO_API_KEY", "")
+    from_email    = os.getenv("FROM_EMAIL", "startapp.casaligan@gmail.com")
+    if not brevo_api_key:
+        logger.warning("BREVO_API_KEY not configured — skipping email send.")
         return False
     try:
-        msg = MIMEMultipart("alternative")
-        msg["Subject"] = f"{otp} is your Casaligan verification code"
-        msg["From"] = f"Casaligan <{FROM_EMAIL}>"
-        msg["To"] = to_email
-
         plain_text = (
             f"Hi {first_name},\n\n"
             f"Your Casaligan email verification code is: {otp}\n\n"
@@ -203,17 +280,27 @@ def _send_otp_email(to_email: str, otp: str, first_name: str) -> bool:
             "If you did not create an account, please ignore this email.\n\n"
             "— The Casaligan Team"
         )
-        msg.attach(MIMEText(plain_text, "plain"))
-        msg.attach(MIMEText(_build_otp_email_html(otp, first_name), "html"))
-
-        context = ssl.create_default_context()
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
-            server.ehlo()
-            server.starttls(context=context)
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.sendmail(FROM_EMAIL, to_email, msg.as_string())
-        logger.info(f"OTP email sent to {to_email}")
-        return True
+        payload = {
+            "sender": {"name": "Casaligan", "email": from_email},
+            "to": [{"email": to_email}],
+            "subject": f"{otp} is your Casaligan verification code",
+            "textContent": plain_text,
+            "htmlContent": _build_otp_email_html(otp, first_name),
+        }
+        with httpx.Client(timeout=15) as client:
+            resp = client.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={
+                    "api-key": brevo_api_key,
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+        if resp.status_code in (200, 201):
+            logger.info(f"OTP email sent to {to_email} via Brevo")
+            return True
+        logger.error(f"Brevo error {resp.status_code}: {resp.text}")
+        return False
     except Exception as e:
         logger.error(f"Failed to send OTP email to {to_email}: {type(e).__name__}: {e}")
         return False
