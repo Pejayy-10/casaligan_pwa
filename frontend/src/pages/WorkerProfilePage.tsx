@@ -28,6 +28,7 @@ interface WorkerProfile {
   user_id: number;
   first_name: string;
   last_name: string;
+  profile_picture?: string | null;
   phone_masked: string | null;
   email_masked: string | null;
   gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say' | null;
@@ -368,8 +369,12 @@ export default function WorkerProfilePage() {
         {/* Profile Header */}
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 mb-6 border border-white/50 dark:border-white/10 shadow-xl transition-all">
           <div className="flex items-center gap-4 mb-4">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#EA526F] to-[#6B3468] dark:from-[#EA526F] dark:to-[#d4486a] flex items-center justify-center text-3xl text-white font-bold shadow-lg">
-              {profile.first_name[0]}{profile.last_name[0]}
+            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#EA526F] to-[#6B3468] dark:from-[#EA526F] dark:to-[#d4486a] flex items-center justify-center text-3xl text-white font-bold shadow-lg overflow-hidden">
+              {profile.profile_picture ? (
+                <img src={profile.profile_picture} alt={`${profile.first_name} ${profile.last_name}`} className="w-full h-full object-cover" />
+              ) : (
+                <>{profile.first_name[0]}{profile.last_name[0]}</>
+              )}
             </div>
             <div className="flex-1">
               <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">
