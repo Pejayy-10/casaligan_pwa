@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList } from 'lucide-react';
+import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight } from 'lucide-react';
 import ContractExtensionResponseModal, { type PendingExtension } from './ContractExtensionResponseModal';
 
 interface AcceptedJob {
@@ -64,9 +64,14 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed'>('all');
   const [showExtensionResponse, setShowExtensionResponse] = useState<PendingExtension | null>(null);
   const initialLoadDone = useRef(false);
+  const ITEMS_PER_PAGE = 5;
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = Math.ceil(jobs.length / ITEMS_PER_PAGE);
+  const paginatedJobs = jobs.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   useEffect(() => {
     loadMyJobs(!initialLoadDone.current);
+    setCurrentPage(1);
   }, [statusFilter]);
 
   // Listen for external events that should trigger a refresh (e.g. after submitting completion)
@@ -216,7 +221,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
         </div>
       ) : (
         <div className="space-y-4">
-          {jobs.map((job) => {
+          {paginatedJobs.map((job) => {
             // Use contract status for individual worker's progress
             const myStatus = getEffectiveStatus(job);
             
@@ -469,6 +474,29 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
             </div>
           );
           })}
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 pt-4">
+              <button
+                onClick={() => { setCurrentPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                disabled={currentPage === 1}
+                className="p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-gray-200 dark:border-white/10 text-[#4B244A] dark:text-white disabled:opacity-30 hover:bg-white dark:hover:bg-slate-700 transition-all shadow-sm"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <span className="text-sm font-bold text-[#4B244A] dark:text-white">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                onClick={() => { setCurrentPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-gray-200 dark:border-white/10 text-[#4B244A] dark:text-white disabled:opacity-30 hover:bg-white dark:hover:bg-slate-700 transition-all shadow-sm"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          )}
         </div>
       )}
 

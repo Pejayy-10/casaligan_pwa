@@ -235,6 +235,13 @@ CREATE TABLE public.housekeeper_applications (
   submitted_at timestamp with time zone DEFAULT now(),
   reviewed_at timestamp with time zone,
   admin_notes text,
+  bio text,
+  years_experience integer,
+  skills text,
+  availability character varying,
+  nbi_document_id integer,
+  secondary_doc_id integer,
+  phone_verified boolean DEFAULT false,
   CONSTRAINT housekeeper_applications_pkey PRIMARY KEY (application_id),
   CONSTRAINT housekeeper_applications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
@@ -558,6 +565,8 @@ END,
   is_restricted boolean NOT NULL DEFAULT false,
   restriction_start timestamp with time zone,
   restriction_end timestamp with time zone,
+  email_verified boolean DEFAULT false,
+  phone_verified boolean DEFAULT false,
   CONSTRAINT users_pkey PRIMARY KEY (id),
   CONSTRAINT users_restricted_by_admin_id_fkey FOREIGN KEY (restricted_by_admin_id) REFERENCES public.admins(admin_id)
 );
@@ -637,6 +646,8 @@ CREATE TABLE public.workers (
   years_experience integer,
   bio text,
   religion_id integer,
+  skills text,
+  availability character varying,
   CONSTRAINT workers_pkey PRIMARY KEY (worker_id),
   CONSTRAINT workers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT workers_religion_id_fkey FOREIGN KEY (religion_id) REFERENCES public.religions(religion_id)

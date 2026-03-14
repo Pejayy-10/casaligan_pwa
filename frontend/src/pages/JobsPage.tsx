@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, DollarSign, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X, ChevronRight, FileText, Loader2 } from 'lucide-react';
+import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, DollarSign, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X, ChevronLeft, ChevronRight, FileText, Loader2 } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import JobDetailModal, { type JobPost } from '../components/JobDetailModal';
 import ApplicantsListModal from '../components/ApplicantsListModal';
@@ -825,6 +825,13 @@ function OwnerJobsContent({
   onExtendContract: (job: JobPost, worker: any) => void;
 }) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const ITEMS_PER_PAGE = 5;
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = Math.ceil(jobs.length / ITEMS_PER_PAGE);
+  const paginatedJobs = jobs.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Reset to page 1 when jobs list changes
+  useEffect(() => { setCurrentPage(1); }, [jobs.length]);
 
   const handleStatusUpdate = async (postId: number, newStatus: string) => {
     try {
@@ -898,7 +905,7 @@ function OwnerJobsContent({
 
   return (
     <div className="space-y-4">
-      {jobs.map((job) => (
+      {paginatedJobs.map((job) => (
         <div key={job.post_id} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl p-5 border border-white/60 dark:border-white/10 hover:border-[#EA526F]/30 dark:hover:border-[#EA526F]/30 transition-all shadow-sm hover:shadow-md">
           <div className="flex items-start justify-between mb-3 gap-2">
             <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white break-words">{job.title}</h3>
@@ -1086,6 +1093,29 @@ function OwnerJobsContent({
           </div>
         </div>
       ))}
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 pt-4">
+          <button
+            onClick={() => { setCurrentPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            disabled={currentPage === 1}
+            className="p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-gray-200 dark:border-white/10 text-[#4B244A] dark:text-white disabled:opacity-30 hover:bg-white dark:hover:bg-slate-700 transition-all shadow-sm"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <span className="text-sm font-bold text-[#4B244A] dark:text-white">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            onClick={() => { setCurrentPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            disabled={currentPage === totalPages}
+            className="p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-gray-200 dark:border-white/10 text-[#4B244A] dark:text-white disabled:opacity-30 hover:bg-white dark:hover:bg-slate-700 transition-all shadow-sm"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -1101,6 +1131,14 @@ function HousekeeperJobsContent({
   selectedCategory: number | '';
   categories: Array<{category_id: number, name: string, description: string | null, is_active: boolean}>;
 }) {
+  const ITEMS_PER_PAGE = 5;
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = Math.ceil(jobs.length / ITEMS_PER_PAGE);
+  const paginatedJobs = jobs.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+
+  // Reset to page 1 when jobs list changes
+  useEffect(() => { setCurrentPage(1); }, [jobs.length, selectedCategory]);
+
   if (jobs.length === 0) {
     return (
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-12 text-center border border-white/50 dark:border-white/10 shadow-xl">
@@ -1113,7 +1151,7 @@ function HousekeeperJobsContent({
 
   return (
     <div className="space-y-4">
-      {jobs.map((job) => {
+      {paginatedJobs.map((job) => {
         const hasSelectedCategory = selectedCategory && (
           job.category_id === selectedCategory || 
           (job.category_ids && job.category_ids.includes(selectedCategory))
@@ -1183,6 +1221,29 @@ function HousekeeperJobsContent({
           </div>
         );
       })}
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 pt-4">
+          <button
+            onClick={() => { setCurrentPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            disabled={currentPage === 1}
+            className="p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-gray-200 dark:border-white/10 text-[#4B244A] dark:text-white disabled:opacity-30 hover:bg-white dark:hover:bg-slate-700 transition-all shadow-sm"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <span className="text-sm font-bold text-[#4B244A] dark:text-white">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            onClick={() => { setCurrentPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            disabled={currentPage === totalPages}
+            className="p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-gray-200 dark:border-white/10 text-[#4B244A] dark:text-white disabled:opacity-30 hover:bg-white dark:hover:bg-slate-700 transition-all shadow-sm"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
