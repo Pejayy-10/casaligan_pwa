@@ -139,12 +139,18 @@ export default function ChatPage() {
     init();
   }, [initializeConversation, loadConversationInfo, loadMessages]);
 
-  // Polling for new messages
+  // Polling for new messages and status updates
   useEffect(() => {
     if (!conversationId) return;
 
+    let pollCount = 0;
     pollingRef.current = setInterval(() => {
       loadMessages(conversationId, lastMessageTimeRef.current || undefined);
+      // Re-check conversation status every 5 polls (15 seconds)
+      pollCount++;
+      if (pollCount % 5 === 0) {
+        loadConversationInfo(conversationId);
+      }
     }, 3000);
 
     return () => {
@@ -152,7 +158,7 @@ export default function ChatPage() {
         clearInterval(pollingRef.current);
       }
     };
-  }, [conversationId, loadMessages]);
+  }, [conversationId, loadMessages, loadConversationInfo]);
 
   // Scroll to bottom when messages change
   useEffect(() => {

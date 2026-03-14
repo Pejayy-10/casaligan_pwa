@@ -122,9 +122,9 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
     const effectiveStatus = contractStatus || status;
     switch (effectiveStatus) {
       case 'active':
-      case 'ongoing': return '<RotateCw className="inline w-4 h-4 mr-1" /> Ongoing';
-      case 'pending_completion': return '<Clock className="inline w-4 h-4 mr-1" /> Pending Approval';
-      case 'completed': return '<CheckCircle className="inline w-4 h-4 mr-1" /> Completed';
+      case 'ongoing': return <><RotateCw className="inline w-4 h-4 mr-1" /> Ongoing</>;
+      case 'pending_completion': return <><Clock className="inline w-4 h-4 mr-1" /> Pending Approval</>;
+      case 'completed': return <><CheckCircle className="inline w-4 h-4 mr-1" /> Completed</>;
       default: return effectiveStatus;
     }
   };

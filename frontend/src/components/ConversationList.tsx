@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MessageSquare, Archive, Clock, CheckCircle, Circle } from 'lucide-react';
+import { MessageSquare, Archive, Clock, CheckCircle, Circle, Lock } from 'lucide-react';
 import api from '../services/api';
 
 // Helper function to format time
@@ -155,6 +155,8 @@ export default function ConversationList({ filter = 'all', onConversationCountCh
     switch (status) {
       case 'active':
         return <Circle className="w-3 h-3 text-green-500 fill-green-500" />;
+      case 'read_only':
+        return <Lock className="w-3 h-3 text-gray-400" />;
       case 'completed':
         return <CheckCircle className="w-3 h-3 text-blue-500" />;
       case 'archived':

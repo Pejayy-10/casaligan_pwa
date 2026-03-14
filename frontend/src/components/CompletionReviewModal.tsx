@@ -179,19 +179,19 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
 
   const getWorkerStatusBadge = (worker: WorkerCompletion) => {
     if (worker.paid_at) {
-      return { text: '<DollarSign className="inline w-3 h-3 mr-1" /> Paid', class: 'bg-green-500/20 text-green-300' };
+      return { text: <><DollarSign className="inline w-3 h-3 mr-1" /> Paid</>, class: 'bg-green-500/20 text-green-300' };
     }
     if (worker.payment_proof_url && !worker.paid_at) {
-      return { text: '<Clock className="inline w-3 h-3 mr-1" /> Payment Pending', class: 'bg-blue-500/20 text-blue-300' };
+      return { text: <><Clock className="inline w-3 h-3 mr-1" /> Payment Pending</>, class: 'bg-blue-500/20 text-blue-300' };
     }
     if (worker.status === 'completed') {
-      return { text: '<CheckCircle className="inline w-3 h-3 mr-1" /> Approved', class: 'bg-blue-500/20 text-blue-300' };
+      return { text: <><CheckCircle className="inline w-3 h-3 mr-1" /> Approved</>, class: 'bg-blue-500/20 text-blue-300' };
     }
     if (worker.status === 'pending_completion') {
-      return { text: '<Clock className="inline w-3 h-3 mr-1" /> Awaiting Approval', class: 'bg-yellow-500/20 text-yellow-300' };
+      return { text: <><Clock className="inline w-3 h-3 mr-1" /> Awaiting Approval</>, class: 'bg-yellow-500/20 text-yellow-300' };
     }
     if (worker.status === 'active') {
-      return { text: '<RotateCw className="inline w-3 h-3 mr-1" /> In Progress', class: 'bg-gray-500/20 text-gray-300' };
+      return { text: <><RotateCw className="inline w-3 h-3 mr-1" /> In Progress</>, class: 'bg-gray-500/20 text-gray-300' };
     }
     return { text: worker.status, class: 'bg-gray-500/20 text-gray-300' };
   };

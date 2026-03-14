@@ -108,13 +108,7 @@ def check_conversation_status(conv: Conversation, db: Session):
     if conv.hire_id:
         hire = db.query(DirectHire).filter(DirectHire.hire_id == conv.hire_id).first()
         if hire and hire.status in [DirectHireStatus.PAID, DirectHireStatus.CANCELLED]:
-            # Check if 7 days have passed since completion
-            if hire.paid_at:
-                days_since = (datetime.utcnow() - hire.paid_at).days
-                if days_since > 7:
-                    should_be_read_only = True
-            elif hire.status == DirectHireStatus.CANCELLED:
-                should_be_read_only = True
+            should_be_read_only = True
     
     if conv.job_id:
         job = db.query(ForumPost).filter(ForumPost.post_id == conv.job_id).first()
@@ -266,6 +260,10 @@ def get_my_conversations(
     
     if not conversations:
         return []
+    
+    # Update status for each conversation based on job/hire status
+    for conv in conversations:
+        check_conversation_status(conv, db)
     
     conv_ids = [c.conversation_id for c in conversations]
     

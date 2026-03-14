@@ -165,7 +165,7 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
           {previewImage && (
             <div>
               <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm font-bold mb-2">
-                Preview {proofUrl && '<CheckCircle className="inline w-4 h-4 mr-1" />'}
+                Preview {proofUrl && <CheckCircle className="inline w-4 h-4 mr-1" />}
               </label>
               <div className="relative group">
                 <img
@@ -215,7 +215,7 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
             disabled={submitting || uploading}
             className="flex-1 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
           >
-            {submitting ? 'Submitting...' : '<CheckCircle className="inline w-4 h-4 mr-1" /> Submit Completion'}
+            {submitting ? 'Submitting...' : <><CheckCircle className="inline w-4 h-4 mr-1" /> Submit Completion</>}
           </button>
         </div>
       </div>
