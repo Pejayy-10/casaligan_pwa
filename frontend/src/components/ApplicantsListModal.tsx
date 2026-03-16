@@ -33,6 +33,8 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
   // Count already accepted workers (from previous selections)
   const alreadyAcceptedCount = applicants.filter(a => a.status === 'accepted').length;
   const pendingApplicants = applicants.filter(a => a.status === 'pending');
+  const pendingEditResponsesCount = pendingApplicants.filter(a => a.edit_response === 'pending').length;
+  const selectablePendingCount = pendingApplicants.length - pendingEditResponsesCount;
   
   // Total selected = already accepted + newly toggled
   const totalSelected = alreadyAcceptedCount + selectedWorkers.size;
@@ -195,10 +197,20 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                 Already Hired: {alreadyAcceptedCount}
               </span>
             )}
+            {pendingEditResponsesCount > 0 && (
+              <span className="px-3 py-1 bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-300 dark:border-yellow-500/30 rounded-full text-sm font-bold">
+                Waiting Responses: {pendingEditResponsesCount}
+              </span>
+            )}
           </div>
 
           {/* Instructions */}
-          {needMoreSelections && pendingApplicants.length > 0 && (
+          {needMoreSelections && pendingEditResponsesCount > 0 && (
+            <p className="text-yellow-700 dark:text-yellow-300 text-sm mt-3 font-medium">
+              Waiting for {pendingEditResponsesCount} applicant{pendingEditResponsesCount === 1 ? '' : 's'} to respond to your edited job details.
+            </p>
+          )}
+          {needMoreSelections && selectablePendingCount > 0 && (
             <p className="text-yellow-600 dark:text-yellow-300/80 text-sm mt-3 font-medium">
               Toggle {peopleNeeded - totalSelected} more {peopleNeeded - totalSelected === 1 ? 'person' : 'people'} to start the job
             </p>

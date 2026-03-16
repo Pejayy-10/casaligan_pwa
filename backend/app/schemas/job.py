@@ -82,10 +82,12 @@ class JobPostResponse(BaseModel):
         import json
         
         custom_fields = {}
-        if post.content and post.content.startswith('{'):
+        if post.content:
             try:
-                custom_fields = json.loads(post.content)
-            except:
+                parsed = json.loads(post.content)
+                if isinstance(parsed, dict):
+                    custom_fields = parsed
+            except Exception:
                 pass
         
         # Map job_type enum to duration_type string

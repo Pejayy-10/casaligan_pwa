@@ -11,7 +11,7 @@ const resolveUploadUrl = (url: string) => {
 interface EditJobModalProps {
   job: JobPost;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (updatedJob?: JobPost) => void;
 }
 
 export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalProps) {
@@ -144,7 +144,8 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
         throw new Error(errorData.detail || 'Failed to update job post');
       }
 
-      onSuccess();
+      const updatedJob = await response.json();
+      onSuccess(updatedJob);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update job post');
     } finally {

@@ -3,7 +3,7 @@ Job posting endpoints using ForumPost model
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import desc
+from sqlalchemy import desc, or_
 from sqlalchemy.sql import func
 from typing import List, Optional
 from datetime import datetime, timezone
@@ -42,6 +42,17 @@ def _normalize_media_url(url: Optional[str]) -> Optional[str]:
         return url
     second_http = url.find("http", first_http + 4)
     return url[second_http:] if second_http != -1 else url
+
+
+def _count_active_applicants(db: Session, post_id: int) -> int:
+    return db.query(InterestCheck).filter(
+        InterestCheck.post_id == post_id,
+        InterestCheck.status != InterestStatus.REJECTED,
+        or_(
+            InterestCheck.edit_response.is_(None),
+            InterestCheck.edit_response != EditResponseStatus.REJECTED,
+        ),
+    ).count()
 
 def get_or_create_employer(user_id: int, db: Session) -> int:
     """Get or create employer record for user"""
@@ -180,7 +191,7 @@ def get_job_posts(
         employer_user = db.query(User).filter(User.id == employer.user_id).first() if employer else current_user
         
         # Count applicants
-        applicants_count = db.query(InterestCheck).filter(InterestCheck.post_id == post.post_id).count()
+        applicants_count = _count_active_applicants(db, post.post_id)
         
         result.append(JobPostResponse.from_orm_model(post, employer_user, applicants_count))
     
@@ -256,7 +267,7 @@ def get_my_job_posts(
                 post.completed_at = datetime.now()
                 has_status_updates = True
 
-        applicants_count = db.query(InterestCheck).filter(InterestCheck.post_id == post.post_id).count()
+        applicants_count = _count_active_applicants(db, post.post_id)
         
         # Primary source: accepted applications
         accepted_interests = db.query(InterestCheck).filter(
@@ -421,6 +432,8 @@ def get_my_accepted_jobs(
         
         # Get the application status (pending vs accepted)
         interest_status = interest.status.value if hasattr(interest.status, 'value') else str(interest.status)
+        edit_response_status = interest.edit_response.value if interest.edit_response and hasattr(interest.edit_response, 'value') else (str(interest.edit_response) if interest.edit_response else None)
+        edit_notified_at = interest.edit_notified_at.isoformat() if interest.edit_notified_at else None
         
         # Apply status filter based on CONTRACT status (worker's individual progress)
         if status_filter and status_filter.lower() != 'all':
@@ -507,6 +520,8 @@ def get_my_accepted_jobs(
             "budget": float(post.salary) if post.salary else 0,
             "status": post_status,
             "application_status": interest_status,
+            "edit_response": edit_response_status,
+            "edit_notified_at": edit_notified_at,
             "start_date": post.start_date,
             "end_date": post.end_date,
             "is_longterm": post.is_longterm,
@@ -560,7 +575,7 @@ def get_job_post(
     employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
     employer_user = db.query(User).filter(User.id == employer.user_id).first() if employer else current_user
     
-    applicants_count = db.query(InterestCheck).filter(InterestCheck.post_id == post.post_id).count()
+    applicants_count = _count_active_applicants(db, post.post_id)
     
     return JobPostResponse.from_orm_model(post, employer_user, applicants_count)
 
@@ -572,6 +587,7 @@ def update_job_post(
     db: Session = Depends(get_db)
 ):
     """Update a job post (owner only)"""
+    from app.models_v2.category import PackageCategory
     
     post = db.query(ForumPost).filter(ForumPost.post_id == post_id).first()
     
@@ -590,13 +606,20 @@ def update_job_post(
         )
     
     # Store old values to detect ALL changes
-    old_details = json.loads(post.content) if post.content else {}
+    try:
+        old_details = json.loads(post.content) if post.content else {}
+    except Exception:
+        old_details = {}
     old_title = post.title
     old_budget = float(post.salary) if post.salary else old_details.get('budget', 0)
     old_description = old_details.get('description', '')
     old_house_type = old_details.get('house_type', '')
     old_cleaning_type = old_details.get('cleaning_type', '')
-    old_people_needed = old_details.get('people_needed', 1)
+    old_people_needed_raw = old_details.get('people_needed', 1)
+    try:
+        old_people_needed = int(old_people_needed_raw)
+    except (TypeError, ValueError):
+        old_people_needed = 1
     old_image_urls = old_details.get('image_urls', [])
     old_location = post.location or old_details.get('location', '')
     old_category_id = post.category_id
@@ -638,7 +661,7 @@ def update_job_post(
         changes.append(f"• Cleaning Type: '{old_cleaning_type or 'Not specified'}' → '{job_update.cleaning_type}'")
     
     # People needed change
-    if job_update.people_needed and old_people_needed != job_update.people_needed:
+    if job_update.people_needed is not None and old_people_needed != int(job_update.people_needed):
         changes.append(f"• People Needed: {old_people_needed} → {job_update.people_needed}")
     
     # Images change
@@ -693,7 +716,6 @@ def update_job_post(
     
     # Update categories if provided
     if job_update.category_ids is not None:
-        from app.models_v2.category import PackageCategory
         categories = db.query(PackageCategory).filter(PackageCategory.category_id.in_(job_update.category_ids)).all()
         post.categories = categories
         # Update first category for backward compatibility
@@ -703,11 +725,22 @@ def update_job_post(
         post.location = job_update.location
     
     # Update JSON description with new job details
-    if any([job_update.description, job_update.house_type, job_update.cleaning_type, 
-            job_update.budget, job_update.people_needed, job_update.image_urls,
-            job_update.duration_type, job_update.start_date, job_update.end_date]):
+    if any([
+        job_update.description,
+        job_update.house_type,
+        job_update.cleaning_type,
+        job_update.budget,
+        job_update.people_needed is not None,
+        job_update.image_urls is not None,
+        job_update.duration_type,
+        job_update.start_date,
+        job_update.end_date,
+    ]):
         
-        current_details = json.loads(post.content) if post.content else {}
+        try:
+            current_details = json.loads(post.content) if post.content else {}
+        except Exception:
+            current_details = {}
         
         if job_update.description:
             current_details['description'] = job_update.description
@@ -718,8 +751,8 @@ def update_job_post(
         if job_update.budget:
             current_details['budget'] = job_update.budget
             post.salary = job_update.budget
-        if job_update.people_needed:
-            current_details['people_needed'] = job_update.people_needed
+        if job_update.people_needed is not None:
+            current_details['people_needed'] = int(job_update.people_needed)
         if job_update.image_urls is not None:
             current_details['image_urls'] = job_update.image_urls
         if job_update.duration_type:
@@ -743,49 +776,48 @@ def update_job_post(
             change_summary = "The following changes were made:\n" + "\n".join(changes)
         else:
             change_summary = "Job details have been updated (no specific changes detected)"
-        
-        # Notify all applicants and set edit_response to pending
+
+        # First commit the core update + application edit-response flags.
+        # Notification failures should never block the job update itself.
         now = datetime.now(timezone.utc)
-        notification_created = False
-        
         for application in existing_applicants:
-            # Get worker's user_id
-            worker = db.query(Worker).filter(Worker.worker_id == application.worker_id).first()
-            if worker:
-                # Notify the worker with detailed changes
-                try:
-                    notification = notify_user(
-                        db=db,
-                        user_id=worker.user_id,
-                        notification_type=NotificationType.JOB_EDITED,
-                        title="Job Post Updated ⚠️",
-                        message=f"The job '{post.title}' has been updated.\n\n{change_summary}\n\nPlease review and confirm if you want to continue with your application.",
-                        reference_type="job",
-                        reference_id=post_id,
-                        commit=False  # Don't commit yet, we'll commit all at once
-                    )
-                    notification_created = True
-                    
-                    # Mark edit_response as pending
-                    application.edit_response = EditResponseStatus.PENDING
-                    application.edit_notified_at = now
-                except Exception as e:
-                    print(f"Error notifying worker {worker.worker_id}: {e}")
-                    import traceback
-                    traceback.print_exc()
-        
-        # Commit all changes (notifications and edit_response updates)
+            application.edit_response = EditResponseStatus.PENDING
+            application.edit_notified_at = now
         db.commit()
-        
-        # Log for debugging
+
+        notification_created = 0
+        for application in existing_applicants:
+            worker = db.query(Worker).filter(Worker.worker_id == application.worker_id).first()
+            if not worker:
+                continue
+
+            try:
+                notify_user(
+                    db=db,
+                    user_id=worker.user_id,
+                    notification_type=NotificationType.JOB_EDITED,
+                    title="Job Post Updated ⚠️",
+                    message=f"The job '{post.title}' has been updated.\n\n{change_summary}\n\nPlease review and confirm if you want to continue with your application.",
+                    reference_type="job",
+                    reference_id=post_id,
+                    commit=True
+                )
+                notification_created += 1
+            except Exception as e:
+                # Keep request successful even if notification insert fails
+                db.rollback()
+                print(f"Error notifying worker {worker.worker_id}: {e}")
+                import traceback
+                traceback.print_exc()
+
         if notification_created:
-            print(f"Job edit notifications sent to {len(existing_applicants)} applicant(s) for job {post_id}")
+            print(f"Job edit notifications sent to {notification_created} applicant(s) for job {post_id}")
     else:
         db.commit()
     
     db.refresh(post)
     
-    applicants_count = db.query(InterestCheck).filter(InterestCheck.post_id == post.post_id).count()
+    applicants_count = _count_active_applicants(db, post.post_id)
     return JobPostResponse.from_orm_model(post, current_user, applicants_count)
 
 @router.delete("/{post_id}")

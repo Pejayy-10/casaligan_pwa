@@ -657,7 +657,15 @@ export default function JobsPage() {
         <EditJobModal
           job={showEditJob}
           onClose={() => setShowEditJob(null)}
-          onSuccess={() => { setShowEditJob(null); loadJobs(); alert('Job updated successfully!'); }}
+          onSuccess={(updatedJob) => {
+            setShowEditJob(null);
+            if (updatedJob) {
+              setJobs((prev) => prev.map((job) => job.post_id === updatedJob.post_id ? updatedJob : job));
+              setFilteredJobs((prev) => prev.map((job) => job.post_id === updatedJob.post_id ? updatedJob : job));
+            }
+            loadJobs();
+            alert('Job updated successfully!');
+          }}
         />
       )}
       

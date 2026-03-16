@@ -14,6 +14,8 @@ interface AcceptedJob {
   budget: number;
   status: string;
   application_status?: string;
+  edit_response?: string | null;
+  edit_notified_at?: string | null;
   start_date: string | null;
   end_date: string | null;
   is_longterm: boolean;
@@ -111,6 +113,38 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
     } finally {
       setLoading(false);
       initialLoadDone.current = true;
+    }
+  };
+
+  const respondToEdit = async (job: AcceptedJob, response: 'accept' | 'reject') => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const responseData = await fetch(
+        `${API_BASE_URL}/jobs/${job.post_id}/respond-to-edit?response=${response}`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      if (!responseData.ok) {
+        const errorData = await responseData.json();
+        alert(errorData.detail || 'Failed to submit response');
+        return;
+      }
+
+      alert(
+        response === 'accept'
+          ? 'You accepted the updated job details. Your application will continue.'
+          : 'You withdrew your application for this edited job.'
+      );
+
+      loadMyJobs().catch((err) => console.error('Failed to reload jobs:', err));
+    } catch (error) {
+      console.error('Failed to respond to job edit:', error);
+      alert('Failed to submit response');
     }
   };
 
@@ -348,9 +382,52 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
 
               {/* Pending Application Banner */}
               {myStatus === 'pending_application' && (
-                <div className="py-3 text-center text-orange-700 dark:text-orange-300 font-bold bg-orange-100 dark:bg-orange-500/10 rounded-lg border border-orange-200 dark:border-orange-500/30 mb-4">
-                  <Clock className="inline w-4 h-4 mr-1" /> Waiting for house owner to accept your application
-                </div>
+                <>
+                  {job.edit_response === 'pending' ? (
+                    <div className="mb-4 space-y-3">
+                      <div className="py-3 px-4 text-center text-yellow-800 dark:text-yellow-200 font-bold bg-yellow-100 dark:bg-yellow-500/10 rounded-lg border border-yellow-200 dark:border-yellow-500/30">
+                        <Clock className="inline w-4 h-4 mr-1" /> Job was edited. Please respond to continue.
+                      </div>
+                      {job.edit_notified_at && (
+                        <div className="text-xs text-yellow-700 dark:text-yellow-300 text-center font-medium">
+                          Notified: {new Date(job.edit_notified_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Continue with this edited job?')) {
+                              respondToEdit(job, 'accept');
+                            }
+                          }}
+                          className="w-full py-2 bg-[#EA526F] text-white font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
+                        >
+                          ✓ Continue Application
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Withdraw your application for this edited job?')) {
+                              respondToEdit(job, 'reject');
+                            }
+                          }}
+                          className="w-full py-2 bg-gray-200 text-gray-800 dark:bg-white/10 dark:text-white font-bold rounded-lg hover:bg-gray-300 dark:hover:bg-white/20 transition-all shadow-md"
+                        >
+                          ✕ Withdraw Application
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-3 text-center text-orange-700 dark:text-orange-300 font-bold bg-orange-100 dark:bg-orange-500/10 rounded-lg border border-orange-200 dark:border-orange-500/30 mb-4">
+                      <Clock className="inline w-4 h-4 mr-1" /> Waiting for house owner to accept your application
+                    </div>
+                  )}
+                </>
               )}
 
               {/* Action Buttons - Use myStatus (contract status) for individual worker state */}
