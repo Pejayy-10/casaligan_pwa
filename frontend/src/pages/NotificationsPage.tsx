@@ -3,6 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, Check, CheckCheck, X, Loader2 } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import JobEditResponseModal from '../components/JobEditResponseModal';
+import JobDetailModal from '../components/JobDetailModal';
+import ApplicantsListModal from '../components/ApplicantsListModal';
+import ApplicationAcceptedModal from '../components/ApplicationAcceptedModal';
 import { API_BASE_URL } from '../config';
 
 interface Notification {
@@ -16,6 +19,45 @@ interface Notification {
   created_at: string;
 }
 
+interface AcceptedWorker {
+  worker_id: number;
+  worker_user_id: number;
+  name: string;
+  contract_id: number;
+}
+
+interface JobPost {
+  post_id: number;
+  title: string;
+  description: string;
+  house_type: string;
+  cleaning_type: string;
+  budget: number;
+  people_needed: number;
+  image_urls: string[];
+  duration_type: string;
+  start_date?: string;
+  end_date?: string;
+  location?: string;
+  category_id?: number;
+  category_name?: string;
+  category_ids?: number[];
+  category_names?: string[];
+  status: string;
+  created_at: string;
+  employer_name?: string;
+  employer_address?: string;
+  total_applicants: number;
+  pending_payments?: number;
+  accepted_workers?: AcceptedWorker[];
+  payment_schedule?: {
+    frequency: string;
+    payment_amount: number;
+    payment_dates: string[];
+    payment_method_preference: string;
+  };
+}
+
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [markingAllRead, setMarkingAllRead] = useState(false);
@@ -23,9 +65,37 @@ export default function NotificationsPage() {
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<'owner' | 'housekeeper'>('owner');
   const [showJobEditModal, setShowJobEditModal] = useState<{ jobId: number; jobTitle: string; message: string } | null>(null);
+  const [showApplicationAcceptedModal, setShowApplicationAcceptedModal] = useState<{ jobId: number } | null>(null);
+  const [showJobDetailModal, setShowJobDetailModal] = useState<{ jobId: number } | null>(null);
+  const [showApplicantsModal, setShowApplicantsModal] = useState<{ jobId: number; jobTitle: string } | null>(null);
+  const [jobDetail, setJobDetail] = useState<JobPost | null>(null);
+  const [loadingJobDetail, setLoadingJobDetail] = useState(false);
   const navigate = useNavigate();
 
   const getToken = () => localStorage.getItem('access_token');
+
+  const fetchJobDetail = async (jobId: number) => {
+    const token = getToken();
+    if (!token) return null;
+
+    try {
+      setLoadingJobDetail(true);
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setJobDetail(data);
+        return data;
+      }
+    } catch (error) {
+      console.error('Error fetching job detail:', error);
+    } finally {
+      setLoadingJobDetail(false);
+    }
+    return null;
+  };
 
   useEffect(() => {
     // Get user role
@@ -137,11 +207,27 @@ export default function NotificationsPage() {
       return;
     }
 
+    // Handle job-related notifications
+    if (notification.reference_type === 'job' && notification.reference_id) {
+      if (notification.type === 'application_accepted') {
+        // Show application accepted modal
+        setShowApplicationAcceptedModal({ jobId: notification.reference_id });
+      } else if (notification.type === 'job_application') {
+        // Show applicants modal for new job application
+        setShowApplicantsModal({
+          jobId: notification.reference_id,
+          jobTitle: notification.title.replace('New Job Application', '').trim() || 'Job'
+        });
+      } else {
+        // For other job-related notifications, show job detail
+        setShowJobDetailModal({ jobId: notification.reference_id });
+        fetchJobDetail(notification.reference_id);
+      }
+      return;
+    }
+
     if (notification.reference_type && notification.reference_id) {
       switch (notification.reference_type) {
-        case 'job':
-          navigate(`/jobs`);
-          break;
         case 'chat':
           navigate(`/chat/${notification.reference_id}`);
           break;
@@ -267,6 +353,35 @@ export default function NotificationsPage() {
           message={showJobEditModal.message}
           onClose={() => setShowJobEditModal(null)}
           onResponse={() => setShowJobEditModal(null)}
+        />
+      )}
+
+      {/* Application Accepted Modal */}
+      {showApplicationAcceptedModal && (
+        <ApplicationAcceptedModal
+          jobId={showApplicationAcceptedModal.jobId}
+          onClose={() => setShowApplicationAcceptedModal(null)}
+        />
+      )}
+
+      {/* Job Detail Modal - for other job notifications */}
+      {showJobDetailModal && jobDetail && (
+        <JobDetailModal
+          job={jobDetail}
+          onClose={() => {
+            setShowJobDetailModal(null);
+            setJobDetail(null);
+          }}
+        />
+      )}
+
+      {/* Applicants List Modal - for new job application notifications */}
+      {showApplicantsModal && (
+        <ApplicantsListModal
+          jobId={showApplicantsModal.jobId}
+          jobTitle={showApplicantsModal.jobTitle}
+          peopleNeeded={1}
+          onClose={() => setShowApplicantsModal(null)}
         />
       )}
 
