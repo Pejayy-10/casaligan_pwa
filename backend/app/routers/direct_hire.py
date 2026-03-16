@@ -858,6 +858,7 @@ def browse_workers(
     employer_latitude: Optional[float] = None,
     employer_longitude: Optional[float] = None,
     max_distance_km: Optional[float] = None,  # Optional: filter by max distance
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Browse available workers with their packages
@@ -887,7 +888,8 @@ def browse_workers(
         HousekeeperApplication, HousekeeperApplication.user_id == User.id
     ).filter(
         HousekeeperApplication.status == ApplicationStatus.APPROVED,
-        User.is_housekeeper == True
+        User.is_housekeeper == True,
+        User.id != current_user.id  # Exclude current user from browse results
     )
     
     workers = query.all()

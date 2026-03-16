@@ -158,12 +158,15 @@ def get_job_posts(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all job posts (filtered by status)"""
+    """Get all job posts (filtered by status, excluding user's own posts)"""
     
     query = db.query(ForumPost).options(
         joinedload(ForumPost.category),
         joinedload(ForumPost.categories)
     ).filter(ForumPost.deleted_at.is_(None))
+    
+    # Exclude current user's own posts (they can only be owners posting jobs)
+    query = query.filter(ForumPost.user_id != current_user.id)
     
     if status_filter and status_filter != "all":
         query = query.filter(ForumPost.status == status_filter)
