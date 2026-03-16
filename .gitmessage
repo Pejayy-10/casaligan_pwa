@@ -1,0 +1,18 @@
+# Format: <type>(<scope>): <short summary>
+#
+# Types:
+# - feat:     new feature
+# - fix:      bug fix
+# - chore:    maintenance/tooling/config
+# - refactor: code change without behavior change
+# - docs:     documentation only
+# - test:     tests added/updated
+# - perf:     performance improvements
+#
+# Examples:
+# feat(auth): add OTP resend cooldown
+# fix(categories): prevent custom category leakage between workers
+# chore(gitignore): ignore generated cache artifacts
+#
+# Body (optional): explain what changed and why.
+# Footer (optional): issue refs, breaking changes.
