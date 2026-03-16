@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight, Flag } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import ContractExtensionResponseModal, { type PendingExtension } from './ContractExtensionResponseModal';
 
 interface AcceptedJob {
@@ -44,6 +45,9 @@ interface AcceptedJob {
       due_date: string;
       amount: number;
       status: string;
+      payment_proof_url?: string | null;
+      payment_method?: string | null;
+      reference_number?: string | null;
     }>;
   };
 }
@@ -63,6 +67,10 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed'>('all');
   const [showExtensionResponse, setShowExtensionResponse] = useState<PendingExtension | null>(null);
+  const [proofModal, setProofModal] = useState<{
+    url: string;
+    jobTitle: string;
+  } | null>(null);
   const initialLoadDone = useRef(false);
   const ITEMS_PER_PAGE = 5;
   const [currentPage, setCurrentPage] = useState(1);
@@ -138,6 +146,10 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
   // Check if job has payment pending confirmation (payment sent but not confirmed by worker)
   const hasPendingPaymentConfirmation = (job: AcceptedJob): boolean => {
     return job.payments?.schedules?.some(s => s.status === 'sent' || s.status === 'SENT') || false;
+  };
+
+  const getSentPayment = (job: AcceptedJob) => {
+    return job.payments?.schedules?.find(s => s.status === 'sent' || s.status === 'SENT');
   };
 
   if (loading) {
@@ -343,6 +355,21 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
               <div className="space-y-2">                {/* Show payment confirmation if payment is sent but not confirmed */}
                 {hasPendingPaymentConfirmation(job) && (
                   <>
+                    {getSentPayment(job)?.payment_proof_url && (
+                      <button
+                        onClick={() => {
+                          const proofUrl = getSentPayment(job)?.payment_proof_url;
+                          if (!proofUrl) return;
+                          setProofModal({
+                            url: proofUrl,
+                            jobTitle: job.title,
+                          });
+                        }}
+                        className="w-full py-2 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
+                      >
+                        <CreditCard className="inline w-4 h-4 mr-1" /> View Owner Payment Proof
+                      </button>
+                    )}
                     <div className="py-3 text-center text-blue-700 dark:text-blue-300 font-bold bg-blue-100 dark:bg-blue-500/10 rounded-lg border border-blue-200 dark:border-blue-500/30">
                       <DollarSign className="inline w-4 h-4 mr-1" /> Payment Sent - Review Required!
                     </div>
@@ -352,7 +379,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                           try {
                             const token = localStorage.getItem('access_token');
                             // Get the transaction_id from the payment schedule with 'sent' status
-                            const sentPayment = job.payments.schedules.find(s => s.status === 'sent' || s.status === 'SENT');
+                            const sentPayment = getSentPayment(job);
                             if (!sentPayment) {
                               alert('No pending payment found');
                               return;
@@ -402,14 +429,16 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                     >
                       💬 Message Employer
                     </button>
-                    <button
-                      onClick={() => onShowProgress(job)}
-                      className="w-full py-2 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
-                    >
-                      <BarChart2 className="inline w-4 h-4 mr-1" /> View Progress
-                    </button>
-                    {/* Show Payment Tracker button for all job types */}
-                    {onShowPayments && (
+                    {/* Long-term only actions */}
+                    {job.is_longterm && (
+                      <button
+                        onClick={() => onShowProgress(job)}
+                        className="w-full py-2 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
+                      >
+                        <BarChart2 className="inline w-4 h-4 mr-1" /> View Progress
+                      </button>
+                    )}
+                    {job.is_longterm && onShowPayments && (
                       <button
                         onClick={() => onShowPayments(job)}
                         className="w-full py-2 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition-all shadow-md"
@@ -511,6 +540,35 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
             loadMyJobs();
           }}
         />
+      )}
+
+      {/* Payment Proof Modal */}
+      {proofModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-120 flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-xl max-h-[calc(100dvh-6rem)] sm:max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
+            <div className="p-4 border-b border-gray-200 dark:border-white/10 sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur z-10 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Owner Payment Proof</h3>
+                <p className="text-xs text-[#4B244A]/60 dark:text-white/60 font-medium">{proofModal.jobTitle}</p>
+              </div>
+              <button
+                onClick={() => setProofModal(null)}
+                className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4">
+              <img
+                src={proofModal.url}
+                alt="Owner payment proof"
+                className="w-full h-auto max-h-[70vh] object-contain rounded-lg border border-gray-200 dark:border-white/20 bg-gray-50 dark:bg-slate-800"
+              />
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

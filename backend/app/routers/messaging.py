@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_, or_
+from sqlalchemy import text
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import re
 
 from app.db import get_db
 from app.security import get_current_user
@@ -13,6 +15,20 @@ from app.models_v2.direct_hire import DirectHire, DirectHireStatus
 from app.models_v2.forum import ForumPost
 
 router = APIRouter(prefix="/messages", tags=["Messages"])
+
+
+MESSAGE_POLICY_STRIKE_LIMIT = 3
+MESSAGE_POLICY_BLOCK_MINUTES = 30
+PROFANITY_WORDS = {
+    "fuck", "shit", "bitch", "asshole", "motherfucker",
+    "putangina", "gago", "tanga", "bobo", "ulol", "bwisit"
+}
+PERSONAL_INFO_PATTERNS = [
+    ("email", re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b", re.IGNORECASE)),
+    ("phone", re.compile(r"(\+?63\s?\d{3}\s?\d{3}\s?\d{4})|(\b09\d{9}\b)")),
+    ("social_media", re.compile(r"\b(?:facebook|fb\.com|instagram|ig\b|telegram|whatsapp|viber|messenger)\b", re.IGNORECASE)),
+    ("external_link", re.compile(r"https?://|www\.", re.IGNORECASE)),
+]
 
 
 # ============== SCHEMAS ==============
@@ -96,6 +112,102 @@ def get_participant_names(participant_ids: List[int], db: Session) -> List[str]:
 def can_send_messages(conv: Conversation) -> bool:
     """Check if messages can be sent in this conversation"""
     return conv.status == 'active'
+
+
+def _ensure_message_policy_table(db: Session):
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS messaging_policy_violations (
+            user_id INTEGER PRIMARY KEY,
+            violation_count INTEGER NOT NULL DEFAULT 0,
+            blocked_until TIMESTAMPTZ NULL,
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        )
+    """))
+    db.commit()
+
+
+def _detect_policy_violations(content: str) -> List[str]:
+    normalized_content = content.lower()
+    violations: List[str] = []
+
+    if any(re.search(rf"\b{re.escape(word)}\b", normalized_content) for word in PROFANITY_WORDS):
+        violations.append("offensive language")
+
+    for violation_type, pattern in PERSONAL_INFO_PATTERNS:
+        if pattern.search(content):
+            if violation_type in {"email", "phone", "social_media", "external_link"}:
+                violations.append("personal contact information")
+                break
+
+    return violations
+
+
+def _get_policy_state(db: Session, user_id: int):
+    row = db.execute(
+        text("""
+            SELECT violation_count, blocked_until
+            FROM messaging_policy_violations
+            WHERE user_id = :user_id
+        """),
+        {"user_id": user_id}
+    ).mappings().first()
+    return row
+
+
+def _record_policy_violation(db: Session, user_id: int):
+    now_utc = datetime.now(timezone.utc)
+    row = _get_policy_state(db, user_id)
+
+    if not row:
+        violation_count = 1
+        blocked_until = None
+        db.execute(
+            text("""
+                INSERT INTO messaging_policy_violations (user_id, violation_count, blocked_until, updated_at)
+                VALUES (:user_id, :violation_count, :blocked_until, NOW())
+            """),
+            {
+                "user_id": user_id,
+                "violation_count": violation_count,
+                "blocked_until": blocked_until,
+            }
+        )
+        db.commit()
+        return {
+            "violation_count": violation_count,
+            "blocked_until": blocked_until,
+            "strikes_remaining": MESSAGE_POLICY_STRIKE_LIMIT - violation_count,
+        }
+
+    current_count = int(row["violation_count"] or 0)
+    new_count = current_count + 1
+    blocked_until = None
+
+    if new_count >= MESSAGE_POLICY_STRIKE_LIMIT:
+        blocked_until = now_utc + timedelta(minutes=MESSAGE_POLICY_BLOCK_MINUTES)
+        new_count = 0
+
+    db.execute(
+        text("""
+            UPDATE messaging_policy_violations
+            SET violation_count = :violation_count,
+                blocked_until = :blocked_until,
+                updated_at = NOW()
+            WHERE user_id = :user_id
+        """),
+        {
+            "user_id": user_id,
+            "violation_count": new_count,
+            "blocked_until": blocked_until,
+        }
+    )
+    db.commit()
+
+    return {
+        "violation_count": new_count,
+        "blocked_until": blocked_until,
+        "strikes_remaining": MESSAGE_POLICY_STRIKE_LIMIT - new_count,
+    }
 
 
 def check_conversation_status(conv: Conversation, db: Session):
@@ -485,6 +597,19 @@ def send_message(
     
     if current_user.id not in conversation.participant_ids:
         raise HTTPException(status_code=403, detail="Not a participant in this conversation")
+
+    _ensure_message_policy_table(db)
+    policy_state = _get_policy_state(db, current_user.id)
+    now_utc = datetime.now(timezone.utc)
+    if policy_state and policy_state["blocked_until"] and policy_state["blocked_until"] > now_utc:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "MESSAGE_POLICY_BLOCKED",
+                "security_message": "Casaligan Security: Your chat is temporarily blocked due to repeated policy violations.",
+                "blocked_until": policy_state["blocked_until"].isoformat(),
+            }
+        )
     
     # Check status
     check_conversation_status(conversation, db)
@@ -494,6 +619,32 @@ def send_message(
     
     if not message_data.content.strip():
         raise HTTPException(status_code=400, detail="Message cannot be empty")
+
+    violations = _detect_policy_violations(message_data.content.strip())
+    if violations:
+        violation_state = _record_policy_violation(db, current_user.id)
+        blocked_until = violation_state.get("blocked_until")
+        if blocked_until:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "code": "MESSAGE_POLICY_BLOCKED",
+                    "security_message": "Casaligan Security: Message not sent. Repeated violations triggered a temporary chat block.",
+                    "violations": violations,
+                    "blocked_until": blocked_until.isoformat(),
+                }
+            )
+
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "MESSAGE_POLICY_VIOLATION",
+                "security_message": "Casaligan Security: Message not sent because it contains restricted content.",
+                "violations": violations,
+                "strikes_remaining": violation_state.get("strikes_remaining", 0),
+                "warning": "If violations continue, chat will be temporarily blocked."
+            }
+        )
     
     message = Message(
         conversation_id=conversation_id,

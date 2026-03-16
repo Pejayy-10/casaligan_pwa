@@ -2,6 +2,11 @@ import { useState, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import { AlertTriangle, Calendar, FileText, Camera, Upload, Clock } from 'lucide-react';
 
+const resolveUploadUrl = (url: string) => {
+  if (!url) return '';
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
+};
+
 interface Props {
   jobId: number;
   jobTitle: string;
@@ -50,7 +55,7 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
 
         if (response.ok) {
           const data = await response.json();
-          setEvidenceUrls(prev => [...prev, `${API_BASE_URL}${data.url}`]);
+          setEvidenceUrls(prev => [...prev, resolveUploadUrl(data.url)]);
         }
       } catch (error) {
         console.error('Upload error:', error);

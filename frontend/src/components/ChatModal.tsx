@@ -11,6 +11,8 @@ interface Message {
   sent_at: string;
   read_at: string | null;
   is_mine: boolean;
+  failed?: boolean;
+  failure_reason?: string;
 }
 
 interface ChatModalProps {
@@ -39,6 +41,8 @@ const ChatModal: React.FC<ChatModalProps> = ({
   const [sending, setSending] = useState(false);
   const [canSend, setCanSend] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [securityNotice, setSecurityNotice] = useState<string | null>(null);
+  const [securityBlockedUntil, setSecurityBlockedUntil] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -153,11 +157,48 @@ const ChatModal: React.FC<ChatModalProps> = ({
         message_type: 'text',
       });
       
+      setSecurityNotice(null);
       setMessages(prev => [...prev, response.data]);
       lastMessageTimeRef.current = response.data.sent_at;
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to send message:', err);
-      setNewMessage(messageContent); // Restore message on error
+
+      const errorData = (err as { response?: { data?: { detail?: Record<string, unknown> | string } } })?.response?.data;
+      const detail = errorData?.detail;
+      const detailObj = typeof detail === 'object' && detail !== null ? detail as Record<string, unknown> : null;
+      const code = typeof detailObj?.code === 'string' ? detailObj.code : null;
+
+      if (code === 'MESSAGE_POLICY_VIOLATION' || code === 'MESSAGE_POLICY_BLOCKED') {
+        const securityMessage =
+          (typeof detailObj?.security_message === 'string' && detailObj.security_message) ||
+          'Casaligan Security: Message not sent due to policy violation.';
+        const warning = typeof detailObj?.warning === 'string' ? ` ${detailObj.warning}` : '';
+        setSecurityNotice(`${securityMessage}${warning}`);
+
+        const blockedUntil = typeof detailObj?.blocked_until === 'string' ? detailObj.blocked_until : null;
+        setSecurityBlockedUntil(blockedUntil);
+
+        setMessages(prev => [
+          ...prev,
+          {
+            message_id: -Date.now(),
+            conversation_id: conversationId,
+            sender_id: -1,
+            sender_name: 'You',
+            content: messageContent,
+            message_type: 'text',
+            sent_at: new Date().toISOString(),
+            read_at: null,
+            is_mine: true,
+            failed: true,
+            failure_reason: securityMessage,
+          }
+        ]);
+
+        setNewMessage(messageContent);
+      } else {
+        setNewMessage(messageContent); // Restore message on generic error
+      }
     } finally {
       setSending(false);
     }
@@ -203,6 +244,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
   });
 
   if (!isOpen) return null;
+  const isSecurityBlocked = !!securityBlockedUntil && new Date(securityBlockedUntil) > new Date();
 
 
   return (
@@ -273,7 +315,9 @@ const ChatModal: React.FC<ChatModalProps> = ({
                       ) : (
                         <div
                           className={`max-w-[75%] px-4 py-2 rounded-2xl shadow-sm ${
-                            msg.is_mine
+                            msg.failed
+                              ? 'bg-gray-300/70 dark:bg-white/10 text-gray-700 dark:text-white/80 rounded-br-md border border-dashed border-gray-400 dark:border-white/20'
+                              : msg.is_mine
                               ? 'bg-[#EA526F] text-white rounded-br-md'
                               : 'bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 rounded-bl-md border border-gray-100 dark:border-white/5'
                           }`}
@@ -286,6 +330,11 @@ const ChatModal: React.FC<ChatModalProps> = ({
                             {formatTime(msg.sent_at)}
                             {msg.is_mine && msg.read_at && ' ✓✓'}
                           </p>
+                          {msg.failed && (
+                            <p className="text-xs mt-1 text-gray-600 dark:text-white/60 font-semibold">
+                              Not sent • Casaligan Security
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -299,9 +348,18 @@ const ChatModal: React.FC<ChatModalProps> = ({
         
         {/* Input Area - Fixed at bottom */}
         <div className="p-3 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-white/10 flex-shrink-0">
+          {securityNotice && (
+            <div className="mb-2 px-3 py-2 rounded-lg bg-yellow-100 dark:bg-yellow-500/10 border border-yellow-300 dark:border-yellow-500/30 text-yellow-800 dark:text-yellow-300 text-xs font-semibold">
+              {securityNotice}
+            </div>
+          )}
           {!canSend ? (
             <div className="text-center text-gray-500 dark:text-gray-400 text-sm py-2 font-medium">
               This conversation is read-only
+            </div>
+          ) : isSecurityBlocked ? (
+            <div className="text-center text-red-600 dark:text-red-400 text-sm py-2 font-medium">
+              Casaligan Security: Chat is temporarily blocked due to repeated policy violations.
             </div>
           ) : (
             <div className="flex items-center gap-2">

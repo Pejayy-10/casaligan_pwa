@@ -13,6 +13,16 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/jobs", tags=["payments"])
 
 
+def _normalize_media_url(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return url
+    first_http = url.find("http")
+    if first_http == -1:
+        return url
+    second_http = url.find("http", first_http + 4)
+    return url[second_http:] if second_http != -1 else url
+
+
 # Pydantic schemas
 class PaymentTransactionResponse(BaseModel):
     transaction_id: int
@@ -163,6 +173,8 @@ async def get_payments_for_owner(
     if not contracts:
         return []
     
+    contract_by_id = {contract.contract_id: contract for contract in contracts}
+
     # Get all payment schedules for all contracts
     all_schedules = []
     for contract in contracts:
@@ -187,10 +199,19 @@ async def get_payments_for_owner(
     # Format response - return schedules as payment entries
     result = []
     for s in all_schedules:
-        # Get associated transaction if any
+        # Get latest associated transaction if any
         transaction = db.query(PaymentTransaction).filter(
             PaymentTransaction.schedule_id == s.schedule_id
+        ).order_by(
+            PaymentTransaction.transaction_id.desc()
         ).first()
+
+        contract = contract_by_id.get(s.contract_id)
+        payment_proof_url = None
+        if transaction and transaction.payment_proof_url:
+            payment_proof_url = transaction.payment_proof_url
+        elif contract and contract.payment_proof_url:
+            payment_proof_url = contract.payment_proof_url
         
         result.append(PaymentTransactionResponse(
             transaction_id=transaction.transaction_id if transaction else s.schedule_id,  # Use schedule_id as fallback
@@ -198,7 +219,7 @@ async def get_payments_for_owner(
             due_date=s.due_date if isinstance(s.due_date, str) else s.due_date.strftime('%Y-%m-%d'),
             amount=float(s.amount) if s.amount else 0,
             status=s.status.value if hasattr(s.status, 'value') else str(s.status),
-            payment_proof_url=transaction.payment_proof_url if transaction else None,
+            payment_proof_url=_normalize_media_url(payment_proof_url),
             payment_method=transaction.payment_method if transaction else None,
             reference_number=transaction.reference_number if transaction else None,
             sent_at=transaction.paid_at.isoformat() if transaction and transaction.paid_at else None,
@@ -256,10 +277,15 @@ async def get_my_payments(
     schedule_ids = [s.schedule_id for s in schedules]
     transactions = db.query(PaymentTransaction).filter(
         PaymentTransaction.schedule_id.in_(schedule_ids)
+    ).order_by(
+        PaymentTransaction.transaction_id.desc()
     ).all()
     
-    # Create a map of schedule_id -> transaction
-    transaction_map = {t.schedule_id: t for t in transactions}
+    # Create a map of schedule_id -> latest transaction
+    transaction_map = {}
+    for transaction in transactions:
+        if transaction.schedule_id not in transaction_map:
+            transaction_map[transaction.schedule_id] = transaction
     
     # Mark overdue payments based on schedule status
     today = datetime.now().date()
@@ -282,7 +308,7 @@ async def get_my_payments(
             due_date=due_date_str,
             amount=float(schedule.amount) if schedule.amount else 0,
             status=schedule.status.value if hasattr(schedule.status, 'value') else str(schedule.status),
-            payment_proof_url=transaction.payment_proof_url if transaction else None,
+            payment_proof_url=_normalize_media_url(transaction.payment_proof_url if transaction and transaction.payment_proof_url else contract.payment_proof_url),
             payment_method=transaction.payment_method if transaction else None,
             reference_number=transaction.reference_number if transaction else None,
             sent_at=transaction.paid_at.isoformat() if transaction and transaction.paid_at else None,
@@ -417,6 +443,11 @@ async def confirm_payment_received(
     
     if not schedule:
         raise HTTPException(status_code=404, detail="Payment schedule not found")
+
+    # Ensure payment belongs to this job
+    schedule_contract = db.query(Contract).filter(Contract.contract_id == schedule.contract_id).first()
+    if not schedule_contract or schedule_contract.post_id != job_id:
+        raise HTTPException(status_code=404, detail="Payment schedule not found for this job")
     
     if not transaction:
         raise HTTPException(status_code=404, detail="Payment has not been sent yet")
@@ -559,17 +590,24 @@ async def confirm_payment_received(
                 "job_completed": True
             }
     else:
-        # Short-term job: Check if all workers have been paid (contract.paid_at is set)
-        all_contracts = db.query(Contract).filter(Contract.post_id == job_id).all()
-        all_paid = all(c.paid_at is not None for c in all_contracts)
+        # Short-term job: Check if all payable workers have been paid
+        from app.models_v2.contract import ContractStatus
+        payable_contracts = db.query(Contract).filter(
+            Contract.post_id == job_id,
+            Contract.status.in_([
+                ContractStatus.ACTIVE,
+                ContractStatus.PENDING_COMPLETION,
+                ContractStatus.COMPLETED,
+            ]),
+        ).all()
+        all_paid = bool(payable_contracts) and all(c.paid_at is not None for c in payable_contracts)
         
         if all_paid:
             job.status = ForumPostStatus.COMPLETED
             job.completed_at = datetime.now()
             
             # Mark all contracts as completed
-            from app.models_v2.contract import ContractStatus
-            for contract in all_contracts:
+            for contract in payable_contracts:
                 contract.status = ContractStatus.COMPLETED
             
             db.commit()

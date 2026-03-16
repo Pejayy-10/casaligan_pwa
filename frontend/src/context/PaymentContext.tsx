@@ -1,6 +1,11 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 
+const resolveUploadUrl = (url: string) => {
+  if (!url) return '';
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
+};
+
 // Payment types
 export type PaymentMethod = 'gcash' | 'maya' | 'cash' | 'bank_transfer';
 
@@ -124,7 +129,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
 
       if (response.ok) {
         const data = await response.json();
-        setProofUrl(`${API_BASE_URL}${data.url}`);
+        setProofUrl(resolveUploadUrl(data.url));
       } else {
         alert('Failed to upload proof');
         setProofPreview(null);

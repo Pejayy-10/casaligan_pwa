@@ -6,6 +6,9 @@ export interface AcceptedWorker {
   worker_user_id: number;
   name: string;
   contract_id: number;
+  contract_status?: string | null;
+  payment_proof_url?: string | null;
+  paid_at?: string | null;
 }
 
 export interface JobPost {

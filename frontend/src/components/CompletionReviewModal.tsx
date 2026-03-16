@@ -289,7 +289,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                           )}
 
                           {/* Action Button */}
-                          {worker.status === 'pending_completion' && (
+                          {worker.status === 'pending_completion' && !worker.payment_proof_url && !worker.paid_at && (
                             <button
                               onClick={() => handleApproveWorker(worker)}
                               disabled={processingWorker === worker.contract_id}
