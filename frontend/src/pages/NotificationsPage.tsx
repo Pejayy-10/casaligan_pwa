@@ -58,6 +58,55 @@ interface JobPost {
   };
 }
 
+// Owner-specific notification types
+const OWNER_ONLY_NOTIFICATIONS = [
+  'job_application',
+  'job_edited',
+  'completion_submitted',
+  'direct_hire_request',
+  'applicant_withdrawn_due_to_conflict',
+  'hire_canceled_worker_accepted_conflict',
+];
+
+// Worker/Housekeeper-specific notification types
+const HOUSEKEEPER_ONLY_NOTIFICATIONS = [
+  'application_accepted',
+  'application_rejected',
+  'job_started',
+  'completion_approved',
+  'payment_sent',
+  'payment_received',
+  'payment_review',
+  'payment_due',
+  'payment_overdue',
+  'direct_hire_accepted',
+  'direct_hire_rejected',
+  'direct_hire_started',
+  'direct_hire_completed',
+  'direct_hire_approved',
+  'direct_hire_paid',
+  'contract_extension_proposed',
+  'contract_extension_accepted',
+  'contract_extension_rejected',
+  'application_withdrawn_due_to_conflict',
+  'direct_hire_rejected_due_to_conflict',
+];
+
+// Notifications that appear in both roles
+const SHARED_NOTIFICATIONS = ['system', 'reminder'];
+
+function isNotificationVisibleForRole(notificationType: string, role: 'owner' | 'housekeeper'): boolean {
+  if (SHARED_NOTIFICATIONS.includes(notificationType)) {
+    return true;
+  }
+  
+  if (role === 'owner') {
+    return OWNER_ONLY_NOTIFICATIONS.includes(notificationType);
+  } else {
+    return HOUSEKEEPER_ONLY_NOTIFICATIONS.includes(notificationType);
+  }
+}
+
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [markingAllRead, setMarkingAllRead] = useState(false);
@@ -73,6 +122,11 @@ export default function NotificationsPage() {
   const navigate = useNavigate();
 
   const getToken = () => localStorage.getItem('access_token');
+
+  const getCurrentRole = () => {
+    const role = localStorage.getItem('user_role') as 'owner' | 'housekeeper' | null;
+    return role || 'owner';
+  };
 
   const fetchJobDetail = async (jobId: number) => {
     const token = getToken();
@@ -99,10 +153,22 @@ export default function NotificationsPage() {
 
   useEffect(() => {
     // Get user role
-    const role = localStorage.getItem('user_role') as 'owner' | 'housekeeper' | null;
-    if (role) setUserRole(role);
+    const role = getCurrentRole();
+    setUserRole(role);
 
     fetchNotifications();
+
+    // Listen for role changes
+    const handleRoleChanged = () => {
+      const newRole = getCurrentRole();
+      setUserRole(newRole);
+      fetchNotifications();
+    };
+    window.addEventListener('role-changed', handleRoleChanged);
+
+    return () => {
+      window.removeEventListener('role-changed', handleRoleChanged);
+    };
   }, []);
 
   const fetchNotifications = async () => {
@@ -117,7 +183,12 @@ export default function NotificationsPage() {
 
       if (response.ok) {
         const data = await response.json();
-        setNotifications(data);
+        // Filter notifications based on current user role
+        const currentRole = getCurrentRole();
+        const filteredNotifications = data.filter((notif: Notification) =>
+          isNotificationVisibleForRole(notif.type, currentRole)
+        );
+        setNotifications(filteredNotifications);
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);

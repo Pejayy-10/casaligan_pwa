@@ -215,6 +215,11 @@ export default function ProfilePage() {
       const updatedUser = { ...user, active_role: result.active_role as 'owner' | 'housekeeper' };
       setUser(updatedUser);
       localStorage.setItem('user', JSON.stringify(updatedUser));
+      // Update user_role for easy access in other components
+      localStorage.setItem('user_role', result.active_role);
+      
+      // Dispatch event so NotificationBell and NotificationsPage can update
+      window.dispatchEvent(new Event('role-changed'));
       
       // Check if switching to housekeeper
       if (result.active_role === 'housekeeper') {

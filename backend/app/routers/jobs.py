@@ -33,6 +33,16 @@ from app.models_v2.notification import NotificationType
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
+
+def _normalize_media_url(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return url
+    first_http = url.find("http")
+    if first_http == -1:
+        return url
+    second_http = url.find("http", first_http + 4)
+    return url[second_http:] if second_http != -1 else url
+
 def get_or_create_employer(user_id: int, db: Session) -> int:
     """Get or create employer record for user"""
     employer = db.query(Employer).filter(Employer.user_id == user_id).first()
@@ -148,12 +158,15 @@ def get_job_posts(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get all job posts (filtered by status)"""
+    """Get all job posts (filtered by status, excluding user's own posts)"""
     
     query = db.query(ForumPost).options(
         joinedload(ForumPost.category),
         joinedload(ForumPost.categories)
     ).filter(ForumPost.deleted_at.is_(None))
+    
+    # Exclude current user's own posts (they can only be owners posting jobs)
+    query = query.filter(ForumPost.user_id != current_user.id)
     
     if status_filter and status_filter != "all":
         query = query.filter(ForumPost.status == status_filter)
@@ -222,35 +235,67 @@ def get_my_job_posts(
     
     posts = query.order_by(desc(ForumPost.created_at)).all()
     
+    from app.models_v2.contract import ContractStatus
+
     result = []
+    has_status_updates = False
     for post in posts:
+        # Auto-heal legacy short-term jobs stuck in pending_completion after all worker payments are confirmed
+        if not post.is_longterm and post.status == ForumPostStatus.PENDING_COMPLETION:
+            payable_contracts = db.query(Contract).filter(
+                Contract.post_id == post.post_id,
+                Contract.status.in_([
+                    ContractStatus.ACTIVE,
+                    ContractStatus.PENDING_COMPLETION,
+                    ContractStatus.COMPLETED,
+                ]),
+            ).all()
+
+            if payable_contracts and all(contract.paid_at is not None for contract in payable_contracts):
+                post.status = ForumPostStatus.COMPLETED
+                post.completed_at = datetime.now()
+                has_status_updates = True
+
         applicants_count = db.query(InterestCheck).filter(InterestCheck.post_id == post.post_id).count()
         
-        # Get ACCEPTED workers from InterestCheck (not all contracts)
+        # Primary source: accepted applications
         accepted_interests = db.query(InterestCheck).filter(
             InterestCheck.post_id == post.post_id,
             InterestCheck.status == InterestStatus.ACCEPTED
         ).all()
+
+        # Fallback for legacy/misaligned application state: active/completed contracts
+        fallback_contracts = db.query(Contract).filter(
+            Contract.post_id == post.post_id,
+            Contract.status.in_([
+                ContractStatus.ACTIVE,
+                ContractStatus.PENDING_COMPLETION,
+                ContractStatus.COMPLETED,
+            ]),
+        ).all()
+
+        worker_contract_map = {contract.worker_id: contract for contract in fallback_contracts}
+        worker_ids = {interest.worker_id for interest in accepted_interests}
+        worker_ids.update(worker_contract_map.keys())
         
         # Build accepted workers list with their info
         accepted_workers_list = []
         pending_payments_count = 0
         
-        for interest in accepted_interests:
-            worker = db.query(Worker).filter(Worker.worker_id == interest.worker_id).first()
+        for worker_id in worker_ids:
+            worker = db.query(Worker).filter(Worker.worker_id == worker_id).first()
             if worker:
                 worker_user = db.query(User).filter(User.id == worker.user_id).first()
-                # Get the contract for this worker
-                contract = db.query(Contract).filter(
-                    Contract.post_id == post.post_id,
-                    Contract.worker_id == interest.worker_id
-                ).first()
+                contract = worker_contract_map.get(worker_id)
                 if worker_user:
                     accepted_workers_list.append({
                         "worker_id": worker.worker_id,
                         "worker_user_id": worker_user.id,
                         "name": f"{worker_user.first_name} {worker_user.last_name}",
-                        "contract_id": contract.contract_id if contract else None
+                        "contract_id": contract.contract_id if contract else None,
+                        "contract_status": contract.status.value if contract and hasattr(contract.status, 'value') else (str(contract.status) if contract else None),
+                        "payment_proof_url": _normalize_media_url(contract.payment_proof_url) if contract else None,
+                        "paid_at": contract.paid_at.isoformat() if contract and contract.paid_at else None,
                     })
                 
                 # Count pending payments for long-term ongoing jobs
@@ -264,6 +309,9 @@ def get_my_job_posts(
         result.append(JobPostResponse.from_orm_model(
             post, current_user, applicants_count, pending_payments_count, accepted_workers_list
         ))
+
+    if has_status_updates:
+        db.commit()
     
     return result
 
@@ -338,6 +386,16 @@ def get_my_accepted_jobs(
     schedules_by_contract: dict = {}
     for s in all_schedules:
         schedules_by_contract.setdefault(s.contract_id, []).append(s)
+
+    schedule_ids = [s.schedule_id for s in all_schedules]
+    all_transactions = db.query(PaymentTransaction).filter(
+        PaymentTransaction.schedule_id.in_(schedule_ids)
+    ).order_by(PaymentTransaction.transaction_id.desc()).all() if schedule_ids else []
+
+    latest_tx_by_schedule: dict = {}
+    for tx in all_transactions:
+        if tx.schedule_id not in latest_tx_by_schedule:
+            latest_tx_by_schedule[tx.schedule_id] = tx
     
     # Batch: fetch all pending extensions for these contracts
     all_extensions = db.query(ContractExtension).filter(
@@ -396,11 +454,17 @@ def get_my_accepted_jobs(
         if contract:
             for schedule in schedules_by_contract.get(contract.contract_id, []):
                 status_val = schedule.status.value if hasattr(schedule.status, 'value') else str(schedule.status)
+                transaction = latest_tx_by_schedule.get(schedule.schedule_id)
                 payment_schedules.append({
                     "schedule_id": schedule.schedule_id,
                     "due_date": schedule.due_date,
                     "amount": float(schedule.amount),
-                    "status": status_val
+                    "status": status_val,
+                    "payment_proof_url": _normalize_media_url(
+                        transaction.payment_proof_url if transaction and transaction.payment_proof_url else contract.payment_proof_url
+                    ),
+                    "payment_method": transaction.payment_method if transaction else None,
+                    "reference_number": transaction.reference_number if transaction else None,
                 })
                 
                 if status_val == "pending":
@@ -2124,10 +2188,10 @@ def get_completion_details(
             "worker_user_id": worker_user.id if worker_user else None,
             "worker_name": f"{worker_user.first_name} {worker_user.last_name}" if worker_user else "Unknown",
             "status": contract.status.value if hasattr(contract.status, 'value') else str(contract.status),
-            "completion_proof_url": contract.completion_proof_url,
+            "completion_proof_url": _normalize_media_url(contract.completion_proof_url),
             "completion_notes": contract.completion_notes,
             "completed_at": contract.completed_at.isoformat() if contract.completed_at else None,
-            "payment_proof_url": contract.payment_proof_url,
+            "payment_proof_url": _normalize_media_url(contract.payment_proof_url),
             "paid_at": contract.paid_at.isoformat() if contract.paid_at else None
         })
     
@@ -2222,10 +2286,10 @@ def get_job_summary(
             "contract_id": contract.contract_id,
             "worker_id": contract.worker_id,
             "worker_name": worker_name,
-            "completion_proof_url": contract.completion_proof_url,
+            "completion_proof_url": _normalize_media_url(contract.completion_proof_url),
             "completion_notes": contract.completion_notes,
             "completed_at": contract.completed_at.isoformat() if contract.completed_at else None,
-            "payment_proof_url": contract.payment_proof_url,
+            "payment_proof_url": _normalize_media_url(contract.payment_proof_url),
             "paid_at": contract.paid_at.isoformat() if contract.paid_at else None,
             "total_paid_for_worker": worker_total,
         })
@@ -2308,6 +2372,9 @@ def record_short_term_payment(
     
     # Store payment proof on contract but DON'T mark as paid yet - worker must confirm first
     contract.payment_proof_url = payment_data.proof_url
+    # For short-term flow, payment submission implies owner approved the completion
+    if contract.status == ContractStatus.PENDING_COMPLETION:
+        contract.status = ContractStatus.COMPLETED
     # contract.paid_at will be set when worker confirms payment (don't set it here!)
     
     # Create a payment schedule entry for this short-term job
@@ -2343,9 +2410,16 @@ def record_short_term_payment(
     # Don't mark contract as paid yet - wait for worker confirmation
     # contract.paid_at will be set when worker confirms
     
-    # For short-term jobs, check if ALL workers have confirmed payment
-    all_contracts = db.query(Contract).filter(Contract.post_id == post_id).all()
-    all_paid = all(c.paid_at is not None for c in all_contracts)
+    # For short-term jobs, check if all payable workers have confirmed payment
+    payable_contracts = db.query(Contract).filter(
+        Contract.post_id == post_id,
+        Contract.status.in_([
+            ContractStatus.ACTIVE,
+            ContractStatus.PENDING_COMPLETION,
+            ContractStatus.COMPLETED,
+        ]),
+    ).all()
+    all_paid = bool(payable_contracts) and all(c.paid_at is not None for c in payable_contracts)
     
     if all_paid:
         post.status = ForumPostStatus.COMPLETED

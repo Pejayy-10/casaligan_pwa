@@ -2,6 +2,11 @@ import { useState } from 'react';
 import { API_BASE_URL } from '../config';
 import { Megaphone } from 'lucide-react';
 
+const resolveUploadUrl = (url: string) => {
+  if (!url) return '';
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
+};
+
 interface ReportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -117,7 +122,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
 
           if (response.ok) {
             const data = await response.json();
-            evidenceUrls.push(`${API_BASE_URL}${data.url}`);
+            evidenceUrls.push(resolveUploadUrl(data.url));
           }
         }
       }

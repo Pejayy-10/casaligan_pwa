@@ -245,6 +245,14 @@ CREATE TABLE public.housekeeper_applications (
   CONSTRAINT housekeeper_applications_pkey PRIMARY KEY (application_id),
   CONSTRAINT housekeeper_applications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
+CREATE TABLE public.housekeeper_custom_categories (
+  category_id integer NOT NULL,
+  user_id integer NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT housekeeper_custom_categories_pkey PRIMARY KEY (category_id),
+  CONSTRAINT housekeeper_custom_categories_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.package_categories(category_id),
+  CONSTRAINT housekeeper_custom_categories_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
 CREATE TABLE public.interestcheck (
   interest_id integer NOT NULL DEFAULT nextval('interestcheck_interest_id_seq'::regclass),
   post_id integer NOT NULL,
@@ -312,6 +320,13 @@ CREATE TABLE public.messages (
   CONSTRAINT messages_pkey PRIMARY KEY (message_id),
   CONSTRAINT messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(conversation_id),
   CONSTRAINT messages_sender_id_fkey FOREIGN KEY (sender_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.messaging_policy_violations (
+  user_id integer NOT NULL,
+  violation_count integer NOT NULL DEFAULT 0,
+  blocked_until timestamp with time zone,
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT messaging_policy_violations_pkey PRIMARY KEY (user_id)
 );
 CREATE TABLE public.notifications (
   notification_id integer NOT NULL DEFAULT nextval('notifications_notification_id_seq'::regclass),

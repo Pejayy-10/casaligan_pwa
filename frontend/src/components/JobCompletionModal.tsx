@@ -2,6 +2,11 @@ import { useState, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import { CheckCircle, ClipboardList, Camera, Clock, Upload, FileText, AlertTriangle } from 'lucide-react';
 
+const resolveUploadUrl = (url: string) => {
+  if (!url) return '';
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
+};
+
 interface Props {
   jobId: number;
   jobTitle: string;
@@ -58,7 +63,7 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
 
       if (response.ok) {
         const data = await response.json();
-        setProofUrl(`${API_BASE_URL}${data.url}`);
+        setProofUrl(resolveUploadUrl(data.url));
       } else {
         const error = await response.json();
         alert(error.detail || 'Failed to upload image');

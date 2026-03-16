@@ -6,6 +6,11 @@ import RatingModal from './RatingModal';
 import apiClient from '../services/api';
 import { usePayment } from '../context/PaymentContext';
 
+const resolveUploadUrl = (url: string) => {
+  if (!url) return '';
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
+};
+
 interface Package {
   package_id: number;
   name: string;
@@ -166,7 +171,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
 
       if (response.ok) {
         const data = await response.json();
-        setCompletionProof(`${API_BASE_URL}${data.url}`);
+        setCompletionProof(resolveUploadUrl(data.url));
       } else {
         const error = await response.json();
         alert(error.detail || 'Failed to upload image');

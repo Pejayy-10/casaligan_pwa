@@ -3,6 +3,11 @@ import { API_BASE_URL } from '../config';
 import type { JobPost } from './JobDetailModal';
 import { Camera } from 'lucide-react';
 
+const resolveUploadUrl = (url: string) => {
+  if (!url) return '';
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
+};
+
 interface EditJobModalProps {
   job: JobPost;
   onClose: () => void;
@@ -83,7 +88,7 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
 
         if (response.ok) {
           const data = await response.json();
-          setImages(prev => [...prev, `${API_BASE_URL}${data.url}`]);
+          setImages(prev => [...prev, resolveUploadUrl(data.url)]);
         }
       } catch (err) {
         console.error('Error uploading image:', err);

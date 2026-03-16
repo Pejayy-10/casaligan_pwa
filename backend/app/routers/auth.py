@@ -42,6 +42,11 @@ if GEMINI_API_KEY:
 # OTPs expire in 10 minutes. Safe for this use-case since they're short-lived.
 _otp_store: dict = {}
 
+# ─── Password-Reset OTP Store ─────────────────────────────────────────────────
+# Keyed by email (user is NOT authenticated when resetting password)
+# { email: { "otp": "123456", "expires_at": datetime, "user_id": int } }
+_password_reset_store: dict = {}
+
 OTP_EXPIRY_MINUTES = 10
 
 # Email via Brevo HTTP API (https://brevo.com) — works on Render free tier
@@ -845,6 +850,247 @@ def verify_phone_otp(
 
     del _phone_otp_store[current_user.id]
     return {"message": "Phone verified successfully.", "phone_verified": True}
+
+
+# ─── Forgot / Reset Password ─────────────────────────────────────────────────
+
+def _build_password_reset_email_html(otp: str, first_name: str) -> str:
+    """Build HTML email for password reset OTP."""
+    digit_boxes = "".join(
+        f'<td style="padding:0 5px;">'
+        f'<div style="width:52px;height:64px;line-height:64px;text-align:center;'
+        f'background:#ffffff;border:2px solid #E8D5E8;border-radius:12px;'
+        f'font-size:36px;font-weight:900;color:#4B244A;'
+        f'font-family:\'Courier New\',monospace;'
+        f'box-shadow:0 4px 12px rgba(75,36,74,0.10);">{d}</div>'
+        f'</td>'
+        for d in otp
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1.0"/></head>
+<body style="margin:0;padding:0;background:#F0EBF4;font-family:'Segoe UI',Helvetica,Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F0EBF4;padding:48px 16px;">
+  <tr><td align="center">
+    <table width="600" cellpadding="0" cellspacing="0"
+           style="max-width:600px;width:100%;background:#ffffff;border-radius:24px;
+                  overflow:hidden;box-shadow:0 12px 48px rgba(75,36,74,0.14);">
+      <tr>
+        <td style="background:linear-gradient(150deg,#4B244A 0%,#7B3F7A 50%,#EA526F 100%);
+                   padding:52px 40px 44px;text-align:center;position:relative;">
+          <table cellpadding="0" cellspacing="0" style="margin:0 auto 18px;">
+            <tr><td align="center"
+                    style="width:68px;height:68px;background:rgba(255,255,255,0.18);
+                           border-radius:20px;border:2px solid rgba(255,255,255,0.30);">
+              <span style="font-size:34px;line-height:68px;">🔑</span>
+            </td></tr>
+          </table>
+          <h1 style="margin:0 0 6px;color:#ffffff;font-size:32px;font-weight:800;">Casaligan</h1>
+          <p style="margin:0;color:rgba(255,255,255,0.70);font-size:13px;letter-spacing:2.5px;
+                    text-transform:uppercase;font-weight:500;">Password Reset</p>
+          <div style="position:absolute;bottom:-1px;left:0;right:0;height:28px;
+                      background:#ffffff;border-radius:50% 50% 0 0 / 100% 100% 0 0;"></div>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:44px 48px 36px;">
+          <p style="margin:0 0 6px;color:#EA526F;font-size:13px;font-weight:700;
+                    text-transform:uppercase;letter-spacing:2px;">Password Reset</p>
+          <h2 style="margin:0 0 16px;color:#2D1A2D;font-size:24px;font-weight:800;line-height:1.3;">
+            Hi {first_name}, let's reset<br/>your password 🔐
+          </h2>
+          <p style="margin:0 0 32px;color:#6B5B6E;font-size:15px;line-height:1.7;">
+            Enter the 6-digit code below in the Casaligan app to reset your password.
+            This code expires in <strong style="color:#4B244A;">{OTP_EXPIRY_MINUTES} minutes</strong>.
+          </p>
+          <table cellpadding="0" cellspacing="0"
+                 style="margin:0 auto 12px;background:linear-gradient(135deg,#FDF5FF,#FFF0F3);
+                        border-radius:20px;padding:28px 24px;">
+            <tr><td>
+              <p style="margin:0 0 20px;text-align:center;color:#9C7FA0;font-size:11px;
+                        font-weight:700;letter-spacing:3px;text-transform:uppercase;">
+                Your reset code
+              </p>
+              <table cellpadding="0" cellspacing="0" style="margin:0 auto;">
+                <tr>{digit_boxes}</tr>
+              </table>
+              <p style="margin:18px 0 0;text-align:center;color:#C0A8C4;font-size:12px;">
+                ⏱ Valid for {OTP_EXPIRY_MINUTES} minutes only
+              </p>
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 48px 32px;">
+          <table cellpadding="0" cellspacing="0" width="100%"
+                 style="background:#FFF8F0;border:1px solid #F5DFC0;border-radius:14px;overflow:hidden;">
+            <tr>
+              <td style="width:6px;background:linear-gradient(180deg,#F0A500,#EA526F);"></td>
+              <td style="padding:16px 18px;">
+                <p style="margin:0;color:#7A5500;font-size:13px;line-height:1.6;">
+                  <strong>🔒 Security reminder:</strong> If you did not request a password reset,
+                  please ignore this email. Your password will remain unchanged.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr><td style="padding:0 40px;"><hr style="border:none;border-top:1px solid #F0EBF0;margin:0;"/></td></tr>
+      <tr>
+        <td style="padding:24px 40px 36px;text-align:center;">
+          <p style="margin:0 0 4px;color:#4B244A;font-size:14px;font-weight:700;">Casaligan</p>
+          <p style="margin:0;color:#D0C0D4;font-size:11px;">
+            © 2026 Casaligan. All rights reserved.<br/>
+            This is an automated message — please do not reply.
+          </p>
+        </td>
+      </tr>
+    </table>
+  </td></tr>
+</table>
+</body></html>"""
+
+
+def _send_password_reset_email(to_email: str, otp: str, first_name: str) -> bool:
+    """Send password-reset OTP email via Brevo HTTP API."""
+    brevo_api_key = os.getenv("BREVO_API_KEY", "")
+    from_email = os.getenv("FROM_EMAIL", "startapp.casaligan@gmail.com")
+    if not brevo_api_key:
+        logger.warning("BREVO_API_KEY not configured — skipping password reset email.")
+        return False
+    try:
+        plain_text = (
+            f"Hi {first_name},\n\n"
+            f"Your Casaligan password reset code is: {otp}\n\n"
+            f"This code expires in {OTP_EXPIRY_MINUTES} minutes.\n\n"
+            "If you did not request this, please ignore this email.\n\n"
+            "— The Casaligan Team"
+        )
+        payload = {
+            "sender": {"name": "Casaligan", "email": from_email},
+            "to": [{"email": to_email}],
+            "subject": f"{otp} is your Casaligan password reset code",
+            "textContent": plain_text,
+            "htmlContent": _build_password_reset_email_html(otp, first_name),
+        }
+        with httpx.Client(timeout=15) as client:
+            resp = client.post(
+                "https://api.brevo.com/v3/smtp/email",
+                headers={
+                    "api-key": brevo_api_key,
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+        if resp.status_code in (200, 201):
+            logger.info(f"Password reset email sent to {to_email} via Brevo")
+            return True
+        logger.error(f"Brevo error {resp.status_code}: {resp.text}")
+        return False
+    except Exception as e:
+        logger.error(f"Failed to send password reset email: {type(e).__name__}: {e}")
+        return False
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: str
+    otp: str
+    new_password: str
+
+
+@router.post("/forgot-password")
+def forgot_password(
+    body: ForgotPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    """Send a 6-digit OTP to the user's email for password reset."""
+    email = body.email.strip().lower()
+    user = db.query(User).filter(func.lower(User.email) == email).first()
+
+    # Always return success to prevent email enumeration attacks
+    generic_msg = "If an account with that email exists, a reset code has been sent."
+
+    if not user:
+        return {"message": generic_msg}
+
+    otp = "".join([str(secrets.randbelow(10)) for _ in range(6)])
+    expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXPIRY_MINUTES)
+
+    _password_reset_store[email] = {
+        "otp": otp,
+        "expires_at": expires_at,
+        "user_id": user.id,
+    }
+
+    sent = _send_password_reset_email(
+        to_email=user.email,
+        otp=otp,
+        first_name=user.first_name,
+    )
+
+    response: dict = {"message": generic_msg}
+    if not sent:
+        # Dev fallback: expose OTP when email is not configured
+        response["dev_otp"] = otp
+    return response
+
+
+@router.post("/reset-password")
+def reset_password(
+    body: ResetPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    """Verify the OTP and set a new password."""
+    email = body.email.strip().lower()
+
+    entry = _password_reset_store.get(email)
+    if not entry:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No reset code found. Please request a new one."
+        )
+
+    if datetime.utcnow() > entry["expires_at"]:
+        del _password_reset_store[email]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reset code has expired. Please request a new one."
+        )
+
+    if body.otp.strip() != entry["otp"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect reset code. Please try again."
+        )
+
+    if len(body.new_password) < 6:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password must be at least 6 characters."
+        )
+
+    # Update the password
+    user = db.query(User).filter(User.id == entry["user_id"]).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found."
+        )
+
+    user.password_hash = get_password_hash(body.new_password)
+    db.commit()
+
+    # Clear the used OTP
+    del _password_reset_store[email]
+
+    return {"message": "Password reset successfully. You can now log in with your new password."}
 
 
 @router.post("/switch-role")

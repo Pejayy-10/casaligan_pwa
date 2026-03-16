@@ -615,12 +615,12 @@ export default function JobsPage() {
       )}
       
       {/* Housekeeper Progress Modal */}
-      {showHousekeeperProgress && (
+      {showHousekeeperProgress && showHousekeeperProgress.is_longterm && (
         <HousekeeperProgressModal jobId={showHousekeeperProgress.post_id} onClose={() => setShowHousekeeperProgress(null)} onSubmitCompletion={() => { setShowHousekeeperProgress(null); setShowJobCompletion(showHousekeeperProgress); }} />
       )}
       
       {/* Housekeeper Payment Tracker Modal */}
-      {showHousekeeperPayments && (
+      {showHousekeeperPayments && showHousekeeperPayments.is_longterm && (
         <PaymentTrackerWorker jobId={showHousekeeperPayments.post_id} jobTitle={showHousekeeperPayments.title} onClose={() => setShowHousekeeperPayments(null)} />
       )}
       
@@ -671,6 +671,7 @@ export default function JobsPage() {
               const response = await apiClient.post('/ratings/', {
                 rated_user_id: ratingJobData.worker.worker_user_id,
                 contract_id: ratingJobData.worker.contract_id,
+                post_id: ratingJobData.job.post_id,
                 stars: rating,
                 review: review || null
               });
@@ -907,6 +908,18 @@ function OwnerJobsContent({
     <div className="space-y-4">
       {paginatedJobs.map((job) => (
         <div key={job.post_id} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl p-5 border border-white/60 dark:border-white/10 hover:border-[#EA526F]/30 dark:hover:border-[#EA526F]/30 transition-all shadow-sm hover:shadow-md">
+          {(() => {
+            const workers = job.accepted_workers || [];
+            const needsOwnerReviewOrPayment = workers.some((worker: any) => (
+              (worker.contract_status === 'pending_completion' && !worker.payment_proof_url && !worker.paid_at) ||
+              (worker.contract_status === 'completed' && !worker.payment_proof_url && !worker.paid_at)
+            ));
+            const awaitingWorkerConfirmation = workers.some((worker: any) => (
+              !!worker.payment_proof_url && !worker.paid_at
+            ));
+
+            return (
+              <>
           <div className="flex items-start justify-between mb-3 gap-2">
             <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white break-words min-w-0">{job.title}</h3>
             <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
@@ -983,13 +996,28 @@ function OwnerJobsContent({
              )}
              
              {/* Review Completion & Pay button for pending_completion jobs */}
-             {job.status === 'pending_completion' && (
+             {job.status === 'pending_completion' && needsOwnerReviewOrPayment && (
                 <button
                   onClick={() => onShowCompletionReview(job)}
                   className="w-full py-2.5 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-lg flex items-center justify-center gap-2 animate-pulse"
                 >
                   <CheckCircle className="w-4 h-4" /> Review Completion & Pay
                 </button>
+             )}
+
+             {job.status === 'pending_completion' && !needsOwnerReviewOrPayment && awaitingWorkerConfirmation && (
+               <div className="w-full py-2.5 bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 text-sm font-bold rounded-lg border border-blue-200 dark:border-blue-500/30 flex items-center justify-center gap-2">
+                 <Clock className="w-4 h-4" /> Payment Sent - Waiting for Housekeeper Confirmation
+               </div>
+             )}
+
+             {job.status === 'pending_completion' && !needsOwnerReviewOrPayment && !awaitingWorkerConfirmation && (
+               <button
+                 onClick={() => onShowCompletionReview(job)}
+                 className="w-full py-2.5 bg-[#4B244A] text-white text-sm font-bold rounded-lg hover:bg-[#361a35] transition-all shadow-md flex items-center justify-center gap-2"
+               >
+                 <Eye className="w-4 h-4" /> View Completion Status
+               </button>
              )}
              
              {/* Dynamic Action Button based on status */}
@@ -1091,6 +1119,9 @@ function OwnerJobsContent({
                </button>
              )}
           </div>
+              </>
+            );
+          })()}
         </div>
       ))}
 

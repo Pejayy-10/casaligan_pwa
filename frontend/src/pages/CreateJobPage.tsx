@@ -5,6 +5,11 @@ import { FileText, ImageIcon, RotateCw, DollarSign } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import type { User } from '../types';
 
+const resolveUploadUrl = (url: string) => {
+  if (!url) return '';
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
+};
+
 export default function CreateJobPage() {
   const navigate = useNavigate();
   const [user] = useState<User | null>(() => {
@@ -102,7 +107,7 @@ export default function CreateJobPage() {
         if (response.ok) {
           const data = await response.json();
           // Store full URL for preview, but we'll send relative URL to backend
-          setImages(prev => [...prev, `${API_BASE_URL}${data.url}`]);
+          setImages(prev => [...prev, resolveUploadUrl(data.url)]);
         } else {
           console.error('Failed to upload image');
         }

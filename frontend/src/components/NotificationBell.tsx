@@ -19,6 +19,54 @@ interface NotificationBellProps {
   onNavigate?: (referenceType: string, referenceId: number) => void;
 }
 
+// Owner-specific notification types
+const OWNER_ONLY_NOTIFICATIONS = [
+  'job_application',
+  'job_edited',
+  'completion_submitted',
+  'direct_hire_request',
+  'applicant_withdrawn_due_to_conflict',
+  'hire_canceled_worker_accepted_conflict',
+];
+
+// Worker/Housekeeper-specific notification types
+const HOUSEKEEPER_ONLY_NOTIFICATIONS = [
+  'application_accepted',
+  'application_rejected',
+  'job_started',
+  'completion_approved',
+  'payment_sent',
+  'payment_received',
+  'payment_review',
+  'payment_due',
+  'payment_overdue',
+  'direct_hire_rejected',
+  'direct_hire_started',
+  'direct_hire_completed',
+  'direct_hire_approved',
+  'direct_hire_paid',
+  'contract_extension_proposed',
+  'contract_extension_accepted',
+  'contract_extension_rejected',
+  'application_withdrawn_due_to_conflict',
+  'direct_hire_rejected_due_to_conflict',
+];
+
+// Notifications that appear in both roles
+const SHARED_NOTIFICATIONS = ['system', 'reminder'];
+
+function isNotificationVisibleForRole(notificationType: string, role: 'owner' | 'housekeeper'): boolean {
+  if (SHARED_NOTIFICATIONS.includes(notificationType)) {
+    return true;
+  }
+  
+  if (role === 'owner') {
+    return OWNER_ONLY_NOTIFICATIONS.includes(notificationType);
+  } else {
+    return HOUSEKEEPER_ONLY_NOTIFICATIONS.includes(notificationType);
+  }
+}
+
 export default function NotificationBell({ onNavigate }: NotificationBellProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -26,11 +74,18 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
   const [loading, setLoading] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
   const [showJobEditModal, setShowJobEditModal] = useState<{ jobId: number; jobTitle: string; message: string } | null>(null);
+  const [userRole, setUserRole] = useState<'owner' | 'housekeeper'>('owner');
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Get token fresh each time to ensure we have the latest
   const getToken = () => localStorage.getItem('access_token');
+
+  // Get current user role
+  const getCurrentRole = () => {
+    const role = localStorage.getItem('user_role') as 'owner' | 'housekeeper' | null;
+    return role || 'owner';
+  };
 
   // Fetch notifications
   const fetchNotifications = async () => {
@@ -49,7 +104,14 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
         const data = await response.json();
         console.log('fetchNotifications data:', data);
         console.log('Number of notifications:', data.length);
-        setNotifications(data);
+        
+        // Filter notifications based on current user role
+        const currentRole = getCurrentRole();
+        const filteredNotifications = data.filter((notif: Notification) =>
+          isNotificationVisibleForRole(notif.type, currentRole)
+        );
+        
+        setNotifications(filteredNotifications);
       } else {
         const errorText = await response.text();
         console.error('fetchNotifications error:', response.status, errorText);
@@ -66,14 +128,20 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     if (!token) return;
     
     try {
-      const response = await fetch(`${API_BASE_URL}/notifications/count`, {
+      const response = await fetch(`${API_BASE_URL}/notifications/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       console.log('fetchUnreadCount response:', response.status);
       
       if (response.ok) {
         const data = await response.json();
-        setUnreadCount(data.unread_count);
+        // Filter notifications by role and count unread ones
+        const currentRole = getCurrentRole();
+        const filteredNotifications = data.filter((notif: Notification) =>
+          isNotificationVisibleForRole(notif.type, currentRole)
+        );
+        const unreadCount = filteredNotifications.filter((notif: Notification) => !notif.is_read).length;
+        setUnreadCount(unreadCount);
       }
     } catch (error) {
       console.error('Error fetching unread count:', error);
@@ -193,6 +261,10 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
   // Fetch on mount and poll every 30 seconds
   useEffect(() => {
     console.log('NotificationBell mounted, fetching...');
+    // Set initial role
+    const initialRole = getCurrentRole();
+    setUserRole(initialRole);
+    
     fetchUnreadCount();
     fetchNotifications();
 
@@ -202,6 +274,15 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
       fetchNotifications();
     };
     window.addEventListener('notifications-updated', handleNotificationsUpdated);
+    
+    // Listen for role changes
+    const handleRoleChanged = () => {
+      const newRole = getCurrentRole();
+      setUserRole(newRole);
+      fetchUnreadCount();
+      fetchNotifications();
+    };
+    window.addEventListener('role-changed', handleRoleChanged);
     
     const interval = setInterval(() => {
       fetchUnreadCount();
@@ -213,6 +294,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     return () => {
       clearInterval(interval);
       window.removeEventListener('notifications-updated', handleNotificationsUpdated);
+      window.removeEventListener('role-changed', handleRoleChanged);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
