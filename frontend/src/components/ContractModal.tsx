@@ -289,7 +289,7 @@ export default function ContractModal({
                 </>
               ) : (
                 <>
-                  <Check className="inline w-4 h-4" /> Accept & Sign
+                  Accept & Sign
                 </>
               )}
             </button>
