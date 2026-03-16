@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight, Flag } from 'lucide-react';
+import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight, Flag, FileText } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import ContractExtensionResponseModal, { type PendingExtension } from './ContractExtensionResponseModal';
+import HousekeeperSummaryModal from './HousekeeperSummaryModal';
 
 interface AcceptedJob {
   post_id: number;
@@ -67,6 +68,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed'>('all');
   const [showExtensionResponse, setShowExtensionResponse] = useState<PendingExtension | null>(null);
+  const [showSummaryJobId, setShowSummaryJobId] = useState<number | null>(null);
   const [proofModal, setProofModal] = useState<{
     url: string;
     jobTitle: string;
@@ -483,6 +485,12 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                     <div className="py-3 text-center text-green-700 dark:text-green-300 font-bold bg-green-100 dark:bg-green-500/10 rounded-lg">
                       <CheckCircle className="inline w-4 h-4 mr-1" /> Job completed! Payment received.
                     </div>
+                    <button
+                      onClick={() => setShowSummaryJobId(job.post_id)}
+                      className="w-full py-2 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
+                    >
+                      <FileText className="inline w-4 h-4 mr-1" /> View Job Summary
+                    </button>
                     {onReportEmployer && (
                       reportedUsers?.has(`${job.post_id}-${job.employer.user_id}`) ? (
                         <div className="py-2 text-center text-orange-700 dark:text-orange-300 font-bold bg-orange-100 dark:bg-orange-500/10 rounded-lg">
@@ -569,6 +577,11 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
           </div>
         </div>,
         document.body
+      )}
+
+      {/* Housekeeper Summary Modal */}
+      {showSummaryJobId !== null && (
+        <HousekeeperSummaryModal jobId={showSummaryJobId} onClose={() => setShowSummaryJobId(null)} />
       )}
     </div>
   );

@@ -2316,6 +2316,95 @@ def get_job_summary(
     }
 
 
+@router.get("/{post_id}/housekeeper-summary")
+def get_housekeeper_summary(
+    post_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get job summary for a housekeeper (worker) for a completed job: job details, images, completion proof, payment proof, total paid."""
+    post = db.query(ForumPost).filter(
+        ForumPost.post_id == post_id,
+        ForumPost.deleted_at.is_(None)
+    ).first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job post not found")
+
+    if post.status != ForumPostStatus.COMPLETED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Summary is only available for completed jobs"
+        )
+
+    # Find the contract for this user (housekeeper)
+    contract = db.query(Contract).filter(
+        Contract.post_id == post_id,
+        Contract.worker_id == db.query(Worker).filter(Worker.user_id == current_user.id).with_entities(Worker.worker_id).scalar()
+    ).first()
+    
+    if not contract:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You did not work on this job")
+
+    employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+    employer_user = db.query(User).filter(User.id == employer.user_id).first() if employer else None
+    employer_name = f"{employer_user.first_name} {employer_user.last_name}" if employer_user else "Unknown"
+
+    job_details = {}
+    if post.content and post.content.startswith("{"):
+        try:
+            job_details = json.loads(post.content)
+        except Exception:
+            pass
+
+    budget = float(post.salary) if post.salary else job_details.get("budget", 0)
+
+    # Get payment schedules for this worker
+    schedules = db.query(PaymentSchedule).filter(
+        PaymentSchedule.contract_id == contract.contract_id
+    ).order_by(PaymentSchedule.due_date).all()
+
+    total_paid = 0
+    payment_schedule = []
+    for s in schedules:
+        status_val = s.status.value if hasattr(s.status, "value") else str(s.status)
+        amount_float = float(s.amount)
+        payment_schedule.append({
+            "schedule_id": s.schedule_id,
+            "due_date": s.due_date,
+            "amount": amount_float,
+            "status": status_val,
+        })
+        if status_val == "confirmed":
+            total_paid += amount_float
+
+    return {
+        "post_id": post.post_id,
+        "title": post.title,
+        "description": job_details.get("description", ""),
+        "house_type": job_details.get("house_type", "house"),
+        "cleaning_type": job_details.get("cleaning_type", "general"),
+        "budget": budget,
+        "people_needed": job_details.get("people_needed", 1),
+        "image_urls": job_details.get("image_urls", []),
+        "location": post.location or job_details.get("location", ""),
+        "duration_type": "long_term" if post.is_longterm else "short_term",
+        "start_date": post.start_date or job_details.get("start_date"),
+        "end_date": post.end_date or job_details.get("end_date"),
+        "created_at": post.created_at.isoformat() if post.created_at else None,
+        "completed_at": post.completed_at.isoformat() if post.completed_at else None,
+        "employer_name": employer_name,
+        "employer_email": employer_user.email if employer_user else None,
+        "employer_phone": employer_user.phone_number if employer_user else None,
+        "completion_proof_url": _normalize_media_url(contract.completion_proof_url),
+        "completion_notes": contract.completion_notes,
+        "completed_at_contract": contract.completed_at.isoformat() if contract.completed_at else None,
+        "payment_proof_url": _normalize_media_url(contract.payment_proof_url),
+        "paid_at": contract.paid_at.isoformat() if contract.paid_at else None,
+        "total_paid": total_paid,
+        "payment_schedule": payment_schedule,
+    }
+
+
 class ShortTermPaymentRequest(BaseModel):
     """Request body for short-term job payment"""
     amount: float

@@ -15,27 +15,7 @@ import {
 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 
-interface WorkerSummary {
-  contract_id: number;
-  worker_id: number;
-  worker_name: string;
-  completion_proof_url: string | null;
-  completion_notes: string | null;
-  completed_at: string | null;
-  payment_proof_url: string | null;
-  paid_at: string | null;
-  total_paid_for_worker: number;
-}
-
-interface PaymentItem {
-  worker_name: string;
-  due_date: string;
-  amount: number;
-  status: string;
-  schedule_id: number;
-}
-
-interface SummaryData {
+interface HousekeeperSummaryData {
   post_id: number;
   title: string;
   description: string;
@@ -50,10 +30,21 @@ interface SummaryData {
   end_date: string | null;
   created_at: string | null;
   completed_at: string | null;
-  payment_schedule: Record<string, unknown> | null;
-  workers: WorkerSummary[];
-  payments: PaymentItem[];
-  total_amount_paid: number;
+  employer_name: string;
+  employer_email: string | null;
+  employer_phone: string | null;
+  completion_proof_url: string | null;
+  completion_notes: string | null;
+  completed_at_contract: string | null;
+  payment_proof_url: string | null;
+  paid_at: string | null;
+  total_paid: number;
+  payment_schedule: Array<{
+    schedule_id: number;
+    due_date: string;
+    amount: number;
+    status: string;
+  }>;
 }
 
 interface Props {
@@ -61,8 +52,8 @@ interface Props {
   onClose: () => void;
 }
 
-export default function JobSummaryModal({ jobId, onClose }: Props) {
-  const [data, setData] = useState<SummaryData | null>(null);
+export default function HousekeeperSummaryModal({ jobId, onClose }: Props) {
+  const [data, setData] = useState<HousekeeperSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -73,7 +64,7 @@ export default function JobSummaryModal({ jobId, onClose }: Props) {
         setLoading(true);
         setError('');
         const token = localStorage.getItem('access_token');
-        const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/summary`, {
+        const res = await fetch(`${API_BASE_URL}/jobs/${jobId}/housekeeper-summary`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!res.ok) {
@@ -193,113 +184,123 @@ export default function JobSummaryModal({ jobId, onClose }: Props) {
 
               <div className={sectionClass}>
                 <div className={labelClass + ' flex items-center gap-1'}>
-                  <User className="w-4 h-4" /> Workers & completion
+                  <User className="w-4 h-4" /> Employer
                 </div>
-                <div className="space-y-4">
-                  {data.workers.map((w) => (
-                    <div
-                      key={w.contract_id}
-                      className="bg-white/50 dark:bg-black/20 rounded-lg p-3 border border-gray-100 dark:border-white/5"
-                    >
-                      <div className="font-bold text-[#4B244A] dark:text-white flex items-center gap-2">
-                        <CheckCircle className="w-4 h-4 text-green-500" /> {w.worker_name}
-                      </div>
-                      {w.completion_notes && (
-                        <p className="text-sm text-[#4B244A]/80 dark:text-white/80 mt-1">{w.completion_notes}</p>
-                      )}
-                      {w.completed_at && (
-                        <p className="text-xs text-[#4B244A]/60 dark:text-white/60 mt-1">
-                          Completed {new Date(w.completed_at).toLocaleString()}
-                        </p>
-                      )}
-                      {w.completion_proof_url && (
-                        <a
-                          href={w.completion_proof_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-block mt-2 rounded-lg overflow-hidden border border-gray-200 dark:border-white/10 max-w-[180px]"
-                        >
-                          <img
-                            src={w.completion_proof_url}
-                            alt="Completion proof"
-                            className="w-full h-24 object-cover"
-                          />
-                          <span className="text-xs text-[#EA526F] font-medium block py-1 text-center">
-                            View proof
-                          </span>
-                        </a>
-                      )}
-                      {w.total_paid_for_worker > 0 && (
-                        <p className="text-sm font-semibold text-green-600 dark:text-green-400 mt-2">
-                          Paid: ₱{w.total_paid_for_worker.toLocaleString()}
-                        </p>
-                      )}
-                      {w.payment_proof_url && (
-                        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-white/5">
-                          <p className="text-xs font-bold text-[#4B244A]/70 dark:text-white/70 uppercase tracking-wide mb-2 flex items-center gap-1">
-                            <Receipt className="w-3.5 h-3.5" /> Payment Proof
-                          </p>
-                          <a
-                            href={w.payment_proof_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-block rounded-lg overflow-hidden border border-gray-200 dark:border-white/10 max-w-[180px]"
-                          >
-                            <img
-                              src={w.payment_proof_url}
-                              alt="Payment proof"
-                              className="w-full h-24 object-cover"
-                            />
-                            <span className="text-xs text-green-600 dark:text-green-400 font-medium block py-1 text-center">
-                              View payment proof
-                            </span>
-                          </a>
-                        </div>
-                      )}
-                      {w.paid_at && (
-                        <p className="text-xs text-[#4B244A]/60 dark:text-white/60 mt-2">
-                          Paid {new Date(w.paid_at).toLocaleString()}
-                        </p>
-                      )}
-                    </div>
-                  ))}
+                <div className="space-y-1">
+                  <p className={valueClass}>{data.employer_name}</p>
+                  {data.employer_email && (
+                    <p className={valueClass + ' text-[#4B244A]/70 dark:text-white/70'}>{data.employer_email}</p>
+                  )}
+                  {data.employer_phone && (
+                    <p className={valueClass + ' text-[#4B244A]/70 dark:text-white/70'}>{data.employer_phone}</p>
+                  )}
                 </div>
               </div>
 
-              {data.payments.length > 0 && (
+              <div className={sectionClass}>
+                <div className={labelClass + ' flex items-center gap-1'}>
+                  <CheckCircle className="w-4 h-4" /> Your completion
+                </div>
+                <div className="space-y-2">
+                  {data.completion_notes && (
+                    <p className={valueClass}>{data.completion_notes}</p>
+                  )}
+                  {data.completed_at_contract && (
+                    <p className="text-xs text-[#4B244A]/60 dark:text-white/60">
+                      Completed {new Date(data.completed_at_contract).toLocaleString()}
+                    </p>
+                  )}
+                  {data.completion_proof_url && (
+                    <a
+                      href={data.completion_proof_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block mt-2 rounded-lg overflow-hidden border border-gray-200 dark:border-white/10 max-w-[180px]"
+                    >
+                      <img
+                        src={data.completion_proof_url}
+                        alt="Completion proof"
+                        className="w-full h-24 object-cover"
+                      />
+                      <span className="text-xs text-[#EA526F] font-medium block py-1 text-center">
+                        View proof
+                      </span>
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {data.payment_schedule && data.payment_schedule.length > 0 && (
                 <div className={sectionClass}>
                   <div className={labelClass + ' flex items-center gap-1'}>
-                    <Receipt className="w-4 h-4" /> Payment breakdown
+                    <Receipt className="w-4 h-4" /> Payment schedule
                   </div>
                   <ul className="space-y-2">
-                    {data.payments.map((p) => (
+                    {data.payment_schedule.map((p) => (
                       <li
                         key={p.schedule_id}
                         className="flex justify-between items-center text-sm py-1 border-b border-gray-100 dark:border-white/5 last:border-0"
                       >
                         <span className="text-[#4B244A] dark:text-white">
-                          {p.worker_name} · {p.due_date}
+                          {p.due_date}
                         </span>
-                        <span
-                          className={
-                            p.status === 'confirmed'
-                              ? 'text-green-600 dark:text-green-400 font-semibold'
-                              : 'text-[#4B244A]/70 dark:text-white/70'
-                          }
-                        >
-                          ₱{p.amount.toLocaleString()} ({p.status})
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={
+                              p.status === 'confirmed'
+                                ? 'text-green-600 dark:text-green-400 font-semibold'
+                                : 'text-[#4B244A]/70 dark:text-white/70'
+                            }
+                          >
+                            ₱{p.amount.toLocaleString()}
+                          </span>
+                          <span className="text-xs px-2 py-1 rounded bg-gray-100 dark:bg-white/10 text-[#4B244A] dark:text-white font-medium">
+                            {p.status}
+                          </span>
+                        </div>
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
 
+              <div className={sectionClass}>
+                <div className={labelClass + ' flex items-center gap-1'}>
+                  <Receipt className="w-4 h-4" /> Payment proof
+                </div>
+                {data.payment_proof_url ? (
+                  <div className="space-y-2">
+                    <a
+                      href={data.payment_proof_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-block rounded-lg overflow-hidden border border-gray-200 dark:border-white/10 max-w-[180px]"
+                    >
+                      <img
+                        src={data.payment_proof_url}
+                        alt="Payment proof"
+                        className="w-full h-24 object-cover"
+                      />
+                      <span className="text-xs text-green-600 dark:text-green-400 font-medium block py-1 text-center">
+                        View payment proof
+                      </span>
+                    </a>
+                    {data.paid_at && (
+                      <p className="text-xs text-[#4B244A]/60 dark:text-white/60">
+                        Paid {new Date(data.paid_at).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className={valueClass + ' text-[#4B244A]/70 dark:text-white/70'}>No payment proof available</p>
+                )}
+              </div>
+
               <div className="bg-green-100 dark:bg-green-500/20 rounded-xl p-4 border border-green-200 dark:border-green-500/30">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold text-green-800 dark:text-green-200">Total amount paid</span>
+                  <span className="font-bold text-green-800 dark:text-green-200">Total earned</span>
                   <span className="text-2xl font-bold text-green-700 dark:text-green-300">
-                    ₱{data.total_amount_paid.toLocaleString()}
+                    ₱{data.total_paid.toLocaleString()}
                   </span>
                 </div>
               </div>
