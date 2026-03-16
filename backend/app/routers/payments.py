@@ -590,7 +590,8 @@ async def confirm_payment_received(
                 "job_completed": True
             }
     else:
-        # Short-term job: Check if all payable workers have been paid
+        # Short-term job: complete only when all payable workers are BOTH
+        # paid and work-approved (contract status COMPLETED).
         from app.models_v2.contract import ContractStatus
         payable_contracts = db.query(Contract).filter(
             Contract.post_id == job_id,
@@ -601,14 +602,11 @@ async def confirm_payment_received(
             ]),
         ).all()
         all_paid = bool(payable_contracts) and all(c.paid_at is not None for c in payable_contracts)
+        all_work_approved = bool(payable_contracts) and all(c.status == ContractStatus.COMPLETED for c in payable_contracts)
         
-        if all_paid:
+        if all_paid and all_work_approved:
             job.status = ForumPostStatus.COMPLETED
             job.completed_at = datetime.now()
-            
-            # Mark all contracts as completed
-            for contract in payable_contracts:
-                contract.status = ContractStatus.COMPLETED
             
             db.commit()
             

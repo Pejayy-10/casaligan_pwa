@@ -67,25 +67,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
   };
 
   const handleApproveWorker = async (worker: WorkerCompletion) => {
-    // For short-term jobs, show payment modal first - don't approve until payment is done
-    if (details?.duration_type === 'short_term') {
-      initiatePayment({
-        title: jobTitle,
-        amount: details?.budget || 0,
-        description: `Payment for ${jobTitle}`,
-        recipientName: worker.worker_name,
-        requireProof: true,
-        onSuccess: async (paymentData) => {
-          await handleConfirmPayment(worker, paymentData);
-        },
-        onCancel: () => {
-          // Payment cancelled - job stays pending_completion
-        }
-      });
-      return;
-    }
-    
-    // For long-term jobs, approve immediately (they have payment schedules)
+    // Always approve completion first. For short-term, payment follows approval.
     try {
       setProcessingWorker(worker.contract_id);
       const token = localStorage.getItem('access_token');
@@ -101,8 +83,8 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
       if (response.ok) {
         const result = await response.json();
         
-        // For short-term jobs, immediately open payment modal after approval
-        if (details?.duration_type === 'short_term') {
+        // For short-term jobs, if worker is not paid yet, open payment modal after approval.
+        if (details?.duration_type === 'short_term' && !worker.paid_at) {
           setProcessingWorker(null);
           initiatePayment({
             title: jobTitle,
@@ -121,7 +103,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
           return;
         }
         
-        // For long-term jobs, just reload details
+        // Long-term, or short-term with already-paid worker: just reload details
         await loadDetails();
         
         // If all workers are completed, close modal
@@ -289,13 +271,17 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                           )}
 
                           {/* Action Button */}
-                          {worker.status === 'pending_completion' && !worker.payment_proof_url && !worker.paid_at && (
+                          {worker.status === 'pending_completion' && (
                             <button
                               onClick={() => handleApproveWorker(worker)}
                               disabled={processingWorker === worker.contract_id}
                               className="w-full py-2 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition-all disabled:opacity-50 shadow-md"
                             >
-                              {processingWorker === worker.contract_id ? 'Approving...' : (<><CheckCircle className="inline w-4 h-4 mr-1" /> Approve & Pay</>)}
+                              {processingWorker === worker.contract_id
+                                ? 'Approving...'
+                                : worker.paid_at
+                                  ? (<><CheckCircle className="inline w-4 h-4 mr-1" /> Approve Completion</>)
+                                  : (<><CheckCircle className="inline w-4 h-4 mr-1" /> Approve & Pay</>)}
                             </button>
                           )}
 

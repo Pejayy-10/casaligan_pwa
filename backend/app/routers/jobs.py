@@ -310,7 +310,9 @@ def get_my_job_posts(
         if _sync_job_activation_state(db, post):
             has_status_updates = True
 
-        # Auto-heal legacy short-term jobs stuck in pending_completion after all worker payments are confirmed
+        # Auto-heal short-term jobs only after both conditions are satisfied:
+        # 1) all assigned workers' work is approved (contract COMPLETED)
+        # 2) all payable workers are paid
         if not post.is_longterm and post.status == ForumPostStatus.PENDING_COMPLETION:
             payable_contracts = db.query(Contract).filter(
                 Contract.post_id == post.post_id,
@@ -321,7 +323,14 @@ def get_my_job_posts(
                 ]),
             ).all()
 
-            if payable_contracts and all(contract.paid_at is not None for contract in payable_contracts):
+            all_work_approved = bool(payable_contracts) and all(
+                contract.status == ContractStatus.COMPLETED for contract in payable_contracts
+            )
+            all_paid = bool(payable_contracts) and all(
+                contract.paid_at is not None for contract in payable_contracts
+            )
+
+            if all_work_approved and all_paid:
                 post.status = ForumPostStatus.COMPLETED
                 post.completed_at = datetime.now()
                 has_status_updates = True
@@ -2246,12 +2255,27 @@ def approve_job_completion(
         all_contracts = db.query(Contract).filter(Contract.post_id == post_id).all()
         all_completed = all(c.status == ContractStatus.COMPLETED for c in all_contracts)
         
-        # For short-term jobs, DON'T mark job as completed yet - wait for payment confirmation
-        # For long-term jobs, mark as completed when all work is approved
+        # For long-term jobs, complete immediately when all workers are approved.
+        # For short-term jobs, complete only when all approved workers are also paid.
         if all_completed and post.is_longterm:
             post.status = ForumPostStatus.COMPLETED
             post.completed_at = func.now()
             db.commit()
+        elif all_completed and not post.is_longterm:
+            payable_contracts = db.query(Contract).filter(
+                Contract.post_id == post_id,
+                Contract.status.in_([
+                    ContractStatus.ACTIVE,
+                    ContractStatus.PENDING_COMPLETION,
+                    ContractStatus.COMPLETED,
+                ]),
+            ).all()
+            all_paid = bool(payable_contracts) and all(c.paid_at is not None for c in payable_contracts)
+
+            if all_paid:
+                post.status = ForumPostStatus.COMPLETED
+                post.completed_at = func.now()
+                db.commit()
         
         return {
             "message": "Worker completion approved!",
@@ -2282,11 +2306,25 @@ def approve_job_completion(
         all_contracts = db.query(Contract).filter(Contract.post_id == post_id).all()
         all_completed = all(c.status == ContractStatus.COMPLETED for c in all_contracts)
         
-        # For short-term jobs, DON'T mark job as completed yet - wait for payment confirmation
-        # For long-term jobs, mark as completed when all work is approved
+        # For long-term jobs, complete immediately when all workers are approved.
+        # For short-term jobs, complete only when all approved workers are also paid.
         if all_completed and post.is_longterm:
             post.status = ForumPostStatus.COMPLETED
             post.completed_at = func.now()
+        elif all_completed and not post.is_longterm:
+            payable_contracts = db.query(Contract).filter(
+                Contract.post_id == post_id,
+                Contract.status.in_([
+                    ContractStatus.ACTIVE,
+                    ContractStatus.PENDING_COMPLETION,
+                    ContractStatus.COMPLETED,
+                ]),
+            ).all()
+            all_paid = bool(payable_contracts) and all(c.paid_at is not None for c in payable_contracts)
+
+            if all_paid:
+                post.status = ForumPostStatus.COMPLETED
+                post.completed_at = func.now()
         
         db.commit()
         
