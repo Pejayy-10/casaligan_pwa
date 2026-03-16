@@ -17,6 +17,8 @@ export const authService = {
     // Store token and user in localStorage (auto-login after registration)
     localStorage.setItem('access_token', access_token);
     localStorage.setItem('user', JSON.stringify(user));
+    // Store the active role for easy access
+    localStorage.setItem('user_role', user.active_role || 'owner');
     
     return response.data;
   },
@@ -28,6 +30,8 @@ export const authService = {
     // Store token and user in localStorage
     localStorage.setItem('access_token', access_token);
     localStorage.setItem('user', JSON.stringify(user));
+    // Store the active role for easy access
+    localStorage.setItem('user_role', user.active_role || 'owner');
     
     return response.data;
   },
@@ -38,6 +42,8 @@ export const authService = {
     // Update user in localStorage to keep it fresh
     const userData = response.data;
     localStorage.setItem('user', JSON.stringify(userData));
+    // Update the active role
+    localStorage.setItem('user_role', userData.active_role || 'owner');
     
     return userData;
   },
