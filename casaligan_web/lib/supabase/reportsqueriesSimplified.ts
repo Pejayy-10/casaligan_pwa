@@ -360,7 +360,12 @@ export async function approveBackJobReport(reportId: number, adminNotes?: string
     isBackJobReport(report)
   )
 
-  if (!isBackJobReport(report) && !isLikelyBackJobOverride) {
+  const canForceApproveAsBackJob = (
+    !!report.post_id &&
+    (normalizedStatus === 'pending' || normalizedStatus === 'under_review')
+  )
+
+  if (!isBackJobReport(report) && !isLikelyBackJobOverride && !canForceApproveAsBackJob) {
     return { data: null, error: new Error('Report is not a back job request') }
   }
 
@@ -405,7 +410,8 @@ export async function approveBackJobReport(reportId: number, adminNotes?: string
     }
   }
 
-  const notes = adminNotes || `Back job approved. Housekeeper must perform free rework. No additional payment required.${isLikelyBackJobOverride ? ' (Approved via compatibility fallback)' : ''}`
+  const usedFallback = isLikelyBackJobOverride || (!isBackJobReport(report) && canForceApproveAsBackJob)
+  const notes = adminNotes || `Back job approved. Housekeeper must perform free rework. No additional payment required.${usedFallback ? ' (Approved via compatibility fallback)' : ''}`
   const { data, error } = await supabase
     .from('reports')
     .update({
