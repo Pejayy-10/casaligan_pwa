@@ -381,7 +381,13 @@ export async function approveBackJobReport(reportId: number, adminNotes?: string
     return { data: null, error: postUpdateError }
   }
 
-  // If we can identify the reported housekeeper's worker record, reopen their contract too.
+  // Reopen the assigned housekeeper contract as part of back-job flow.
+  const contractReopenPayload = {
+    status: 'active',
+    completed_at: null,
+    completion_notes: null,
+  }
+
   if (report.reported_user_id) {
     const { data: worker } = await supabase
       .from('workers')
@@ -390,16 +396,38 @@ export async function approveBackJobReport(reportId: number, adminNotes?: string
       .maybeSingle()
 
     if (worker?.worker_id) {
-      await supabase
+      const { data: workerContracts, error: workerContractUpdateError } = await supabase
         .from('contracts')
-        .update({
-          status: 'active',
-          completed_at: null,
-          completion_proof_url: null,
-          completion_notes: null,
-        })
+        .update(contractReopenPayload)
         .eq('post_id', report.post_id)
         .eq('worker_id', worker.worker_id)
+        .select('contract_id')
+
+      if (workerContractUpdateError) {
+        return { data: null, error: workerContractUpdateError }
+      }
+
+      if ((workerContracts || []).length === 0) {
+        const { error: fallbackContractUpdateError } = await supabase
+          .from('contracts')
+          .update(contractReopenPayload)
+          .eq('post_id', report.post_id)
+          .eq('status', 'completed')
+
+        if (fallbackContractUpdateError) {
+          return { data: null, error: fallbackContractUpdateError }
+        }
+      }
+    } else {
+      const { error: fallbackContractUpdateError } = await supabase
+        .from('contracts')
+        .update(contractReopenPayload)
+        .eq('post_id', report.post_id)
+        .eq('status', 'completed')
+
+      if (fallbackContractUpdateError) {
+        return { data: null, error: fallbackContractUpdateError }
+      }
     }
   }
 
