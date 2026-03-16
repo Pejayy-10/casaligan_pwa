@@ -1,10 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import Verification from "@/app/components/Verification";
 import TableShell from "@/app/components/TableShell";
-import { getVerifications, approveVerification, rejectVerification } from "@/lib/supabase/verficationQueries";
+import {
+	getVerifications,
+	approveVerification,
+	rejectVerification,
+	approveVerificationByUserId,
+	rejectVerificationByUserId,
+} from "@/lib/supabase/verficationQueries";
 
 export default function VerificationPage() {
 	const [verifications, setVerifications] = useState<any[]>([]);
@@ -32,35 +37,33 @@ export default function VerificationPage() {
 		setLoading(false);
 	}
 
-	// Transform verifications data to match TableShell row format
 	const rows = verifications.map((verification: any) => {
 		const user = verification.users || {};
-		const worker = verification.workers || {};
-		
-		// Format application date (submitted_at)
 		const applicationDate = verification.submitted_at || new Date().toISOString();
 		const applicationDateObj = new Date(applicationDate);
-		const month = String(applicationDateObj.getMonth() + 1).padStart(2, '0');
-		const day = String(applicationDateObj.getDate()).padStart(2, '0');
+		const month = String(applicationDateObj.getMonth() + 1).padStart(2, "0");
+		const day = String(applicationDateObj.getDate()).padStart(2, "0");
 		const year = applicationDateObj.getFullYear();
 		const applicationDateFormatted = `${month}-${day}-${year}`;
-		
-		// Get role - verifications are for workers, so role should be "worker"
-		const role = user.role || "worker";
-		
+
 		return {
-			id: verification.verification_id,
+			id: verification.application_id || verification.verification_id,
 			verification_id: verification.verification_id,
+			application_id: verification.application_id || verification.verification_id,
+			document_id: verification.document_id || null,
+			has_document: verification.has_document === true,
 			worker_id: verification.worker_id,
 			name: user.name || "N/A",
 			email: user.email || "N/A",
-			role: role.charAt(0).toUpperCase() + role.slice(1).toLowerCase(), // Capitalize first letter
+			role: "Housekeeper Applicant",
 			status: verification.status || "pending",
 			application_date: applicationDate,
 			application_date_formatted: applicationDateFormatted,
-			date: applicationDate, // Keep for backward compatibility
+			date: applicationDate,
 			document_type: verification.document_type || "N/A",
 			document_number: verification.document_number || "N/A",
+			rejection_reason: verification.rejection_reason || "",
+			notes: verification.notes || "",
 			submitted_at: verification.submitted_at,
 			reviewed_at: verification.reviewed_at,
 		};
@@ -94,7 +97,9 @@ export default function VerificationPage() {
 		
 		setProcessing(true);
 		const adminId = 1; // TODO: Get from auth session
-		const { error } = await approveVerification(selectedVerification.verification_id, adminId);
+		const { error } = selectedVerification.document_id
+			? await approveVerification(selectedVerification.document_id, adminId)
+			: await approveVerificationByUserId(selectedVerification.application_user_id, adminId);
 		
 		if (error) {
 			alert(`Error approving verification: ${error.message}`);
@@ -114,7 +119,9 @@ export default function VerificationPage() {
 		
 		setProcessing(true);
 		const adminId = 1; // TODO: Get from auth session
-		const { error } = await rejectVerification(selectedVerification.verification_id, adminId);
+		const { error } = selectedVerification.document_id
+			? await rejectVerification(selectedVerification.document_id, adminId)
+			: await rejectVerificationByUserId(selectedVerification.application_user_id, adminId);
 		
 		if (error) {
 			alert(`Error rejecting verification: ${error.message}`);
@@ -132,8 +139,8 @@ export default function VerificationPage() {
 	return (
 		<div className="mx-auto w-full max-w-[1400px] space-y-6 px-4 sm:px-6 lg:px-8">
 			<div>
-				<h1 className="heading">User Verification</h1>
-				<p className="text-muted-foreground">Review and process user verification requests.</p>
+				<h1 className="heading">Housekeeper Application Verification</h1>
+				<p className="text-muted-foreground">Review uploaded documents and process housekeeper applications.</p>
 			</div>
 
 			<Verification />
@@ -143,10 +150,15 @@ export default function VerificationPage() {
 			) : (
 				<TableShell 
 					rows={rows} 
-					title="Verifications" 
-					description="Pending and processed verification requests." 
+					title="Housekeeper Applications" 
+					description="Pending and processed housekeeper verification requests." 
 					onAction={handleAction}
 					actionType="verification"
+					statusOptions={[
+						{ value: "pending", label: "Pending" },
+						{ value: "approved", label: "Approved" },
+						{ value: "rejected", label: "Rejected" },
+					]}
 				/>
 			)}
 
@@ -216,8 +228,12 @@ export default function VerificationPage() {
 							<h3 className="text-lg font-semibold border-b pb-2">Verification Information</h3>
 							<div className="grid grid-cols-2 gap-4">
 								<div>
-									<p className="text-sm text-muted-foreground">Verification ID</p>
-									<p className="font-medium">{selectedVerification.verification_id || "N/A"}</p>
+									<p className="text-sm text-muted-foreground">Application ID</p>
+									<p className="font-medium">{selectedVerification.application_id || "N/A"}</p>
+								</div>
+								<div>
+									<p className="text-sm text-muted-foreground">Document Uploaded</p>
+									<p className="font-medium">{selectedVerification.document_id ? "Yes" : "No"}</p>
 								</div>
 								<div>
 									<p className="text-sm text-muted-foreground">Status</p>
@@ -254,6 +270,12 @@ export default function VerificationPage() {
 											: "Not reviewed yet"}
 									</p>
 								</div>
+								<div className="col-span-2">
+									<p className="text-sm text-muted-foreground">Rejection Reason</p>
+									<p className="font-medium">
+										{selectedVerification.rejection_reason || "N/A"}
+									</p>
+								</div>
 							</div>
 						</div>
 
@@ -263,12 +285,11 @@ export default function VerificationPage() {
 								<h3 className="text-lg font-semibold border-b pb-2">Document</h3>
 								<div className="border border-border rounded-lg p-4 bg-muted/50">
 									{selectedVerification.file_path.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-										<div className="relative w-full h-64 rounded-lg overflow-hidden border border-border">
-											<Image
+										<div className="w-full h-64 rounded-lg overflow-hidden border border-border bg-black/10 flex items-center justify-center">
+											<img
 												src={selectedVerification.file_path}
 												alt="Verification Document"
-												fill
-												className="object-contain"
+												className="max-h-full max-w-full object-contain"
 											/>
 										</div>
 									) : (

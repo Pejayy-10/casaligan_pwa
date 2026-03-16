@@ -7,12 +7,11 @@ import { createClient } from './client'
 // Get all verifications with worker and user information (from user_documents table used by mobile app)
 export async function getVerifications(limit = 50, offset = 0, status?: string) {
   const supabase = createClient()
-  
-  // Build query from user_documents table with optional status filter
+
+  // Primary source is housekeeper applications (ensures pending apps appear even without uploaded documents)
   let query = supabase
-    .from('user_documents')
-    .select('id, user_id, document_type, file_path, status, notes, rejection_reason, uploaded_at, reviewed_at', { count: 'exact' })
-    .order('uploaded_at', { ascending: false })
+    .from('housekeeper_applications')
+    .select('user_id, status, reviewed_at', { count: 'exact' })
     .range(offset, offset + limit - 1)
 
   // Apply status filter if provided
@@ -20,19 +19,37 @@ export async function getVerifications(limit = 50, offset = 0, status?: string) 
     query = query.eq('status', status)
   }
 
-  const { data: documents, error: documentsError, count } = await query
+  const { data: applications, error: applicationsError, count } = await query
 
-  if (documentsError) {
-    console.error('Error fetching documents:', documentsError)
-    return { data: [], count: 0, error: documentsError }
+  if (applicationsError) {
+    console.error('Error fetching housekeeper applications:', applicationsError)
+    return { data: [], count: 0, error: applicationsError }
   }
 
-  if (!documents || documents.length === 0) {
+  if (!applications || applications.length === 0) {
     return { data: [], count: count || 0, error: null }
   }
 
-  // Get user IDs and fetch users
-  const userIds = documents.map(d => d.user_id).filter(Boolean)
+  const userIds = applications.map(a => a.user_id).filter(Boolean)
+
+  // Get documents for these applicants (latest document per user)
+  const { data: documents, error: documentsError } = await supabase
+    .from('user_documents')
+    .select('id, user_id, document_type, file_path, status, notes, rejection_reason, uploaded_at, reviewed_at')
+    .in('user_id', userIds)
+    .order('uploaded_at', { ascending: false })
+
+  if (documentsError) {
+    console.error('Error fetching documents:', documentsError)
+  }
+
+  const latestDocumentByUser = new Map<number, any>()
+  documents?.forEach((document) => {
+    if (!latestDocumentByUser.has(document.user_id)) {
+      latestDocumentByUser.set(document.user_id, document)
+    }
+  })
+
   const { data: users, error: usersError } = await supabase
     .from('users')
     .select('id, first_name, last_name, email, phone_number, status, active_role, created_at')
@@ -52,24 +69,33 @@ export async function getVerifications(limit = 50, offset = 0, status?: string) 
     console.error('Error fetching workers:', workersError)
   }
 
-  // Combine documents with their user data
-  const documentsWithDetails = documents.map(document => {
-    const user = users?.find(u => u.id === document.user_id) || null
-    const worker = workers?.find(w => w.user_id === document.user_id) || null
+  const applicationsWithDetails = applications.map((application) => {
+    const user = users?.find(u => u.id === application.user_id) || null
+    const worker = workers?.find(w => w.user_id === application.user_id) || null
+    const document = latestDocumentByUser.get(application.user_id) || null
     
     // Format user name
     const name = user ? `${user.first_name} ${user.last_name}` : 'N/A'
+
+    const normalizedStatus = document?.status || application.status || 'pending'
+    const submittedAt = document?.uploaded_at || user?.created_at || null
     
     return { 
-      verification_id: document.id,
+      verification_id: application.user_id,
+      application_id: application.user_id,
+      application_user_id: application.user_id,
+      document_id: document?.id || null,
+      has_document: !!document?.id,
       worker_id: worker?.worker_id || null,
       admin_id: null,
-      status: document.status,
-      document_type: document.document_type,
+      status: normalizedStatus,
+      document_type: document?.document_type || 'N/A',
       document_number: 'N/A', // user_documents doesn't have document_number field
-      file_path: document.file_path,
-      submitted_at: document.uploaded_at,
-      reviewed_at: document.reviewed_at,
+      file_path: document?.file_path || null,
+      notes: document?.notes || null,
+      rejection_reason: document?.rejection_reason || null,
+      submitted_at: submittedAt,
+      reviewed_at: document?.reviewed_at || application.reviewed_at || null,
       workers: worker,
       users: user ? {
         ...user,
@@ -80,7 +106,33 @@ export async function getVerifications(limit = 50, offset = 0, status?: string) 
     }
   })
 
-  return { data: documentsWithDetails, count: count || 0, error: null }
+  return { data: applicationsWithDetails, count: count || 0, error: null }
+}
+
+async function ensureWorkerAndEmployerRecords(userId: number, supabase: ReturnType<typeof createClient>) {
+  const { data: existingWorker } = await supabase
+    .from('workers')
+    .select('worker_id')
+    .eq('user_id', userId)
+    .single()
+
+  if (!existingWorker) {
+    await supabase
+      .from('workers')
+      .insert({ user_id: userId })
+  }
+
+  const { data: existingEmployer } = await supabase
+    .from('employers')
+    .select('employer_id')
+    .eq('user_id', userId)
+    .single()
+
+  if (!existingEmployer) {
+    await supabase
+      .from('employers')
+      .insert({ user_id: userId })
+  }
 }
 
 // Get verification by ID with full details
@@ -139,6 +191,7 @@ export async function getVerificationById(verificationId: number) {
 // Approve a verification (set status to approved in user_documents)
 export async function approveVerification(verificationId: number, _adminId: number) {
   const supabase = createClient()
+  const reviewedAt = new Date().toISOString()
   
   // Get the document to find the user_id
   const { data: document, error: docError } = await supabase
@@ -156,7 +209,7 @@ export async function approveVerification(verificationId: number, _adminId: numb
     .from('user_documents')
     .update({ 
       status: 'approved',
-      reviewed_at: new Date().toISOString()
+      reviewed_at: reviewedAt
     })
     .eq('id', verificationId)
     .select()
@@ -174,7 +227,7 @@ export async function approveVerification(verificationId: number, _adminId: numb
       .from('housekeeper_applications')
       .update({ 
         status: 'approved',
-        reviewed_at: new Date().toISOString()
+        reviewed_at: reviewedAt
       })
       .eq('user_id', userId)
       .eq('status', 'pending')
@@ -187,40 +240,58 @@ export async function approveVerification(verificationId: number, _adminId: numb
         status: 'active'
       })
       .eq('id', userId)
-    
-    // Create worker record if it doesn't exist
-    const { data: existingWorker } = await supabase
-      .from('workers')
-      .select('worker_id')
-      .eq('user_id', userId)
-      .single()
-    
-    if (!existingWorker) {
-      await supabase
-        .from('workers')
-        .insert({ user_id: userId })
-    }
-    
-    // Create employer record if it doesn't exist (users can be both)
-    const { data: existingEmployer } = await supabase
-      .from('employers')
-      .select('employer_id')
-      .eq('user_id', userId)
-      .single()
-    
-    if (!existingEmployer) {
-      await supabase
-        .from('employers')
-        .insert({ user_id: userId })
-    }
+
+    await ensureWorkerAndEmployerRecords(userId, supabase)
   }
   
   return { data, error }
 }
 
+// Approve a housekeeper application directly by user ID (used when no document exists yet)
+export async function approveVerificationByUserId(userId: number, _adminId: number) {
+  const supabase = createClient()
+  const reviewedAt = new Date().toISOString()
+
+  const { data, error } = await supabase
+    .from('housekeeper_applications')
+    .update({
+      status: 'approved',
+      reviewed_at: reviewedAt
+    })
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .select()
+
+  if (error) {
+    return { data: null, error }
+  }
+
+  await supabase
+    .from('users')
+    .update({
+      is_housekeeper: true,
+      status: 'active'
+    })
+    .eq('id', userId)
+
+  await ensureWorkerAndEmployerRecords(userId, supabase)
+
+  await supabase
+    .from('user_documents')
+    .update({
+      status: 'approved',
+      reviewed_at: reviewedAt
+    })
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+
+  return { data, error: null }
+}
+
 // Reject a verification (set status to rejected in user_documents)
 export async function rejectVerification(verificationId: number, _adminId: number) {
   const supabase = createClient()
+  const reviewedAt = new Date().toISOString()
   
   // Get the document to find the user_id
   const { data: document } = await supabase
@@ -234,7 +305,7 @@ export async function rejectVerification(verificationId: number, _adminId: numbe
     .from('user_documents')
     .update({ 
       status: 'rejected',
-      reviewed_at: new Date().toISOString(),
+      reviewed_at: reviewedAt,
       rejection_reason: 'Rejected by admin'
     })
     .eq('id', verificationId)
@@ -244,11 +315,47 @@ export async function rejectVerification(verificationId: number, _adminId: numbe
   if (document && document.user_id) {
     await supabase
       .from('housekeeper_applications')
-      .update({ status: 'rejected' })
+      .update({ 
+        status: 'rejected',
+        reviewed_at: reviewedAt
+      })
       .eq('user_id', document.user_id)
+      .eq('status', 'pending')
   }
   
   return { data, error }
+}
+
+// Reject a housekeeper application directly by user ID (used when no document exists yet)
+export async function rejectVerificationByUserId(userId: number, _adminId: number) {
+  const supabase = createClient()
+  const reviewedAt = new Date().toISOString()
+
+  const { data, error } = await supabase
+    .from('housekeeper_applications')
+    .update({
+      status: 'rejected',
+      reviewed_at: reviewedAt
+    })
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+    .select()
+
+  if (error) {
+    return { data: null, error }
+  }
+
+  await supabase
+    .from('user_documents')
+    .update({
+      status: 'rejected',
+      reviewed_at: reviewedAt,
+      rejection_reason: 'Rejected by admin'
+    })
+    .eq('user_id', userId)
+    .eq('status', 'pending')
+
+  return { data, error: null }
 }
 
 // Get verification analytics data

@@ -351,10 +351,16 @@ function statusClass(s: string) {
   switch (s?.toLowerCase?.()) {
     case "active":
       return "bg-green-100 border text-green-800";
+    case "approved":
+      return "bg-green-100 border text-green-800";
+    case "accepted":
+      return "bg-green-100 border text-green-800";
     case "completed":
       return "bg-green-100 border text-green-800";
     case "pending":
       return "bg-yellow-100 border text-yellow-800";
+    case "rejected":
+      return "bg-red-100 border text-red-800";
     case "overdue":
       return "bg-red-100 border text-red-800";
     case "open":
