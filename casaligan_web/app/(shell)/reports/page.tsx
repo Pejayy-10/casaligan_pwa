@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react";
 import ReportsDashboard from "@/app/components/Reports"; 
 import TableShell from "@/app/components/TableShell";
-import { getReports, resolveReport, dismissReport, restrictReportedUser, unrestrictReportedUser, deleteReport, warnReportedUser } from "@/lib/supabase/reportsqueriesSimplified";
+import { getReports, resolveReport, dismissReport, restrictReportedUser, unrestrictReportedUser, deleteReport, warnReportedUser, approveBackJobReport } from "@/lib/supabase/reportsqueriesSimplified";
 import { Eye } from "lucide-react";
 
 export default function ReportsPage() {
@@ -66,6 +66,35 @@ export default function ReportsPage() {
 
 	// Transform reports data to match TableShell row format - memoized for performance
 	const rows = useMemo(() => {
+		const computeBackJobSlaLabel = (report: any) => {
+			if (report.report_type !== 'back_job_request') return null;
+			if (!report.resolved_at) return 'SLA starts after admin approval';
+
+			const resolvedAt = new Date(report.resolved_at);
+			if (Number.isNaN(resolvedAt.getTime())) return null;
+
+			const deadlineMs = resolvedAt.getTime() + (48 * 60 * 60 * 1000);
+			const nowMs = Date.now();
+			const remainingMs = deadlineMs - nowMs;
+
+			if (String(report.status || '').toLowerCase() === 'escalated') {
+				return 'SLA breached (escalated)';
+			}
+
+			if (remainingMs <= 0) {
+				return 'SLA overdue (awaiting escalation check)';
+			}
+
+			const totalHours = Math.ceil(remainingMs / (1000 * 60 * 60));
+			if (totalHours >= 24) {
+				const days = Math.floor(totalHours / 24);
+				const hours = totalHours % 24;
+				return `SLA due in ${days}d ${hours}h`;
+			}
+
+			return `SLA due in ${totalHours}h`;
+		};
+
 		return reports.map((report: any) => {
 			const reporter = report.reporter || {};
 			const reportedUser = report.reported_user || {};
@@ -90,6 +119,9 @@ export default function ReportsPage() {
 			return {
 				id: report.report_id,
 				report_id: report.report_id,
+				report_type: report.report_type,
+				back_job_sla_label: computeBackJobSlaLabel(report),
+				post_id: report.post_id,
 				userId: `R${String(report.report_id).padStart(3, '0')}`,
 				name: report.title || report.report_type || "N/A",
 				reporter_name: reporterName,
@@ -133,7 +165,7 @@ export default function ReportsPage() {
 		});
 	}, [reports]); // Recalculate when reports change
 
-	const handleAction = async (action: "view" | "ban" | "restrict" | "unban" | "unrestrict" | "warn" | "delete" | "dismiss", row: any) => {
+	const handleAction = async (action: "view" | "ban" | "restrict" | "unban" | "unrestrict" | "warn" | "delete" | "dismiss" | "approve_backjob", row: any) => {
 		const report = reports.find(r => r.report_id === row.report_id);
 		
 		if (action === "view") {
@@ -185,6 +217,19 @@ export default function ReportsPage() {
 					setProcessing(false);
 				} else {
 					alert(`Report has been dismissed successfully.`);
+					await loadReports();
+					setProcessing(false);
+				}
+			}
+		} else if (action === "approve_backjob") {
+			if (confirm(`Approve back job for report ${row.userId}? This will reopen the job as free rework (no additional payment).`)) {
+				setProcessing(true);
+				const { error } = await approveBackJobReport(row.report_id);
+				if (error) {
+					alert(`Error approving back job: ${error.message}`);
+					setProcessing(false);
+				} else {
+					alert(`Back job approved. Job reopened for free rework.`);
 					await loadReports();
 					setProcessing(false);
 				}
@@ -257,6 +302,7 @@ export default function ReportsPage() {
 					actionType="reports"
 					statusOptions={[
 						{ value: "pending", label: "Pending" },
+						{ value: "escalated", label: "Escalated" },
 						{ value: "resolved", label: "Resolved" },
 						{ value: "dismissed", label: "Dismissed" }
 					]}

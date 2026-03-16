@@ -1,6 +1,119 @@
 import { createClient } from './client'
 import { getAdminId } from './adminQueries'
 
+const BACK_JOB_SLA_HOURS = 48
+const BACK_JOB_ESCALATION_MARKER = '[BACK_JOB_SLA_ESCALATED]'
+
+async function autoEscalateOverdueBackJobs(reports: any[]) {
+  const supabase = createClient()
+
+  const now = new Date()
+  const candidates = reports.filter((report) => {
+    if (report.report_type !== 'back_job_request') return false
+    if (report.status !== 'resolved') return false
+    if (!report.post_id) return false
+    if (!report.resolved_at) return false
+
+    const resolvedAt = new Date(report.resolved_at)
+    if (Number.isNaN(resolvedAt.getTime())) return false
+
+    const hoursSinceResolution = (now.getTime() - resolvedAt.getTime()) / (1000 * 60 * 60)
+    return hoursSinceResolution >= BACK_JOB_SLA_HOURS
+  })
+
+  if (candidates.length === 0) {
+    return reports
+  }
+
+  const postIds = [...new Set(candidates.map((c) => c.post_id).filter(Boolean))]
+  const { data: posts } = await supabase
+    .from('forumposts')
+    .select('post_id, status')
+    .in('post_id', postIds)
+
+  const postStatusMap = new Map<number, string>()
+  ;(posts || []).forEach((post: any) => {
+    postStatusMap.set(post.post_id, String(post.status || '').toLowerCase())
+  })
+
+  const escalatedIds = new Set<number>()
+
+  for (const report of candidates) {
+    const postStatus = postStatusMap.get(report.post_id)
+
+    // If job is already completed again, SLA is considered satisfied
+    if (postStatus === 'completed') {
+      continue
+    }
+
+    const previousNotes = report.admin_notes || ''
+    if (String(previousNotes).includes(BACK_JOB_ESCALATION_MARKER)) {
+      escalatedIds.add(report.report_id)
+      continue
+    }
+
+    const escalationNote = `${previousNotes ? `${previousNotes}\n\n` : ''}${BACK_JOB_ESCALATION_MARKER} Back-job SLA breached: no completed rework within ${BACK_JOB_SLA_HOURS} hours.`
+
+    const { error: updateError } = await supabase
+      .from('reports')
+      .update({
+        status: 'escalated',
+        admin_notes: escalationNote,
+      })
+      .eq('report_id', report.report_id)
+
+    if (!updateError) {
+      escalatedIds.add(report.report_id)
+
+      const notifications: any[] = []
+      const nowIso = new Date().toISOString()
+
+      if (report.reporter_id) {
+        notifications.push({
+          user_id: report.reporter_id,
+          type: 'system',
+          title: 'Back Job Escalated',
+          message: 'Your back-job request has been escalated because the rework was not completed within 48 hours.',
+          content: 'Back job escalated due to SLA breach.',
+          entity_type: 'report',
+          entity_id: report.report_id,
+          created_at: nowIso,
+        })
+      }
+
+      if (report.reported_user_id) {
+        notifications.push({
+          user_id: report.reported_user_id,
+          type: 'system',
+          title: 'Back Job Escalated',
+          message: 'A back-job assigned to you was escalated due to missed rework SLA.',
+          content: 'Back job escalated due to missed SLA.',
+          entity_type: 'report',
+          entity_id: report.report_id,
+          created_at: nowIso,
+        })
+      }
+
+      if (notifications.length > 0) {
+        await supabase.from('notifications').insert(notifications)
+      }
+    }
+  }
+
+  if (escalatedIds.size === 0) {
+    return reports
+  }
+
+  return reports.map((report) => {
+    if (!escalatedIds.has(report.report_id)) return report
+    return {
+      ...report,
+      status: 'escalated',
+      admin_notes: `${report.admin_notes ? `${report.admin_notes}\n\n` : ''}${BACK_JOB_ESCALATION_MARKER} Back-job SLA breached: no completed rework within ${BACK_JOB_SLA_HOURS} hours.`,
+    }
+  })
+}
+
 /**
  * SIMPLIFIED Report queries for admin dashboard
  * Works with the new simplified reports table structure
@@ -17,6 +130,7 @@ export async function getReports(limit = 50, offset = 0, status?: string) {
       report_id,
       reporter_id,
       reported_user_id,
+      post_id,
       report_type,
       title,
       reason,
@@ -73,8 +187,10 @@ export async function getReports(limit = 50, offset = 0, status?: string) {
     return { data: [], count: count || 0, error: null }
   }
 
+  const reportsAfterSlaCheck = await autoEscalateOverdueBackJobs(reports)
+
   // Filter out reports where reporter or reported user is an admin
-  const filteredReports = reports.filter(report => {
+  const filteredReports = reportsAfterSlaCheck.filter(report => {
     const reporterRole = report.reporter?.active_role
     const reportedRole = report.reported_user?.active_role
     return (
@@ -179,6 +295,123 @@ export async function dismissReport(reportId: number, adminNotes?: string) {
     .single()
 
   return { data, error }
+}
+
+// Approve a back-job request (free rework)
+export async function approveBackJobReport(reportId: number, adminNotes?: string) {
+  const supabase = createClient()
+
+  const { admin_id, error: adminError } = await getAdminId()
+  if (adminError || !admin_id) {
+    return { data: null, error: adminError || new Error('Admin not authenticated') }
+  }
+
+  const { data: report, error: reportError } = await supabase
+    .from('reports')
+    .select('report_id, post_id, reporter_id, reported_user_id, report_type, status')
+    .eq('report_id', reportId)
+    .single()
+
+  if (reportError || !report) {
+    return { data: null, error: reportError || new Error('Report not found') }
+  }
+
+  if (report.report_type !== 'back_job_request') {
+    return { data: null, error: new Error('Report is not a back job request') }
+  }
+
+  if (!report.post_id) {
+    return { data: null, error: new Error('Back job report has no related job post') }
+  }
+
+  // Reopen the job for free rework (no new payment schedule is created).
+  const { error: postUpdateError } = await supabase
+    .from('forumposts')
+    .update({
+      status: 'ongoing',
+      completed_at: null,
+      completion_proof_url: null,
+      completion_notes: null,
+    })
+    .eq('post_id', report.post_id)
+
+  if (postUpdateError) {
+    return { data: null, error: postUpdateError }
+  }
+
+  // If we can identify the reported housekeeper's worker record, reopen their contract too.
+  if (report.reported_user_id) {
+    const { data: worker } = await supabase
+      .from('workers')
+      .select('worker_id')
+      .eq('user_id', report.reported_user_id)
+      .maybeSingle()
+
+    if (worker?.worker_id) {
+      await supabase
+        .from('contracts')
+        .update({
+          status: 'active',
+          completed_at: null,
+          completion_proof_url: null,
+          completion_notes: null,
+        })
+        .eq('post_id', report.post_id)
+        .eq('worker_id', worker.worker_id)
+    }
+  }
+
+  const notes = adminNotes || 'Back job approved. Housekeeper must perform free rework. No additional payment required.'
+  const { data, error } = await supabase
+    .from('reports')
+    .update({
+      status: 'resolved',
+      resolved_at: new Date().toISOString(),
+      resolved_by_admin_id: admin_id,
+      admin_notes: notes,
+    })
+    .eq('report_id', reportId)
+    .select()
+    .single()
+
+  if (error) {
+    return { data: null, error }
+  }
+
+  const nowIso = new Date().toISOString()
+  const notifications: any[] = []
+
+  if (report.reporter_id) {
+    notifications.push({
+      user_id: report.reporter_id,
+      type: 'system',
+      title: 'Back Job Approved',
+      message: 'Your back job request was approved. The job is reopened for free rework.',
+      content: 'Back job approved: job reopened for free rework.',
+      entity_type: 'report',
+      entity_id: reportId,
+      created_at: nowIso,
+    })
+  }
+
+  if (report.reported_user_id) {
+    notifications.push({
+      user_id: report.reported_user_id,
+      type: 'system',
+      title: 'Back Job Required',
+      message: 'Admin approved a back job request. Please complete the rework. This is free rework (no additional payment).',
+      content: 'Back job required: free rework approved by admin.',
+      entity_type: 'report',
+      entity_id: reportId,
+      created_at: nowIso,
+    })
+  }
+
+  if (notifications.length > 0) {
+    await supabase.from('notifications').insert(notifications)
+  }
+
+  return { data, error: null }
 }
 
 // Restrict the reported user

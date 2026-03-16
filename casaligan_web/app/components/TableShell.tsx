@@ -17,7 +17,7 @@ type Props = {
 	title?: string;
 	description?: string;
 	pageSize?: number;
-	onAction?: (action: "view" | "ban" | "restrict" | "unban" | "unrestrict" | "warn" | "delete" | "dismiss", row: Row) => void;
+	onAction?: (action: "view" | "ban" | "restrict" | "unban" | "unrestrict" | "warn" | "delete" | "dismiss" | "approve_backjob", row: Row) => void;
 	className?: string;
 	actionType?: "default" | "verification" | "reports" | "payments" | "activity-log";
 	statusOptions?: StatusOption[];

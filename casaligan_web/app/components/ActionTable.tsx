@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye, Ban, ShieldAlert, CheckCircle, XCircle, AlertTriangle, Trash2, X } from "lucide-react";
+import { Eye, Ban, ShieldAlert, CheckCircle, XCircle, AlertTriangle, Trash2, X, RotateCcw } from "lucide-react";
 import React from "react";
 
 type Row = {
@@ -15,7 +15,7 @@ type Row = {
 
 type Props = {
   rows: Row[];
-  onAction?: (action: "view" | "ban" | "restrict" | "unban" | "unrestrict" | "warn" | "delete" | "dismiss", row: Row) => void;
+  onAction?: (action: "view" | "ban" | "restrict" | "unban" | "unrestrict" | "warn" | "delete" | "dismiss" | "approve_backjob", row: Row) => void;
   className?: string;
   actionType?: "default" | "verification" | "reports" | "payments" | "activity-log";
 };
@@ -100,7 +100,24 @@ export default function ActionTable({ rows, onAction, className = "", actionType
                 <tr key={getRowKey(row, i)} className={`${i % 2 === 0 ? "bg-background" : "bg-background/5"} hover:bg-secondary/20`}>
                   {actionType === "reports" ? (
                     <>
-                      <td className="px-4 py-3 text-sm text-foreground">{row.reason || row.report_type || "N/A"}</td>
+                      <td className="px-4 py-3 text-sm text-foreground">
+                        <div className="flex flex-col gap-1">
+                          <span>{row.report_type || row.reason || "N/A"}</span>
+                          {row.back_job_sla_label && (
+                            <span
+                              className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                String(row.back_job_sla_label).toLowerCase().includes('breached') || String(row.back_job_sla_label).toLowerCase().includes('overdue')
+                                  ? 'bg-red-500/10 text-red-600'
+                                  : String(row.back_job_sla_label).toLowerCase().includes('starts')
+                                    ? 'bg-gray-500/10 text-gray-600'
+                                    : 'bg-yellow-500/10 text-yellow-700'
+                              }`}
+                            >
+                              {row.back_job_sla_label}
+                            </span>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-sm text-foreground">{row.reporter_name || "N/A"}</td>
                       <td className="px-4 py-3 text-sm text-foreground">{row.target_user?.name || row.reported_to || "N/A"}</td>
                       <td className="px-4 py-3 text-sm text-foreground">{row.created_at ? new Date(row.created_at).toLocaleDateString() : (row.date ? new Date(row.date).toLocaleDateString() : "N/A")}</td>
@@ -231,6 +248,16 @@ export default function ActionTable({ rows, onAction, className = "", actionType
                               >
                                 <AlertTriangle className="h-4 w-4" />
                               </button>
+                              {row.report_type === 'back_job_request' && (
+                                <button
+                                  type="button"
+                                  onClick={() => onAction?.("approve_backjob", row)}
+                                  title="Approve Back Job (Free Rework)"
+                                  className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-blue-500/10 text-blue-600 hover:bg-blue-500/30 transition-colors"
+                                >
+                                  <RotateCcw className="h-4 w-4" />
+                                </button>
+                              )}
                               {(() => {
                                 // Check the target user's restriction status for THIS specific row
                                 const targetUserId = row.target_user?.user_id;
