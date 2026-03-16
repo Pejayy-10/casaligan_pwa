@@ -10,11 +10,21 @@ function isBackJobReport(report: any): boolean {
   if (rawType === 'back_job_request') return true
   if (rawType !== 'other') return false
 
-  const title = String(report?.title || '')
-  const reason = String(report?.reason || '')
-  const notes = String(report?.admin_notes || '')
+  const marker = BACK_JOB_REQUEST_MARKER.toLowerCase()
+  const title = String(report?.title || '').toLowerCase()
+  const reason = String(report?.reason || '').toLowerCase()
+  const notes = String(report?.admin_notes || '').toLowerCase()
+  const description = String(report?.description || '').toLowerCase()
 
-  return title.includes(BACK_JOB_REQUEST_MARKER) || reason.includes(BACK_JOB_REQUEST_MARKER) || notes.includes(BACK_JOB_REQUEST_MARKER)
+  return (
+    title.includes(marker) ||
+    reason.includes(marker) ||
+    notes.includes(marker) ||
+    description.includes(marker) ||
+    title.includes('back job') ||
+    reason.includes('back job') ||
+    description.includes('back job')
+  )
 }
 
 function getEffectiveReportType(report: any): string {
