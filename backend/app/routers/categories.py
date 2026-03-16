@@ -1,14 +1,20 @@
-"""Package Categories router - CRUD operations for category management (Admin)"""
+"""Package Categories router - CRUD operations for category management"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy import text
+import re
 from typing import List, Optional
 from pydantic import BaseModel
 from app.db import get_db
 from app.models_v2.user import User
+from app.models_v2.worker_employer import Worker
 from app.models_v2.category import PackageCategory
 from app.security import get_current_user
 
 router = APIRouter(prefix="/categories", tags=["categories"])
+
+CUSTOM_CATEGORY_MARKER = "[HK_CUSTOM:"
+CUSTOM_CATEGORY_REGEX = re.compile(r"\[HK_CUSTOM:(\d+)\]")
 
 
 # ============== SCHEMAS ==============
@@ -37,6 +43,92 @@ class CategoryResponse(BaseModel):
         from_attributes = True
 
 
+def _custom_marker(user_id: int) -> str:
+    return f"{CUSTOM_CATEGORY_MARKER}{user_id}]"
+
+
+def _extract_marker_user_id(description: Optional[str]) -> Optional[int]:
+    if not description:
+        return None
+    match = CUSTOM_CATEGORY_REGEX.search(description)
+    if not match:
+        return None
+    return int(match.group(1))
+
+
+def _is_custom_category(category: PackageCategory) -> bool:
+    return _extract_marker_user_id(category.description) is not None
+
+
+def _is_custom_for_user(category: PackageCategory, user_id: int) -> bool:
+    owner_id = _extract_marker_user_id(category.description)
+    return owner_id == user_id
+
+
+def _clean_description(description: Optional[str]) -> Optional[str]:
+    if not description:
+        return None
+    cleaned = CUSTOM_CATEGORY_REGEX.sub("", description).strip()
+    return cleaned or None
+
+
+def _ensure_custom_category_table(db: Session):
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS housekeeper_custom_categories (
+            category_id INTEGER PRIMARY KEY REFERENCES package_categories(category_id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """))
+    db.commit()
+
+
+def _get_custom_category_ids(db: Session, user_id: Optional[int] = None) -> set[int]:
+    if user_id is None:
+        rows = db.execute(text("SELECT category_id FROM housekeeper_custom_categories")).fetchall()
+    else:
+        rows = db.execute(
+            text("SELECT category_id FROM housekeeper_custom_categories WHERE user_id = :user_id"),
+            {"user_id": user_id}
+        ).fetchall()
+    return {int(row[0]) for row in rows}
+
+
+def _migrate_legacy_custom_markers(db: Session):
+    legacy_categories = db.query(PackageCategory).filter(
+        PackageCategory.description.isnot(None)
+    ).all()
+
+    for category in legacy_categories:
+        owner_id = _extract_marker_user_id(category.description)
+        if owner_id is None:
+            continue
+
+        db.execute(
+            text("""
+                INSERT INTO housekeeper_custom_categories (category_id, user_id)
+                VALUES (:category_id, :user_id)
+                ON CONFLICT (category_id) DO NOTHING
+            """),
+            {"category_id": category.category_id, "user_id": owner_id}
+        )
+
+        category.description = _clean_description(category.description)
+
+    db.commit()
+
+
+def _to_category_response(category: PackageCategory) -> CategoryResponse:
+    return CategoryResponse(
+        category_id=category.category_id,
+        name=category.name,
+        description=_clean_description(category.description),
+        is_active=category.is_active,
+        created_at=category.created_at.isoformat() if category.created_at else "",
+        updated_at=category.updated_at.isoformat() if category.updated_at else None
+    )
+
+
 # ============== HELPER FUNCTIONS ==============
 
 def check_admin_access(user: User, db: Session):
@@ -51,6 +143,17 @@ def check_admin_access(user: User, db: Session):
     return admin
 
 
+def check_worker_access(user: User, db: Session):
+    """Check if user is a registered worker/housekeeper"""
+    worker = db.query(Worker).filter(Worker.user_id == user.id).first()
+    if not worker:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Housekeeper access required"
+        )
+    return worker
+
+
 # ============== PUBLIC ENDPOINTS ==============
 
 @router.get("/", response_model=List[CategoryResponse])
@@ -59,27 +162,107 @@ def get_all_categories(
     db: Session = Depends(get_db)
 ):
     """Get all categories (public endpoint for fetching in package creation)"""
+    _ensure_custom_category_table(db)
+    _migrate_legacy_custom_markers(db)
+    custom_category_ids = _get_custom_category_ids(db)
+
     query = db.query(PackageCategory)
     
     if active_only:
         query = query.filter(PackageCategory.is_active == True)
     
     categories = query.order_by(PackageCategory.name).all()
+    if custom_category_ids:
+        categories = [cat for cat in categories if cat.category_id not in custom_category_ids]
     
-    return [
-        CategoryResponse(
-            category_id=cat.category_id,
-            name=cat.name,
-            description=cat.description,
-            is_active=cat.is_active,
-            created_at=cat.created_at.isoformat() if cat.created_at else "",
-            updated_at=cat.updated_at.isoformat() if cat.updated_at else None
-        )
-        for cat in categories
-    ]
+    return [_to_category_response(cat) for cat in categories]
+
+
+@router.get("/my-categories", response_model=List[CategoryResponse])
+def get_my_categories(
+    active_only: bool = True,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get global categories + current housekeeper custom categories"""
+    check_worker_access(current_user, db)
+    _ensure_custom_category_table(db)
+    _migrate_legacy_custom_markers(db)
+
+    all_custom_ids = _get_custom_category_ids(db)
+    my_custom_ids = _get_custom_category_ids(db, current_user.id)
+
+    query = db.query(PackageCategory)
+    if active_only:
+        query = query.filter(PackageCategory.is_active == True)
+
+    all_categories = query.order_by(PackageCategory.name).all()
+    visible_categories = []
+    for category in all_categories:
+        is_legacy_custom = _is_custom_category(category)
+        is_mine_legacy = _is_custom_for_user(category, current_user.id)
+
+        if category.category_id in my_custom_ids or is_mine_legacy:
+            visible_categories.append(category)
+            continue
+
+        if category.category_id not in all_custom_ids and not is_legacy_custom:
+            visible_categories.append(category)
+
+    return [_to_category_response(cat) for cat in visible_categories]
 
 
 # ============== ADMIN ENDPOINTS ==============
+
+@router.post("/custom", response_model=CategoryResponse)
+def create_custom_category(
+    category_data: CategoryCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new custom category (housekeeper only, testing/prototype support)"""
+    check_worker_access(current_user, db)
+    _ensure_custom_category_table(db)
+    _migrate_legacy_custom_markers(db)
+
+    normalized_name = category_data.name.strip()
+    if not normalized_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Category name is required"
+        )
+
+    existing = db.query(PackageCategory).filter(
+        PackageCategory.name.ilike(normalized_name)
+    ).first()
+
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Category with this name already exists"
+        )
+
+    category = PackageCategory(
+        name=normalized_name,
+        description=category_data.description.strip() if category_data.description else None,
+        is_active=True
+    )
+
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+
+    db.execute(
+        text("""
+            INSERT INTO housekeeper_custom_categories (category_id, user_id)
+            VALUES (:category_id, :user_id)
+            ON CONFLICT (category_id) DO NOTHING
+        """),
+        {"category_id": category.category_id, "user_id": current_user.id}
+    )
+    db.commit()
+
+    return _to_category_response(category)
 
 @router.post("/", response_model=CategoryResponse)
 def create_category(
@@ -111,14 +294,7 @@ def create_category(
     db.commit()
     db.refresh(category)
     
-    return CategoryResponse(
-        category_id=category.category_id,
-        name=category.name,
-        description=category.description,
-        is_active=category.is_active,
-        created_at=category.created_at.isoformat(),
-        updated_at=category.updated_at.isoformat() if category.updated_at else None
-    )
+    return _to_category_response(category)
 
 
 @router.put("/{category_id}", response_model=CategoryResponse)
@@ -163,14 +339,7 @@ def update_category(
     db.commit()
     db.refresh(category)
     
-    return CategoryResponse(
-        category_id=category.category_id,
-        name=category.name,
-        description=category.description,
-        is_active=category.is_active,
-        created_at=category.created_at.isoformat(),
-        updated_at=category.updated_at.isoformat() if category.updated_at else None
-    )
+    return _to_category_response(category)
 
 
 @router.delete("/{category_id}")
