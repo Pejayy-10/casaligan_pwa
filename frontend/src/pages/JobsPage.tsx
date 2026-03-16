@@ -35,6 +35,7 @@ export default function JobsPage() {
   });
   const [jobs, setJobs] = useState<JobPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [jobsFilterLoading, setJobsFilterLoading] = useState(false);
   const [selectedJob, setSelectedJob] = useState<JobPost | null>(null);
   const [applicationStatuses, setApplicationStatuses] = useState<Record<number, { has_applied: boolean; status?: string; can_reapply?: boolean; withdrawn_due_to_conflict?: boolean }>>({});
   const [showApplicants, setShowApplicants] = useState<JobPost | null>(null);
@@ -91,6 +92,10 @@ export default function JobsPage() {
 
   const loadJobs = useCallback(async () => {
     try {
+      setLoading(true);
+      if (user?.active_role === 'owner') {
+        setJobsFilterLoading(true);
+      }
       const token = localStorage.getItem('access_token');
       const endpoint = user?.active_role === 'owner' 
         ? `${API_BASE_URL}/jobs/my-posts${statusFilter !== 'all' ? `?status_filter=${statusFilter}` : ''}`
@@ -132,8 +137,15 @@ export default function JobsPage() {
       console.error('Failed to load jobs:', error);
     } finally {
       setLoading(false);
+      setJobsFilterLoading(false);
     }
   }, [user, statusFilter]);
+
+  const handleOwnerStatusFilterChange = (nextFilter: 'all' | 'open' | 'ongoing' | 'completed' | 'closed') => {
+    if (statusFilter === nextFilter) return;
+    setJobsFilterLoading(true);
+    setStatusFilter(nextFilter);
+  };
 
   const loadReports = useCallback(async () => {
     try {
@@ -313,46 +325,52 @@ export default function JobsPage() {
                 {/* 3. Status Filters (Segmented Control) */}
                 <div className="space-y-2">
                     <p className="text-xs sm:text-sm font-bold text-[#4B244A]/80 dark:text-white/80 px-0.5">
-                        Showing: <span className="text-[#EA526F] dark:text-[#EA526F] font-extrabold" aria-live="polite">
+                      Showing: <span className="text-[#EA526F] dark:text-[#EA526F] font-extrabold" aria-live="polite">
                             {statusFilter === 'all' && 'All Jobs'}
                             {statusFilter === 'open' && 'Open'}
                             {statusFilter === 'ongoing' && 'Ongoing'}
                             {statusFilter === 'completed' && 'Completed'}
                             {statusFilter === 'closed' && 'Closed'}
+                      </span>
+                      {jobsFilterLoading && (
+                        <span className="inline-flex items-center gap-1 ml-2 text-[#4B244A]/70 dark:text-white/70">
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Loading...
                         </span>
+                      )}
                     </p>
                     <div className="overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
                         <div className="flex gap-1.5 min-w-max p-1.5 bg-gray-100/80 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-white/5">
                             <FilterTab 
                                 active={statusFilter === 'all'} 
-                                onClick={() => setStatusFilter('all')} 
+                              onClick={() => handleOwnerStatusFilterChange('all')} 
                                 icon={ClipboardList} 
                                 label="All Jobs" 
                             />
                             <FilterTab 
                                 active={statusFilter === 'open'} 
-                                onClick={() => setStatusFilter('open')} 
+                              onClick={() => handleOwnerStatusFilterChange('open')} 
                                 icon={CheckCircle} 
                                 label="Open" 
                                 activeColor="bg-green-500 text-white"
                             />
                             <FilterTab 
                                 active={statusFilter === 'ongoing'} 
-                                onClick={() => setStatusFilter('ongoing')} 
+                              onClick={() => handleOwnerStatusFilterChange('ongoing')} 
                                 icon={RotateCw} 
                                 label="Ongoing" 
                                 activeColor="bg-blue-500 text-white"
                             />
                             <FilterTab 
                                 active={statusFilter === 'completed'} 
-                                onClick={() => setStatusFilter('completed')} 
+                              onClick={() => handleOwnerStatusFilterChange('completed')} 
                                 icon={Check} 
                                 label="Completed" 
                                 activeColor="bg-purple-500 text-white"
                             />
                             <FilterTab 
                                 active={statusFilter === 'closed'} 
-                                onClick={() => setStatusFilter('closed')} 
+                              onClick={() => handleOwnerStatusFilterChange('closed')} 
                                 icon={X} 
                                 label="Closed" 
                                 activeColor="bg-gray-500 text-white"
@@ -445,7 +463,12 @@ export default function JobsPage() {
 
       {/* Main Content */}
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-6">
-        {loading && housekeeperView === 'find' ? (
+        {user.active_role === 'owner' && loading ? (
+          <div className="text-center py-20">
+            <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#EA526F]"></div>
+            <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading your job posts...</p>
+          </div>
+        ) : loading && housekeeperView === 'find' ? (
           <div className="text-center py-20">
             <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#EA526F]"></div>
             <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading jobs...</p>

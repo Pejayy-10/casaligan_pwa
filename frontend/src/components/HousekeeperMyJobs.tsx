@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight, Flag, FileText } from 'lucide-react';
@@ -76,14 +76,13 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
     url: string;
     jobTitle: string;
   } | null>(null);
-  const initialLoadDone = useRef(false);
   const ITEMS_PER_PAGE = 5;
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.ceil(jobs.length / ITEMS_PER_PAGE);
   const paginatedJobs = jobs.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   useEffect(() => {
-    loadMyJobs(!initialLoadDone.current);
+    loadMyJobs(true);
     setCurrentPage(1);
   }, [statusFilter]);
 
@@ -113,8 +112,13 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
       console.error('Failed to load my jobs:', error);
     } finally {
       setLoading(false);
-      initialLoadDone.current = true;
     }
+  };
+
+  const handleStatusFilterChange = (nextFilter: 'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed') => {
+    if (statusFilter === nextFilter) return;
+    setLoading(true);
+    setStatusFilter(nextFilter);
   };
 
   const respondToEdit = async (job: AcceptedJob, response: 'accept' | 'reject') => {
@@ -204,7 +208,8 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
       <div className="mb-6 overflow-x-auto pb-2">
         <div className="flex gap-2 min-w-max p-1 bg-white/50 dark:bg-slate-900/50 rounded-xl border border-gray-200 dark:border-white/10">
           <button
-            onClick={() => setStatusFilter('all')}
+            onClick={() => handleStatusFilterChange('all')}
+            disabled={loading}
             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
               statusFilter === 'all'
                 ? 'bg-white dark:bg-[#4B244A] text-[#4B244A] dark:text-white shadow-md'
@@ -214,7 +219,8 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
             <ClipboardList className="inline w-4 h-4 mr-1" /> All Jobs
           </button>
           <button
-            onClick={() => setStatusFilter('pending_application')}
+            onClick={() => handleStatusFilterChange('pending_application')}
+            disabled={loading}
             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
               statusFilter === 'pending_application'
                 ? 'bg-orange-500 text-white shadow-md'
@@ -224,7 +230,8 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
             <Clock className="inline w-4 h-4 mr-1" /> Applied
           </button>
           <button
-            onClick={() => setStatusFilter('ongoing')}
+            onClick={() => handleStatusFilterChange('ongoing')}
+            disabled={loading}
             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
               statusFilter === 'ongoing'
                 ? 'bg-blue-500 text-white shadow-md'
@@ -234,7 +241,8 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
             <RotateCw className="inline w-4 h-4 mr-1" /> Ongoing
           </button>
           <button
-            onClick={() => setStatusFilter('pending_completion')}
+            onClick={() => handleStatusFilterChange('pending_completion')}
+            disabled={loading}
             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
               statusFilter === 'pending_completion'
                 ? 'bg-yellow-500 text-white shadow-md'
@@ -244,7 +252,8 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
             <Clock className="inline w-4 h-4 mr-1" /> Pending
           </button>
           <button
-            onClick={() => setStatusFilter('completed')}
+            onClick={() => handleStatusFilterChange('completed')}
+            disabled={loading}
             className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
               statusFilter === 'completed'
                 ? 'bg-green-500 text-white shadow-md'

@@ -262,7 +262,7 @@ def get_my_job_posts(
     """Get current user's job posts (owners only)
     
     Args:
-        status_filter: Filter by status (open, closed, all). Default is all.
+        status_filter: Filter by status (open, ongoing, completed, cancelled/closed, all). Default is all.
     """
     
     if not current_user.is_owner:
@@ -288,7 +288,9 @@ def get_my_job_posts(
     # Apply status filter if specified
     if status_filter and status_filter.lower() != 'all':
         try:
-            filter_status = ForumPostStatus(status_filter.lower())
+            # Frontend uses "closed"; model uses "cancelled".
+            normalized_filter = 'cancelled' if status_filter.lower() == 'closed' else status_filter.lower()
+            filter_status = ForumPostStatus(normalized_filter)
             # When filtering by "ongoing", also include "pending_completion" jobs
             if filter_status == ForumPostStatus.ONGOING:
                 query = query.filter(
