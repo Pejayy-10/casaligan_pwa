@@ -23,7 +23,10 @@ function isBackJobReport(report: any): boolean {
     description.includes(marker) ||
     title.includes('back job') ||
     reason.includes('back job') ||
-    description.includes('back job')
+    description.includes('back job') ||
+    title.includes('rework') ||
+    reason.includes('rework') ||
+    description.includes('rework')
   )
 }
 
@@ -340,7 +343,7 @@ export async function approveBackJobReport(reportId: number, adminNotes?: string
 
   const { data: report, error: reportError } = await supabase
     .from('reports')
-    .select('report_id, post_id, reporter_id, reported_user_id, report_type, status, title, reason, admin_notes')
+    .select('report_id, post_id, reporter_id, reported_user_id, report_type, status, title, reason, description, admin_notes')
     .eq('report_id', reportId)
     .single()
 
@@ -348,7 +351,16 @@ export async function approveBackJobReport(reportId: number, adminNotes?: string
     return { data: null, error: reportError || new Error('Report not found') }
   }
 
-  if (!isBackJobReport(report)) {
+  const normalizedType = String(report.report_type || '').toLowerCase().trim()
+  const normalizedStatus = String(report.status || '').toLowerCase().trim()
+  const isLikelyBackJobOverride = (
+    !!report.post_id &&
+    normalizedType === 'other' &&
+    (normalizedStatus === 'pending' || normalizedStatus === 'under_review') &&
+    isBackJobReport(report)
+  )
+
+  if (!isBackJobReport(report) && !isLikelyBackJobOverride) {
     return { data: null, error: new Error('Report is not a back job request') }
   }
 
@@ -393,7 +405,7 @@ export async function approveBackJobReport(reportId: number, adminNotes?: string
     }
   }
 
-  const notes = adminNotes || 'Back job approved. Housekeeper must perform free rework. No additional payment required.'
+  const notes = adminNotes || `Back job approved. Housekeeper must perform free rework. No additional payment required.${isLikelyBackJobOverride ? ' (Approved via compatibility fallback)' : ''}`
   const { data, error } = await supabase
     .from('reports')
     .update({
