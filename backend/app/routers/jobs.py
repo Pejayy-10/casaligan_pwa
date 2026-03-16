@@ -13,7 +13,7 @@ from app.db import get_db
 from app.models_v2.user import User
 from app.models_v2.worker_employer import Employer, Worker
 from app.models_v2.forum import ForumPost, ForumPostStatus, InterestCheck, InterestStatus, JobType, EditResponseStatus
-from app.models_v2.contract import Contract
+from app.models_v2.contract import Contract, ContractStatus
 from app.models_v2.contract_extension import ContractExtension, ExtensionStatus
 from app.models_v2.conversation import Conversation
 from app.models_v2.payment import PaymentSchedule, PaymentStatus, PaymentTransaction
@@ -53,6 +53,62 @@ def _count_active_applicants(db: Session, post_id: int) -> int:
             InterestCheck.edit_response != EditResponseStatus.REJECTED,
         ),
     ).count()
+
+
+def _get_people_needed_from_post(post: ForumPost) -> int:
+    """Read people_needed from JSON content with a safe fallback."""
+    if not post.content or not post.content.startswith('{'):
+        return 1
+    try:
+        details = json.loads(post.content)
+    except Exception:
+        return 1
+    try:
+        return max(1, int(details.get("people_needed", 1)))
+    except (TypeError, ValueError):
+        return 1
+
+
+def _sync_job_activation_state(db: Session, post: ForumPost) -> bool:
+    """
+    Heal stale job/contract states for multi-worker jobs.
+
+    If enough applicants are accepted to satisfy people_needed, the post should be
+    ongoing and those accepted workers' contracts should be active.
+    """
+    has_updates = False
+    people_needed = _get_people_needed_from_post(post)
+
+    accepted_interests = db.query(InterestCheck).filter(
+        InterestCheck.post_id == post.post_id,
+        InterestCheck.status == InterestStatus.ACCEPTED,
+    ).all()
+
+    if len(accepted_interests) < people_needed:
+        return False
+
+    if post.status == ForumPostStatus.OPEN:
+        post.status = ForumPostStatus.ONGOING
+        has_updates = True
+
+    accepted_worker_ids = [i.worker_id for i in accepted_interests]
+    if not accepted_worker_ids:
+        return has_updates
+
+    contracts = db.query(Contract).filter(
+        Contract.post_id == post.post_id,
+        Contract.worker_id.in_(accepted_worker_ids),
+    ).all()
+
+    for contract in contracts:
+        if contract.status == ContractStatus.PENDING:
+            contract.status = ContractStatus.ACTIVE
+            has_updates = True
+        if contract.employer_accepted != 1:
+            contract.employer_accepted = 1
+            has_updates = True
+
+    return has_updates
 
 def get_or_create_employer(user_id: int, db: Session) -> int:
     """Get or create employer record for user"""
@@ -246,11 +302,12 @@ def get_my_job_posts(
     
     posts = query.order_by(desc(ForumPost.created_at)).all()
     
-    from app.models_v2.contract import ContractStatus
-
     result = []
     has_status_updates = False
     for post in posts:
+        if _sync_job_activation_state(db, post):
+            has_status_updates = True
+
         # Auto-heal legacy short-term jobs stuck in pending_completion after all worker payments are confirmed
         if not post.is_longterm and post.status == ForumPostStatus.PENDING_COMPLETION:
             payable_contracts = db.query(Contract).filter(
@@ -361,6 +418,22 @@ def get_my_accepted_jobs(
     
     if not accepted_interests:
         return []
+
+    # Keep one canonical application per post for this worker.
+    # Prefer ACCEPTED over PENDING to avoid stale pending rows masking active work.
+    canonical_interest_by_post = {}
+    for interest in accepted_interests:
+        existing = canonical_interest_by_post.get(interest.post_id)
+        if existing is None:
+            canonical_interest_by_post[interest.post_id] = interest
+            continue
+
+        existing_status = existing.status.value if hasattr(existing.status, 'value') else str(existing.status)
+        new_status = interest.status.value if hasattr(interest.status, 'value') else str(interest.status)
+        if existing_status == 'pending' and new_status == 'accepted':
+            canonical_interest_by_post[interest.post_id] = interest
+
+    accepted_interests = list(canonical_interest_by_post.values())
     
     post_ids = [i.post_id for i in accepted_interests]
     
@@ -423,10 +496,14 @@ def get_my_accepted_jobs(
     
     # Build results
     result = []
+    has_status_updates = False
     for interest in accepted_interests:
         post = post_map.get(interest.post_id)
         if not post:
             continue
+
+        if _sync_job_activation_state(db, post):
+            has_status_updates = True
         
         contract = contract_map.get(post.post_id)
         
@@ -545,6 +622,9 @@ def get_my_accepted_jobs(
                 "schedules": payment_schedules
             }
         })
+
+    if has_status_updates:
+        db.commit()
     
     return result
 
@@ -1447,344 +1527,389 @@ def start_job(
             detail="You can only manage your own job posts"
         )
     
-    # Get job details to check people_needed
-    job_details = {}
-    if post.content and post.content.startswith('{'):
-        try:
-            job_details = json.loads(post.content)
-        except:
-            pass
-    
-    people_needed = job_details.get('people_needed', 1)
-    
-    # Count already accepted workers
-    already_accepted = db.query(InterestCheck).filter(
-        InterestCheck.post_id == post_id,
-        InterestCheck.status == InterestStatus.ACCEPTED
-    ).count()
-    
-    # Validate selected count
-    total_workers = already_accepted + len(request.selected_applicants)
-    if total_workers != people_needed:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Must select exactly {people_needed} workers. Currently have {already_accepted} accepted + {len(request.selected_applicants)} selected = {total_workers}"
-        )
-    
-    # Accept all selected applicants
-    accepted_workers = []
-    for interest_id in request.selected_applicants:
-        application = db.query(InterestCheck).filter(
-            InterestCheck.interest_id == interest_id,
-            InterestCheck.post_id == post_id
-        ).first()
-        
-        if not application:
-            continue
-            
-        if application.status != InterestStatus.PENDING:
-            continue
-        
+    try:
+        job_details = {}
+        if post.content and post.content.startswith('{'):
+            try:
+                job_details = json.loads(post.content)
+            except Exception:
+                job_details = {}
+
+        people_needed = _get_people_needed_from_post(post)
+
+        # Normalize and validate selected ids before mutating state.
+        selected_interest_ids = request.selected_applicants or []
+        if len(set(selected_interest_ids)) != len(selected_interest_ids):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Duplicate applicants selected. Please select each applicant only once.",
+            )
+
+        already_accepted = db.query(InterestCheck).filter(
+            InterestCheck.post_id == post_id,
+            InterestCheck.status == InterestStatus.ACCEPTED,
+        ).count()
+
+        total_workers = already_accepted + len(selected_interest_ids)
+        if total_workers != people_needed:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Must select exactly {people_needed} workers. Currently have {already_accepted} accepted + {len(selected_interest_ids)} selected = {total_workers}",
+            )
+
+        selected_applications = db.query(InterestCheck).filter(
+            InterestCheck.post_id == post_id,
+            InterestCheck.interest_id.in_(selected_interest_ids),
+        ).all() if selected_interest_ids else []
+
+        selected_map = {app.interest_id: app for app in selected_applications}
+        missing_ids = [interest_id for interest_id in selected_interest_ids if interest_id not in selected_map]
+        if missing_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Some selected applicants are invalid for this job: {missing_ids}",
+            )
+
+        workers_by_id = {
+            w.worker_id: w
+            for w in db.query(Worker).filter(
+                Worker.worker_id.in_([app.worker_id for app in selected_applications])
+            ).all()
+        }
+        worker_user_ids = [w.user_id for w in workers_by_id.values() if w and w.user_id]
+        worker_users_by_user_id = {
+            u.id: u
+            for u in db.query(User).filter(User.id.in_(worker_user_ids)).all()
+        } if worker_user_ids else {}
+
+        # Validate all selected applicants up-front to avoid partial acceptance.
+        for interest_id in selected_interest_ids:
+            application = selected_map[interest_id]
+            worker = workers_by_id.get(application.worker_id)
+            worker_user = worker_users_by_user_id.get(worker.user_id) if worker else None
+            worker_name = f"{worker_user.first_name} {worker_user.last_name}" if worker_user else f"Worker #{application.worker_id}"
+
+            if application.status != InterestStatus.PENDING:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Cannot accept {worker_name}. Application is already {application.status.value}.",
+                )
+
+            if application.edit_response == EditResponseStatus.PENDING:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Cannot accept {worker_name}. They have a pending response to the job edit. Please wait for them to respond before accepting.",
+                )
+
         # Import conflict service
         from app.services.schedule_conflict_service import detect_schedule_conflicts
         from app.services.notification_service import notify_application_withdrawn_due_to_conflict, notify_applicant_withdrawn_due_to_conflict
-        
-        # Check if applicant has a pending edit response - if so, cannot accept yet
-        if application.edit_response == EditResponseStatus.PENDING:
-            # Get worker info for error message
-            worker = db.query(Worker).filter(Worker.worker_id == application.worker_id).first()
-            worker_user = db.query(User).filter(User.id == worker.user_id).first() if worker else None
-            worker_name = f"{worker_user.first_name} {worker_user.last_name}" if worker_user else "Worker"
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Cannot accept {worker_name}. They have a pending response to the job edit. Please wait for them to respond before accepting."
-            )
-        
-        # Accept this applicant
-        application.status = InterestStatus.ACCEPTED
-        
-        # Get worker info
-        worker = db.query(Worker).filter(Worker.worker_id == application.worker_id).first()
-        worker_user = db.query(User).filter(User.id == worker.user_id).first() if worker else None
-        worker_name = f"{worker_user.first_name} {worker_user.last_name}" if worker_user else "Worker"
-        accepted_workers.append(worker_name)
-        
-        # ========== SCHEDULE CONFLICT DETECTION ==========
-        # When accepting a worker, withdraw their pending applications from conflicting jobs
-        if worker and worker_user:
-            try:
-                # Determine if this job is recurring
-                is_recurring = post.is_recurring and post.recurring_status == 'active'
-                recurring_day = post.day_of_week if is_recurring else None
-                
-                # Parse dates
-                job_start_date = None
-                job_end_date = None
-                if post.start_date:
-                    try:
-                        from datetime import datetime
-                        job_start_date = datetime.fromisoformat(post.start_date).date()
-                        if post.end_date:
-                            job_end_date = datetime.fromisoformat(post.end_date).date()
-                        else:
-                            job_end_date = job_start_date
-                    except:
-                        pass
-                
-                # Detect conflicts with other jobs
-                conflicts = detect_schedule_conflicts(
-                    db=db,
-                    worker_id=application.worker_id,
-                    new_job_start_date=job_start_date,
-                    new_job_end_date=job_end_date,
-                    new_job_employer_id=post.employer_id,
-                    new_job_is_recurring=is_recurring,
-                    new_job_recurring_day=recurring_day,
-                    new_job_type='job_post'
-                )
-                
-                if conflicts:
-                    # Withdraw pending applications from conflicting jobs with different employers
-                    withdrawn_count = 0
-                    withdrawn_titles = []
-                    
-                    for conflict in conflicts:
-                        # Only handle pending applications from other job posts
-                        if conflict['type'] == 'job_post':
-                            interest = db.query(InterestCheck).filter(
-                                InterestCheck.post_id == conflict['job_id'],
-                                InterestCheck.worker_id == application.worker_id,
-                                InterestCheck.status == InterestStatus.PENDING
-                            ).first()
-                            
-                            if interest:
-                                interest.status = InterestStatus.REJECTED
-                                interest.withdrawn_due_to_conflict = True
-                                withdrawn_count += 1
-                                withdrawn_titles.append(conflict['title'])
-                                
-                                # Notify the other employer
-                                conflicting_post = db.query(ForumPost).filter(ForumPost.post_id == conflict['job_id']).first()
-                                conflicting_employer = db.query(Employer).filter(Employer.employer_id == conflicting_post.employer_id).first()
-                                
-                                if conflicting_employer:
-                                    notify_applicant_withdrawn_due_to_conflict(
-                                        db=db,
-                                        employer_user_id=conflicting_employer.user_id,
-                                        worker_name=worker_name,
-                                        job_title=conflicting_post.title,
-                                        accepted_job_title=post.title,
-                                        job_id=conflicting_post.post_id
-                                    )
-                    
-                    # Notify the worker about withdrawn applications
-                    if withdrawn_count > 0:
-                        withdrawn_titles_str = ", ".join(withdrawn_titles)
-                        notify_application_withdrawn_due_to_conflict(
-                            db=db,
-                            worker_user_id=worker_user.id,
-                            withdrawn_job_titles=withdrawn_titles_str,
-                            accepted_job_title=post.title
-                        )
-                    
-                    db.commit()
-            except Exception as e:
-                print(f"Warning: Conflict detection error: {e}")
-        
-        # Notify worker that they've been accepted
-        if worker_user:
-            try:
-                notify_application_accepted(
-                    db=db,
-                    worker_user_id=worker_user.id,
-                    job_title=post.title,
-                    post_id=post_id
-                )
-            except Exception as e:
-                print(f"Warning: Could not send acceptance notification: {e}")
-            
-            # Auto-create conversation for job owner and accepted worker
-            try:
-                existing_conv = db.query(Conversation).filter(
-                    Conversation.job_id == post_id,
-                    Conversation.participant_ids.contains([current_user.id, worker_user.id])
-                ).first()
-                
-                if not existing_conv:
-                    # Create conversation with owner and this worker as participants
-                    conversation = Conversation(
-                        job_id=post_id,
-                        participant_ids=[current_user.id, worker_user.id],
-                        status='active'
-                    )
-                    db.add(conversation)
-            except Exception as e:
-                print(f"Warning: Could not create conversation: {e}")
-        
-        # Update contract status to ACTIVE
-        from app.models_v2.contract import ContractStatus
-        contract = db.query(Contract).filter(
-            Contract.post_id == post_id,
-            Contract.worker_id == application.worker_id
-        ).first()
-        
-        if contract:
-            contract.status = ContractStatus.ACTIVE
-            contract.employer_accepted = 1  # Owner has accepted
-        
-        # Create payment schedules for this worker ONLY for long-term jobs
-        # Double-check both is_longterm flag AND duration_type from job details
-        duration_type = job_details.get('duration_type', 'short_term')
-        is_actually_longterm = post.is_longterm and duration_type == 'long_term'
-        
-        if is_actually_longterm:
-            try:
-                payment_schedule_data = job_details.get('payment_schedule')
-                
-                # Find the contract for this worker (already queried above)
-                if contract and payment_schedule_data:
-                    from app.models_v2.payment import PaymentSchedule, PaymentStatus
-                    from datetime import datetime, timedelta
-                    
-                    start_date = datetime.strptime(job_details.get('start_date'), '%Y-%m-%d') if job_details.get('start_date') else datetime.now()
-                    end_date = datetime.strptime(job_details.get('end_date'), '%Y-%m-%d') if job_details.get('end_date') else (datetime.now() + timedelta(days=365))
-                    
-                    payment_amount = float(payment_schedule_data.get('payment_amount', job_details.get('budget', 0)))
-                    frequency = payment_schedule_data.get('frequency', 'monthly')
-                    payment_dates = payment_schedule_data.get('payment_dates', ['15', '30'])
-                    
-                    payments_created = 0
-                    created_dates = set()  # Track created dates to prevent duplicates
-                    
-                    # Check if this is a recurring service
+
+        accepted_workers = []
+        accepted_worker_user_ids = set()
+        for interest_id in selected_interest_ids:
+            application = selected_map[interest_id]
+            worker = workers_by_id.get(application.worker_id)
+            worker_user = worker_users_by_user_id.get(worker.user_id) if worker else None
+            worker_name = f"{worker_user.first_name} {worker_user.last_name}" if worker_user else f"Worker #{application.worker_id}"
+
+            application.status = InterestStatus.ACCEPTED
+            accepted_workers.append(worker_name)
+
+            # ========== SCHEDULE CONFLICT DETECTION ==========
+            if worker and worker_user:
+                try:
                     is_recurring = post.is_recurring and post.recurring_status == 'active'
-                    
-                    if is_recurring:
-                        # For recurring services, only create the FIRST payment schedule
-                        # Subsequent payments will be created when the previous one is confirmed
-                        # Use the recurring frequency if available, otherwise use payment schedule frequency
-                        recurring_frequency = post.frequency or frequency
-                        
-                        # Calculate first payment due date based on recurring frequency
-                        first_due_date = start_date
-                        
-                        # Create only the first payment schedule
-                        date_str = first_due_date.strftime('%Y-%m-%d')
-                        schedule = PaymentSchedule(
-                            contract_id=contract.contract_id,
-                            worker_id=application.worker_id,
-                            worker_name=worker_name,
-                            due_date=date_str,
-                            amount=payment_amount,
-                            status=PaymentStatus.PENDING
-                        )
-                        db.add(schedule)
-                        payments_created += 1
-                        print(f"DEBUG: Created FIRST payment schedule for recurring service - {worker_name} (due: {date_str})")
-                    
-                    elif frequency == 'monthly':
-                        # Generate all payment dates between start and end (for non-recurring long-term jobs)
-                        current_month = start_date.replace(day=1)
-                        while current_month <= end_date:
-                            for day_str in payment_dates:
-                                try:
-                                    day = int(day_str)
-                                    # Handle months with fewer days
-                                    try:
-                                        payment_date = current_month.replace(day=min(day, 28))
-                                    except ValueError:
-                                        payment_date = current_month.replace(day=28)
-                                    
-                                    date_str = payment_date.strftime('%Y-%m-%d')
-                                    
-                                    # Only create if within range AND not already created
-                                    if start_date <= payment_date <= end_date and date_str not in created_dates:
-                                        schedule = PaymentSchedule(
-                                            contract_id=contract.contract_id,
-                                            worker_id=application.worker_id,
-                                            worker_name=worker_name,
-                                            due_date=date_str,
-                                            amount=payment_amount,
-                                            status=PaymentStatus.PENDING
-                                        )
-                                        db.add(schedule)
-                                        created_dates.add(date_str)
-                                        payments_created += 1
-                                except ValueError:
-                                    pass
-                            
-                            # Move to next month
-                            if current_month.month == 12:
-                                current_month = current_month.replace(year=current_month.year + 1, month=1, day=1)
+                    recurring_day = post.day_of_week if is_recurring else None
+
+                    job_start_date = None
+                    job_end_date = None
+                    if post.start_date:
+                        try:
+                            from datetime import datetime
+                            job_start_date = datetime.fromisoformat(post.start_date).date()
+                            if post.end_date:
+                                job_end_date = datetime.fromisoformat(post.end_date).date()
                             else:
-                                current_month = current_month.replace(month=current_month.month + 1, day=1)
-                    
-                    elif frequency == 'weekly':
-                        current_date = start_date
-                        while current_date <= end_date:
-                            date_str = current_date.strftime('%Y-%m-%d')
-                            if date_str not in created_dates:
-                                schedule = PaymentSchedule(
-                                    contract_id=contract.contract_id,
-                                    worker_id=application.worker_id,
-                                    worker_name=worker_name,
-                                    due_date=date_str,
-                                    amount=payment_amount,
-                                    status=PaymentStatus.PENDING
-                                )
-                                db.add(schedule)
-                                created_dates.add(date_str)
-                                payments_created += 1
-                            current_date += timedelta(days=7)
-                    
-                    elif frequency == 'biweekly':
-                        current_date = start_date
-                        while current_date <= end_date:
-                            date_str = current_date.strftime('%Y-%m-%d')
-                            if date_str not in created_dates:
-                                schedule = PaymentSchedule(
-                                    contract_id=contract.contract_id,
-                                    worker_id=application.worker_id,
-                                    worker_name=worker_name,
-                                    due_date=date_str,
-                                    amount=payment_amount,
-                                    status=PaymentStatus.PENDING
-                                )
-                                db.add(schedule)
-                                created_dates.add(date_str)
-                                payments_created += 1
-                            current_date += timedelta(days=14)
-                    
-                    else:
-                        # One-time or custom - single payment at end
-                        date_str = end_date.strftime('%Y-%m-%d')
-                        schedule = PaymentSchedule(
-                            contract_id=contract.contract_id,
-                            worker_id=application.worker_id,
-                            worker_name=worker_name,
-                            due_date=date_str,
-                            amount=payment_amount,
-                            status=PaymentStatus.PENDING
-                        )
-                        db.add(schedule)
-                        payments_created += 1
-                    
-                    print(f"DEBUG: Created {payments_created} payment schedules for {worker_name}")
-            except Exception as e:
-                print(f"ERROR creating payment schedule for {worker_name}: {e}")
-                import traceback
-                traceback.print_exc()
-    
-    # Transition job to ONGOING
-    post.status = ForumPostStatus.ONGOING
-    db.commit()
-    
-    return {
-        "message": f"Job started with {len(accepted_workers)} worker(s)!",
-        "post_id": post_id,
-        "status": "ongoing",
-        "accepted_workers": accepted_workers
-    }
+                                job_end_date = job_start_date
+                        except Exception:
+                            pass
+
+                    conflicts = detect_schedule_conflicts(
+                        db=db,
+                        worker_id=application.worker_id,
+                        new_job_start_date=job_start_date,
+                        new_job_end_date=job_end_date,
+                        new_job_employer_id=post.employer_id,
+                        new_job_is_recurring=is_recurring,
+                        new_job_recurring_day=recurring_day,
+                        new_job_type='job_post'
+                    )
+
+                    if conflicts:
+                        withdrawn_count = 0
+                        withdrawn_titles = []
+
+                        for conflict in conflicts:
+                            if conflict['type'] == 'job_post':
+                                interest = db.query(InterestCheck).filter(
+                                    InterestCheck.post_id == conflict['job_id'],
+                                    InterestCheck.worker_id == application.worker_id,
+                                    InterestCheck.status == InterestStatus.PENDING
+                                ).first()
+
+                                if interest:
+                                    interest.status = InterestStatus.REJECTED
+                                    interest.withdrawn_due_to_conflict = True
+                                    withdrawn_count += 1
+                                    withdrawn_titles.append(conflict['title'])
+
+                                    conflicting_post = db.query(ForumPost).filter(ForumPost.post_id == conflict['job_id']).first()
+                                    conflicting_employer = db.query(Employer).filter(Employer.employer_id == conflicting_post.employer_id).first() if conflicting_post else None
+
+                                    if conflicting_employer:
+                                        notify_applicant_withdrawn_due_to_conflict(
+                                            db=db,
+                                            employer_user_id=conflicting_employer.user_id,
+                                            worker_name=worker_name,
+                                            job_title=conflicting_post.title,
+                                            accepted_job_title=post.title,
+                                            job_id=conflicting_post.post_id
+                                        )
+
+                        if withdrawn_count > 0:
+                            withdrawn_titles_str = ", ".join(withdrawn_titles)
+                            notify_application_withdrawn_due_to_conflict(
+                                db=db,
+                                worker_user_id=worker_user.id,
+                                withdrawn_job_titles=withdrawn_titles_str,
+                                accepted_job_title=post.title
+                            )
+                except Exception as e:
+                    print(f"Warning: Conflict detection error: {e}")
+
+            # Notify worker that they've been accepted
+            if worker_user:
+                accepted_worker_user_ids.add(worker_user.id)
+                try:
+                    notify_application_accepted(
+                        db=db,
+                        worker_user_id=worker_user.id,
+                        job_title=post.title,
+                        post_id=post_id
+                    )
+                except Exception as e:
+                    print(f"Warning: Could not send acceptance notification: {e}")
+
+            contract = db.query(Contract).filter(
+                Contract.post_id == post_id,
+                Contract.worker_id == application.worker_id
+            ).first()
+
+            if contract:
+                contract.status = ContractStatus.ACTIVE
+                contract.employer_accepted = 1
+
+            duration_type = job_details.get('duration_type', 'short_term')
+            is_actually_longterm = post.is_longterm and duration_type == 'long_term'
+
+            if is_actually_longterm:
+                try:
+                    payment_schedule_data = job_details.get('payment_schedule')
+
+                    if contract and payment_schedule_data:
+                        from app.models_v2.payment import PaymentSchedule, PaymentStatus
+                        from datetime import datetime, timedelta
+
+                        start_date = datetime.strptime(job_details.get('start_date'), '%Y-%m-%d') if job_details.get('start_date') else datetime.now()
+                        end_date = datetime.strptime(job_details.get('end_date'), '%Y-%m-%d') if job_details.get('end_date') else (datetime.now() + timedelta(days=365))
+
+                        payment_amount = float(payment_schedule_data.get('payment_amount', job_details.get('budget', 0)))
+                        frequency = payment_schedule_data.get('frequency', 'monthly')
+                        payment_dates = payment_schedule_data.get('payment_dates', ['15', '30'])
+
+                        payments_created = 0
+                        created_dates = set()
+                        is_recurring = post.is_recurring and post.recurring_status == 'active'
+
+                        if is_recurring:
+                            first_due_date = start_date
+                            date_str = first_due_date.strftime('%Y-%m-%d')
+                            schedule = PaymentSchedule(
+                                contract_id=contract.contract_id,
+                                worker_id=application.worker_id,
+                                worker_name=worker_name,
+                                due_date=date_str,
+                                amount=payment_amount,
+                                status=PaymentStatus.PENDING
+                            )
+                            db.add(schedule)
+                            payments_created += 1
+                            print(f"DEBUG: Created FIRST payment schedule for recurring service - {worker_name} (due: {date_str})")
+
+                        elif frequency == 'monthly':
+                            current_month = start_date.replace(day=1)
+                            while current_month <= end_date:
+                                for day_str in payment_dates:
+                                    try:
+                                        day = int(day_str)
+                                        try:
+                                            payment_date = current_month.replace(day=min(day, 28))
+                                        except ValueError:
+                                            payment_date = current_month.replace(day=28)
+
+                                        date_str = payment_date.strftime('%Y-%m-%d')
+
+                                        if start_date <= payment_date <= end_date and date_str not in created_dates:
+                                            schedule = PaymentSchedule(
+                                                contract_id=contract.contract_id,
+                                                worker_id=application.worker_id,
+                                                worker_name=worker_name,
+                                                due_date=date_str,
+                                                amount=payment_amount,
+                                                status=PaymentStatus.PENDING
+                                            )
+                                            db.add(schedule)
+                                            created_dates.add(date_str)
+                                            payments_created += 1
+                                    except ValueError:
+                                        pass
+
+                                if current_month.month == 12:
+                                    current_month = current_month.replace(year=current_month.year + 1, month=1, day=1)
+                                else:
+                                    current_month = current_month.replace(month=current_month.month + 1, day=1)
+
+                        elif frequency == 'weekly':
+                            current_date = start_date
+                            while current_date <= end_date:
+                                date_str = current_date.strftime('%Y-%m-%d')
+                                if date_str not in created_dates:
+                                    schedule = PaymentSchedule(
+                                        contract_id=contract.contract_id,
+                                        worker_id=application.worker_id,
+                                        worker_name=worker_name,
+                                        due_date=date_str,
+                                        amount=payment_amount,
+                                        status=PaymentStatus.PENDING
+                                    )
+                                    db.add(schedule)
+                                    created_dates.add(date_str)
+                                    payments_created += 1
+                                current_date += timedelta(days=7)
+
+                        elif frequency == 'biweekly':
+                            current_date = start_date
+                            while current_date <= end_date:
+                                date_str = current_date.strftime('%Y-%m-%d')
+                                if date_str not in created_dates:
+                                    schedule = PaymentSchedule(
+                                        contract_id=contract.contract_id,
+                                        worker_id=application.worker_id,
+                                        worker_name=worker_name,
+                                        due_date=date_str,
+                                        amount=payment_amount,
+                                        status=PaymentStatus.PENDING
+                                    )
+                                    db.add(schedule)
+                                    created_dates.add(date_str)
+                                    payments_created += 1
+                                current_date += timedelta(days=14)
+
+                        else:
+                            date_str = end_date.strftime('%Y-%m-%d')
+                            schedule = PaymentSchedule(
+                                contract_id=contract.contract_id,
+                                worker_id=application.worker_id,
+                                worker_name=worker_name,
+                                due_date=date_str,
+                                amount=payment_amount,
+                                status=PaymentStatus.PENDING
+                            )
+                            db.add(schedule)
+                            payments_created += 1
+
+                        print(f"DEBUG: Created {payments_created} payment schedules for {worker_name}")
+                except Exception as e:
+                    print(f"ERROR creating payment schedule for {worker_name}: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+        # Keep exactly one conversation per job and include all accepted participants.
+        try:
+            existing_conv = db.query(Conversation).filter(
+                Conversation.job_id == post_id
+            ).first()
+
+            participant_ids = {current_user.id}
+            participant_ids.update(accepted_worker_user_ids)
+
+            # Include already-accepted workers so conversation remains complete for multi-worker jobs.
+            all_accepted_worker_ids = [row.worker_id for row in db.query(InterestCheck).filter(
+                InterestCheck.post_id == post_id,
+                InterestCheck.status == InterestStatus.ACCEPTED,
+            ).all()]
+            if all_accepted_worker_ids:
+                accepted_workers_rows = db.query(Worker).filter(
+                    Worker.worker_id.in_(all_accepted_worker_ids)
+                ).all()
+                participant_ids.update(
+                    row.user_id for row in accepted_workers_rows if row and row.user_id
+                )
+
+            if existing_conv:
+                if existing_conv.participant_ids:
+                    participant_ids.update(existing_conv.participant_ids)
+                existing_conv.participant_ids = sorted(participant_ids)
+                existing_conv.status = 'active'
+            else:
+                conversation = Conversation(
+                    job_id=post_id,
+                    participant_ids=sorted(participant_ids),
+                    status='active'
+                )
+                db.add(conversation)
+        except Exception as e:
+            print(f"Warning: Could not create/update job conversation: {e}")
+
+        if _sync_job_activation_state(db, post):
+            pass
+        else:
+            post.status = ForumPostStatus.ONGOING
+
+        # Ensure already-accepted workers are not left with pending contracts.
+        accepted_worker_ids = [row.worker_id for row in db.query(InterestCheck).filter(
+            InterestCheck.post_id == post_id,
+            InterestCheck.status == InterestStatus.ACCEPTED,
+        ).all()]
+        if accepted_worker_ids:
+            accepted_contracts = db.query(Contract).filter(
+                Contract.post_id == post_id,
+                Contract.worker_id.in_(accepted_worker_ids),
+            ).all()
+            for contract in accepted_contracts:
+                if contract.status == ContractStatus.PENDING:
+                    contract.status = ContractStatus.ACTIVE
+                if contract.employer_accepted != 1:
+                    contract.employer_accepted = 1
+
+        db.commit()
+
+        return {
+            "message": f"Job started with {len(accepted_worker_ids)} worker(s)!",
+            "post_id": post_id,
+            "status": "ongoing",
+            "accepted_workers": accepted_workers
+        }
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to start job: {str(e)}"
+        )
 
 
 @router.put("/{post_id}/status")
