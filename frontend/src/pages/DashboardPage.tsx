@@ -5,6 +5,7 @@ import TabBar from '../components/TabBar';
 import StarRating from '../components/StarRating';
 import AIChatModal from '../components/AIChatModal';
 import apiClient from '../services/api';
+import { API_BASE_URL } from '../config';
 import { Briefcase, ClipboardList, MessageCircle, CheckCircle, DollarSign, AlertCircle, Clock, MapPin, Star, ChevronRight, User as UserIcon, Loader2 } from 'lucide-react';
 import type { User } from '../types';
 
@@ -137,7 +138,7 @@ export default function DashboardPage() {
           try {
             const token = localStorage.getItem('access_token');
             const response = await fetch(
-              `http://127.0.0.1:8000/auth/update-address-gps?latitude=${coords.latitude}&longitude=${coords.longitude}`,
+              `${API_BASE_URL}/auth/update-address-gps?latitude=${coords.latitude}&longitude=${coords.longitude}`,
               {
                 method: 'POST',
                 headers: {

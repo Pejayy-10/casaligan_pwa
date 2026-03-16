@@ -4,6 +4,7 @@ import { Phone, Mail, Calendar, MapPin, Star, Check, Clock, X, MessageCircle, Pa
 import TabBar from '../components/TabBar';
 import StarRating from '../components/StarRating';
 import { psgcService } from '../services/psgc';
+import { API_BASE_URL } from '../config';
 import type { PSGCRegion, PSGCProvince, PSGCCity, PSGCBarangay } from '../types';
 
 interface WorkerPackage {
@@ -91,7 +92,7 @@ export default function WorkerProfilePage() {
     const loadProfile = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`http://127.0.0.1:8000/direct-hire/worker/${workerId}/profile`);
+        const response = await fetch(`${API_BASE_URL}/direct-hire/worker/${workerId}/profile`);
         if (response.ok) {
           const data = await response.json();
           setProfile(data);
@@ -237,7 +238,7 @@ export default function WorkerProfilePage() {
     // Check if the selected date is blocked
     try {
       const checkResponse = await fetch(
-        `http://127.0.0.1:8000/availability/blocked-dates/check/${profile.worker_id}?check_date=${scheduledDate}`
+        `${API_BASE_URL}/availability/blocked-dates/check/${profile.worker_id}?check_date=${scheduledDate}`
       );
       if (checkResponse.ok) {
         const checkData = await checkResponse.json();
@@ -294,7 +295,7 @@ export default function WorkerProfilePage() {
         };
       }
       
-      const response = await fetch('http://127.0.0.1:8000/direct-hire/', {
+      const response = await fetch(`${API_BASE_URL}/direct-hire/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
