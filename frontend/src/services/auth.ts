@@ -113,6 +113,16 @@ export const authService = {
     return response.data;
   },
 
+  async forgotPassword(email: string): Promise<{ message: string; dev_otp?: string }> {
+    const response = await apiClient.post('/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  async resetPassword(email: string, otp: string, new_password: string): Promise<{ message: string }> {
+    const response = await apiClient.post('/auth/reset-password', { email, otp, new_password });
+    return response.data;
+  },
+
   async sendPhoneOTP(): Promise<{ message: string; dev_otp?: string }> {
     const response = await apiClient.post('/auth/send-phone-otp');
     return response.data;
