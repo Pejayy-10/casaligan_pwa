@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { Bell, X, Check, CheckCheck, AlertTriangle } from 'lucide-react';
 import JobEditResponseModal from './JobEditResponseModal';
 import { API_BASE_URL } from '../config';
@@ -68,6 +69,7 @@ function isNotificationVisibleForRole(notificationType: string, role: 'owner' | 
 }
 
 export default function NotificationBell({ onNavigate }: NotificationBellProps) {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
@@ -220,6 +222,13 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.is_read) {
       markAsRead(notification.notification_id);
+    }
+    
+    // Special handling for payment_review notifications - redirect to my-jobs > completed page
+    if (notification.type === 'payment_review') {
+      navigate('/jobs?view=my-jobs&tab=completed');
+      setIsOpen(false);
+      return;
     }
     
     // Special handling for job_edited notifications

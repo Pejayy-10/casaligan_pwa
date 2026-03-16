@@ -62,13 +62,14 @@ interface Props {
   onShowPayments?: (job: AcceptedJob) => void;
   onReportEmployer?: (job: AcceptedJob) => void;
   reportedUsers?: Set<string>;
+  initialStatusFilter?: 'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed';
 }
 
-export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, onReportUnpaid, onShowPayments, onReportEmployer, reportedUsers }: Props) {
+export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, onReportUnpaid, onShowPayments, onReportEmployer, reportedUsers, initialStatusFilter }: Props) {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<AcceptedJob[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed'>(initialStatusFilter || 'all');
   const [showExtensionResponse, setShowExtensionResponse] = useState<PendingExtension | null>(null);
   const [showSummaryJobId, setShowSummaryJobId] = useState<number | null>(null);
   const [proofModal, setProofModal] = useState<{

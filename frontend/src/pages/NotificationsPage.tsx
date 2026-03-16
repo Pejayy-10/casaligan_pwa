@@ -268,6 +268,12 @@ export default function NotificationsPage() {
       markAsRead(notification.notification_id);
     }
 
+    // Special handling for payment_review notifications - redirect to my-jobs > completed page
+    if (notification.type === 'payment_review') {
+      navigate('/jobs?view=my-jobs&tab=completed');
+      return;
+    }
+
     // Special handling for job_edited notifications
     if (notification.type === 'job_edited' && notification.reference_type === 'job' && notification.reference_id) {
       setShowJobEditModal({

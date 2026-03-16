@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../config';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, DollarSign, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X, ChevronLeft, ChevronRight, FileText, Loader2 } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import JobDetailModal, { type JobPost } from '../components/JobDetailModal';
@@ -28,6 +28,7 @@ import type { User } from '../types';
 
 export default function JobsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [user] = useState<User | null>(() => {
     const stored = localStorage.getItem('user');
     return stored ? JSON.parse(stored) : null;
@@ -38,14 +39,20 @@ export default function JobsPage() {
   const [applicationStatuses, setApplicationStatuses] = useState<Record<number, { has_applied: boolean; status?: string; can_reapply?: boolean; withdrawn_due_to_conflict?: boolean }>>({});
   const [showApplicants, setShowApplicants] = useState<JobPost | null>(null);
   const [showPayment, setShowPayment] = useState<{ jobTitle: string; amount: number; workerName: string } | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'ongoing' | 'completed' | 'closed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'ongoing' | 'completed' | 'closed'>(() => {
+    const tabParam = searchParams.get('tab');
+    return (tabParam as 'all' | 'open' | 'ongoing' | 'completed' | 'closed') || 'all';
+  });
   const [showContract, setShowContract] = useState<JobPost | null>(null);
   const [showPaymentTracker, setShowPaymentTracker] = useState<JobPost | null>(null);
   const [showProgressTracker, setShowProgressTracker] = useState<JobPost | null>(null);
   const [showCheckIn, setShowCheckIn] = useState<JobPost | null>(null);
   
   // Housekeeper-specific states
-  const [housekeeperView, setHousekeeperView] = useState<'find' | 'my-jobs'>('find');
+  const [housekeeperView, setHousekeeperView] = useState<'find' | 'my-jobs'>(() => {
+    const viewParam = searchParams.get('view');
+    return (viewParam as 'find' | 'my-jobs') || 'find';
+  });
   const [showHousekeeperProgress, setShowHousekeeperProgress] = useState<AcceptedJob | null>(null);
   const [showJobCompletion, setShowJobCompletion] = useState<AcceptedJob | null>(null);
   const [showReportUnpaid, setShowReportUnpaid] = useState<AcceptedJob | null>(null);
@@ -243,7 +250,7 @@ export default function JobsPage() {
       </div>
 
       {/* Header */}
-      <header className="relative z-10 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm safe-area-top">
+      <header className="relative z-10 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm pt-14 md:pt-4">
         <div className="max-w-7xl mx-auto px-4 py-4">
           
           {user.active_role === 'owner' ? (
@@ -477,6 +484,7 @@ export default function JobsPage() {
                 onReportUnpaid={setShowReportUnpaid}
                 onShowPayments={setShowHousekeeperPayments}
                 reportedUsers={reportedUsers}
+                initialStatusFilter={statusFilter as any}
                 onReportEmployer={(job) => {
                   setHousekeeperReportData(job);
                   setShowHousekeeperReportModal(true);
