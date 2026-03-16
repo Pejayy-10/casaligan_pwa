@@ -31,7 +31,7 @@ class Contract(Base):
     employer_accepted = Column(Integer, default=0)
     
     # Completion tracking (per worker)
-    completion_proof_url = Column(String, nullable=True)
+    completion_proof_url = Column("completion_proof_urls", String, nullable=True)
     completion_notes = Column(Text, nullable=True)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     payment_proof_url = Column(String, nullable=True)  # Owner's payment proof for this worker

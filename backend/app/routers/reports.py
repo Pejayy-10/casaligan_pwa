@@ -16,6 +16,8 @@ from app.security import get_current_user
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
+BACK_JOB_MARKER = "[BACK_JOB_REQUEST]"
+
 
 class CreateReportRequest(BaseModel):
     """Request body for creating a report"""
@@ -58,14 +60,21 @@ def create_report(
     if hasattr(active_role, 'value'):
         active_role = active_role.value
     
+    requested_report_type = (report_data.report_type or "").strip().lower()
+    is_back_job_request = requested_report_type == ReportType.BACK_JOB_REQUEST.value
+
     # Validate report type
     try:
-        report_type = ReportType(report_data.report_type)
+        report_type = ReportType(requested_report_type)
     except ValueError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid report type. Valid types: {[t.value for t in ReportType]}"
         )
+
+    # Compatibility mode: database enum may not yet include back_job_request.
+    # Persist as OTHER with a marker while keeping back-job business rules.
+    report_type_for_db = ReportType.OTHER if is_back_job_request else report_type
     
     # If reporting about a job, validate it exists
     if report_data.post_id:
@@ -77,7 +86,7 @@ def create_report(
             )
 
     # Back-job request specific rules
-    if report_type == ReportType.BACK_JOB_REQUEST:
+    if is_back_job_request:
         if active_role != "owner":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -101,7 +110,8 @@ def create_report(
 
         existing_pending = db.query(Report).filter(
             Report.post_id == report_data.post_id,
-            Report.report_type == ReportType.BACK_JOB_REQUEST,
+            Report.report_type == ReportType.OTHER,
+            Report.title.ilike(f"{BACK_JOB_MARKER}%"),
             Report.status.in_([ReportStatus.PENDING, ReportStatus.UNDER_REVIEW])
         ).first()
         if existing_pending:
@@ -110,13 +120,21 @@ def create_report(
                 detail="A back job request for this job is already pending review"
             )
     
+    title_to_store = report_data.title
+    reason_to_store = report_data.reason
+    if is_back_job_request:
+        if not title_to_store.startswith(BACK_JOB_MARKER):
+            title_to_store = f"{BACK_JOB_MARKER} {title_to_store}".strip()
+        if not reason_to_store.startswith(BACK_JOB_MARKER):
+            reason_to_store = f"{BACK_JOB_MARKER} {reason_to_store}".strip()
+
     # Create report
     report = Report(
         reporter_id=current_user.id,
         reporter_role=active_role,
-        report_type=report_type,
-        title=report_data.title,
-        reason=report_data.reason,
+        report_type=report_type_for_db,
+        title=title_to_store,
+        reason=reason_to_store,
         description=report_data.description,
         post_id=report_data.post_id,
         reported_user_id=report_data.reported_user_id,
