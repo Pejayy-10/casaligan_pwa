@@ -351,22 +351,15 @@ export async function approveBackJobReport(reportId: number, adminNotes?: string
     return { data: null, error: reportError || new Error('Report not found') }
   }
 
-  const normalizedType = String(report.report_type || '').toLowerCase().trim()
   const normalizedStatus = String(report.status || '').toLowerCase().trim()
-  const isLikelyBackJobOverride = (
+  const canApproveReport = (
     !!report.post_id &&
-    normalizedType === 'other' &&
-    (normalizedStatus === 'pending' || normalizedStatus === 'under_review') &&
-    isBackJobReport(report)
+    normalizedStatus !== 'resolved' &&
+    normalizedStatus !== 'dismissed'
   )
 
-  const canForceApproveAsBackJob = (
-    !!report.post_id &&
-    (normalizedStatus === 'pending' || normalizedStatus === 'under_review')
-  )
-
-  if (!isBackJobReport(report) && !isLikelyBackJobOverride && !canForceApproveAsBackJob) {
-    return { data: null, error: new Error('Report is not a back job request') }
+  if (!canApproveReport) {
+    return { data: null, error: new Error('This report cannot be approved for back-job action') }
   }
 
   if (!report.post_id) {
@@ -410,7 +403,7 @@ export async function approveBackJobReport(reportId: number, adminNotes?: string
     }
   }
 
-  const usedFallback = isLikelyBackJobOverride || (!isBackJobReport(report) && canForceApproveAsBackJob)
+  const usedFallback = !isBackJobReport(report)
   const notes = adminNotes || `Back job approved. Housekeeper must perform free rework. No additional payment required.${usedFallback ? ' (Approved via compatibility fallback)' : ''}`
   const { data, error } = await supabase
     .from('reports')
