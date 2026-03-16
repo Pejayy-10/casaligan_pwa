@@ -44,6 +44,7 @@ const ReportModal: React.FC<ReportModalProps> = ({
     { value: 'unpaid_job', label: 'Unpaid Job' },
     { value: 'non_completion', label: 'Job Not Completed' },
     { value: 'poor_quality', label: 'Poor Quality Work' },
+    ...(reportedUserRole === 'housekeeper' ? [{ value: 'back_job_request', label: 'Back Job Request (Free Rework)' }] : []),
     { value: 'no_show', label: 'No Show' },
     { value: 'harassment', label: 'Harassment' },
     { value: 'scam', label: 'Scam/Fraud' },

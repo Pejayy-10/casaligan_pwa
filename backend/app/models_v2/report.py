@@ -10,6 +10,7 @@ class ReportType(str, enum.Enum):
     UNPAID_JOB = "unpaid_job"  # Housekeeper reports owner didn't pay
     NON_COMPLETION = "non_completion"  # Owner reports housekeeper didn't complete job
     POOR_QUALITY = "poor_quality"  # Owner reports poor quality work
+    BACK_JOB_REQUEST = "back_job_request"  # Owner requests free rework after completion
     NO_SHOW = "no_show"  # Owner reports housekeeper didn't show up
     HARASSMENT = "harassment"  # Either party reports harassment
     SCAM = "scam"  # Either party reports scam attempt

@@ -11,7 +11,7 @@ import json
 from app.db import get_db
 from app.models_v2.user import User
 from app.models_v2.report import Report, ReportType, ReportStatus
-from app.models_v2.forum import ForumPost
+from app.models_v2.forum import ForumPost, ForumPostStatus
 from app.security import get_current_user
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -74,6 +74,40 @@ def create_report(
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Job post not found"
+            )
+
+    # Back-job request specific rules
+    if report_type == ReportType.BACK_JOB_REQUEST:
+        if active_role != "owner":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only house owners can submit a back job request"
+            )
+        if not report_data.post_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Back job request requires a related job post"
+            )
+        if not report_data.reported_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Back job request requires the reported housekeeper"
+            )
+        if post.status != ForumPostStatus.COMPLETED:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Back job request can only be filed after job completion"
+            )
+
+        existing_pending = db.query(Report).filter(
+            Report.post_id == report_data.post_id,
+            Report.report_type == ReportType.BACK_JOB_REQUEST,
+            Report.status.in_([ReportStatus.PENDING, ReportStatus.UNDER_REVIEW])
+        ).first()
+        if existing_pending:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="A back job request for this job is already pending review"
             )
     
     # Create report
