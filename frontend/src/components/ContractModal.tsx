@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Check} from 'lucide-react';
 
 interface ContractModalProps {
   jobTitle: string;
@@ -274,16 +274,24 @@ export default function ContractModal({
             <button
               onClick={onReject}
               disabled={accepting}
-              className="flex-1 px-6 py-4 bg-gray-200 text-gray-700 dark:bg-gray-600 dark:text-white font-bold rounded-xl hover:bg-gray-300 dark:hover:bg-gray-500 transition-all border border-gray-300 dark:border-gray-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-6 py-4 bg-red-100 text-red-700 dark:bg-red-600 dark:text-white font-bold rounded-xl hover:bg-red-200 dark:hover:bg-red-700 transition-all border border-red-200 dark:border-red-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              ❌ Decline Contract
+              Decline Contract
             </button>
             <button
               onClick={handleAccept}
               disabled={!workerSignature.trim() || !agreed || accepting}
-              className="flex-1 px-6 py-4 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 px-6 py-4 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white font-bold rounded-xl hover:from-[#d4486a] hover:to-[#c2375b] transition-all shadow-lg shadow-[#EA526F]/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {accepting ? <><Loader2 className="w-5 h-5 animate-spin" /> Submitting...</> : '✅ Accept & Sign Contract'}
+              {accepting ? (
+                <>
+                  <Loader2 className="w-10 h-10 animate-spin" /> Submitting...
+                </>
+              ) : (
+                <>
+                  <Check className="inline w-4 h-4" /> Accept & Sign
+                </>
+              )}
             </button>
           </div>
         </div>

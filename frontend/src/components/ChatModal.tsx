@@ -211,9 +211,12 @@ const ChatModal: React.FC<ChatModalProps> = ({
       <div className="absolute inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm" onClick={onClose} />
       
       {/* Chat Modal - Fixed height container */}
-      <div className="relative bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg flex flex-col shadow-2xl overflow-hidden border border-gray-200 dark:border-white/10" style={{ height: 'min(85vh, 600px)' }}>
+      <div className="relative bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg flex flex-col shadow-2xl overflow-hidden border border-gray-200 dark:border-white/10" style={{ height: 'min(85dvh, 600px)' }}>
         {/* Header - Fixed at top */}
-        <div className="bg-gradient-to-r from-[#4B244A] to-[#6B3468] dark:from-[#2a1429] dark:to-[#4a2448] px-4 py-3 flex items-center justify-between flex-shrink-0">
+        <div
+          className="bg-gradient-to-r from-[#4B244A] to-[#6B3468] dark:from-[#2a1429] dark:to-[#4a2448] px-4 pb-3 flex items-center justify-between flex-shrink-0"
+          style={{ paddingTop: 'env(safe-area-inset-top, 12px)' }}
+        >
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm">
               {otherParticipantName[0]?.toUpperCase() || '?'}

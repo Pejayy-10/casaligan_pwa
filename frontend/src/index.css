@@ -129,6 +129,20 @@ a:hover svg {
 /* ===============================
    ACCESSIBILITY
 ================================ */
+
+/* Safe-area padding for mobile screens (iOS/Android) */
+.safe-area-top {
+  padding-top: calc(env(safe-area-inset-top, 12px) + 3.5rem);
+}
+
+@media (min-width: 768px) {
+  .safe-area-top {
+    padding-top: 1rem; /* match md:pt-4 */
+  }
+}
+
+
+================================ */
 button:focus-visible,
 a:focus-visible {
   outline: 2px solid var(--accent-pink);

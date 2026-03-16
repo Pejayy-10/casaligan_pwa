@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type JSX } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { Clock, RotateCw, FileText, CheckCircle, CreditCard, DollarSign, ClipboardList, Calendar, X, Star, Briefcase, Loader2 } from 'lucide-react';
+import { Clock, RotateCw, FileText, CheckCircle, CreditCard, ClipboardList, Calendar, X, Star, Briefcase, Loader2, Cross, MapPin } from 'lucide-react';
 import RatingModal from './RatingModal';
 import apiClient from '../services/api';
 import { usePayment } from '../context/PaymentContext';
@@ -283,7 +283,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
       pending_completion: { text: <><FileText className="inline w-3 h-3 mr-1" /> Review Needed</>, class: 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' },
       completed: { text: <><CheckCircle className="inline w-3 h-3 mr-1" /> Completed</>, class: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' },
       payment_pending: { text: <><CreditCard className="inline w-3 h-3 mr-1" /> Payment Pending Review</>, class: 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' },
-      paid: { text: <><DollarSign className="inline w-3 h-3 mr-1" /> Paid</>, class: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' },
+      paid: { text: <>Paid</>, class: 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' },
       cancelled: { text: <><X className="inline w-3 h-3 mr-1" /> Cancelled</>, class: 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300' }
     };
     return badges[status] || { text: <>{status}</>, class: 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300' };
@@ -550,18 +550,18 @@ export default function DirectHiresList({ role, onClose }: Props) {
               <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">No direct hires yet</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4">
               {hires.map((hire) => {
                 const badge = getStatusBadge(hire.status);
                 return (
                   <div key={hire.hire_id} className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-xl p-4 border border-white/50 dark:border-white/10 shadow-lg hover:scale-[1.01] transition-transform">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
+                    <div className="flex flex-wrap items-start justify-between mb-3 gap-3">
+                      <div className="min-w-0">
                         <h4 className="text-lg font-bold text-[#4B244A] dark:text-white">
                           {role === 'owner' ? hire.worker_name : hire.employer_name}
                         </h4>
                         <p className="text-[#4B244A]/60 dark:text-white/60 text-sm font-medium">
-                          📅 {new Date(hire.scheduled_date).toLocaleDateString()}
+                          <Calendar className="inline w-4 h-4 mr-1"></Calendar> {new Date(hire.scheduled_date).toLocaleDateString()}
                           {hire.scheduled_time && ` at ${hire.scheduled_time}`}
                         </p>
                         {hire.is_recurring && (
@@ -571,13 +571,13 @@ export default function DirectHiresList({ role, onClose }: Props) {
                             </span>
                             {hire.recurring_status === 'cancelled' && (
                               <span className="px-2 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-xs rounded-full font-bold">
-                                ❌ Cancelled {hire.cancelled_by === role ? 'by you' : `by ${role === 'owner' ? 'worker' : 'employer'}`}
+                                <Cross className="inline w-4 h-4 mr-1"></Cross> Cancelled {hire.cancelled_by === role ? 'by you' : `by ${role === 'owner' ? 'worker' : 'employer'}`}
                               </span>
                             )}
                           </div>
                         )}
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-sm font-bold ${badge.class}`}>
+                      <span className={`inline-flex items-center justify-center w-max px-3 py-1 rounded-full text-sm font-bold ${badge.class}`}>
                         {badge.text}
                       </span>
                     </div>
@@ -594,7 +594,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
                     {/* Location */}
                     {hire.address_city && (
                       <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mb-3 font-medium">
-                        📍 {hire.address_barangay && `${hire.address_barangay}, `}{hire.address_city}
+                        <MapPin className="inline w-4 h-4 mr-1"></MapPin> {hire.address_barangay && `${hire.address_barangay}, `}{hire.address_city}
                       </p>
                     )}
 
@@ -605,11 +605,11 @@ export default function DirectHiresList({ role, onClose }: Props) {
                       </p>
                     )}
 
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                       <div className="text-xl font-bold text-[#EA526F]">
                         ₱{hire.total_amount.toLocaleString()}
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                         {renderActionButtons(hire)}
                       </div>
                     </div>

@@ -243,7 +243,7 @@ export default function JobsPage() {
       </div>
 
       {/* Header */}
-      <header className="relative z-10 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm pt-14 md:pt-4">
+      <header className="relative z-10 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm safe-area-top">
         <div className="max-w-7xl mx-auto px-4 py-4">
           
           {user.active_role === 'owner' ? (

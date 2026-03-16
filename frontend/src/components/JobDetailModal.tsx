@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Home, Zap, Users, Calendar, FileText, Camera, User, Clock, RotateCw, Check, AlertTriangle } from 'lucide-react';
+import { Home, Zap, Users, Calendar, FileText, Camera, User, Clock, RotateCw, Check, AlertTriangle, MapPin } from 'lucide-react';
 
 export interface AcceptedWorker {
   worker_id: number;
@@ -77,9 +77,19 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
             ×
           </button>
         </div>
+      
 
         {/* Content */}
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-3">
+          {/* Posted Date */}
+          <div className="text-start text-[#4B244A]/60 dark:text-white/30 text-sm">
+            Posted on {new Date(job.created_at).toLocaleDateString('en-US', { 
+              year: 'numeric', 
+              month: 'long', 
+              day: 'numeric' 
+            })}
+          </div>
+
           {/* Budget & Status */}
           <div className="flex items-center justify-between">
             <div className="text-3xl font-bold text-[#EA526F]">₱{job.budget.toLocaleString()}</div>
@@ -91,6 +101,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
               {job.status.toUpperCase()}
             </span>
           </div>
+          
 
           {/* Job Details Badges */}
           <div className="flex flex-wrap gap-2">
@@ -136,7 +147,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
           {/* Location */}
           {job.location && (
             <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
-               <h3 className="text-[#4B244A] dark:text-white font-bold mb-2">Location</h3>
+              <h3 className="text-[#4B244A] dark:text-white font-bold mb-2"><MapPin className="inline w-4 h-4 mr-1"></MapPin>Location</h3>
               <p className="text-[#4B244A]/80 dark:text-white/80 text-sm">{job.location}</p>
             </div>
           )}
@@ -168,18 +179,9 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
           {/* Applicants Counter */}
           <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
             <div className="flex items-center justify-between">
-              <span className="text-[#4B244A]/80 dark:text-white/80 text-sm font-medium">Total Applicants</span>
+              <span className="text-[#4B244A]/80 dark:text-white/80 text-sm font-medium"><Users className="inline w-4 h-4 mr-1"></Users>Total Applicants</span>
               <span className="text-2xl font-bold text-[#EA526F]">{job.total_applicants}</span>
             </div>
-          </div>
-
-          {/* Posted Date */}
-          <div className="text-center text-[#4B244A]/60 dark:text-white/60 text-sm font-medium">
-            Posted on {new Date(job.created_at).toLocaleDateString('en-US', { 
-              year: 'numeric', 
-              month: 'long', 
-              day: 'numeric' 
-            })}
           </div>
         </div>
 

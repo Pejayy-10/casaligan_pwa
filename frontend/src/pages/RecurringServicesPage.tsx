@@ -221,7 +221,7 @@ return (
       </div>
 
       {/* HEADER (Static with Navigation & Filters) */}
-      <header className="relative z-10 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm pt-14 md:pt-4">
+      <header className="relative z-10 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm safe-area-top">
         <div className="max-w-4xl mx-auto px-4 py-3 space-y-4">
           
           {/* Row 1: Navigation & Title */}

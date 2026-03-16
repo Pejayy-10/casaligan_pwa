@@ -437,7 +437,7 @@ export default function BrowseWorkersPage() {
       </div>
 
       {/* Unified Header */}
-      <header className="relative z-10 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-b border-gray-200 dark:border-white/5 shadow-sm pt-14 md:pt-4 transition-all duration-300">
+      <header className="relative z-10 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-b border-gray-200 dark:border-white/5 shadow-sm transition-all duration-300 safe-area-top">
           <div className="max-w-5xl mx-auto px-4 py-3 space-y-3">
               
               {/* Top Row: Navigation & Title */}
