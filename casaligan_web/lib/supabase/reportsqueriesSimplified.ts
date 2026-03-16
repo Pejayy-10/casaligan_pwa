@@ -10,11 +10,24 @@ function isBackJobReport(report: any): boolean {
   if (rawType === 'back_job_request') return true
   if (rawType !== 'other') return false
 
-  const title = String(report?.title || '')
-  const reason = String(report?.reason || '')
-  const notes = String(report?.admin_notes || '')
+  const marker = BACK_JOB_REQUEST_MARKER.toLowerCase()
+  const title = String(report?.title || '').toLowerCase()
+  const reason = String(report?.reason || '').toLowerCase()
+  const notes = String(report?.admin_notes || '').toLowerCase()
+  const description = String(report?.description || '').toLowerCase()
 
-  return title.includes(BACK_JOB_REQUEST_MARKER) || reason.includes(BACK_JOB_REQUEST_MARKER) || notes.includes(BACK_JOB_REQUEST_MARKER)
+  return (
+    title.includes(marker) ||
+    reason.includes(marker) ||
+    notes.includes(marker) ||
+    description.includes(marker) ||
+    title.includes('back job') ||
+    reason.includes('back job') ||
+    description.includes('back job') ||
+    title.includes('rework') ||
+    reason.includes('rework') ||
+    description.includes('rework')
+  )
 }
 
 function getEffectiveReportType(report: any): string {
@@ -330,7 +343,7 @@ export async function approveBackJobReport(reportId: number, adminNotes?: string
 
   const { data: report, error: reportError } = await supabase
     .from('reports')
-    .select('report_id, post_id, reporter_id, reported_user_id, report_type, status')
+    .select('report_id, post_id, reporter_id, reported_user_id, report_type, status, title, reason, description, admin_notes')
     .eq('report_id', reportId)
     .single()
 
@@ -338,7 +351,16 @@ export async function approveBackJobReport(reportId: number, adminNotes?: string
     return { data: null, error: reportError || new Error('Report not found') }
   }
 
-  if (!isBackJobReport(report)) {
+  const normalizedType = String(report.report_type || '').toLowerCase().trim()
+  const normalizedStatus = String(report.status || '').toLowerCase().trim()
+  const isLikelyBackJobOverride = (
+    !!report.post_id &&
+    normalizedType === 'other' &&
+    (normalizedStatus === 'pending' || normalizedStatus === 'under_review') &&
+    isBackJobReport(report)
+  )
+
+  if (!isBackJobReport(report) && !isLikelyBackJobOverride) {
     return { data: null, error: new Error('Report is not a back job request') }
   }
 
@@ -383,7 +405,7 @@ export async function approveBackJobReport(reportId: number, adminNotes?: string
     }
   }
 
-  const notes = adminNotes || 'Back job approved. Housekeeper must perform free rework. No additional payment required.'
+  const notes = adminNotes || `Back job approved. Housekeeper must perform free rework. No additional payment required.${isLikelyBackJobOverride ? ' (Approved via compatibility fallback)' : ''}`
   const { data, error } = await supabase
     .from('reports')
     .update({
