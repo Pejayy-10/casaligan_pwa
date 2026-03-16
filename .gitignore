@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+**/node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -19,10 +20,16 @@
 
 # production
 /build
+**/dist/
+frontend/android/
+**/android/app/build/
+/backend/
 
 # misc
 .DS_Store
 *.pem
+**/__pycache__/
+*.pyc
 
 # debug
 npm-debug.log*
