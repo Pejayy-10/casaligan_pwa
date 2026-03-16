@@ -3,13 +3,30 @@ import { getAdminId } from './adminQueries'
 
 const BACK_JOB_SLA_HOURS = 48
 const BACK_JOB_ESCALATION_MARKER = '[BACK_JOB_SLA_ESCALATED]'
+const BACK_JOB_REQUEST_MARKER = '[BACK_JOB_REQUEST]'
+
+function isBackJobReport(report: any): boolean {
+  const rawType = String(report?.report_type || '').toLowerCase().trim()
+  if (rawType === 'back_job_request') return true
+  if (rawType !== 'other') return false
+
+  const title = String(report?.title || '')
+  const reason = String(report?.reason || '')
+  const notes = String(report?.admin_notes || '')
+
+  return title.includes(BACK_JOB_REQUEST_MARKER) || reason.includes(BACK_JOB_REQUEST_MARKER) || notes.includes(BACK_JOB_REQUEST_MARKER)
+}
+
+function getEffectiveReportType(report: any): string {
+  return isBackJobReport(report) ? 'back_job_request' : String(report?.report_type || '')
+}
 
 async function autoEscalateOverdueBackJobs(reports: any[]) {
   const supabase = createClient()
 
   const now = new Date()
   const candidates = reports.filter((report) => {
-    if (report.report_type !== 'back_job_request') return false
+    if (!isBackJobReport(report)) return false
     if (report.status !== 'resolved') return false
     if (!report.post_id) return false
     if (!report.resolved_at) return false
@@ -189,8 +206,13 @@ export async function getReports(limit = 50, offset = 0, status?: string) {
 
   const reportsAfterSlaCheck = await autoEscalateOverdueBackJobs(reports)
 
+  const normalizedReports = reportsAfterSlaCheck.map((report: any) => ({
+    ...report,
+    report_type: getEffectiveReportType(report),
+  }))
+
   // Filter out reports where reporter or reported user is an admin
-  const filteredReports = reportsAfterSlaCheck.filter(report => {
+  const filteredReports = normalizedReports.filter(report => {
     const reporterRole = report.reporter?.active_role
     const reportedRole = report.reported_user?.active_role
     return (
@@ -316,7 +338,7 @@ export async function approveBackJobReport(reportId: number, adminNotes?: string
     return { data: null, error: reportError || new Error('Report not found') }
   }
 
-  if (report.report_type !== 'back_job_request') {
+  if (!isBackJobReport(report)) {
     return { data: null, error: new Error('Report is not a back job request') }
   }
 

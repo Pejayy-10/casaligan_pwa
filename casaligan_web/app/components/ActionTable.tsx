@@ -21,6 +21,15 @@ type Props = {
 };
 
 export default function ActionTable({ rows, onAction, className = "", actionType = "default" }: Props) {
+  const isBackJobRow = (row: Row) => {
+    const reportType = String(row?.report_type || '').toLowerCase().trim();
+    if (reportType === 'back_job_request') return true;
+    const marker = '[BACK_JOB_REQUEST]';
+    const reason = String(row?.reason || '');
+    const title = String(row?.name || '');
+    return reportType === 'other' && (reason.includes(marker) || title.includes(marker));
+  };
+
   // Get unique key for each row - try id, user_id, or userId, fallback to index
   const getRowKey = (row: Row, index: number) => {
     // For reports, use report_id and user_id combination to ensure uniqueness
@@ -248,7 +257,7 @@ export default function ActionTable({ rows, onAction, className = "", actionType
                               >
                                 <AlertTriangle className="h-4 w-4" />
                               </button>
-                              {row.report_type === 'back_job_request' && (
+                              {isBackJobRow(row) && (
                                 <button
                                   type="button"
                                   onClick={() => onAction?.("approve_backjob", row)}
