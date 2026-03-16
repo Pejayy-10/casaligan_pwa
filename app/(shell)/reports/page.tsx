@@ -66,8 +66,19 @@ export default function ReportsPage() {
 
 	// Transform reports data to match TableShell row format - memoized for performance
 	const rows = useMemo(() => {
+		const isBackJobReport = (report: any) => {
+			const reportType = String(report?.report_type || '').toLowerCase().trim();
+			if (reportType === 'back_job_request') return true;
+			if (reportType !== 'other') return false;
+			const marker = '[BACK_JOB_REQUEST]';
+			const title = String(report?.title || '');
+			const reason = String(report?.reason || '');
+			const notes = String(report?.admin_notes || '');
+			return title.includes(marker) || reason.includes(marker) || notes.includes(marker);
+		};
+
 		const computeBackJobSlaLabel = (report: any) => {
-			if (report.report_type !== 'back_job_request') return null;
+			if (!isBackJobReport(report)) return null;
 			if (!report.resolved_at) return 'SLA starts after admin approval';
 
 			const resolvedAt = new Date(report.resolved_at);
@@ -116,10 +127,12 @@ export default function ReportsPage() {
 			// Check if user is restricted
 			const isRestricted = reportedUser.is_restricted === true;
 			
+			const effectiveReportType = isBackJobReport(report) ? 'back_job_request' : report.report_type;
+
 			return {
 				id: report.report_id,
 				report_id: report.report_id,
-				report_type: report.report_type,
+				report_type: effectiveReportType,
 				back_job_sla_label: computeBackJobSlaLabel(report),
 				post_id: report.post_id,
 				userId: `R${String(report.report_id).padStart(3, '0')}`,
