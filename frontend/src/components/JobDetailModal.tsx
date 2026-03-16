@@ -130,7 +130,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
           {/* Description */}
           <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
             <h3 className="text-[#4B244A] dark:text-white font-bold mb-2"><FileText className="inline w-4 h-4 mr-1" /> Description</h3>
-            <p className="text-[#4B244A]/80 dark:text-white/80 whitespace-pre-wrap">{job.description}</p>
+            <p className="text-[#4B244A]/80 dark:text-white/80 whitespace-pre-wrap break-words">{job.description}</p>
           </div>
 
           {/* Location */}

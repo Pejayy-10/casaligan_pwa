@@ -908,7 +908,7 @@ function OwnerJobsContent({
       {paginatedJobs.map((job) => (
         <div key={job.post_id} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl p-5 border border-white/60 dark:border-white/10 hover:border-[#EA526F]/30 dark:hover:border-[#EA526F]/30 transition-all shadow-sm hover:shadow-md">
           <div className="flex items-start justify-between mb-3 gap-2">
-            <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white break-words">{job.title}</h3>
+            <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white break-words min-w-0">{job.title}</h3>
             <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
               job.status === 'open' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' : 
               job.status === 'ongoing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' :
@@ -920,7 +920,7 @@ function OwnerJobsContent({
             </span>
           </div>
           
-          <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 line-clamp-2 text-sm">{job.description}</p>
+          <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 line-clamp-2 text-sm break-words whitespace-normal">{job.description}</p>
           
           <div className="flex flex-wrap gap-2 mb-4">
             <span className="px-2.5 py-1 bg-[#EA526F]/10 text-[#EA526F] dark:bg-[#EA526F]/20 dark:text-[#EA526F] rounded-md text-xs font-semibold flex items-center">
