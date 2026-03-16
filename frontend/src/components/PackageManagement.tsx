@@ -42,6 +42,9 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
   const [services, setServices] = useState('');
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [customCategoryName, setCustomCategoryName] = useState('');
+  const [customCategoryDescription, setCustomCategoryDescription] = useState('');
+  const [addingCategory, setAddingCategory] = useState(false);
 
   useEffect(() => {
     loadPackages();
@@ -50,7 +53,10 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
 
   const loadCategories = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/categories/?active_only=true`);
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/categories/my-categories?active_only=true`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
@@ -153,6 +159,52 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     }
   };
 
+  const handleAddCustomCategory = async () => {
+    if (!customCategoryName.trim()) {
+      alert('Please enter a category name');
+      return;
+    }
+
+    try {
+      setAddingCategory(true);
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/categories/custom`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: customCategoryName.trim(),
+          description: customCategoryDescription.trim() || null
+        })
+      });
+
+      if (response.ok) {
+        const newCategory: Category = await response.json();
+        setCategories((prev) => {
+          if (prev.some((c) => c.category_id === newCategory.category_id)) {
+            return prev;
+          }
+          return [...prev, newCategory].sort((a, b) => a.name.localeCompare(b.name));
+        });
+        setSelectedCategoryIds((prev) =>
+          prev.includes(newCategory.category_id) ? prev : [...prev, newCategory.category_id]
+        );
+        setCustomCategoryName('');
+        setCustomCategoryDescription('');
+      } else {
+        const error = await response.json();
+        alert(error.detail || 'Failed to create category');
+      }
+    } catch (error) {
+      console.error('Failed to create custom category:', error);
+      alert('Failed to create category');
+    } finally {
+      setAddingCategory(false);
+    }
+  };
+
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const handleDelete = async (packageId: number) => {
@@ -224,6 +276,33 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
 
       <div>
         <label className={labelClass}>Categories * (Select at least one)</label>
+        <div className="mb-3 p-3 bg-white/40 dark:bg-slate-800/40 rounded-lg border border-gray-200 dark:border-white/10 space-y-2">
+          <p className="text-[#4B244A]/70 dark:text-white/70 text-xs font-medium">Add custom category</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input
+              type="text"
+              value={customCategoryName}
+              onChange={(e) => setCustomCategoryName(e.target.value)}
+              placeholder="Category name"
+              className={`${inputClass} py-2! text-sm`}
+            />
+            <input
+              type="text"
+              value={customCategoryDescription}
+              onChange={(e) => setCustomCategoryDescription(e.target.value)}
+              placeholder="Description (optional)"
+              className={`${inputClass} py-2! text-sm`}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleAddCustomCategory}
+            disabled={addingCategory}
+            className="px-3 py-2 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d64460] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {addingCategory ? 'Adding...' : 'Add Category'}
+          </button>
+        </div>
         <div className="space-y-2 max-h-48 overflow-y-auto p-3 bg-white/50 dark:bg-slate-800/50 rounded-lg border border-gray-200 dark:border-white/10">
           {categories.map((cat) => (
             <label 
