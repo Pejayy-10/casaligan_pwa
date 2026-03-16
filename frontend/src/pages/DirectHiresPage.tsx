@@ -22,7 +22,7 @@ export default function DirectHiresPage() {
 
   return (
     <div className="min-h-screen bg-[#F4F2F0] dark:bg-slate-950 transition-colors duration-300 pb-24 relative font-sans">
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm pt-14 md:pt-4">
+      <header className="relative z-10 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm pt-14 md:pt-4">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
           <button
             onClick={() => navigate(-1)}

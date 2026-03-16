@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight } from 'lucide-react';
+import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight, Flag } from 'lucide-react';
 import ContractExtensionResponseModal, { type PendingExtension } from './ContractExtensionResponseModal';
 
 interface AcceptedJob {
@@ -464,7 +464,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                           onClick={() => onReportEmployer(job)}
                           className="w-full py-2 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 transition-all shadow-md"
                         >
-                          🚨 Report House Owner
+                          <Flag className="inline w-4 h-4 mr-1" /> Report House Owner
                         </button>
                       )
                     )}

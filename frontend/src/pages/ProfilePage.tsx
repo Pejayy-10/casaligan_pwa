@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { User as UserIcon, ClipboardList, Briefcase, MapPin, FileText, CheckCircle, Clock, AlertCircle, Package, Pencil, Camera, X, Loader2, Cake } from 'lucide-react';
+import { User as UserIcon, ClipboardList, Briefcase, MapPin, FileText, CheckCircle, Clock, AlertCircle, Package, Pencil, Camera, X, Loader2, Cake, Mail, Phone } from 'lucide-react';
 import { authService } from '../services/auth';
 import TabBar from '../components/TabBar';
 import PackageManagement from '../components/PackageManagement';
@@ -251,7 +251,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Header (Original Structure Preserved) */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm pt-14 md:pt-4">
+      <header className="relative z-10 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm pt-14 md:pt-4">
         <div className="max-w-7xl mx-auto px-4 py-4">
             <div className="space-y-5">
                 <div className="flex items-center justify-between">
@@ -316,11 +316,17 @@ export default function ProfilePage() {
                         </span>
                     </div>
 
-                    <div className="mt-4 space-y-1 text-sm text-[#4B244A]/70 dark:text-white/70 font-medium">
-                        <p>{user.email}</p>
-                        <p>{user.phone_number}</p>
+                    <div className="mt-4 space-y-1 text-sm text-[#4B244A]/70 dark:text-white/70 font-medium text-center sm:text-left">
+                        <p className="flex items-center justify-center sm:justify-start gap-1.5">
+                          <Mail className="w-4 h-4" />
+                          {user.email}
+                        </p>
+                        <p className="flex items-center justify-center sm:justify-start gap-1.5">
+                          <Phone className="w-4 h-4" />
+                          {user.phone_number}
+                        </p>
                         {user.birthday && (
-                          <p className="flex items-center gap-1.5">
+                          <p className="flex items-center justify-center sm:justify-start gap-1.5">
                             <Cake className="w-4 h-4" />
                             {(() => {
                               const bday = new Date(user.birthday);

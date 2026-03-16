@@ -436,8 +436,8 @@ export default function BrowseWorkersPage() {
         <div className="absolute top-[20%] right-[-10%] w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-[100px]" />
       </div>
 
-      {/* Unified Sticky Header */}
-      <header className="sticky top-0 z-50 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-b border-gray-200 dark:border-white/5 shadow-sm pt-14 md:pt-4 transition-all duration-300">
+      {/* Unified Header */}
+      <header className="relative z-10 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-b border-gray-200 dark:border-white/5 shadow-sm pt-14 md:pt-4 transition-all duration-300">
           <div className="max-w-5xl mx-auto px-4 py-3 space-y-3">
               
               {/* Top Row: Navigation & Title */}

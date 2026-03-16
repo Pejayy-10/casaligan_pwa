@@ -219,7 +219,7 @@ export default function CreateJobPage() {
       </div>
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
+      <header className="relative z-10 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center">
           <button onClick={() => navigate('/jobs')} className="text-[#4B244A] dark:text-white mr-4 hover:opacity-70 transition-opacity">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">

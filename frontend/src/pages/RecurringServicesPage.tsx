@@ -220,8 +220,8 @@ return (
         <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-2000"></div>
       </div>
 
-      {/* HEADER (Sticky with Navigation & Filters) */}
-      <header className="sticky top-0 z-50 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm pt-14 md:pt-4">
+      {/* HEADER (Static with Navigation & Filters) */}
+      <header className="relative z-10 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm pt-14 md:pt-4">
         <div className="max-w-4xl mx-auto px-4 py-3 space-y-4">
           
           {/* Row 1: Navigation & Title */}

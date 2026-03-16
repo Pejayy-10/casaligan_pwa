@@ -353,7 +353,7 @@ export default function WorkerProfilePage() {
       </div>
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
+      <header className="relative z-10 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <button onClick={() => navigate(-1)} className="text-[#4B244A]/80 dark:text-white/80 hover:text-[#4B244A] dark:hover:text-white transition-colors">
