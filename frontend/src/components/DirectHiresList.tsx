@@ -381,9 +381,10 @@ export default function DirectHiresList({ role, onClose }: Props) {
             <button
               onClick={() => handleAction(hire, 'cancel')}
               disabled={processing}
-              className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 font-semibold disabled:opacity-50 flex items-center gap-1"
+              className="w-full px-4 py-3 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200 text-sm rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
-              {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Cancel
+              {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Cancel
             </button>
           );
         case 'accepted':

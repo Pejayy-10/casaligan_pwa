@@ -25,18 +25,24 @@ export default function RegisterStep1Page() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const isGmail = (email: string) => /^[^\s@]+@gmail\.com$/i.test(email.trim());
-  const isPhilippinePhone = (phone: string) => {
-    const raw = phone.replace(/[\s\-]/g, '').trim();
-    return /^\+63\d{10}$/.test(raw) || /^09\d{9}$/.test(raw) || /^9\d{9}$/.test(raw);
-  };
-  const getPhoneError = (phone: string) => {
-    const raw = phone.replace(/[\s\-]/g, '').trim();
-    if (!raw) return 'Phone number is required';
-    if (raw.startsWith('09') && raw.length !== 11)
-      return `09 number must be 11 digits (09 + 9 digits). You entered ${raw.length} digits. Example: 09123456789`;
-    return 'Use a Philippine number: 09 + 9 digits (11 total, e.g. 09123456789) or +639XXXXXXXXX';
+  const formatPhilippinePhone = (digits: string) => {
+    const onlyDigits = digits.replace(/\D/g, '').slice(0, 10);
+    const part1 = onlyDigits.slice(0, 3);
+    const part2 = onlyDigits.slice(3, 6);
+    const part3 = onlyDigits.slice(6, 10);
+    return [part1, part2, part3].filter(Boolean).join(' ');
   };
 
+  const isPhilippinePhone = (phone: string) => {
+    const raw = phone.replace(/\D/g, '').trim();
+    return /^\d{10}$/.test(raw);
+  };
+  const getPhoneError = (phone: string) => {
+    const raw = phone.replace(/\D/g, '').trim();
+    if (!raw) return 'Phone number is required';
+    if (raw.length !== 10) return 'Enter 10 digits after +63 (e.g. 912 345 6789)';
+    return 'Enter 10 digits after +63 (e.g. 912 345 6789)';
+  };
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -94,6 +100,7 @@ export default function RegisterStep1Page() {
     try {
       const payload = {
         ...formData,
+        phone_number: formData.phone_number ? `+63${formData.phone_number}` : formData.phone_number,
         middle_name: formData.middle_name?.trim() || undefined,
         suffix: formData.suffix?.trim() || undefined,
         birthday: formData.birthday || undefined,
@@ -285,22 +292,23 @@ export default function RegisterStep1Page() {
               <label htmlFor="phone_number" className={labelClass}>
                 Phone Number *
               </label>
-              <input
-                type="tel"
-                id="phone_number"
-                value={formData.phone_number}
-                onChange={(e) => {
-                  setFormData({ ...formData, phone_number: e.target.value });
-                  if (fieldErrors.phone_number) setFieldErrors((prev) => ({ ...prev, phone_number: undefined }));
-                }}
-                placeholder="09123456789 or +639123456789"
-                className={`${inputClass} ${fieldErrors.phone_number ? 'border-red-500 dark:border-red-400' : ''}`}
-                disabled={loading}
-                required
-              />
-              <p className="mt-1 text-xs text-[#4B244A]/60 dark:text-white/60 font-medium">
-                Philippine number only: +63 or 09 (e.g. 09123456789, like GCash)
-              </p>
+              <div className="relative">
+                <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-gray-700 dark:text-white/70 font-bold">+63</span>
+                <input
+                  type="tel"
+                  id="phone_number"
+                  value={formData.phone_number}
+                  onChange={(e) => {
+                    const formatted = formatPhilippinePhone(e.target.value);
+                    setFormData({ ...formData, phone_number: formatted });
+                    if (fieldErrors.phone_number) setFieldErrors((prev) => ({ ...prev, phone_number: undefined }));
+                  }}
+                  placeholder="912 345 6789"
+                  className={`${inputClass} pl-16 ${fieldErrors.phone_number ? 'border-red-500 dark:border-red-400' : ''}`}
+                  disabled={loading}
+                  required
+                />
+              </div>
               {fieldErrors.phone_number && (
                 <p className="mt-1 text-sm text-red-600 dark:text-red-400 font-medium">{fieldErrors.phone_number}</p>
               )}
@@ -380,7 +388,7 @@ export default function RegisterStep1Page() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30 mt-6"
+              className="w-full py-3.5 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30 mt-6"
             >
               {loading ? (
                 <div className="flex items-center justify-center">

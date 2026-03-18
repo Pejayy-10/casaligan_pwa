@@ -229,7 +229,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
               <button
                 onClick={handleApply}
                 disabled={isApplying}
-                className="w-full py-4 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white font-bold text-lg rounded-xl hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
+                className="w-full py-4 bg-gradient-to-r from-[#EA526F] to-[#d4486a] !text-white font-bold text-lg rounded-xl hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
               >
                 {isApplying ? 'Applying...' : 'Apply Now'}
               </button>

@@ -262,7 +262,7 @@ export default function JobsPage() {
       </div>
 
       {/* Header */}
-      <header className="relative z-10 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm pt-14 md:pt-4">
+      <header className="relative z-10 bg-gray-50 dark:bg-white/10 dark:backdrop-blur-xl border-b border-gray-200 dark:border-white/20 transition-all safe-area-top">
         <div className="max-w-7xl mx-auto px-4 py-4">
           
           {user.active_role === 'owner' ? (
@@ -282,7 +282,7 @@ export default function JobsPage() {
                     
                     <button 
                         onClick={() => navigate('/jobs/create')}
-                        className="group flex items-center gap-2 px-5 py-2.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-md hover:shadow-lg active:scale-95"
+                        className="group flex items-center gap-2 px-5 py-2.5 !bg-[#E7467B] !text-white font-bold rounded-xl hover:!bg-[#CC3E71] transition-all shadow-md hover:shadow-lg active:scale-95"
                     >
                         <span className="text-lg leading-none group-hover:rotate-90 transition-transform duration-300">+</span> 
                         <span>New Job</span>
@@ -324,21 +324,7 @@ export default function JobsPage() {
 
                 {/* 3. Status Filters (Segmented Control) */}
                 <div className="space-y-2">
-                    <p className="text-xs sm:text-sm font-bold text-[#4B244A]/80 dark:text-white/80 px-0.5">
-                      Showing: <span className="text-[#EA526F] dark:text-[#EA526F] font-extrabold" aria-live="polite">
-                            {statusFilter === 'all' && 'All Jobs'}
-                            {statusFilter === 'open' && 'Open'}
-                            {statusFilter === 'ongoing' && 'Ongoing'}
-                            {statusFilter === 'completed' && 'Completed'}
-                            {statusFilter === 'closed' && 'Closed'}
-                      </span>
-                      {jobsFilterLoading && (
-                        <span className="inline-flex items-center gap-1 ml-2 text-[#4B244A]/70 dark:text-white/70">
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          Loading...
-                        </span>
-                      )}
-                    </p>
+                    
                     <div className="overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
                         <div className="flex gap-1.5 min-w-max p-1.5 bg-gray-100/80 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-white/5">
                             <FilterTab 
@@ -396,7 +382,7 @@ export default function JobsPage() {
                     
                         <button
                         onClick={() => setShowPackageManagement(true)}
-                          className="group flex items-center gap-2 px-5 py-2.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center">
+                          className="group flex items-center gap-2 px-5 py-2.5 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center">
                             <Package className="w-4 h-4 mr-1.5" /> Packages
                         </button>
                     
@@ -929,13 +915,13 @@ function OwnerJobsContent({
 
   if (jobs.length === 0) {
     return (
-      <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-12 text-center border border-white/50 dark:border-white/10 shadow-xl">
+      <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-12 text-center flex items-center flex-col border border-white/50 dark:border-white/10 shadow-xl">
         <div className="text-6xl mb-4"><ClipboardList className="w-16 h-16" /></div>
         <h3 className="text-2xl font-bold text-[#4B244A] dark:text-white mb-2">No Job Posts Yet</h3>
         <p className="text-[#4B244A]/70 dark:text-white/70 mb-6">Create your first job post to find housekeepers</p>
         <button 
           onClick={() => navigate('/jobs/create')}
-          className="px-6 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg"
+          className="px-6 py-3 !bg-[#4B244A] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg"
         >
           Create Your First Job Post
         </button>
@@ -1243,7 +1229,7 @@ function HousekeeperJobsContent({
             )}
             <div className="flex items-start justify-between mb-3 gap-2">
               <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white">{job.title}</h3>
-              <span className="px-3 py-1 bg-[#EA526F]/10 dark:bg-[#EA526F]/20 text-[#EA526F] dark:text-[#EA526F] rounded-full text-xs font-bold whitespace-nowrap">
+              <span className="px-4 py-2 bg-[#359126/10 dark:bg-[#359126]/20 !text-[#359126] dark:text-[#359126] rounded-full text-md font-bold whitespace-nowrap">
                 ₱{job.budget}
               </span>
             </div>
@@ -1283,7 +1269,7 @@ function HousekeeperJobsContent({
               </div>
               <button 
                 onClick={() => onSelectJob(job)}
-                className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-[#EA526F] text-white text-sm sm:text-base font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-lg flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-4 sm:px-6 py-2 !bg-[#4B244A] !text-white text-sm sm:text-base font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-lg flex items-center justify-center gap-2"
               >
                 View Details <ChevronRight className="w-4 h-4" />
               </button>

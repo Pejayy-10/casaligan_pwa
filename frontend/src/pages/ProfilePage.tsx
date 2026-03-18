@@ -256,7 +256,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Header (Original Structure Preserved) */}
-      <header className="relative z-10 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all shadow-sm safe-area-top">
+      <header className="relative z-10 bg-gray-50 dark:bg-white/10 dark:backdrop-blur-xl border-b border-gray-200 dark:border-white/20 transition-all safe-area-top">
         <div className="max-w-7xl mx-auto px-4 py-4">
             <div className="space-y-5">
                 <div className="flex items-center justify-between">
@@ -391,7 +391,7 @@ export default function ProfilePage() {
                         <p className="text-[#4B244A]/60 dark:text-white/60 mb-4 text-sm">Join our team of housekeepers and start earning.</p>
                         <button
                             onClick={() => navigate('/apply-housekeeper')}
-                            className="w-full py-2.5 bg-[#EA526F] hover:bg-[#d4486a] text-white font-bold rounded-xl shadow-lg shadow-[#EA526F]/20 transition-all text-sm"
+                            className="w-full py-2.5 !bg-[#EA526F] hover:bg-[#d4486a] !text-white font-bold rounded-xl shadow-lg shadow-[#EA526F]/20 transition-all text-sm"
                         >
                             Apply Now
                         </button>
@@ -401,7 +401,7 @@ export default function ProfilePage() {
         )}
 
         {/* Info Grid */}
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4">
             {/* Address */}
             {user.address && (
                 <div className="bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl rounded-2xl p-5 border border-white/60 dark:border-white/5 shadow-sm hover:shadow-md transition-all">
@@ -471,7 +471,7 @@ export default function ProfilePage() {
                 <button
                     onClick={handleSwitchRole}
                     disabled={switchingRole}
-                    className="w-full py-3.5 bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl shadow-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                    className="w-full py-3.5 !bg-[#E7467B] !text-white border border-gray-200 dark:border-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl shadow-sm hover:bg-gray-50 dark:hover:bg-slate-700 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
                     {switchingRole ? (
                       <>
@@ -489,7 +489,7 @@ export default function ProfilePage() {
             
             <button
                 onClick={handleLogout}
-                className="w-full py-3.5 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 text-red-600 dark:text-red-400 font-bold rounded-xl hover:bg-red-100 dark:hover:bg-red-500/20 transition-all"
+                className="w-full py-3.5 bg-gradient-to-br from-[#EA526F]/5 to-[#4B244A]/5 dark:from-[#EA526F]/10 dark:to-[#4B244A]/10 rounded-2xl p-6 border border-[#EA526F]/20 dark:border-[#EA526F]/30"
             >
                 Logout
             </button>

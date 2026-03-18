@@ -275,7 +275,7 @@ export default function EmailVerificationPage() {
           <button
             onClick={handleVerify}
             disabled={!isComplete || loading}
-            className="w-full py-3.5 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white font-bold rounded-xl transition-all shadow-lg shadow-[#EA526F]/30 hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0 flex items-center justify-center gap-2"
+            className="w-full py-3.5 bg-gradient-to-r from-[#EA526F] to-[#d4486a] !text-white font-bold rounded-xl transition-all shadow-lg shadow-[#EA526F]/30 hover:shadow-xl hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed disabled:translate-y-0 flex items-center justify-center gap-2"
           >
             {loading ? (
               <>

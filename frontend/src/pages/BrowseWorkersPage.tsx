@@ -437,7 +437,7 @@ export default function BrowseWorkersPage() {
       </div>
 
       {/* Unified Header */}
-      <header className="relative z-10 bg-white/95 dark:bg-slate-950/95 backdrop-blur-xl border-b border-gray-200 dark:border-white/5 shadow-sm transition-all duration-300 safe-area-top">
+      <header className="relative z-10 bg-gray-50 dark:bg-white/10 dark:backdrop-blur-xl border-b border-gray-200 dark:border-white/20 transition-all safe-area-top">
           <div className="max-w-5xl mx-auto px-4 py-3 space-y-3">
               
               {/* Top Row: Navigation & Title */}
@@ -458,7 +458,7 @@ export default function BrowseWorkersPage() {
                           onClick={() => handleLocationModeChange(false)}
                           className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
                               !useGPSLocation
-                              ? 'bg-white dark:bg-slate-700 text-[#4B244A] dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/5'
+                              ? '!bg-[#E7467B] !text-white dark:bg-slate-700 text-[#4B244A] dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/5'
                               : 'text-gray-500 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-white/5'
                           }`}
                       >
@@ -471,7 +471,7 @@ export default function BrowseWorkersPage() {
                           }}
                           className={`flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-bold transition-all duration-200 ${
                               useGPSLocation
-                              ? 'bg-white dark:bg-slate-700 text-[#EA526F] dark:text-[#EA526F] shadow-sm ring-1 ring-black/5 dark:ring-white/5'
+                              ? '!bg-[#E7467B] !text-white dark:bg-slate-700 text-[#EA526F] dark:text-[#EA526F] shadow-sm ring-1 ring-black/5 dark:ring-white/5'
                               : 'text-gray-500 dark:text-gray-400 hover:bg-white/50 dark:hover:bg-white/5'
                           }`}
                       >
@@ -745,7 +745,7 @@ export default function BrowseWorkersPage() {
                             {/* Action Button */}
                             <button
                                 onClick={() => handleViewProfile(worker.worker_id)}
-                                className="mt-4 w-full py-2.5 bg-[#4B244A] hover:bg-[#381b37] text-white text-sm font-bold rounded-xl transition-all shadow-md group-hover:shadow-lg flex items-center justify-center gap-2"
+                                className="mt-4 w-full py-2.5 !bg-[#4B244A] hover:bg-[#381b37] !text-white text-sm font-bold rounded-xl transition-all shadow-md group-hover:shadow-lg flex items-center justify-center gap-2"
                             >
                                 View Profile
                             </button>

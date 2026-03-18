@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Phone, Mail, Calendar, MapPin, Star, Check, Clock, X, MessageCircle, Package, User, Briefcase, AlertTriangle, AlertCircle } from 'lucide-react';
+import { Phone, Mail, Calendar, MapPin, Star, Check, Clock, X, MessageCircle, Package, User, Briefcase, AlertTriangle, AlertCircle, ChevronLeft, ChevronDown } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import StarRating from '../components/StarRating';
 import { psgcService } from '../services/psgc';
@@ -353,49 +353,51 @@ export default function WorkerProfilePage() {
       </div>
 
       {/* Header */}
-      <header className="relative z-10 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
+      <header className="relative z-10 bg-gray-50 dark:bg-white/10 dark:backdrop-blur-xl border-b border-gray-200 dark:border-white/20 transition-all safe-area-top">
         <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <button onClick={() => navigate(-1)} className="text-[#4B244A]/80 dark:text-white/80 hover:text-[#4B244A] dark:hover:text-white transition-colors">
-              ← Back
-            </button>
-            <h1 className="text-xl font-bold text-[#4B244A] dark:text-white">Housekeeper Profile</h1>
-            <div className="w-16"></div>
+          <div className="flex items-center gap-3">
+                  <button 
+                      onClick={() => navigate(-1)} 
+                      className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-600 dark:text-white transition-colors active:scale-95"
+                  >
+                      <ChevronDown className="w-6 h-6 rotate-90" />
+                  </button>
+                  <h1 className="text-xl font-bold text-[#4B244A] dark:text-white tracking-tight">Housekeeper Profile</h1>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="relative z-10 max-w-4xl mx-auto px-4 py-6">
+      <main className="relative z-10 max-w-4xl mx-auto px-4 py-6 pb-32">
         {/* Profile Header */}
         <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 mb-6 border border-white/50 dark:border-white/10 shadow-xl transition-all">
-          <div className="flex items-center gap-4 mb-4">
-            <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#EA526F] to-[#6B3468] dark:from-[#EA526F] dark:to-[#d4486a] flex items-center justify-center text-3xl text-white font-bold shadow-lg overflow-hidden">
+          <div className="flex flex-col items-center gap-4 mb-4 text-center">
+            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#EA526F] to-[#6B3468] dark:from-[#EA526F] dark:to-[#d4486a] flex items-center justify-center text-3xl text-white font-bold shadow-lg overflow-hidden">
               {profile.profile_picture ? (
                 <img src={profile.profile_picture} alt={`${profile.first_name} ${profile.last_name}`} className="w-full h-full object-cover" />
               ) : (
                 <>{profile.first_name[0]}{profile.last_name[0]}</>
               )}
             </div>
-            <div className="flex-1">
-              <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">
+            <div className="w-full">
+              <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">
                 {profile.first_name} {profile.last_name}
               </h2>
               {profile.city && (
-                <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">
-                  📍 {profile.barangay && `${profile.barangay}, `}{profile.city}
+                <p className="text-[#4B244A]/70 dark:text-white/70 text-sm font-medium">
+                  <MapPin className="inline w-4 h-4 mr-1" />{profile.barangay && `${profile.barangay}, `}{profile.city}
                   {profile.province && `, ${profile.province}`}
                 </p>
               )}
               {profile.gender && (
-                <p className="text-[#4B244A]/60 dark:text-white/60 text-sm font-medium mt-1">
+                <p className="text-[#4B244A]/60 dark:text-white/60 text-xs font-medium mt-1">
                   {profile.gender === 'male' && '👨 Male'}
                   {profile.gender === 'female' && '👩 Female'}
                   {profile.gender === 'other' && '⚧️ Other'}
                   {profile.gender === 'prefer_not_to_say' && '🙋 Prefer not to say'}
                 </p>
               )}
-              <div className="flex flex-wrap items-center gap-2 mt-2">
+              <div className="flex flex-wrap items-center justify-center gap-2 mt-2">
                 {profile.is_verified ? (
                   <span className="px-3 py-1 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300 text-sm font-bold rounded-full">
                     <Check className="inline w-4 h-4 mr-1" /> Verified
@@ -541,7 +543,6 @@ export default function WorkerProfilePage() {
           
           {profile.packages.length === 0 ? (
             <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 border border-white/50 dark:border-white/10 text-center shadow-lg">
-              <div className="text-4xl mb-2 opacity-50">📭</div>
               <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">No packages available yet</p>
               <p className="text-[#4B244A]/50 dark:text-white/50 text-sm mt-1 font-medium">This housekeeper hasn't created any service packages</p>
             </div>
@@ -622,7 +623,7 @@ export default function WorkerProfilePage() {
                   onClick={() => setShowHireModal(true)}
                   className="px-8 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all shadow-lg shadow-[#EA526F]/30"
                 >
-                  Hire Now 🚀
+                  Hire Now 
                 </button>
               </div>
             </div>

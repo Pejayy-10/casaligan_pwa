@@ -4,6 +4,7 @@ import { authService } from '../services/auth';
 import { API_BASE_URL } from '../config';
 import TabBar from '../components/TabBar';
 import type { User } from '../types';
+import { CheckCircle2 } from 'lucide-react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -50,20 +51,20 @@ function StepBar({ current, total }: { current: number; total: number }) {
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-white font-bold text-xl">Become a Housekeeper</span>
-        <span className="text-white/70 text-sm font-medium">Step {current} of {total}</span>
+        <span className="text-[#4B244A] dark:text-white font-bold text-2xl">Become a Housekeeper</span>
+        <span className="text-[#4B244A]/70 dark:text-white/70 text-sm font-medium">Step {current} of {total}</span>
       </div>
       <div className="flex gap-1.5 mb-3">
         {Array.from({ length: total }).map((_, i) => (
           <div
             key={i}
             className={`flex-1 h-1.5 rounded-full transition-all duration-300 ${
-              i + 1 <= current ? 'bg-[#EA526F]' : 'bg-white/20'
+              i + 1 <= current ? 'bg-[#EA526F]' : 'bg-gray-200 dark:bg-white/20'
             }`}
           />
         ))}
       </div>
-      <p className="text-white/70 text-sm">{labels[current - 1]}</p>
+      <p className="text-[#4B244A]/70 dark:text-white/70 text-sm">{labels[current - 1]}</p>
     </div>
   );
 }
@@ -331,7 +332,7 @@ export default function ApplyHousekeeperPage() {
         {result.rejection_reason && (
           <p className="text-red-200/70 text-xs mt-1">{result.rejection_reason}</p>
         )}
-        <p className="text-white/50 text-xs mt-2">Upload a different photo of the same document.</p>
+        <p className="text-[#4B244A]/60 dark:text-white/50 text-xs mt-2">Upload a different photo of the same document.</p>
       </div>
     );
   };
@@ -339,27 +340,28 @@ export default function ApplyHousekeeperPage() {
   if (!user) return null;
 
   // ── Shared styles ──────────────────────────────────────────────────────────
-  const inputClass = 'w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#EA526F] transition-all';
-  const labelClass = 'block text-white/80 font-semibold text-sm mb-2';
+  const inputClass = 'w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-[#4B244A] dark:text-white placeholder-[#4B244A]/40 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F] transition-all';
+  const labelClass = 'block text-[#4B244A] dark:text-white/90 font-semibold text-sm mb-2';
 
   // ── Already housekeeper or submitted ──────────────────────────────────────
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-[#4B244A] via-[#6B3468] to-[#4B244A] flex items-center justify-center p-4 pb-24">
+      <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 flex items-center justify-center p-4 pb-24 transition-colors duration-300 relative">
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" />
-          <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000" />
-          <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000" />
+          <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-[#EA526F]/20 dark:bg-[#EA526F]/30 rounded-full blur-[100px] animate-blob will-change-transform" />
+          <div className="absolute -bottom-[10%] -right-[10%] w-[45%] h-[45%] bg-teal-400/20 dark:bg-teal-500/20 rounded-full blur-[100px] animate-blob animation-delay-4000 will-change-transform" />
+          <div className="absolute top-1/4 left-1/3 w-72 h-72 bg-purple-400/15 dark:bg-purple-600/20 rounded-full blur-[80px] animate-blob animation-delay-2000 will-change-transform" />
+          <div className="absolute bottom-1/4 right-1/3 w-80 h-80 bg-yellow-200/20 dark:bg-amber-500/10 rounded-full blur-[90px] animate-blob animation-delay-6000 will-change-transform" />
         </div>
-        <div className="relative z-10 w-full max-w-md text-center bg-white/10 backdrop-blur-xl rounded-3xl p-8 border border-white/20">
+        <div className="relative z-10 w-full max-w-md text-center bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-8 md:p-10 border border-white/50 dark:border-white/10 shadow-2xl">
           {approved || user.is_housekeeper ? (
             <>
               <div className="text-6xl mb-4">🎉</div>
-              <h2 className="text-2xl font-bold text-white mb-2">Welcome, Housekeeper!</h2>
-              <p className="text-white/70 mb-6">Your application has been approved. You can now switch to Housekeeper mode and start accepting jobs.</p>
+              <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white mb-2">Welcome, Housekeeper!</h2>
+              <p className="text-[#4B244A]/70 dark:text-white/70 mb-6">Your application has been approved. You can now switch to Housekeeper mode and start accepting jobs.</p>
               <button
                 onClick={() => navigate('/profile')}
-                className="w-full py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg"
+                className="w-full py-3 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg"
               >
                 Go to Profile
               </button>
@@ -367,49 +369,48 @@ export default function ApplyHousekeeperPage() {
           ) : (
             <>
               <div className="text-6xl mb-4">📋</div>
-              <h2 className="text-2xl font-bold text-white mb-2">Application Submitted!</h2>
-              <p className="text-white/70 mb-2">Your application is now under review. We'll notify you once it's approved.</p>
-              <p className="text-white/50 text-sm mb-6">This usually takes 1–2 business days.</p>
+              <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white mb-2">Application Submitted!</h2>
+              <p className="text-[#4B244A] dark:text-white/70 mb-2">Your application is now under review. We'll notify you once it's approved.</p>
+              <p className="text-[#4B244A]/50 dark:text-white/50 text-sm mb-6">This usually takes 1–2 business days.</p>
               <button
                 onClick={() => navigate('/profile')}
-                className="w-full py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg"
+                className="w-full py-3 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg"
               >
                 Go to Profile
               </button>
             </>
           )}
         </div>
-        <TabBar role={user.active_role} />
       </div>
     );
   }
-
   // ── Main wizard ────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#4B244A] via-[#6B3468] to-[#4B244A] pb-24">
-      {/* Blobs */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob" />
-        <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000" />
-        <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000" />
+    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 flex items-center justify-center p-4 pt-16 pb-16 overflow-y-auto transition-colors duration-300 relative">
+      {/* Decorative circles */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-[#EA526F]/20 dark:bg-[#EA526F]/30 rounded-full blur-[100px] animate-blob will-change-transform" />
+        <div className="absolute -bottom-[10%] -right-[10%] w-[45%] h-[45%] bg-teal-400/20 dark:bg-teal-500/20 rounded-full blur-[100px] animate-blob animation-delay-4000 will-change-transform" />
+        <div className="absolute top-1/4 left-1/3 w-72 h-72 bg-purple-400/15 dark:bg-purple-600/20 rounded-full blur-[80px] animate-blob animation-delay-2000 will-change-transform" />
+        <div className="absolute bottom-1/4 right-1/3 w-80 h-80 bg-yellow-200/20 dark:bg-amber-500/10 rounded-full blur-[90px] animate-blob animation-delay-6000 will-change-transform" />
       </div>
 
-      <main className="relative z-10 max-w-2xl mx-auto px-4 py-8">
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 md:p-8 border border-white/20 shadow-2xl">
+      <main className="relative z-10 w-full max-w-2xl">
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-6 md:p-8 border border-white/50 dark:border-white/10 shadow-2xl">
           <div className="flex justify-end mb-2">
             <button
               type="button"
               onClick={() => navigate('/profile')}
-              className="text-white/40 hover:text-white/80 text-sm transition-colors"
+              className="text-[#4B244A]/50 hover:text-[#4B244A]/80 dark:text-white/60 dark:hover:text-white/80 text-sm transition-colors"
             >
-              ✕ Cancel
+              ✕
             </button>
           </div>
           <StepBar current={step} total={4} />
 
           {globalError && (
-            <div className="mb-4 p-3 bg-red-500/20 border border-red-500/40 rounded-xl">
-              <p className="text-red-200 text-sm">{globalError}</p>
+            <div className="mb-4 p-3 bg-red-300/20 border border-red-500/40 rounded-xl">
+              <p className="text-red-400 text-sm">{globalError}</p>
             </div>
           )}
 
@@ -419,7 +420,7 @@ export default function ApplyHousekeeperPage() {
               {/* Skills */}
               <div>
                 <label className={labelClass}>Skills / Services Offered <span className="text-[#EA526F]">*</span></label>
-                <p className="text-white/50 text-xs mb-3">Select all that apply.</p>
+                <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mb-3">Select all that apply.</p>
                 <div className="grid grid-cols-2 gap-2">
                   {SKILLS.map(skill => (
                     <button
@@ -429,7 +430,7 @@ export default function ApplyHousekeeperPage() {
                       className={`px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-all border ${
                         selectedSkills.includes(skill.value)
                           ? 'bg-[#EA526F]/30 border-[#EA526F] text-white'
-                          : 'bg-white/5 border-white/20 text-white/70 hover:bg-white/10'
+                          : 'bg-white/5 border-white/20 text-[#4B244A]/70 dark:text-white/70 hover:bg-white/10'
                       }`}
                     >
                       {selectedSkills.includes(skill.value) ? '✓ ' : ''}{skill.label}
@@ -454,7 +455,7 @@ export default function ApplyHousekeeperPage() {
                       className={`px-3 py-2.5 rounded-xl text-sm font-medium transition-all border ${
                         availability === opt.value
                           ? 'bg-[#EA526F]/30 border-[#EA526F] text-white'
-                          : 'bg-white/5 border-white/20 text-white/70 hover:bg-white/10'
+                          : 'bg-white/5 border-white/20 text-[#4B244A]/70 dark:text-white/70 hover:bg-white/10'
                       }`}
                     >
                       {availability === opt.value ? '✓ ' : ''}{opt.label}
@@ -496,9 +497,9 @@ export default function ApplyHousekeeperPage() {
               <button
                 type="button"
                 onClick={handleStep1Next}
-                className="w-full py-3.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30"
+                className="w-full py-3.5 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30"
               >
-                Next: Upload NBI Clearance →
+                Next →
               </button>
             </div>
           )}
@@ -507,9 +508,9 @@ export default function ApplyHousekeeperPage() {
           {step === 2 && (
             <div className="space-y-5">
               <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                <p className="text-blue-200 text-sm font-semibold mb-1">🪪 Primary Clearance Document</p>
-                <p className="text-blue-200/70 text-xs">
-                  Upload a government-issued clearance. Your name must match your registered name: <strong className="text-white">{user.first_name} {user.last_name}</strong>.
+                <p className="text-blue-500 text-sm font-semibold mb-1">Primary Clearance Document</p>
+                <p className="text-blue-400/80 dark:text-blue-200/70 text-xs">
+                  Upload a government-issued clearance. Your name must match your registered name: <strong className="text-blue-500 dark:text-white font-semibold">{user.first_name} {user.last_name}</strong>.
                   Our AI (Gemini Vision) will verify the document automatically.
                 </p>
               </div>
@@ -526,7 +527,7 @@ export default function ApplyHousekeeperPage() {
                       className={`px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-all border ${
                         nbiDocType === dt.value
                           ? 'bg-[#EA526F]/30 border-[#EA526F] text-white'
-                          : 'bg-white/5 border-white/20 text-white/70 hover:bg-white/10'
+                          : 'bg-white/5 border-white/20 text-[#4B244A]/70 dark:text-white/70 hover:bg-white/10'
                       }`}
                     >
                       {nbiDocType === dt.value ? '✓ ' : ''}{dt.label}
@@ -551,14 +552,14 @@ export default function ApplyHousekeeperPage() {
                   disabled={nbiUploading}
                   className={`w-full py-8 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 transition-all ${
                     nbiUploading
-                      ? 'border-white/20 text-white/40 cursor-wait'
+                      ? 'border-white/20 text-[#4B244A]/40 dark:text-white/40 cursor-wait'
                       : nbiResult?.status === 'approved'
                       ? 'border-green-500/50 text-green-300 hover:border-green-400'
                       : nbiResult?.status === 'rejected'
                       ? 'border-red-500/50 text-red-300 hover:border-red-400'
                       : nbiSkipped
                       ? 'border-yellow-500/30 text-yellow-300/60 hover:border-yellow-400'
-                      : 'border-white/20 text-white/60 hover:border-[#EA526F] hover:text-[#EA526F]'
+                      : 'border-white/20 text-[#4B244A]/60 dark:text-white/60 hover:border-[#EA526F] hover:text-[#EA526F]'
                   }`}
                 >
                   {nbiUploading ? (
@@ -586,7 +587,7 @@ export default function ApplyHousekeeperPage() {
                   <button
                     type="button"
                     onClick={() => setNbiSkipped(true)}
-                    className="mt-3 w-full text-center text-white/35 text-xs hover:text-white/60 transition-colors py-1"
+                    className="mt-3 w-full text-center text-[#4B244A]/50 dark:text-white/60 text-xs hover:text-[#4B244A]/80 dark:hover:text-white/70 transition-colors py-1"
                   >
                     ⏭ Skip for now (testing only)
                   </button>
@@ -594,22 +595,22 @@ export default function ApplyHousekeeperPage() {
                 {nbiSkipped && (
                   <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg flex items-center justify-between">
                     <p className="text-yellow-200/60 text-xs">⏭ Skipped — no document will be submitted</p>
-                    <button type="button" onClick={() => setNbiSkipped(false)} className="text-white/40 text-xs hover:text-white/70">Undo</button>
+                    <button type="button" onClick={() => setNbiSkipped(false)} className="text-[#4B244A]/50 dark:text-white/60 text-xs hover:text-[#4B244A]/80 dark:hover:text-white/70">Undo</button>
                   </div>
                 )}
               </div>
 
               <div className="flex gap-3">
-                <button type="button" onClick={() => setStep(1)} className="flex-1 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
+                <button type="button" onClick={() => setStep(1)} className="flex-1 py-3 !bg-black/30 !text-white dark:text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
                   ← Back
                 </button>
                 <button
                   type="button"
                   disabled={!nbiSkipped && (!nbiResult || nbiResult.status === 'rejected')}
                   onClick={() => setStep(3)}
-                  className="flex-1 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex-1 py-3 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Next: Supporting Doc →
+                  Next →
                 </button>
               </div>
             </div>
@@ -619,8 +620,8 @@ export default function ApplyHousekeeperPage() {
           {step === 3 && (
             <div className="space-y-5">
               <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                <p className="text-blue-200 text-sm font-semibold mb-1">📄 Supporting Document</p>
-                <p className="text-blue-200/70 text-xs">
+                <p className="text-blue-500 text-sm font-semibold mb-1">Supporting Document</p>
+                <p className="text-blue-400/80 dark:text-blue-200/70 text-xs">
                   Upload one more document to complete your verification. Any of the options below are accepted.
                 </p>
               </div>
@@ -637,7 +638,7 @@ export default function ApplyHousekeeperPage() {
                       className={`px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-all border ${
                         secDocType === dt.value
                           ? 'bg-[#EA526F]/30 border-[#EA526F] text-white'
-                          : 'bg-white/5 border-white/20 text-white/70 hover:bg-white/10'
+                          : 'bg-white/5 border-white/20 text-[#4B244A]/70 dark:text-white/70 hover:bg-white/10'
                       }`}
                     >
                       {secDocType === dt.value ? '✓ ' : ''}{dt.label}
@@ -656,12 +657,12 @@ export default function ApplyHousekeeperPage() {
                   disabled={secUploading}
                   className={`w-full py-8 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center gap-2 transition-all ${
                     secUploading
-                      ? 'border-white/20 text-white/40 cursor-wait'
+                      ? 'border-white/20 text-[#4B244A]/40 dark:text-white/40 cursor-wait'
                       : secResult?.status === 'approved'
                       ? 'border-green-500/50 text-green-300 hover:border-green-400'
                       : secResult?.status === 'rejected'
                       ? 'border-red-500/50 text-red-300 hover:border-red-400'
-                      : 'border-white/20 text-white/60 hover:border-[#EA526F] hover:text-[#EA526F]'
+                      : 'border-white/20 text-[#4B244A]/60 dark:text-white/60 hover:border-[#EA526F] hover:text-[#EA526F]'
                   }`}
                 >
                   {secUploading ? (
@@ -687,7 +688,7 @@ export default function ApplyHousekeeperPage() {
                   <button
                     type="button"
                     onClick={() => setSecSkipped(true)}
-                    className="mt-3 w-full text-center text-white/35 text-xs hover:text-white/60 transition-colors py-1"
+                    className="mt-3 w-full text-center text-[#4B244A]/50 dark:text-white/60 text-xs hover:text-[#4B244A]/80 dark:hover:text-white/70 transition-colors py-1"
                   >
                     ⏭ Skip for now (testing only)
                   </button>
@@ -695,22 +696,22 @@ export default function ApplyHousekeeperPage() {
                 {secSkipped && (
                   <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg flex items-center justify-between">
                     <p className="text-yellow-200/60 text-xs">⏭ Skipped — no document will be submitted</p>
-                    <button type="button" onClick={() => setSecSkipped(false)} className="text-white/40 text-xs hover:text-white/70">Undo</button>
+                    <button type="button" onClick={() => setSecSkipped(false)} className="text-[#4B244A]/50 dark:text-white/60 text-xs hover:text-[#4B244A]/80 dark:hover:text-white/70">Undo</button>
                   </div>
                 )}
               </div>
 
               <div className="flex gap-3">
-                <button type="button" onClick={() => setStep(2)} className="flex-1 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
+                <button type="button" onClick={() => setStep(2)} className="flex-1 py-3 !bg-black/30 !text-white dark:text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
                   ← Back
                 </button>
                 <button
                   type="button"
                   disabled={!secSkipped && (!secResult || secResult.status === 'rejected')}
                   onClick={() => setStep(4)}
-                  className="flex-1 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex-1 py-3 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Next: Phone Verify →
+                  Next →
                 </button>
               </div>
             </div>
@@ -722,47 +723,35 @@ export default function ApplyHousekeeperPage() {
               {phoneVerified ? (
                 // Phone already verified — show submit button
                 <div className="space-y-5">
-                  <div className="p-5 bg-green-500/20 border border-green-500/40 rounded-2xl text-center">
-                    <p className="text-4xl mb-2">✅</p>
-                    <p className="text-green-300 font-bold text-lg">Phone Verified!</p>
-                    <p className="text-green-200/70 text-sm mt-1">{user.phone_number}</p>
+                  <div className="p-5 bg-green-200/0 border border-green-500/40 rounded-2xl text-center">
+                    <CheckCircle2 className="mx-auto mb-2 text-green-400" size={32} />
+                    <p className="text-green-500 font-bold text-lg">Phone Verified!</p>
+                    <p className="text-green-400 text-sm mt-1">{user.phone_number}</p>
                   </div>
-
-                  <div className="p-4 bg-white/5 border border-white/10 rounded-xl text-sm text-white/60 space-y-1">
-                    <p>📋 <strong className="text-white/80">Professional info:</strong> {selectedSkills.length} skills · {availability.replace('_', ' ')}</p>
-                    <p>🪪 <strong className="text-white/80">Primary clearance:</strong> {nbiSkipped ? '⏭ Skipped' : nbiResult?.status === 'approved' ? '✅ Verified' : '⏳ Pending review'}</p>
-                    <p>📄 <strong className="text-white/80">Supporting doc:</strong> {secSkipped ? '⏭ Skipped' : secResult?.status === 'approved' ? '✅ Verified' : '⏳ Pending review'}</p>
-                  </div>
-
-                  {globalError && (
-                    <div className="p-3 bg-red-500/20 border border-red-500/40 rounded-xl">
-                      <p className="text-red-200 text-sm">{globalError}</p>
-                    </div>
-                  )}
 
                   <div className="flex gap-3">
-                    <button type="button" onClick={() => setStep(3)} className="flex-1 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
+                    <button type="button" onClick={() => setStep(3)} className="flex-1 py-3 !bg-black/30 !text-white dark:text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
                       ← Back
                     </button>
                     <button
                       type="button"
                       onClick={handleSubmit}
                       disabled={submitting}
-                      className="flex-1 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-50"
+                      className="flex-1 py-3 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-50"
                     >
-                      {submitting ? 'Submitting…' : 'Submit Application 🚀'}
+                      {submitting ? 'Submitting…' : 'Submit Application'}
                     </button>
                   </div>
                 </div>
               ) : (
                 // OTP verification flow
-                <div className="space-y-5">
-                  <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                    <p className="text-blue-200 text-sm font-semibold mb-1">📱 Verify Your Phone Number</p>
-                    <p className="text-blue-200/70 text-xs">
-                      We'll send a one-time code to <strong className="text-white">{user.phone_number}</strong>. This verifies that you're the owner of this number.
-                    </p>
-                  </div>
+              <div className="space-y-5">
+              <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                <p className="text-blue-500 text-sm font-semibold mb-1">Verify Your Phone Number</p>
+                <p className="text-blue-400/80 dark:text-blue-200/70 text-xs">
+                  We'll send a one-time code to <strong className="text-[#4B244A] dark:text-white font-semibold">{user.phone_number}</strong>. This verifies that you're the owner of this number.
+                </p>
+              </div>
 
                   {!otpSent ? (
                     <button
@@ -775,7 +764,7 @@ export default function ApplyHousekeeperPage() {
                     </button>
                   ) : (
                     <div className="space-y-4">
-                      <p className="text-center text-white/70 text-sm">Enter the 6-digit code sent to <strong className="text-white">{user.phone_number}</strong></p>
+                      <p className="text-center text-[#4B244A]/70 dark:text-white/70 text-sm">Enter the 6-digit code sent to <strong className="text-[#4B244A] dark:text-white font-semibold">{user.phone_number}</strong></p>
 
                       {/* 6-digit input */}
                       <div className="flex gap-2 justify-center" onPaste={handleOtpPaste}>
@@ -789,8 +778,8 @@ export default function ApplyHousekeeperPage() {
                             value={digit}
                             onChange={e => handleOtpChange(i, e.target.value)}
                             onKeyDown={e => handleOtpKeyDown(i, e)}
-                            className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 bg-white/10 text-white focus:outline-none transition-all ${
-                              digit ? 'border-[#EA526F] bg-[#EA526F]/20' : 'border-white/30 focus:border-[#EA526F]'
+                            className={`w-12 h-14 text-center text-xl font-bold rounded-xl border-2 bg-white/10 text-[#4B244A] dark:text-white focus:outline-none transition-all ${
+                              digit ? 'border-[#EA526F] bg-[#EA526F]/20' : 'border-[#EA526F]/30 focus:border-[#EA526F]'
                             }`}
                           />
                         ))}
@@ -798,7 +787,7 @@ export default function ApplyHousekeeperPage() {
 
                       {devOtp && (
                         <div className="p-2 bg-yellow-500/20 border border-yellow-500/40 rounded-lg text-center">
-                          <p className="text-yellow-200 text-xs">⚠️ SMS not configured — Dev OTP: <strong className="font-mono text-base">{devOtp}</strong></p>
+                          <p className="text-yellow-500 text-xs">SMS not configured — Dev OTP: <strong className="font-mono text-base">{devOtp}</strong></p>
                         </div>
                       )}
 
@@ -808,7 +797,7 @@ export default function ApplyHousekeeperPage() {
                         type="button"
                         onClick={handleVerifyOtp}
                         disabled={verifyingOtp || otp.join('').length < 6}
-                        className="w-full py-3.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-50"
+                        className="w-full py-3.5 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-50"
                       >
                         {verifyingOtp ? 'Verifying…' : 'Verify Code'}
                       </button>
@@ -816,7 +805,7 @@ export default function ApplyHousekeeperPage() {
                       {/* Resend */}
                       <div className="text-center">
                         {countdown > 0 ? (
-                          <p className="text-white/40 text-sm">Resend in {countdown}s</p>
+                          <p className="text-[#4B244A]/40 dark:text-white/40 text-sm">Resend in {countdown}s</p>
                         ) : (
                           <button type="button" onClick={handleSendOtp} disabled={sendingOtp} className="text-[#EA526F] text-sm font-medium hover:underline disabled:opacity-50">
                             Resend code
@@ -828,7 +817,7 @@ export default function ApplyHousekeeperPage() {
 
                   {otpError && !otpSent && <p className="text-red-300 text-sm text-center">{otpError}</p>}
 
-                  <button type="button" onClick={() => setStep(3)} className="w-full py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
+                  <button type="button" onClick={() => setStep(3)} className="w-full py-3 !bg-black/30 !text-white dark:text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
                     ← Back
                   </button>
                 </div>
@@ -837,8 +826,6 @@ export default function ApplyHousekeeperPage() {
           )}
         </div>
       </main>
-
-      <TabBar role={user.active_role} />
     </div>
   );
 }

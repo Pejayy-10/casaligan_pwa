@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { FileText, ImageIcon, RotateCw, DollarSign } from 'lucide-react';
+import { FileText, ImageIcon, RotateCw, DollarSign, ChevronDown } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import type { User } from '../types';
 
@@ -216,22 +216,29 @@ export default function CreateJobPage() {
 
   return (
     <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300 pb-20 relative">
-      {/* Decorative circles */}
+      {/* Decorative Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob"></div>
-        <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-4000"></div>
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#EA526F]/10 rounded-full blur-[100px]" />
+        <div className="absolute top-[20%] right-[-10%] w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-[100px]" />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-blue-400/10 rounded-full blur-[120px]" />
       </div>
 
       {/* Header */}
-      <header className="relative z-10 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/10 transition-all">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center">
-          <button onClick={() => navigate('/jobs')} className="text-[#4B244A] dark:text-white mr-4 hover:opacity-70 transition-opacity">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
+      <header className="relative z-10 bg-gray-50 dark:bg-white/10 dark:backdrop-blur-xl border-b border-gray-200 dark:border-white/20 transition-all safe-area-top">
+        <div className="max-w-4xl mx-auto px-4 py-3 space-y-4">
+          <div className="flex items-center gap-3">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-600 dark:text-white transition-colors active:scale-95"
+          >
+          <ChevronDown className="w-6 h-6 rotate-90" />
           </button>
-          <h1 className="text-2xl font-bold text-[#4B244A] dark:text-white"><FileText className="inline w-6 h-6 mr-2" /> Post a Job</h1>
+          <h1 className="text-xl font-bold text-[#4B244A] dark:text-white tracking-tight">
+            Post a Job
+          </h1>
+          {/* placeholder to balance flex */}
+          <div className="w-12" />
+        </div>
         </div>
       </header>
 
@@ -479,7 +486,7 @@ export default function CreateJobPage() {
                       className="w-5 h-5 rounded border-gray-300 dark:border-white/30 text-[#EA526F] focus:ring-[#EA526F]"
                     />
                     <div>
-                      <span className="text-blue-800 dark:text-white font-bold">🔄 Make this a recurring job</span>
+                      <span className="text-blue-800 dark:text-white font-bold">Make this a recurring job</span>
                       <p className="text-blue-600 dark:text-white/70 text-xs mt-1 font-medium">
                         Set a regular schedule (e.g., every Saturday) so you don't need to post again
                       </p>
@@ -723,16 +730,16 @@ export default function CreateJobPage() {
             <button
               type="button"
               onClick={() => navigate('/jobs')}
-              className="flex-1 px-6 py-4 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/10"
+              className="flex-1 px-6 py-4 !bg-black/20 !text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/10"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-6 py-4 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-6 py-4 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Posting...' : '📮 Post Job'}
+              {loading ? 'Posting...' : 'Post Job'}
             </button>
           </div>
         </form>

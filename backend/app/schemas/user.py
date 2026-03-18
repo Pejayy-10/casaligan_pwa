@@ -17,6 +17,18 @@ class UserBase(BaseModel):
     gender: Optional[Literal['male', 'female', 'other', 'prefer_not_to_say']] = None
     birthday: Optional[date] = None
 
+    @field_validator("first_name", "middle_name", "last_name", "suffix", mode="before")
+    @classmethod
+    def normalize_names(cls, v: Optional[str]) -> Optional[str]:
+        """Normalize name fields to start with an uppercase letter."""
+        if v is None:
+            return None
+        value = v.strip()
+        if not value:
+            return None
+        # Capitalize first letter, lowercase the rest (e.g., "kei" -> "Kei")
+        return value.capitalize()
+
 
 class UserCreate(UserBase):
     password: str

@@ -121,22 +121,25 @@ export default function LoginPage() {
 
    return (
     <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 flex items-center justify-center p-4 transition-colors duration-300 relative overflow-hidden">
-      {/* Decorative circles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-64 h-64 bg-[#EA526F] rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob"></div>
-        <div className="absolute top-0 right-0 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-0 left-1/2 w-80 h-80 bg-pink-300 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-4000"></div>
-        <div className="absolute bottom-0 right-0 w-64 h-64 bg-teal-400 rounded-full mix-blend-multiply dark:mix-blend-screen filter blur-3xl opacity-20 dark:opacity-30 animate-blob animation-delay-6000"></div>
-      </div>
+    <div className="absolute inset-0 overflow-hidden pointer-events-none select-none">
+      <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-[#EA526F]/20 dark:bg-[#EA526F]/30 rounded-full blur-[100px] animate-blob will-change-transform"></div>
+      <div className="absolute -bottom-[10%] -right-[10%] w-[45%] h-[45%] bg-teal-400/20 dark:bg-teal-500/20 rounded-full blur-[100px] animate-blob animation-delay-4000 will-change-transform"></div>
+      <div className="absolute top-1/4 left-1/3 w-72 h-72 bg-purple-400/15 dark:bg-purple-600/20 rounded-full blur-[80px] animate-blob animation-delay-2000 will-change-transform"></div>
+      <div className="absolute bottom-1/4 right-1/3 w-80 h-80 bg-yellow-200/20 dark:bg-amber-500/10 rounded-full blur-[90px] animate-blob animation-delay-6000 will-change-transform"></div>
+    </div>
 
       <div className="w-full max-w-md relative z-10">
+        {/* Logo (outside of card) */}
+        <div className="text-center mb-6">
+          <div className="flex items-center justify-center mb-4">
+            <img src="/logo.png" alt="Casaligan Logo" className="w-60 h-20 md:w-56 md:h-56 object-contain" />
+          </div>
+        </div>
+
         {/* Glass morphism card */}
-        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl shadow-2xl p-8 md:p-10 border border-white/50 dark:border-white/10 transition-all">
-          {/* Logo and Title */}
+        <div className="bg-white/60 dark:bg-slate-950/20 backdrop-blur-xl rounded-3xl shadow-2xl p-8 md:p-10 border border-white/50 dark:border-white/10 transition-all">
+          {/* Title */}
           <div className="text-center mb-6">
-            <div className="flex items-center justify-center mb-4">
-              <img src="/logo.png" alt="Casaligan Logo" className="w-48 h-48 md:w-56 md:h-56 object-contain drop-shadow-lg" />
-            </div>
             <p className="text-[#4B244A] dark:text-white/90 text-lg font-bold">Welcome back!</p>
           </div>
 
@@ -202,7 +205,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
+              className="w-full py-3.5 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
             >
               {loading ? (
                 <div className="flex items-center justify-center">
@@ -300,7 +303,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={forgotLoading}
-                  className="w-full py-3.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
+                  className="w-full py-3.5 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
                 >
                   {forgotLoading ? 'Sending...' : 'Send Reset Code'}
                 </button>
@@ -311,7 +314,7 @@ export default function LoginPage() {
             {forgotStep === 'otp' && (
               <form onSubmit={handleForgotVerifyOtp} className="space-y-5">
                 <div className="text-center mb-2">
-                  <div className="w-16 h-16 mx-auto mb-4 bg-[#EA526F]/10 rounded-2xl flex items-center justify-center">
+                  <div className="w-16 h-16 mx-auto mb-4 !bg-[#EA526F]/10 rounded-2xl flex items-center justify-center">
                     <KeyRound className="w-8 h-8 text-[#EA526F]" />
                   </div>
                   <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">Enter Reset Code</h2>
@@ -346,7 +349,7 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  className="w-full py-3.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 transition-all shadow-lg shadow-[#EA526F]/30"
+                  className="w-full py-3.5 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 transition-all shadow-lg shadow-[#EA526F]/30"
                 >
                   Verify Code
                 </button>
@@ -444,7 +447,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={forgotLoading}
-                  className="w-full py-3.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
+                  className="w-full py-3.5 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
                 >
                   {forgotLoading ? 'Resetting...' : 'Reset Password'}
                 </button>
