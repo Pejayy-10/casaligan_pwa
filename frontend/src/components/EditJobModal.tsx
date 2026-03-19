@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import type { JobPost } from './JobDetailModal';
-import { Camera } from 'lucide-react';
+import { Camera, Edit2 } from 'lucide-react';
 
 const resolveUploadUrl = (url: string) => {
   if (!url) return '';
@@ -163,7 +163,10 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
       <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20">
         {/* Header */}
         <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-6 py-4 flex items-center justify-between border-b border-gray-200 dark:border-white/10 z-10">
-          <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">✏️ Edit Job Post</h2>
+          <div className="flex items-center gap-3">
+            <Edit2 className="w-6 h-6 text-[#4B244A] dark:text-white" />
+            <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white">Edit Job Post</h2>
+          </div>
           <button onClick={onClose} className="text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white transition-colors">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -179,152 +182,148 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
             </div>
           )}
 
-          {/* Basic Information */}
-          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 border border-white/50 dark:border-white/10 shadow-lg space-y-4">
-            <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Basic Information</h3>
-            
+          {/* Job Title */}
+          <div>
+            <label className={labelClass}>Job Title *</label>
+            <input
+              type="text"
+              name="title"
+              value={formData.title}
+              onChange={handleInputChange}
+              required
+              className={inputClass}
+              placeholder="e.g., Deep Cleaning Needed"
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className={labelClass}>Description *</label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleInputChange}
+              required
+              rows={4}
+              className={`${inputClass} resize-none`}
+              placeholder="Describe the job details..."
+            />
+          </div>
+
+          {/* Location */}
+          <div>
+            <label className={labelClass}>Location</label>
+            <input
+              type="text"
+              name="location"
+              value={formData.location}
+              onChange={handleInputChange}
+              className={inputClass}
+              placeholder="e.g., Quezon City"
+            />
+          </div>
+
+          {/* Categories */}
+          <div>
+            <label className={labelClass}>Categories * (Select one or more)</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+              {categories.map(cat => (
+                <label
+                  key={cat.category_id}
+                  className="flex items-center p-3 bg-white/50 dark:bg-white/5 backdrop-blur-sm border border-gray-200 dark:border-white/20 rounded-xl cursor-pointer hover:bg-[#EA526F]/10 dark:hover:bg-[#EA526F]/20 transition-colors"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedCategories.includes(cat.category_id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedCategories([...selectedCategories, cat.category_id]);
+                      } else {
+                        setSelectedCategories(selectedCategories.filter(id => id !== cat.category_id));
+                      }
+                    }}
+                    className="w-5 h-5 text-[#EA526F] bg-white/50 dark:bg-white/10 border-gray-300 dark:border-white/30 rounded focus:ring-[#EA526F] focus:ring-2"
+                  />
+                  <span className="ml-3 text-[#4B244A] dark:text-white font-medium">{cat.name}</span>
+                </label>
+              ))}
+            </div>
+            {selectedCategories.length === 0 && (
+              <p className="text-red-500 text-sm mt-2">Please select at least one category</p>
+            )}
+          </div>
+
+          {/* House Type and Cleaning Type */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>Job Title *</label>
-              <input
-                type="text"
-                name="title"
-                value={formData.title}
+              <label className={labelClass}>House Type *</label>
+              <select
+                name="house_type"
+                value={formData.house_type}
                 onChange={handleInputChange}
                 required
                 className={inputClass}
-                placeholder="e.g., Deep Cleaning Needed"
-              />
+              >
+                <option value="house" className={optionClass}>House</option>
+                <option value="apartment" className={optionClass}>Apartment</option>
+                <option value="condo" className={optionClass}>Condo</option>
+                <option value="office" className={optionClass}>Office</option>
+              </select>
             </div>
 
             <div>
-              <label className={labelClass}>Description *</label>
-              <textarea
-                name="description"
-                value={formData.description}
+              <label className={labelClass}>Cleaning Type *</label>
+              <select
+                name="cleaning_type"
+                value={formData.cleaning_type}
                 onChange={handleInputChange}
                 required
-                rows={4}
-                className={`${inputClass} resize-none`}
-                placeholder="Describe the job details..."
-              />
-            </div>
-
-            <div>
-              <label className={labelClass}>Location</label>
-              <input
-                type="text"
-                name="location"
-                value={formData.location}
-                onChange={handleInputChange}
                 className={inputClass}
-                placeholder="e.g., Quezon City"
-              />
+              >
+                <option value="general" className={optionClass}>General Cleaning</option>
+                <option value="deep" className={optionClass}>Deep Cleaning</option>
+                <option value="move-in" className={optionClass}>Move-in Cleaning</option>
+                <option value="move-out" className={optionClass}>Move-out Cleaning</option>
+              </select>
             </div>
           </div>
 
-          {/* Job Details */}
-          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 border border-white/50 dark:border-white/10 shadow-lg space-y-4">
-            <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Job Details</h3>
-            
+          {/* Budget and People Needed */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className={labelClass}>Categories * (Select one or more)</label>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-                {categories.map(cat => (
-                  <label
-                    key={cat.category_id}
-                    className="flex items-center p-3 bg-white/50 dark:bg-white/5 backdrop-blur-sm border border-gray-200 dark:border-white/20 rounded-xl cursor-pointer hover:bg-[#EA526F]/10 dark:hover:bg-[#EA526F]/20 transition-colors"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedCategories.includes(cat.category_id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedCategories([...selectedCategories, cat.category_id]);
-                        } else {
-                          setSelectedCategories(selectedCategories.filter(id => id !== cat.category_id));
-                        }
-                      }}
-                      className="w-5 h-5 text-[#EA526F] bg-white/50 dark:bg-white/10 border-gray-300 dark:border-white/30 rounded focus:ring-[#EA526F] focus:ring-2"
-                    />
-                    <span className="ml-3 text-[#4B244A] dark:text-white font-medium">{cat.name}</span>
-                  </label>
-                ))}
-              </div>
-              {selectedCategories.length === 0 && (
-                <p className="text-red-500 text-sm mt-2">Please select at least one category</p>
-              )}
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className={labelClass}>House Type *</label>
-                <select
-                  name="house_type"
-                  value={formData.house_type}
-                  onChange={handleInputChange}
-                  required
-                  className={inputClass}
-                >
-                  <option value="house" className={optionClass}>House</option>
-                  <option value="apartment" className={optionClass}>Apartment</option>
-                  <option value="condo" className={optionClass}>Condo</option>
-                  <option value="office" className={optionClass}>Office</option>
-                </select>
-              </div>
-
-              <div>
-                <label className={labelClass}>Cleaning Type *</label>
-                <select
-                  name="cleaning_type"
-                  value={formData.cleaning_type}
-                  onChange={handleInputChange}
-                  required
-                  className={inputClass}
-                >
-                  <option value="general" className={optionClass}>General Cleaning</option>
-                  <option value="deep" className={optionClass}>Deep Cleaning</option>
-                  <option value="move-in" className={optionClass}>Move-in Cleaning</option>
-                  <option value="move-out" className={optionClass}>Move-out Cleaning</option>
-                </select>
-              </div>
+              <label className={labelClass}>Budget (₱) *</label>
+              <input
+                type="number"
+                name="budget"
+                value={formData.budget}
+                onChange={handleInputChange}
+                required
+                min="0"
+                step="0.01"
+                className={inputClass}
+                placeholder="5000"
+              />
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className={labelClass}>Budget (₱) *</label>
-                <input
-                  type="number"
-                  name="budget"
-                  value={formData.budget}
-                  onChange={handleInputChange}
-                  required
-                  min="0"
-                  step="0.01"
-                  className={inputClass}
-                  placeholder="5000"
-                />
-              </div>
-
-              <div>
-                <label className={labelClass}>People Needed *</label>
-                <input
-                  type="number"
-                  name="people_needed"
-                  value={formData.people_needed}
-                  onChange={handleInputChange}
-                  required
-                  min="1"
-                  max="10"
-                  className={inputClass}
-                />
-              </div>
+            <div>
+              <label className={labelClass}>People Needed *</label>
+              <input
+                type="number"
+                name="people_needed"
+                value={formData.people_needed}
+                onChange={handleInputChange}
+                required
+                min="1"
+                max="10"
+                className={inputClass}
+              />
             </div>
           </div>
 
           {/* Images */}
-          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 border border-white/50 dark:border-white/10 shadow-lg space-y-4">
-            <h3 className="text-lg font-bold text-[#4B244A] dark:text-white mb-2">Job Images (Optional)</h3>
-            <div className="space-y-3">
+          <div>
+            <label className={labelClass}>Job Images (Optional)</label>
+            <div className="space-y-3 mt-2">
               {images.length > 0 && (
                 <div className="grid grid-cols-3 gap-3">
                   {images.map((url, idx) => (
@@ -355,7 +354,7 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
                       <div className="text-[#4B244A]/70 dark:text-white/70 font-medium">Uploading...</div>
                     ) : (
                       <>
-                        <div className="text-4xl mb-2 opacity-50">📸</div>
+                        <Camera className="w-8 h-8 mx-auto mb-2 text-[#4B244A]/50 dark:text-white/50" />
                         <p className="text-[#4B244A]/70 dark:text-white/70 text-sm font-medium">Click to upload images</p>
                         <p className="text-[#4B244A]/50 dark:text-white/50 text-xs mt-1">{images.length}/5 images</p>
                       </>

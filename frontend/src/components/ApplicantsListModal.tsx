@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { Users, Mail, Phone, User, CheckCircle, Inbox, PartyPopper } from 'lucide-react';
+import { Users, Mail, Phone, User, CheckCircle, Inbox, PartyPopper, Clock } from 'lucide-react';
 
 interface Applicant {
   interest_id: number;
@@ -250,9 +250,10 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                         e.stopPropagation();
                         navigate(`/worker/${applicant.worker_id}?from=applicants`);
                       }}
-                      className="px-4 py-2 bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-200 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-500/40 transition-all text-sm font-bold shadow-sm"
+                      className="p-2 bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-200 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-500/40 transition-all shadow-sm"
+                      title="View Profile"
                     >
-                      <User className="inline w-4 h-4 mr-1" /> Profile
+                      <User className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -299,7 +300,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                         {isSelected ? 
                           <CheckCircle className="w-3 h-3" /> 
                           : hasPendingEdit
-                            ? '⏳'
+                            ? <Clock className="w-3 h-3" />
                             : <CheckCircle className="w-3 h-3 text-gray-300/40" />
                         }
                       </button>
@@ -309,7 +310,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                           <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">{applicant.worker_name}</h3>
                           {hasPendingEdit && (
                             <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-200 dark:bg-yellow-500/30 text-yellow-800 dark:text-yellow-200 text-xs font-bold rounded-full border border-yellow-400/50">
-                              ⏳ Pending Response
+                              <Clock className="w-3 h-3" /> Pending Response
                             </span>
                           )}
                         </div>
@@ -344,9 +345,10 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                             e.stopPropagation();
                             navigate(`/worker/${applicant.worker_id}?from=applicants`);
                           }}
-                          className="px-4 py-2 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-500/30 transition-all text-sm font-bold shadow-sm"
+                          className="p-2 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-500/30 transition-all shadow-sm"
+                          title="View Profile"
                         >
-                          <User className="inline w-4 h-4 mr-1" /> Profile
+                          <User className="w-4 h-4" />
                         </button>
                         
                         {/* Reject Button - disabled if pending edit response */}
@@ -362,7 +364,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                             }
                           }}
                           disabled={hasPendingEdit}
-                          className={`px-3 py-2 rounded-lg transition-all text-sm font-bold shadow-sm ${
+                          className={`p-2 rounded-lg transition-all shadow-sm ${
                             hasPendingEdit
                               ? 'bg-gray-100 text-gray-400 dark:bg-white/10 dark:text-white/40 cursor-not-allowed'
                               : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-500/30'
@@ -413,7 +415,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                 </>
               ) : (
                 <>
-                  🚀 Start Job with {selectedWorkers.size} Selected {selectedWorkers.size === 1 ? 'Person' : 'People'}
+                  Start Job with {selectedWorkers.size} Selected {selectedWorkers.size === 1 ? 'Person' : 'People'}
                 </>
               )}
             </button>

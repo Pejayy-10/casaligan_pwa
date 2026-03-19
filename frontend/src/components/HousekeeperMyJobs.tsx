@@ -419,8 +419,9 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                 <>
                   {job.edit_response === 'pending' ? (
                     <div className="mb-4 space-y-3">
-                      <div className="py-3 px-4 text-center text-yellow-800 dark:text-yellow-200 font-bold bg-yellow-100 dark:bg-yellow-500/10 rounded-lg border border-yellow-200 dark:border-yellow-500/30">
-                        <Clock className="inline w-4 h-4 mr-1" /> Job was edited. Please respond to continue.
+                      <div className="py-2 px-3 text-yellow-800 dark:text-yellow-200 font-semibold bg-yellow-100 dark:bg-yellow-500/10 rounded-lg border border-yellow-200 dark:border-yellow-500/30 flex items-center gap-2">
+                        <Clock className="w-4 h-4 flex-shrink-0" />
+                        <span className="text-sm">Job was edited. Please respond to continue.</span>
                       </div>
                       {job.edit_notified_at && (
                         <div className="text-xs text-yellow-700 dark:text-yellow-300 text-center font-medium">

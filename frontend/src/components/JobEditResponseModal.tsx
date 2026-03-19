@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { API_BASE_URL } from '../config';
-import { X, AlertTriangle } from 'lucide-react';
+import { X, AlertTriangle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 interface JobEditResponseModalProps {
   jobId: number;
@@ -19,10 +19,12 @@ export default function JobEditResponseModal({
 }: JobEditResponseModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState<{ type: 'accept' | 'reject'; message: string } | null>(null);
 
   const handleResponse = async (response: 'accept' | 'reject') => {
     setLoading(true);
     setError('');
+    setSuccess(null);
 
     try {
       const token = localStorage.getItem('access_token');
@@ -41,16 +43,25 @@ export default function JobEditResponseModal({
         throw new Error(errorData.detail || 'Failed to submit response');
       }
 
+      // Show success message
+      setSuccess({
+        type: response,
+        message: response === 'accept' 
+          ? 'Application updated successfully! Continuing with the edited job.' 
+          : 'Application withdrawn successfully.'
+      });
+
       onResponse(response);
       
-      // If rejected, refresh the page to show updated status
-      if (response === 'reject') {
-        setTimeout(() => {
-          window.location.reload();
-        }, 500);
-      } else {
-        onClose();
-      }
+      // Close modal after showing success message
+      setTimeout(() => {
+        if (response === 'reject') {
+          window.location.reload(); // Refresh for rejected applications
+        } else {
+          onClose(); // Just close for accepted applications
+        }
+      }, 2000);
+      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit response');
     } finally {
@@ -106,9 +117,12 @@ export default function JobEditResponseModal({
           </div>
 
           <div className="bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-lg p-4 mb-6">
-            <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
-              ⚠️ Please review the changes carefully. You can choose to continue with your application or withdraw it.
-            </p>
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5 flex-shrink-0" />
+              <p className="text-sm text-yellow-800 dark:text-yellow-200 font-medium">
+                Please review the changes carefully. You can choose to continue with your application or withdraw it.
+              </p>
+            </div>
           </div>
 
           {error && (
@@ -117,22 +131,90 @@ export default function JobEditResponseModal({
             </div>
           )}
 
+          {success && (
+            <div className={`mb-4 p-4 rounded-lg border ${
+              success.type === 'accept' 
+                ? 'bg-green-50 dark:bg-green-500/10 border-green-200 dark:border-green-500/30' 
+                : 'bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/30'
+            }`}>
+              <div className="flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                  success.type === 'accept' 
+                    ? 'bg-green-500' 
+                    : 'bg-blue-500'
+                }`}>
+                  {success.type === 'accept' ? (
+                    <CheckCircle className="w-4 h-4 text-white" />
+                  ) : (
+                    <XCircle className="w-4 h-4 text-white" />
+                  )}
+                </div>
+                <div>
+                  <p className={`text-sm font-semibold ${
+                    success.type === 'accept' 
+                      ? 'text-green-800 dark:text-green-200' 
+                      : 'text-blue-800 dark:text-blue-200'
+                  }`}>
+                    {success.type === 'accept' ? 'Application Continued' : 'Application Withdrawn'}
+                  </p>
+                  <p className={`text-xs ${
+                    success.type === 'accept' 
+                      ? 'text-green-600 dark:text-green-300' 
+                      : 'text-blue-600 dark:text-blue-300'
+                  }`}>
+                    {success.message}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Action Buttons */}
-          <div className="flex gap-3">
-            <button
-              onClick={() => handleResponse('reject')}
-              disabled={loading}
-              className="flex-1 px-4 py-3 bg-gray-100 dark:bg-white/10 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-white/20 transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Processing...' : 'Withdraw Application'}
-            </button>
-            <button
-              onClick={() => handleResponse('accept')}
-              disabled={loading}
-              className="flex-1 px-4 py-3 bg-[#EA526F] text-white rounded-lg hover:bg-[#d4486a] transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {loading ? 'Processing...' : 'Continue Application'}
-            </button>
+          <div className="space-y-3">
+            {success ? (
+              <div className="w-full px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-xl font-bold flex items-center justify-center gap-2">
+                <Loader2 className="w-5 h-5 animate-spin" />
+                {success.type === 'accept' ? 'Updating Application...' : 'Withdrawing Application...'}
+              </div>
+            ) : (
+              <>
+                <button
+                  onClick={() => handleResponse('accept')}
+                  disabled={loading}
+                  className="w-full px-6 py-3 bg-[#EA526F] text-white rounded-xl hover:bg-[#d4486a] transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30 flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-5 h-5" />
+                      Continue with Application
+                    </>
+                  )}
+                </button>
+                
+                <button
+                  onClick={() => handleResponse('reject')}
+                  disabled={loading}
+                  className="w-full px-6 py-3 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-50 dark:hover:bg-slate-700 transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed border border-gray-200 dark:border-white/20 flex items-center justify-center gap-2"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="w-5 h-5" />
+                      Withdraw Application
+                    </>
+                  )}
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
