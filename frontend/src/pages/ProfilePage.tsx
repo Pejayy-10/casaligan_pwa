@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { User as UserIcon, ClipboardList, Briefcase, MapPin, FileText, CheckCircle, Clock, AlertCircle, Package, Pencil, Camera, X, Loader2, Cake, Mail, Phone } from 'lucide-react';
+import { User as UserIcon, ClipboardList, Briefcase, MapPin, FileText, CheckCircle, Clock, AlertCircle, Package, Pencil, Camera, X, Loader2, Cake, Mail, Phone, Image } from 'lucide-react';
 import { authService } from '../services/auth';
 import TabBar from '../components/TabBar';
 import PackageManagement from '../components/PackageManagement';
@@ -40,6 +40,16 @@ export default function ProfilePage() {
     return false;
   });
   const [showPackageManagement, setShowPackageManagement] = useState(false);
+
+  // Portfolio state
+  const [showPortfolioManagement, setShowPortfolioManagement] = useState(false);
+  const [portfolioPhotos, setPortfolioPhotos] = useState<Array<{ id: number; image_url: string; caption: string | null; category: string; created_at: string | null }>>([]);
+  const [loadingPortfolio, setLoadingPortfolio] = useState(false);
+  const [portfolioUploading, setPortfolioUploading] = useState(false);
+  const [portfolioCategory, setPortfolioCategory] = useState('credentials');
+  const [portfolioCaption, setPortfolioCaption] = useState('');
+  const [portfolioError, setPortfolioError] = useState('');
+  const portfolioFileRef = useRef<HTMLInputElement>(null);
 
   // Profile edit state
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -204,6 +214,97 @@ export default function ProfilePage() {
       return () => clearInterval(interval);
     }
   }, [navigate]);
+
+  // Fetch portfolio photos when showing portfolio management
+  const fetchPortfolio = async () => {
+    setLoadingPortfolio(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE_URL}/portfolio/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPortfolioPhotos(data);
+      }
+    } catch {
+      console.error('Failed to load portfolio');
+    } finally {
+      setLoadingPortfolio(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showPortfolioManagement && user?.is_housekeeper) {
+      fetchPortfolio();
+    }
+  }, [showPortfolioManagement]);
+
+  const handlePortfolioUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    if (portfolioPhotos.length + files.length > 20) {
+      setPortfolioError('Maximum 20 portfolio photos allowed.');
+      return;
+    }
+    setPortfolioUploading(true);
+    setPortfolioError('');
+    try {
+      const token = localStorage.getItem('access_token');
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith('image/')) continue;
+        if (file.size > 10 * 1024 * 1024) continue;
+        const formData = new FormData();
+        formData.append('file', file);
+        const uploadRes = await fetch(`${API_BASE_URL}/upload/image?category=portfolio`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        if (uploadRes.ok) {
+          const uploadData = await uploadRes.json();
+          // Save to portfolio
+          const saveRes = await fetch(`${API_BASE_URL}/portfolio/`, {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              image_url: uploadData.url,
+              caption: portfolioCaption || null,
+              category: portfolioCategory,
+            }),
+          });
+          if (saveRes.ok) {
+            const saved = await saveRes.json();
+            setPortfolioPhotos(prev => [saved, ...prev]);
+          }
+        }
+      }
+      setPortfolioCaption('');
+    } catch {
+      setPortfolioError('Failed to upload. Please try again.');
+    } finally {
+      setPortfolioUploading(false);
+      if (portfolioFileRef.current) portfolioFileRef.current.value = '';
+    }
+  };
+
+  const handleDeletePortfolioPhoto = async (photoId: number) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE_URL}/portfolio/${photoId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        setPortfolioPhotos(prev => prev.filter(p => p.id !== photoId));
+      }
+    } catch {
+      console.error('Failed to delete photo');
+    }
+  };
 
   const [switchingRole, setSwitchingRole] = useState(false);
 
@@ -465,6 +566,32 @@ export default function ProfilePage() {
             </div>
         )}
 
+        {/* Housekeeper Portfolio */}
+        {user.is_housekeeper && user.active_role === 'housekeeper' && (
+            <div className="bg-gradient-to-br from-purple-500/5 to-pink-500/5 dark:from-purple-500/10 dark:to-pink-500/10 rounded-2xl p-6 border border-purple-500/20 dark:border-purple-500/30">
+                <div className="flex justify-between items-center mb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-purple-500 rounded-lg text-white shadow-md">
+                            <Image className="w-5 h-5" />
+                        </div>
+                        <div>
+                            <h3 className="font-bold text-[#4B244A] dark:text-white">My Portfolio</h3>
+                            <p className="text-xs text-[#4B244A]/60 dark:text-white/60">Showcase your work &amp; credentials</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setShowPortfolioManagement(true)}
+                        className="px-4 py-2 bg-white dark:bg-white/10 text-purple-600 dark:text-white font-bold text-sm rounded-xl shadow-sm hover:bg-gray-50 dark:hover:bg-white/20 transition-colors"
+                    >
+                        Manage
+                    </button>
+                </div>
+                <p className="text-sm text-[#4B244A]/70 dark:text-white/70">
+                    Upload before &amp; after photos, certifications, and work samples to market yourself to homeowners.
+                </p>
+            </div>
+        )}
+
         {/* Action Buttons */}
         <div className="pt-4 space-y-3">
             {user.is_housekeeper && (
@@ -639,6 +766,199 @@ export default function ProfilePage() {
           onClose={() => setShowPackageOnboarding(false)}
           onComplete={() => setShowPackageOnboarding(false)}
         />
+      )}
+
+      {/* Portfolio Management Modal */}
+      {showPortfolioManagement && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl max-w-2xl w-full max-h-[85vh] sm:max-h-[90vh] flex flex-col border border-gray-200 dark:border-white/20 shadow-2xl relative sm:m-4">
+            <div className="p-6 border-b border-gray-200 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 flex justify-between items-center rounded-t-3xl shrink-0">
+              <div>
+                <h3 className="text-xl font-bold text-[#4B244A] dark:text-white flex items-center gap-2">
+                  <Image className="w-5 h-5 text-purple-500" />
+                  My Portfolio
+                </h3>
+                <p className="text-xs text-[#4B244A]/60 dark:text-white/60 mt-1">Showcase your work to homeowners</p>
+              </div>
+              <button
+                onClick={() => setShowPortfolioManagement(false)}
+                aria-label="Close"
+                className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
+              {/* Upload section */}
+              <div className="space-y-4">
+                <h4 className="font-bold text-[#4B244A] dark:text-white text-sm">Add New Photos</h4>
+                
+                {/* Category selector */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#4B244A]/70 dark:text-white/70 mb-2">Category</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { value: 'credentials', label: '📋 Credentials & Certifications' },
+                      { value: 'work_sample', label: '🧹 Work Sample' },
+                    ].map(cat => (
+                      <button
+                        key={cat.value}
+                        type="button"
+                        onClick={() => setPortfolioCategory(cat.value)}
+                        className={`px-3 py-2 rounded-xl text-sm font-medium text-left transition-all border ${
+                          portfolioCategory === cat.value
+                            ? 'bg-purple-500/20 border-purple-500 text-purple-700 dark:text-purple-300'
+                            : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 text-[#4B244A]/70 dark:text-white/70 hover:bg-gray-100 dark:hover:bg-white/10'
+                        }`}
+                      >
+                        {portfolioCategory === cat.value ? '✓ ' : ''}{cat.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Caption */}
+                <div>
+                  <label className="block text-xs font-semibold text-[#4B244A]/70 dark:text-white/70 mb-2">Caption (Optional)</label>
+                  <input
+                    type="text"
+                    value={portfolioCaption}
+                    onChange={e => setPortfolioCaption(e.target.value)}
+                    placeholder="E.g. Kitchen deep clean — before and after"
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-[#4B244A] dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                    maxLength={255}
+                  />
+                </div>
+
+                {/* Upload button */}
+                <div>
+                  <input
+                    ref={portfolioFileRef}
+                    type="file"
+                    onChange={handlePortfolioUpload}
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => portfolioFileRef.current?.click()}
+                    disabled={portfolioUploading}
+                    className="w-full py-6 border-2 border-dashed border-purple-300 dark:border-purple-500/30 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition-all hover:border-purple-500 hover:bg-purple-50 dark:hover:bg-purple-500/10"
+                  >
+                    {portfolioUploading ? (
+                      <>
+                        <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
+                        <span className="text-sm font-medium text-purple-500">Uploading…</span>
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="w-6 h-6 text-purple-400" />
+                        <span className="text-sm font-medium text-[#4B244A]/70 dark:text-white/70">Click to upload photos</span>
+                        <span className="text-xs text-[#4B244A]/40 dark:text-white/40">JPEG, PNG, WebP — max 10MB each</span>
+                      </>
+                    )}
+                  </button>
+                  {portfolioError && <p className="mt-2 text-red-500 text-sm">{portfolioError}</p>}
+                </div>
+              </div>
+
+              {/* Existing photos */}
+              <div>
+                <h4 className="font-bold text-[#4B244A] dark:text-white text-sm mb-3">
+                  Your Photos ({portfolioPhotos.length}/20)
+                </h4>
+                {loadingPortfolio ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
+                  </div>
+                ) : portfolioPhotos.length === 0 ? (
+                  <div className="text-center py-8 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
+                    <Image className="w-10 h-10 mx-auto text-gray-300 dark:text-white/20 mb-2" />
+                    <p className="text-[#4B244A]/50 dark:text-white/50 text-sm">No portfolio photos yet</p>
+                    <p className="text-[#4B244A]/30 dark:text-white/30 text-xs mt-1">Upload photos to showcase your work</p>
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    {/* ── Credentials & Certifications ── */}
+                    {portfolioPhotos.filter(p => p.category === 'credentials' || p.category === 'certification').length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-base">📋</span>
+                          <span className="text-[#4B244A] dark:text-white font-bold text-xs">Credentials &amp; Certifications</span>
+                          <span className="ml-auto px-2 py-0.5 bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-full">
+                            {portfolioPhotos.filter(p => p.category === 'credentials' || p.category === 'certification').length}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          {portfolioPhotos.filter(p => p.category === 'credentials' || p.category === 'certification').map(photo => (
+                            <div key={photo.id} className="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5">
+                              <img src={photo.image_url} alt={photo.caption || 'Credential'} className="w-full h-32 object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePortfolioPhoto(photo.id)}
+                                className="absolute top-2 right-2 p-1.5 bg-red-500/90 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                              <div className="p-2">
+                                {photo.caption && (
+                                  <p className="text-[#4B244A]/70 dark:text-white/70 text-xs truncate">{photo.caption}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ── Work Sample ── */}
+                    {portfolioPhotos.filter(p => p.category === 'work_sample' || p.category === 'before_after').length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-base">🧹</span>
+                          <span className="text-[#4B244A] dark:text-white font-bold text-xs">Work Sample</span>
+                          <span className="ml-auto px-2 py-0.5 bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 text-[10px] font-bold rounded-full">
+                            {portfolioPhotos.filter(p => p.category === 'work_sample' || p.category === 'before_after').length}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                          {portfolioPhotos.filter(p => p.category === 'work_sample' || p.category === 'before_after').map(photo => (
+                            <div key={photo.id} className="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5">
+                              <img src={photo.image_url} alt={photo.caption || 'Work Sample'} className="w-full h-32 object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => handleDeletePortfolioPhoto(photo.id)}
+                                className="absolute top-2 right-2 p-1.5 bg-red-500/90 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                              <div className="p-2">
+                                {photo.caption && (
+                                  <p className="text-[#4B244A]/70 dark:text-white/70 text-xs truncate">{photo.caption}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+            {/* Sticky bottom Done button */}
+            <div className="p-4 border-t border-gray-200 dark:border-white/10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shrink-0 rounded-b-3xl">
+              <button
+                type="button"
+                onClick={() => setShowPortfolioManagement(false)}
+                className="w-full py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Package Management Modal */}

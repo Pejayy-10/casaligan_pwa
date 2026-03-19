@@ -47,7 +47,7 @@ interface DocResult {
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
 function StepBar({ current, total }: { current: number; total: number }) {
-  const labels = ['Professional Info', 'NBI Clearance', 'Supporting Doc', 'Phone Verify'];
+  const labels = ['Professional Info', 'NBI Clearance', 'Supporting Doc', 'Portfolio', 'Phone Verify'];
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
@@ -105,7 +105,15 @@ export default function ApplyHousekeeperPage() {
   const [secError, setSecError] = useState('');
   const secFileRef = useRef<HTMLInputElement>(null);
 
-  // Step 4: Phone OTP
+  // Step 4: Portfolio photos (optional)
+  const [portfolioPhotos, setPortfolioPhotos] = useState<Array<{ url: string; caption: string; category: string }>>([]);
+  const [portfolioUploading, setPortfolioUploading] = useState(false);
+  const [portfolioError, setPortfolioError] = useState('');
+  const portfolioFileRef = useRef<HTMLInputElement>(null);
+  const [portfolioCategory, setPortfolioCategory] = useState('work_sample');
+  const [portfolioCaption, setPortfolioCaption] = useState('');
+
+  // Step 5: Phone OTP
   const [phoneVerified, setPhoneVerified] = useState(() => {
     const u = localStorage.getItem('user');
     return u ? (JSON.parse(u)?.phone_verified === true) : false;
@@ -222,6 +230,48 @@ export default function ApplyHousekeeperPage() {
     if (secFileRef.current) secFileRef.current.value = '';
   };
 
+  const handlePortfolioFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    if (portfolioPhotos.length + files.length > 20) {
+      setPortfolioError('Maximum 20 portfolio photos allowed.');
+      return;
+    }
+    setPortfolioUploading(true);
+    setPortfolioError('');
+    try {
+      const token = localStorage.getItem('access_token');
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith('image/')) continue;
+        if (file.size > 10 * 1024 * 1024) continue;
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await fetch(`${API_BASE_URL}/upload/image?category=portfolio`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: formData,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPortfolioPhotos(prev => [...prev, {
+            url: data.url,
+            caption: portfolioCaption,
+            category: portfolioCategory,
+          }]);
+        }
+      }
+    } catch {
+      setPortfolioError('Failed to upload. Please try again.');
+    } finally {
+      setPortfolioUploading(false);
+      if (portfolioFileRef.current) portfolioFileRef.current.value = '';
+    }
+  };
+
+  const removePortfolioPhoto = (index: number) => {
+    setPortfolioPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleSendOtp = async () => {
     setSendingOtp(true);
     setOtpError('');
@@ -298,6 +348,28 @@ export default function ApplyHousekeeperPage() {
       // Refresh user from storage (applyHousekeeper already updates it)
       const stored = localStorage.getItem('user');
       if (stored) setUser(JSON.parse(stored));
+
+      // Save portfolio photos if any were uploaded and user is now a housekeeper
+      if (portfolioPhotos.length > 0 && res.is_housekeeper) {
+        try {
+          const token = localStorage.getItem('access_token');
+          await fetch(`${API_BASE_URL}/portfolio/bulk`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(portfolioPhotos.map(p => ({
+              image_url: p.url,
+              caption: p.caption || null,
+              category: p.category,
+            }))),
+          });
+        } catch {
+          // Portfolio save failure is non-critical; they can add later from profile
+          console.warn('Portfolio photos could not be saved. User can add them later from profile.');
+        }
+      }
     } catch (e: unknown) {
       const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
       setGlobalError(msg || 'Submission failed. Please try again.');
@@ -406,7 +478,7 @@ export default function ApplyHousekeeperPage() {
               ✕
             </button>
           </div>
-          <StepBar current={step} total={4} />
+          <StepBar current={step} total={5} />
 
           {globalError && (
             <div className="mb-4 p-3 bg-red-300/20 border border-red-500/40 rounded-xl">
@@ -717,8 +789,198 @@ export default function ApplyHousekeeperPage() {
             </div>
           )}
 
-          {/* ── Step 4: Phone OTP ── */}
+          {/* ── Step 4: Portfolio Photos (Optional) ── */}
           {step === 4 && (
+            <div className="space-y-5">
+              <div className="p-4 bg-purple-500/10 border border-purple-500/30 rounded-xl">
+                <p className="text-purple-500 text-sm font-semibold mb-1">📸 Build Your Portfolio (Optional)</p>
+                <p className="text-purple-400/80 dark:text-purple-200/70 text-xs">
+                  Upload photos to market yourself to homeowners. You can skip this and add them later from your profile.
+                </p>
+              </div>
+
+              {/* ── Section 1: Credentials ── */}
+              <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">📋</span>
+                  <div>
+                    <h4 className="text-[#4B244A] dark:text-white font-bold text-sm">Credentials &amp; Certifications</h4>
+                    <p className="text-[#4B244A]/50 dark:text-white/50 text-xs">Certificates, training diplomas, IDs, awards, etc.</p>
+                  </div>
+                </div>
+
+                {/* Caption for credentials */}
+                <input
+                  type="text"
+                  value={portfolioCategory === 'credentials' || portfolioCategory === 'certification' ? portfolioCaption : ''}
+                  onChange={e => { setPortfolioCaption(e.target.value); }}
+                  onFocus={() => { if (portfolioCategory !== 'credentials' && portfolioCategory !== 'certification') setPortfolioCategory('credentials'); }}
+                  placeholder="E.g. TESDA certificate for housekeeping"
+                  className={`${inputClass} !py-2 text-sm`}
+                  maxLength={255}
+                />
+
+                {/* Category sub-picker */}
+                <div className="flex gap-2">
+                  {[
+                    { value: 'credentials', label: '📋 Credentials' },
+                    { value: 'certification', label: '🏆 Certification' },
+                  ].map(cat => (
+                    <button
+                      key={cat.value}
+                      type="button"
+                      onClick={() => setPortfolioCategory(cat.value)}
+                      className={`flex-1 px-3 py-2 rounded-xl text-xs font-medium transition-all border ${
+                        portfolioCategory === cat.value
+                          ? 'bg-[#EA526F]/30 border-[#EA526F] text-white'
+                          : 'bg-white/5 border-white/20 text-[#4B244A]/70 dark:text-white/70 hover:bg-white/10'
+                      }`}
+                    >
+                      {portfolioCategory === cat.value ? '✓ ' : ''}{cat.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Upload for credentials */}
+                <button
+                  type="button"
+                  onClick={() => { if (portfolioCategory !== 'credentials' && portfolioCategory !== 'certification') setPortfolioCategory('credentials'); portfolioFileRef.current?.click(); }}
+                  disabled={portfolioUploading}
+                  className={`w-full py-5 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-1 transition-all ${
+                    portfolioUploading
+                      ? 'border-white/20 text-[#4B244A]/40 dark:text-white/40 cursor-wait'
+                      : 'border-purple-300/40 dark:border-purple-500/30 text-[#4B244A]/60 dark:text-white/60 hover:border-purple-400 hover:text-purple-500'
+                  }`}
+                >
+                  {portfolioUploading && (portfolioCategory === 'credentials' || portfolioCategory === 'certification') ? (
+                    <>
+                      <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                      <span className="text-xs font-medium">Uploading…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xl">📄</span>
+                      <span className="text-xs font-medium">Upload credential photos</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Credential photos */}
+                {portfolioPhotos.filter(p => p.category === 'credentials' || p.category === 'certification').length > 0 && (
+                  <div className="grid grid-cols-3 gap-2 mt-2">
+                    {portfolioPhotos.map((photo, i) => (photo.category === 'credentials' || photo.category === 'certification') && (
+                      <div key={i} className="relative group rounded-lg overflow-hidden border border-white/20 bg-white/5">
+                        <img src={photo.url} alt={photo.caption || 'Credential'} className="w-full h-20 object-cover" />
+                        <button type="button" onClick={() => removePortfolioPhoto(i)} className="absolute top-1 right-1 p-0.5 bg-red-500/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                        </button>
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5">
+                          <p className="text-white text-[9px] truncate">{photo.caption || photo.category.replace('_', ' ')}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* ── Section 2: Work Sample ── */}
+              <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-lg">🧹</span>
+                  <div>
+                    <h4 className="text-[#4B244A] dark:text-white font-bold text-sm">Work Sample</h4>
+                    <p className="text-[#4B244A]/50 dark:text-white/50 text-xs">Photos of your cleaning work, results, etc.</p>
+                  </div>
+                </div>
+
+                {/* Caption for work */}
+                <input
+                  type="text"
+                  value={portfolioCategory === 'work_sample' ? portfolioCaption : ''}
+                  onChange={e => { setPortfolioCaption(e.target.value); }}
+                  onFocus={() => { if (portfolioCategory !== 'work_sample') setPortfolioCategory('work_sample'); }}
+                  placeholder="E.g. Kitchen deep clean result"
+                  className={`${inputClass} !py-2 text-sm`}
+                  maxLength={255}
+                />
+
+                {/* Upload for work sample */}
+                <button
+                  type="button"
+                  onClick={() => { setPortfolioCategory('work_sample'); portfolioFileRef.current?.click(); }}
+                  disabled={portfolioUploading}
+                  className={`w-full py-5 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-1 transition-all ${
+                    portfolioUploading
+                      ? 'border-white/20 text-[#4B244A]/40 dark:text-white/40 cursor-wait'
+                      : 'border-teal-300/40 dark:border-teal-500/30 text-[#4B244A]/60 dark:text-white/60 hover:border-teal-400 hover:text-teal-500'
+                  }`}
+                >
+                  {portfolioUploading && portfolioCategory === 'work_sample' ? (
+                    <>
+                      <svg className="animate-spin h-6 w-6" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                      <span className="text-xs font-medium">Uploading…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xl">🧹</span>
+                      <span className="text-xs font-medium">Upload work photos</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Work photos */}
+                {portfolioPhotos.filter(p => p.category === 'work_sample').length > 0 && (
+                  <div className="grid grid-cols-3 gap-2 mt-2">
+                    {portfolioPhotos.map((photo, i) => photo.category === 'work_sample' && (
+                      <div key={i} className="relative group rounded-lg overflow-hidden border border-white/20 bg-white/5">
+                        <img src={photo.url} alt={photo.caption || 'Work'} className="w-full h-20 object-cover" />
+                        <button type="button" onClick={() => removePortfolioPhoto(i)} className="absolute top-1 right-1 p-0.5 bg-red-500/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                        </button>
+                        <div className="absolute bottom-0 left-0 right-0 bg-black/60 px-1 py-0.5">
+                          <p className="text-white text-[9px] truncate">{photo.caption || 'work sample'}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Hidden file input shared by both sections */}
+              <input
+                ref={portfolioFileRef}
+                type="file"
+                onChange={handlePortfolioFile}
+                accept="image/*"
+                multiple
+                className="hidden"
+              />
+
+              {portfolioError && <p className="text-red-300 text-sm">{portfolioError}</p>}
+
+              {portfolioPhotos.length > 0 && (
+                <p className="text-[#4B244A]/50 dark:text-white/50 text-xs text-center">
+                  {portfolioPhotos.length}/20 photos uploaded
+                </p>
+              )}
+
+              <div className="flex gap-3">
+                <button type="button" onClick={() => setStep(3)} className="flex-1 py-3 !bg-black/30 !text-white dark:text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
+                  ← Back
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep(5)}
+                  className="flex-1 py-3 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg"
+                >
+                  {portfolioPhotos.length === 0 ? 'Skip & Continue →' : 'Next →'}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* ── Step 5: Phone OTP ── */}
+          {step === 5 && (
             <div className="space-y-5">
               {phoneVerified ? (
                 // Phone already verified — show submit button
@@ -730,7 +992,7 @@ export default function ApplyHousekeeperPage() {
                   </div>
 
                   <div className="flex gap-3">
-                    <button type="button" onClick={() => setStep(3)} className="flex-1 py-3 !bg-black/30 !text-white dark:text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
+                    <button type="button" onClick={() => setStep(4)} className="flex-1 py-3 !bg-black/30 !text-white dark:text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
                       ← Back
                     </button>
                     <button
@@ -817,7 +1079,7 @@ export default function ApplyHousekeeperPage() {
 
                   {otpError && !otpSent && <p className="text-red-300 text-sm text-center">{otpError}</p>}
 
-                  <button type="button" onClick={() => setStep(3)} className="w-full py-3 !bg-black/30 !text-white dark:text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
+                  <button type="button" onClick={() => setStep(4)} className="w-full py-3 !bg-black/30 !text-white dark:text-white font-semibold rounded-xl hover:bg-white/20 transition-all border border-white/20">
                     ← Back
                   </button>
                 </div>

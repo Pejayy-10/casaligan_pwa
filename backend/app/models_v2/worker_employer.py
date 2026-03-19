@@ -21,6 +21,7 @@ class Worker(Base):
     packages = relationship("WorkerPackage", back_populates="worker")
     direct_hires = relationship("DirectHire", back_populates="worker")
     blocked_dates = relationship("WorkerBlockedDate", back_populates="worker")
+    portfolio_photos = relationship("PortfolioPhoto", back_populates="worker", order_by="PortfolioPhoto.created_at.desc()")
 
 class Employer(Base):
     __tablename__ = "employers"

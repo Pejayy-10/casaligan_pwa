@@ -311,6 +311,24 @@ export default function EmailVerificationPage() {
             )}
           </div>
 
+          {/* Skip for now — DEV/TESTING ONLY (remove before production) */}
+          <button
+            onClick={() => {
+              try {
+                const userStr = localStorage.getItem('user');
+                if (userStr) {
+                  const u = JSON.parse(userStr);
+                  u.email_verified = true;
+                  localStorage.setItem('user', JSON.stringify(u));
+                }
+              } catch { /* ignore */ }
+              navigate('/dashboard');
+            }}
+            className="w-full mt-3 py-2.5 text-sm text-[#4B244A]/60 dark:text-white/50 font-medium hover:text-[#4B244A] dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/5 rounded-xl transition-all"
+          >
+            Skip for now →
+          </button>
+
           {/* Step indicator */}
           <div className="mt-6 pt-4 border-t border-gray-200 dark:border-white/10">
             <div className="flex items-center justify-between mb-1.5">

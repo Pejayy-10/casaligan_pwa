@@ -4,7 +4,7 @@ load_dotenv(override=True)  # Load .env file, always override stale env vars
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
-from app.routers import auth, jobs, payments, checkins, progress, debug, upload, reports, packages, direct_hire, notifications, ratings, messaging, availability, categories, contract_extensions, daily_completion
+from app.routers import auth, jobs, payments, checkins, progress, debug, upload, reports, packages, direct_hire, notifications, ratings, messaging, availability, categories, contract_extensions, daily_completion, portfolio
 
 try:
     from app.routers import ai_chat
@@ -65,6 +65,7 @@ app.include_router(messaging.router)
 app.include_router(availability.router)
 app.include_router(contract_extensions.router)
 app.include_router(daily_completion.router)
+app.include_router(portfolio.router)
 if _has_ai_chat:
     app.include_router(ai_chat.router)
 
@@ -117,11 +118,14 @@ async def startup_event():
         # Create new tables if they don't exist (idempotent)
         from app.db import Base
         from app.models_v2.job_day_schedule import JobDaySchedule, DailyCompletion  # noqa: F401
+        from app.models_v2.portfolio import PortfolioPhoto  # noqa: F401
         Base.metadata.create_all(bind=engine, tables=[
             JobDaySchedule.__table__,
             DailyCompletion.__table__,
+            PortfolioPhoto.__table__,
         ], checkfirst=True)
         print("✓ Multi-day scheduling tables verified")
+        print("✓ Portfolio photos table verified")
     except Exception as e:
         print(f"⚠ Warning: Could not connect to database: {e}")
         print("  The application will start but database operations may fail.")

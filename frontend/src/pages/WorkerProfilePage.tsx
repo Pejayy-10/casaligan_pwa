@@ -24,6 +24,14 @@ interface Review {
   created_at: string | null;
 }
 
+interface PortfolioPhoto {
+  id: number;
+  image_url: string;
+  caption: string | null;
+  category: string;
+  created_at: string | null;
+}
+
 interface WorkerProfile {
   worker_id: number;
   user_id: number;
@@ -45,6 +53,7 @@ interface WorkerProfile {
   rating_breakdown: { [key: number]: number };
   recent_reviews: Review[];
   packages: WorkerPackage[];
+  portfolio_photos?: PortfolioPhoto[];
 }
 
 export default function WorkerProfilePage() {
@@ -482,6 +491,113 @@ export default function WorkerProfilePage() {
             </p>
           </div>
         </div>
+
+        {/* Portfolio Section */}
+        {profile.portfolio_photos && profile.portfolio_photos.length > 0 && (
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 mb-6 border border-white/50 dark:border-white/10 shadow-lg transition-all">
+            <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">
+              <span className="inline-block mr-2">📸</span> Portfolio &amp; Credentials
+            </h3>
+
+            {/* ── Credentials & Certifications Section ── */}
+            {(() => {
+              const credentialPhotos = profile.portfolio_photos!.filter(p => p.category === 'credentials' || p.category === 'certification');
+              if (credentialPhotos.length === 0) return null;
+              return (
+                <div className="mb-5">
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">📋</span>
+                    <h4 className="text-[#4B244A] dark:text-white font-bold text-sm">Credentials &amp; Certifications</h4>
+                    <span className="ml-auto px-2 py-0.5 bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-full">
+                      {credentialPhotos.length} photo{credentialPhotos.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {credentialPhotos.map(photo => (
+                      <div key={photo.id} className="relative rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => {
+                          const overlay = document.createElement('div');
+                          overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:16px;';
+                          overlay.onclick = () => overlay.remove();
+                          const img = document.createElement('img');
+                          img.src = photo.image_url;
+                          img.style.cssText = 'max-width:100%;max-height:90vh;border-radius:12px;object-fit:contain;';
+                          overlay.appendChild(img);
+                          if (photo.caption) {
+                            const cap = document.createElement('p');
+                            cap.textContent = photo.caption;
+                            cap.style.cssText = 'position:absolute;bottom:24px;left:50%;transform:translateX(-50%);color:white;background:rgba(0,0,0,0.6);padding:8px 16px;border-radius:8px;font-size:14px;max-width:80%;text-align:center;';
+                            overlay.appendChild(cap);
+                          }
+                          document.body.appendChild(overlay);
+                        }}
+                      >
+                        <img src={photo.image_url} alt={photo.caption || 'Credential'} className="w-full h-32 object-cover" />
+                        <div className="p-2">
+                          <span className="inline-block px-2 py-0.5 bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-full uppercase">
+                            {photo.category.replace('_', ' ')}
+                          </span>
+                          {photo.caption && (
+                            <p className="text-[#4B244A]/70 dark:text-white/70 text-xs mt-1 truncate">{photo.caption}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ── Work Sample Section ── */}
+            {(() => {
+              const workPhotos = profile.portfolio_photos!.filter(p => p.category === 'work_sample' || p.category === 'before_after' || p.category === 'general');
+              if (workPhotos.length === 0) return null;
+              return (
+                <div>
+                  <div className="flex items-center gap-2 mb-3">
+                    <span className="text-lg">🧹</span>
+                    <h4 className="text-[#4B244A] dark:text-white font-bold text-sm">Work Sample</h4>
+                    <span className="ml-auto px-2 py-0.5 bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 text-[10px] font-bold rounded-full">
+                      {workPhotos.length} photo{workPhotos.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {workPhotos.map(photo => (
+                      <div key={photo.id} className="relative rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => {
+                          const overlay = document.createElement('div');
+                          overlay.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.9);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:16px;';
+                          overlay.onclick = () => overlay.remove();
+                          const img = document.createElement('img');
+                          img.src = photo.image_url;
+                          img.style.cssText = 'max-width:100%;max-height:90vh;border-radius:12px;object-fit:contain;';
+                          overlay.appendChild(img);
+                          if (photo.caption) {
+                            const cap = document.createElement('p');
+                            cap.textContent = photo.caption;
+                            cap.style.cssText = 'position:absolute;bottom:24px;left:50%;transform:translateX(-50%);color:white;background:rgba(0,0,0,0.6);padding:8px 16px;border-radius:8px;font-size:14px;max-width:80%;text-align:center;';
+                            overlay.appendChild(cap);
+                          }
+                          document.body.appendChild(overlay);
+                        }}
+                      >
+                        <img src={photo.image_url} alt={photo.caption || 'Work sample'} className="w-full h-32 object-cover" />
+                        <div className="p-2">
+                          <span className="inline-block px-2 py-0.5 bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 text-[10px] font-bold rounded-full uppercase">
+                            {photo.category.replace('_', ' ')}
+                          </span>
+                          {photo.caption && (
+                            <p className="text-[#4B244A]/70 dark:text-white/70 text-xs mt-1 truncate">{photo.caption}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
 
         {/* Reviews Section */}
         {profile.total_ratings > 0 && (

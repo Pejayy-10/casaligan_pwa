@@ -1188,6 +1188,7 @@ def get_worker_profile(
 ):
     """Get detailed worker profile with packages and ratings"""
     from app.models_v2.rating import Rating
+    from app.models_v2.portfolio import PortfolioPhoto
     
     worker = db.query(Worker).filter(Worker.worker_id == worker_id).first()
     if not worker:
@@ -1235,6 +1236,11 @@ def get_worker_profile(
     if user.phone_number:
         phone_masked = "****" + user.phone_number[-4:] if len(user.phone_number) >= 4 else "****"
     
+    # Get portfolio photos
+    portfolio_photos = db.query(PortfolioPhoto).filter(
+        PortfolioPhoto.worker_id == worker_id
+    ).order_by(PortfolioPhoto.created_at.desc()).all()
+
     return {
         "worker_id": worker.worker_id,
         "user_id": user.id,
@@ -1265,5 +1271,15 @@ def get_worker_profile(
                 "services": p.services or []
             }
             for p in packages
+        ],
+        "portfolio_photos": [
+            {
+                "id": photo.id,
+                "image_url": photo.image_url,
+                "caption": photo.caption,
+                "category": photo.category,
+                "created_at": photo.created_at.isoformat() if photo.created_at else None
+            }
+            for photo in portfolio_photos
         ]
     }
