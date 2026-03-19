@@ -69,12 +69,48 @@ class UserCreate(UserBase):
         raise ValueError("Use a Philippine number: 09 + 9 digits (11 total, e.g. 09123456789) or +639XXXXXXXXX")
 
 class UserUpdate(BaseModel):
-    """Schema for updating user profile fields (name and profile picture only)."""
+    """Schema for updating user profile fields (name, profile picture, email, phone)."""
     first_name: Optional[str] = None
     middle_name: Optional[str] = None
     last_name: Optional[str] = None
     suffix: Optional[str] = None
     profile_picture: Optional[str] = None
+    email: Optional[str] = None
+    phone_number: Optional[str] = None
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def email_must_be_gmail_if_provided(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        v_lower = v.strip().lower()
+        if not v_lower:
+            return None
+        if not v_lower.endswith("@" + GMAIL_DOMAIN):
+            raise ValueError("Only Gmail addresses are allowed (e.g. yourname@gmail.com)")
+        return v_lower
+
+    @field_validator("phone_number", mode="before")
+    @classmethod
+    def phone_must_be_philippines_if_provided(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        raw = re.sub(r"[\s\-]", "", v.strip())
+        if not raw:
+            return None
+        digits_only: Optional[str] = None
+        if raw.startswith("+63"):
+            rest = raw[3:].lstrip()
+            if rest.startswith("0"):
+                rest = rest[1:]
+            digits_only = rest if rest.isdigit() and len(rest) == 10 else None
+        elif raw.startswith("09") and len(raw) == 11 and raw[2:].isdigit():
+            digits_only = raw[1:]
+        elif raw.startswith("9") and len(raw) == 10 and raw.isdigit():
+            digits_only = raw
+        if digits_only:
+            return "+63" + digits_only
+        raise ValueError("Use a Philippine number: 09 + 9 digits (11 total, e.g. 09123456789) or +639XXXXXXXXX")
 
 
 class UserResponse(UserBase):

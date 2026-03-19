@@ -558,7 +558,11 @@ def update_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Update current user's profile (name and profile picture)."""
+    """Update current user's profile (name, profile picture, email, phone).
+    
+    If email is changed, email_verified is set to False (must re-verify).
+    If phone_number is changed, phone_verified is set to False (must re-verify).
+    """
     data = update_data.model_dump(exclude_unset=True)
 
     if not data:
@@ -566,6 +570,38 @@ def update_profile(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No fields to update"
         )
+
+    # Check if email is being changed
+    new_email = data.get("email")
+    if new_email and new_email != current_user.email:
+        # Check if new email is already taken by another user
+        existing = db.query(User).filter(User.email == new_email, User.id != current_user.id).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This email is already registered to another account."
+            )
+        current_user.email = new_email
+        current_user.email_verified = False
+        data.pop("email")  # Already handled
+    elif "email" in data:
+        data.pop("email")  # Same email, skip
+
+    # Check if phone number is being changed
+    new_phone = data.get("phone_number")
+    if new_phone and new_phone != current_user.phone_number:
+        # Check if new phone is already taken by another user
+        existing = db.query(User).filter(User.phone_number == new_phone, User.id != current_user.id).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="This phone number is already registered to another account."
+            )
+        current_user.phone_number = new_phone
+        current_user.phone_verified = False
+        data.pop("phone_number")  # Already handled
+    elif "phone_number" in data:
+        data.pop("phone_number")  # Same phone, skip
 
     for key, value in data.items():
         setattr(current_user, key, value)
@@ -704,6 +740,9 @@ def send_email_otp(
     db: Session = Depends(get_db)
 ):
     """Generate and send a 6-digit OTP to the authenticated user's email."""
+    # Refresh from DB to get latest email_verified status (e.g. after profile edit)
+    db.refresh(current_user)
+
     if getattr(current_user, "email_verified", False):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -736,6 +775,7 @@ def verify_email_otp(
     db: Session = Depends(get_db)
 ):
     """Verify the 6-digit OTP and mark the user's email as verified."""
+    db.refresh(current_user)
     if getattr(current_user, "email_verified", False):
         return {"message": "Email already verified.", "email_verified": True}
 
@@ -789,6 +829,9 @@ def send_phone_otp(
     db: Session = Depends(get_db)
 ):
     """Generate and send a 6-digit OTP to the authenticated user's phone number."""
+    # Refresh from DB to get latest phone_verified status (e.g. after profile edit)
+    db.refresh(current_user)
+
     otp = "".join([str(secrets.randbelow(10)) for _ in range(6)])
     expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXPIRY_MINUTES)
     _phone_otp_store[current_user.id] = {"otp": otp, "expires_at": expires_at}
@@ -814,6 +857,7 @@ def verify_phone_otp(
     db: Session = Depends(get_db)
 ):
     """Verify the 6-digit phone OTP and mark the user's phone as verified."""
+    db.refresh(current_user)
     if getattr(current_user, "phone_verified", False):
         return {"message": "Phone already verified.", "phone_verified": True}
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { User as UserIcon, ClipboardList, Briefcase, MapPin, FileText, CheckCircle, Clock, AlertCircle, Package, Pencil, Camera, X, Loader2, Cake, Mail, Phone, Image } from 'lucide-react';
+import { User as UserIcon, ClipboardList, Briefcase, MapPin, FileText, CheckCircle, Clock, AlertCircle, Package, Pencil, Camera, X, Loader2, Cake, Mail, Phone, Image, Shield, RefreshCw, ArrowRight } from 'lucide-react';
 import { authService } from '../services/auth';
 import TabBar from '../components/TabBar';
 import PackageManagement from '../components/PackageManagement';
@@ -64,12 +64,31 @@ export default function ProfilePage() {
   const [editError, setEditError] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Email & phone edit state
+  const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+
+  // OTP verification modal state
+  const [showEmailOtp, setShowEmailOtp] = useState(false);
+  const [showPhoneOtp, setShowPhoneOtp] = useState(false);
+  const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [otpError, setOtpError] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpSending, setOtpSending] = useState(false);
+  const [otpResendCooldown, setOtpResendCooldown] = useState(0);
+  const [otpDevCode, setOtpDevCode] = useState('');
+  const [otpSuccess, setOtpSuccess] = useState(false);
+  const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
   const openEditProfile = () => {
     if (!user) return;
     setEditFirstName(user.first_name);
     setEditMiddleName(user.middle_name || '');
     setEditLastName(user.last_name);
     setEditSuffix(user.suffix || '');
+    setEditEmail(user.email);
+    // Strip +63 prefix for display
+    setEditPhone(user.phone_number?.startsWith('+63') ? user.phone_number.slice(3) : user.phone_number || '');
     setEditProfilePic(user.profile_picture);
     setPreviewPic(null);
     setSelectedFile(null);
@@ -93,12 +112,45 @@ export default function ProfilePage() {
     setEditError('');
   };
 
+  // Format Philippine phone for display
+  const formatPhilippinePhone = (digits: string) => {
+    const onlyDigits = digits.replace(/\D/g, '').slice(0, 10);
+    const part1 = onlyDigits.slice(0, 3);
+    const part2 = onlyDigits.slice(3, 6);
+    const part3 = onlyDigits.slice(6, 10);
+    return [part1, part2, part3].filter(Boolean).join(' ');
+  };
+
+  const isGmail = (email: string) => /^[^\s@]+@gmail\.com$/i.test(email.trim());
+  const isPhilippinePhone = (phone: string) => {
+    const raw = phone.replace(/\D/g, '').trim();
+    return /^\d{10}$/.test(raw);
+  };
+
   const handleSaveProfile = async () => {
     if (!user) return;
     if (!editFirstName.trim() || !editLastName.trim()) {
       setEditError('First name and last name are required.');
       return;
     }
+
+    // Validate email if changed
+    const emailLower = editEmail.trim().toLowerCase();
+    const emailChanged = emailLower !== user.email;
+    if (emailChanged && !isGmail(emailLower)) {
+      setEditError('Only Gmail addresses are allowed (e.g. yourname@gmail.com)');
+      return;
+    }
+
+    // Validate phone if changed
+    const phoneRaw = editPhone.replace(/\D/g, '').trim();
+    const fullPhone = `+63${phoneRaw}`;
+    const phoneChanged = fullPhone !== user.phone_number;
+    if (phoneChanged && !isPhilippinePhone(editPhone)) {
+      setEditError('Enter 10 digits after +63 (e.g. 912 345 6789)');
+      return;
+    }
+
     setSaving(true);
     setEditError('');
     try {
@@ -109,12 +161,14 @@ export default function ProfilePage() {
         pictureUrl = await authService.uploadProfilePicture(selectedFile);
       }
 
-      const updates: { first_name?: string; middle_name?: string; last_name?: string; suffix?: string; profile_picture?: string } = {};
+      const updates: { first_name?: string; middle_name?: string; last_name?: string; suffix?: string; profile_picture?: string; email?: string; phone_number?: string } = {};
       if (editFirstName.trim() !== user.first_name) updates.first_name = editFirstName.trim();
       if (editMiddleName.trim() !== (user.middle_name || '')) updates.middle_name = editMiddleName.trim();
       if (editLastName.trim() !== user.last_name) updates.last_name = editLastName.trim();
       if (editSuffix.trim() !== (user.suffix || '')) updates.suffix = editSuffix.trim();
       if (pictureUrl !== user.profile_picture) updates.profile_picture = pictureUrl;
+      if (emailChanged) updates.email = emailLower;
+      if (phoneChanged) updates.phone_number = fullPhone;
 
       if (Object.keys(updates).length === 0) {
         setShowEditProfile(false);
@@ -124,11 +178,199 @@ export default function ProfilePage() {
       const updatedUser = await authService.updateProfile(updates);
       setUser(updatedUser as User);
       setShowEditProfile(false);
+
+      // If email was changed, prompt email OTP verification
+      if (emailChanged) {
+        setTimeout(() => {
+          setOtpDigits(['', '', '', '', '', '']);
+          setOtpError('');
+          setOtpSuccess(false);
+          setOtpDevCode('');
+          setShowEmailOtp(true);
+          sendEmailOtp();
+        }, 300);
+      }
+      // If phone was changed, prompt phone OTP verification
+      if (phoneChanged) {
+        setTimeout(() => {
+          setOtpDigits(['', '', '', '', '', '']);
+          setOtpError('');
+          setOtpSuccess(false);
+          setOtpDevCode('');
+          setShowPhoneOtp(true);
+          sendPhoneOtp();
+        }, emailChanged ? 600 : 300);
+      }
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
       setEditError(typeof detail === 'string' ? detail : 'Failed to update profile. Please try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ─── OTP helpers ───────────────────────────────────────────────────────────
+  // Countdown timer for OTP resend
+  useEffect(() => {
+    if (otpResendCooldown <= 0) return;
+    const timer = setTimeout(() => setOtpResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [otpResendCooldown]);
+
+  const sendEmailOtp = async () => {
+    setOtpSending(true);
+    setOtpError('');
+    setOtpDevCode('');
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE_URL}/auth/send-email-otp`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setOtpError(data.detail || 'Failed to send verification code.');
+      } else {
+        setOtpResendCooldown(60);
+        if (data.dev_otp) setOtpDevCode(data.dev_otp);
+      }
+    } catch {
+      setOtpError('Could not connect to the server.');
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const sendPhoneOtp = async () => {
+    setOtpSending(true);
+    setOtpError('');
+    setOtpDevCode('');
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE_URL}/auth/send-phone-otp`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setOtpError(data.detail || 'Failed to send verification code.');
+      } else {
+        setOtpResendCooldown(60);
+        if (data.dev_otp) setOtpDevCode(data.dev_otp);
+      }
+    } catch {
+      setOtpError('Could not connect to the server.');
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  const handleOtpDigitChange = (idx: number, val: string) => {
+    const digit = val.replace(/\D/g, '').slice(-1);
+    const next = [...otpDigits];
+    next[idx] = digit;
+    setOtpDigits(next);
+    setOtpError('');
+    if (digit && idx < 5) {
+      otpInputRefs.current[idx + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace') {
+      if (otpDigits[idx]) {
+        const next = [...otpDigits];
+        next[idx] = '';
+        setOtpDigits(next);
+      } else if (idx > 0) {
+        otpInputRefs.current[idx - 1]?.focus();
+      }
+    } else if (e.key === 'ArrowLeft' && idx > 0) {
+      otpInputRefs.current[idx - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && idx < 5) {
+      otpInputRefs.current[idx + 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!text) return;
+    const next = [...otpDigits];
+    for (let i = 0; i < 6; i++) next[i] = text[i] || '';
+    setOtpDigits(next);
+    const focusIdx = Math.min(text.length, 5);
+    otpInputRefs.current[focusIdx]?.focus();
+  };
+
+  const handleVerifyEmailOtp = async () => {
+    const otp = otpDigits.join('');
+    if (otp.length < 6) { setOtpError('Please enter the complete 6-digit code.'); return; }
+    setOtpLoading(true);
+    setOtpError('');
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE_URL}/auth/verify-email-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ otp }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        // Update user in storage
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          const u = JSON.parse(userStr);
+          u.email_verified = true;
+          localStorage.setItem('user', JSON.stringify(u));
+          setUser(u);
+        }
+        setOtpSuccess(true);
+        setTimeout(() => { setShowEmailOtp(false); setOtpSuccess(false); }, 1500);
+      } else {
+        setOtpError(data.detail || 'Verification failed.');
+        setOtpDigits(['', '', '', '', '', '']);
+        otpInputRefs.current[0]?.focus();
+      }
+    } catch {
+      setOtpError('Could not connect to the server.');
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyPhoneOtp = async () => {
+    const otp = otpDigits.join('');
+    if (otp.length < 6) { setOtpError('Please enter the complete 6-digit code.'); return; }
+    setOtpLoading(true);
+    setOtpError('');
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE_URL}/auth/verify-phone-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ otp }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          const u = JSON.parse(userStr);
+          u.phone_verified = true;
+          localStorage.setItem('user', JSON.stringify(u));
+          setUser(u);
+        }
+        setOtpSuccess(true);
+        setTimeout(() => { setShowPhoneOtp(false); setOtpSuccess(false); }, 1500);
+      } else {
+        setOtpError(data.detail || 'Verification failed.');
+        setOtpDigits(['', '', '', '', '', '']);
+        otpInputRefs.current[0]?.focus();
+      }
+    } catch {
+      setOtpError('Could not connect to the server.');
+    } finally {
+      setOtpLoading(false);
     }
   };
 
@@ -426,10 +668,22 @@ export default function ProfilePage() {
                         <p className="flex items-center justify-center sm:justify-start gap-1.5">
                           <Mail className="w-4 h-4" />
                           {user.email}
+                          {user.email_verified === false && (
+                            <span className="ml-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[10px] font-bold rounded-full border border-amber-200 dark:border-amber-500/30">Unverified</span>
+                          )}
+                          {user.email_verified === true && (
+                            <CheckCircle className="w-3.5 h-3.5 text-green-500 ml-1" />
+                          )}
                         </p>
                         <p className="flex items-center justify-center sm:justify-start gap-1.5">
                           <Phone className="w-4 h-4" />
                           {user.phone_number}
+                          {user.phone_verified === false && (
+                            <span className="ml-1 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300 text-[10px] font-bold rounded-full border border-amber-200 dark:border-amber-500/30">Unverified</span>
+                          )}
+                          {user.phone_verified === true && (
+                            <CheckCircle className="w-3.5 h-3.5 text-green-500 ml-1" />
+                          )}
                         </p>
                         {user.birthday && (
                           <p className="flex items-center justify-center sm:justify-start gap-1.5">
@@ -448,6 +702,59 @@ export default function ProfilePage() {
                 </div>
             </div>
         </div>
+
+        {/* Verification Warning Banner */}
+        {(user.email_verified === false || user.phone_verified === false) && (
+          <div className="bg-amber-50 dark:bg-amber-500/10 backdrop-blur-xl rounded-2xl p-5 border border-amber-200 dark:border-amber-500/20 shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-100 dark:bg-amber-500/20 rounded-lg text-amber-600 dark:text-amber-400 shrink-0">
+                <Shield className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-amber-800 dark:text-amber-200 text-sm">Verification Required</h3>
+                <p className="text-xs text-amber-700/70 dark:text-amber-300/70 mt-1">
+                  {user.email_verified === false && user.phone_verified === false
+                    ? 'Your email and phone number need to be verified.'
+                    : user.email_verified === false
+                    ? 'Your email address needs to be verified.'
+                    : 'Your phone number needs to be verified.'}
+                </p>
+                <div className="flex flex-wrap gap-2 mt-3">
+                  {user.email_verified === false && (
+                    <button
+                      onClick={() => {
+                        setOtpDigits(['', '', '', '', '', '']);
+                        setOtpError('');
+                        setOtpSuccess(false);
+                        setOtpDevCode('');
+                        setShowEmailOtp(true);
+                        sendEmailOtp();
+                      }}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1"
+                    >
+                      <Mail className="w-3 h-3" /> Verify Email
+                    </button>
+                  )}
+                  {user.phone_verified === false && (
+                    <button
+                      onClick={() => {
+                        setOtpDigits(['', '', '', '', '', '']);
+                        setOtpError('');
+                        setOtpSuccess(false);
+                        setOtpDevCode('');
+                        setShowPhoneOtp(true);
+                        sendPhoneOtp();
+                      }}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center gap-1"
+                    >
+                      <Phone className="w-3 h-3" /> Verify Phone
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Application Status Card (If pending or rejected) */}
         {!loadingApplication && !user.is_housekeeper && (
@@ -723,6 +1030,66 @@ export default function ProfilePage() {
                 />
               </div>
 
+              {/* Divider */}
+              <div className="border-t border-gray-200 dark:border-white/10 pt-2">
+                <p className="text-xs font-semibold text-[#4B244A]/50 dark:text-white/40 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5" />
+                  Contact Info (requires re-verification)
+                </p>
+              </div>
+
+              {/* Email */}
+              <div>
+                <label className="block text-sm font-bold text-[#4B244A] dark:text-white mb-2">
+                  Email <span className="text-red-500">*</span>
+                  {user.email_verified && editEmail.trim().toLowerCase() === user.email && (
+                    <span className="ml-2 text-xs text-green-600 dark:text-green-400 font-medium">✓ Verified</span>
+                  )}
+                </label>
+                <input
+                  type="email"
+                  value={editEmail}
+                  onChange={(e) => setEditEmail(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]/50 focus:border-[#EA526F] transition-all text-sm"
+                  placeholder="yourname@gmail.com"
+                />
+                {editEmail.trim().toLowerCase() !== user.email && (
+                  <p className="mt-1 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    Changing email will require OTP re-verification
+                  </p>
+                )}
+              </div>
+
+              {/* Phone */}
+              <div>
+                <label className="block text-sm font-bold text-[#4B244A] dark:text-white mb-2">
+                  Phone Number <span className="text-red-500">*</span>
+                  {user.phone_verified && `+63${editPhone.replace(/\D/g, '')}` === user.phone_number && (
+                    <span className="ml-2 text-xs text-green-600 dark:text-green-400 font-medium">✓ Verified</span>
+                  )}
+                </label>
+                <div className="flex">
+                  <span className="inline-flex items-center px-3 py-3 rounded-l-xl border border-r-0 border-gray-200 dark:border-white/10 bg-gray-100 dark:bg-white/10 text-[#4B244A] dark:text-white text-sm font-medium">
+                    +63
+                  </span>
+                  <input
+                    type="tel"
+                    value={formatPhilippinePhone(editPhone)}
+                    onChange={(e) => setEditPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                    className="flex-1 px-4 py-3 rounded-r-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]/50 focus:border-[#EA526F] transition-all text-sm"
+                    placeholder="912 345 6789"
+                    inputMode="numeric"
+                  />
+                </div>
+                {`+63${editPhone.replace(/\D/g, '')}` !== user.phone_number && editPhone.replace(/\D/g, '').length > 0 && (
+                  <p className="mt-1 text-xs text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                    <AlertCircle className="w-3 h-3" />
+                    Changing phone will require SMS OTP re-verification
+                  </p>
+                )}
+              </div>
+
               {/* Error */}
               {editError && (
                 <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm flex items-start gap-2">
@@ -755,6 +1122,176 @@ export default function ProfilePage() {
                   )}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Package Onboarding Modal */}
+
+      {/* ─── Email OTP Verification Modal ─── */}
+      {showEmailOtp && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full border border-gray-200 dark:border-white/20 shadow-2xl">
+            <div className="p-6 border-b border-gray-200 dark:border-white/10 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-[#4B244A] dark:text-white flex items-center gap-2">
+                <Mail className="w-5 h-5 text-[#EA526F]" />
+                Verify New Email
+              </h3>
+              <button onClick={() => setShowEmailOtp(false)} className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-5">
+              {otpSuccess ? (
+                <div className="text-center py-4">
+                  <div className="w-16 h-16 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <CheckCircle className="w-8 h-8 text-green-500" />
+                  </div>
+                  <p className="text-lg font-bold text-[#4B244A] dark:text-white">Email Verified!</p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-[#4B244A]/70 dark:text-white/60 text-center">
+                    We sent a 6-digit code to <strong className="text-[#4B244A] dark:text-white">{user?.email}</strong>
+                  </p>
+
+                  {otpDevCode && (
+                    <div className="p-3 bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-xl text-center">
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300 font-medium">
+                        ⚙️ Dev mode — Your code: <strong>{otpDevCode}</strong>
+                      </p>
+                    </div>
+                  )}
+
+                  {otpError && (
+                    <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm text-center">
+                      {otpError}
+                    </div>
+                  )}
+
+                  <div className="flex justify-center gap-2.5" onPaste={handleOtpPaste}>
+                    {otpDigits.map((d, idx) => (
+                      <input
+                        key={idx}
+                        ref={(el) => { otpInputRefs.current[idx] = el; }}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={d}
+                        onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                        className={`w-11 h-14 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white ${
+                          d ? 'border-[#EA526F] ring-2 ring-[#EA526F]/30' : 'border-gray-300 dark:border-white/20 focus:border-[#EA526F] focus:ring-2 focus:ring-[#EA526F]/20'
+                        }`}
+                        disabled={otpLoading}
+                      />
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={handleVerifyEmailOtp}
+                    disabled={!otpDigits.every(d => d !== '') || otpLoading}
+                    className="w-full py-3 bg-[#EA526F] hover:bg-[#d4486a] text-white font-bold rounded-xl shadow-lg shadow-[#EA526F]/20 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {otpLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying…</> : <>Verify <ArrowRight className="w-4 h-4" /></>}
+                  </button>
+
+                  <div className="text-center">
+                    {otpResendCooldown > 0 ? (
+                      <p className="text-sm text-[#4B244A]/50 dark:text-white/40">Resend in <span className="font-semibold text-[#EA526F]">{otpResendCooldown}s</span></p>
+                    ) : (
+                      <button onClick={sendEmailOtp} disabled={otpSending} className="text-sm text-[#EA526F] font-semibold hover:underline disabled:opacity-50 flex items-center gap-1 mx-auto">
+                        {otpSending ? <><RefreshCw className="w-3 h-3 animate-spin" /> Sending…</> : 'Resend code'}
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── Phone OTP Verification Modal ─── */}
+      {showPhoneOtp && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full border border-gray-200 dark:border-white/20 shadow-2xl">
+            <div className="p-6 border-b border-gray-200 dark:border-white/10 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-[#4B244A] dark:text-white flex items-center gap-2">
+                <Phone className="w-5 h-5 text-[#EA526F]" />
+                Verify New Phone
+              </h3>
+              <button onClick={() => setShowPhoneOtp(false)} className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-5">
+              {otpSuccess ? (
+                <div className="text-center py-4">
+                  <div className="w-16 h-16 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <CheckCircle className="w-8 h-8 text-green-500" />
+                  </div>
+                  <p className="text-lg font-bold text-[#4B244A] dark:text-white">Phone Verified!</p>
+                </div>
+              ) : (
+                <>
+                  <p className="text-sm text-[#4B244A]/70 dark:text-white/60 text-center">
+                    We sent a 6-digit code to <strong className="text-[#4B244A] dark:text-white">{user?.phone_number}</strong>
+                  </p>
+
+                  {otpDevCode && (
+                    <div className="p-3 bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-xl text-center">
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300 font-medium">
+                        ⚙️ Dev mode — Your code: <strong>{otpDevCode}</strong>
+                      </p>
+                    </div>
+                  )}
+
+                  {otpError && (
+                    <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm text-center">
+                      {otpError}
+                    </div>
+                  )}
+
+                  <div className="flex justify-center gap-2.5" onPaste={handleOtpPaste}>
+                    {otpDigits.map((d, idx) => (
+                      <input
+                        key={idx}
+                        ref={(el) => { otpInputRefs.current[idx] = el; }}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={d}
+                        onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                        className={`w-11 h-14 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white ${
+                          d ? 'border-[#EA526F] ring-2 ring-[#EA526F]/30' : 'border-gray-300 dark:border-white/20 focus:border-[#EA526F] focus:ring-2 focus:ring-[#EA526F]/20'
+                        }`}
+                        disabled={otpLoading}
+                      />
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={handleVerifyPhoneOtp}
+                    disabled={!otpDigits.every(d => d !== '') || otpLoading}
+                    className="w-full py-3 bg-[#EA526F] hover:bg-[#d4486a] text-white font-bold rounded-xl shadow-lg shadow-[#EA526F]/20 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {otpLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying…</> : <>Verify <ArrowRight className="w-4 h-4" /></>}
+                  </button>
+
+                  <div className="text-center">
+                    {otpResendCooldown > 0 ? (
+                      <p className="text-sm text-[#4B244A]/50 dark:text-white/40">Resend in <span className="font-semibold text-[#EA526F]">{otpResendCooldown}s</span></p>
+                    ) : (
+                      <button onClick={sendPhoneOtp} disabled={otpSending} className="text-sm text-[#EA526F] font-semibold hover:underline disabled:opacity-50 flex items-center gap-1 mx-auto">
+                        {otpSending ? <><RefreshCw className="w-3 h-3 animate-spin" /> Sending…</> : 'Resend code'}
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
