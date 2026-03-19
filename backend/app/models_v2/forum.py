@@ -58,6 +58,11 @@ class ForumPost(Base):
     recurring_cancellation_reason = Column(Text, nullable=True)
     cancelled_by = Column(String(20), nullable=True)  # "employer" or "worker"
     
+    # Multi-day scheduling
+    num_days = Column(Integer, default=1, nullable=True)  # Number of working days
+    daily_start_time = Column(String(10), nullable=True)  # e.g. "08:00"
+    daily_end_time = Column(String(10), nullable=True)  # e.g. "15:00"
+
     # Job completion fields
     completion_proof_url = Column(String, nullable=True)  # Photo/video proof of completion
     completion_notes = Column(Text, nullable=True)  # Notes from housekeeper

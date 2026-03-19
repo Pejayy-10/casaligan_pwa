@@ -38,6 +38,12 @@ class DirectHire(Base):
     # Scheduling
     scheduled_date = Column(Date, nullable=False)
     scheduled_time = Column(String(10), nullable=True)  # e.g., "09:00"
+
+    # Multi-day scheduling
+    num_days = Column(Integer, default=1, nullable=True)  # Number of working days
+    daily_start_time = Column(String(10), nullable=True)  # e.g. "08:00"
+    daily_end_time = Column(String(10), nullable=True)  # e.g. "15:00"
+    end_date = Column(Date, nullable=True)  # computed as scheduled_date + num_days - 1
     
     # Recurring schedule (for regular/repeating bookings)
     is_recurring = Column(Boolean, default=False, nullable=False)

@@ -70,6 +70,11 @@ export default function WorkerProfilePage() {
   const [endTime, setEndTime] = useState('11:00');
   const [frequency, setFrequency] = useState('weekly');
   
+  // Multi-day schedule state
+  const [numDays, setNumDays] = useState(1);
+  const [dailyStartTime, setDailyStartTime] = useState('08:00');
+  const [dailyEndTime, setDailyEndTime] = useState('17:00');
+  
   // Custom address fields (when not using registered address)
   const [customStreet, setCustomStreet] = useState('');
   const [customBarangay, setCustomBarangay] = useState('');
@@ -281,7 +286,11 @@ export default function WorkerProfilePage() {
         address_barangay: useMyAddress ? null : customBarangay || null,
         address_city: useMyAddress ? null : customCity || null,
         address_province: useMyAddress ? null : customProvince || null,
-        address_region: useMyAddress ? null : customRegion || null
+        address_region: useMyAddress ? null : customRegion || null,
+        // Multi-day scheduling
+        num_days: numDays,
+        daily_start_time: dailyStartTime || null,
+        daily_end_time: dailyEndTime || null
       };
       
       // Add recurring schedule if enabled
@@ -693,6 +702,47 @@ export default function WorkerProfilePage() {
                   <option value="15:00" className="text-gray-900">3:00 PM</option>
                   <option value="16:00" className="text-gray-900">4:00 PM</option>
                 </select>
+              </div>
+
+              {/* Recurring Schedule Option */}
+              <div className="bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/30 rounded-xl p-4 space-y-3">
+                <h4 className="text-purple-800 dark:text-white font-bold text-sm">📅 Job Duration & Daily Hours</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[#4B244A] dark:text-white font-bold mb-1 text-xs">Days</label>
+                    <input
+                      type="number"
+                      value={numDays}
+                      onChange={(e) => setNumDays(Math.max(1, parseInt(e.target.value) || 1))}
+                      min="1"
+                      max="30"
+                      className="w-full px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[#4B244A] dark:text-white font-bold mb-1 text-xs">Start Time</label>
+                    <input
+                      type="time"
+                      value={dailyStartTime}
+                      onChange={(e) => setDailyStartTime(e.target.value)}
+                      className="w-full px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[#4B244A] dark:text-white font-bold mb-1 text-xs">End Time</label>
+                    <input
+                      type="time"
+                      value={dailyEndTime}
+                      onChange={(e) => setDailyEndTime(e.target.value)}
+                      className="w-full px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] text-sm"
+                    />
+                  </div>
+                </div>
+                {numDays > 1 && (
+                  <p className="text-purple-600 dark:text-purple-300/70 text-xs font-medium">
+                    ℹ️ Multi-day booking: Both parties must confirm each day before the next day is unlocked.
+                  </p>
+                )}
               </div>
 
               {/* Recurring Schedule Option */}

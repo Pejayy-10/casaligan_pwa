@@ -19,6 +19,12 @@ class RecurringScheduleData(BaseModel):
     end_time: Optional[str] = None  # "11:00" format
     frequency: Optional[str] = None  # "weekly", "biweekly", "monthly"
 
+class MultiDayScheduleData(BaseModel):
+    """Multi-day schedule with daily working hours"""
+    num_days: int = Field(1, ge=1, le=30, description="Number of working days")
+    daily_start_time: str = Field(..., description="Daily start time in HH:MM format, e.g. '08:00'")
+    daily_end_time: str = Field(..., description="Daily end time in HH:MM format, e.g. '15:00'")
+
 class JobPostCreate(BaseModel):
     title: str = Field(..., min_length=5, max_length=200)
     description: str = Field(..., min_length=20)
@@ -35,6 +41,7 @@ class JobPostCreate(BaseModel):
     category_ids: List[int] = []  # Multiple categories from package_categories
     payment_schedule: Optional[PaymentScheduleData] = None  # For long_term jobs
     recurring_schedule: Optional[RecurringScheduleData] = None  # For recurring jobs
+    multi_day_schedule: Optional[MultiDayScheduleData] = None  # For multi-day jobs
 
 class JobPostResponse(BaseModel):
     post_id: int
@@ -62,6 +69,10 @@ class JobPostResponse(BaseModel):
     recurring_cancelled_at: Optional[str] = None
     recurring_cancellation_reason: Optional[str] = None
     cancelled_by: Optional[str] = None  # "employer" or "worker"
+    
+    # Multi-day schedule info
+    multi_day_schedule: Optional[dict] = None  # { num_days, daily_start_time, daily_end_time }
+    day_schedules: List[dict] = []  # per-day status for multi-day jobs
     
     # Employer info
     employer_name: str
@@ -92,6 +103,39 @@ class JobPostResponse(BaseModel):
         
         # Map job_type enum to duration_type string
         duration_type = "long_term" if post.is_longterm else "short_term"
+        
+        # Build multi-day schedule info
+        num_days = getattr(post, 'num_days', None) or custom_fields.get('num_days', 1)
+        daily_start = getattr(post, 'daily_start_time', None) or custom_fields.get('daily_start_time')
+        daily_end = getattr(post, 'daily_end_time', None) or custom_fields.get('daily_end_time')
+        multi_day_schedule = None
+        if num_days and num_days > 1 and daily_start and daily_end:
+            multi_day_schedule = {
+                "num_days": num_days,
+                "daily_start_time": daily_start,
+                "daily_end_time": daily_end,
+            }
+        elif daily_start and daily_end:
+            # Even single-day jobs can have time ranges
+            multi_day_schedule = {
+                "num_days": num_days or 1,
+                "daily_start_time": daily_start,
+                "daily_end_time": daily_end,
+            }
+        
+        # Build per-day schedules if available
+        day_schedules_list = []
+        if hasattr(post, 'day_schedules') and post.day_schedules:
+            for ds in sorted(post.day_schedules, key=lambda d: d.day_number):
+                day_schedules_list.append({
+                    "day_schedule_id": ds.day_schedule_id,
+                    "day_number": ds.day_number,
+                    "work_date": str(ds.work_date),
+                    "start_time": ds.start_time,
+                    "end_time": ds.end_time,
+                    "status": ds.status,
+                    "worker_id": ds.worker_id,
+                })
         
         return cls(
             post_id=post.post_id,
@@ -125,6 +169,8 @@ class JobPostResponse(BaseModel):
             recurring_cancelled_at=str(post.recurring_cancelled_at) if hasattr(post, 'recurring_cancelled_at') and post.recurring_cancelled_at else None,
             recurring_cancellation_reason=getattr(post, 'recurring_cancellation_reason', None),
             cancelled_by=getattr(post, 'cancelled_by', None),
+            multi_day_schedule=multi_day_schedule,
+            day_schedules=day_schedules_list,
             employer_name=f"{employer_user.first_name} {employer_user.last_name}",
             employer_address=f"{employer_user.address.city_name}, {employer_user.address.province_name}" if employer_user.address else None,
             total_applicants=applicants_count,
@@ -147,3 +193,4 @@ class JobPostUpdate(BaseModel):
     category_id: Optional[int] = None
     category_ids: Optional[List[int]] = None
     status: Optional[str] = None  # "open", "closed"
+    multi_day_schedule: Optional[MultiDayScheduleData] = None

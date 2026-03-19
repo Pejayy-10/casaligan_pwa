@@ -7,3 +7,4 @@ from app.models_v2.user import User
 from app.models_v2.report import Report, ReportType, ReportStatus
 from app.models_v2.package import WorkerPackage
 from app.models_v2.direct_hire import DirectHire, DirectHireStatus
+from app.models_v2.job_day_schedule import JobDaySchedule, DailyCompletion

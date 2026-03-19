@@ -90,6 +90,37 @@ export interface DocumentData {
   notes?: string;
 }
 
+// Multi-day scheduling types
+export interface MultiDaySchedule {
+  num_days: number;
+  daily_start_time: string;
+  daily_end_time: string;
+}
+
+export interface DaySchedule {
+  day_schedule_id: number;
+  post_id?: number;
+  hire_id?: number;
+  worker_id: number;
+  work_date: string;
+  start_time: string;
+  end_time: string;
+  day_number: number;
+  status: 'pending' | 'in_progress' | 'pending_completion' | 'completed' | 'skipped';
+  owner_confirmed: boolean;
+  housekeeper_confirmed: boolean;
+  completions: DailyCompletionRecord[];
+}
+
+export interface DailyCompletionRecord {
+  completion_id: number;
+  confirmed_by: number;
+  role: 'owner' | 'housekeeper';
+  proof_url?: string;
+  notes?: string;
+  confirmed_at?: string;
+}
+
 // PSGC Types
 export interface PSGCRegion {
   code: string;

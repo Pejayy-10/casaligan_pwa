@@ -41,6 +41,20 @@ export interface JobPost {
     payment_dates: string[];
     payment_method_preference: string;
   };
+  multi_day_schedule?: {
+    num_days: number;
+    daily_start_time: string;
+    daily_end_time: string;
+  };
+  day_schedules?: Array<{
+    day_schedule_id: number;
+    day_number: number;
+    work_date: string;
+    start_time: string;
+    end_time: string;
+    status: string;
+    worker_id: number;
+  }>;
 }
 
 interface JobDetailModalProps {
@@ -138,6 +152,32 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
                   </p>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Multi-Day Schedule */}
+          {job.multi_day_schedule && (
+            <div className="bg-blue-50/80 dark:bg-blue-500/10 rounded-xl p-4 border border-blue-200 dark:border-blue-500/20">
+              <h3 className="text-[#4B244A] dark:text-white font-bold mb-2"><Clock className="inline w-4 h-4 mr-1" /> Daily Schedule</h3>
+              <div className="space-y-2 text-sm">
+                <p className="text-[#4B244A]/80 dark:text-white/80">
+                  <span className="font-semibold">Duration:</span>{' '}
+                  <span className="font-bold text-blue-700 dark:text-blue-300">
+                    {job.multi_day_schedule.num_days} {job.multi_day_schedule.num_days === 1 ? 'day' : 'days'}
+                  </span>
+                </p>
+                <p className="text-[#4B244A]/80 dark:text-white/80">
+                  <span className="font-semibold">Working Hours:</span>{' '}
+                  <span className="font-bold text-blue-700 dark:text-blue-300">
+                    {job.multi_day_schedule.daily_start_time} – {job.multi_day_schedule.daily_end_time}
+                  </span>
+                </p>
+              </div>
+              {job.multi_day_schedule.num_days > 1 && (
+                <p className="text-blue-600 dark:text-blue-300/70 text-xs mt-2 font-medium">
+                  ℹ️ This is a multi-day job. Both the owner and housekeeper must confirm each day's work before proceeding to the next day. The housekeeper can take other jobs outside these hours.
+                </p>
+              )}
             </div>
           )}
 

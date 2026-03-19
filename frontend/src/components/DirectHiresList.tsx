@@ -3,6 +3,7 @@ import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { Clock, RotateCw, FileText, CheckCircle, CreditCard, ClipboardList, Calendar, X, Star, Briefcase, Loader2, Cross, MapPin } from 'lucide-react';
 import RatingModal from './RatingModal';
+import DailyCompletionModal from './DailyCompletionModal';
 import apiClient from '../services/api';
 import { usePayment } from '../context/PaymentContext';
 
@@ -54,6 +55,20 @@ interface DirectHire {
   recurring_cancelled_at?: string | null;
   recurring_cancellation_reason?: string | null;
   cancelled_by?: string | null;
+  num_days?: number | null;
+  daily_start_time?: string | null;
+  daily_end_time?: string | null;
+  end_date?: string | null;
+  day_schedules?: Array<{
+    day_schedule_id: number;
+    day_number: number;
+    work_date: string;
+    start_time: string | null;
+    end_time: string | null;
+    status: string;
+    owner_confirmed: boolean;
+    housekeeper_confirmed: boolean;
+  }>;
 }
 
 interface Props {
@@ -91,6 +106,10 @@ export default function DirectHiresList({ role, onClose }: Props) {
   // Completion review state for owner
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [reviewHire, setReviewHire] = useState<DirectHire | null>(null);
+
+  // Daily completion modal state
+  const [showDailyCompletionModal, setShowDailyCompletionModal] = useState(false);
+  const [dailyCompletionHire, setDailyCompletionHire] = useState<DirectHire | null>(null);
 
   useEffect(() => {
     loadHires();
@@ -389,7 +408,22 @@ export default function DirectHiresList({ role, onClose }: Props) {
           );
         case 'accepted':
         case 'in_progress':
-          return messageButton;
+          return (
+            <div className="flex flex-wrap gap-2">
+              {hire.num_days && hire.num_days > 1 && (
+                <button
+                  onClick={() => {
+                    setDailyCompletionHire(hire);
+                    setShowDailyCompletionModal(true);
+                  }}
+                  className="px-3 py-1 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 font-semibold shadow-sm"
+                >
+                  📅 Daily Progress
+                </button>
+              )}
+              {messageButton}
+            </div>
+          );
         case 'pending_completion':
           return (
             <div className="flex gap-2">
@@ -480,7 +514,18 @@ export default function DirectHiresList({ role, onClose }: Props) {
           );
         case 'in_progress':
           return (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
+              {hire.num_days && hire.num_days > 1 && (
+                <button
+                  onClick={() => {
+                    setDailyCompletionHire(hire);
+                    setShowDailyCompletionModal(true);
+                  }}
+                  className="px-3 py-1 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 font-semibold shadow-sm"
+                >
+                  📅 Daily Progress
+                </button>
+              )}
               <button
                 onClick={() => {
                   setSelectedHire(hire);
@@ -578,6 +623,24 @@ export default function DirectHiresList({ role, onClose }: Props) {
                             {hire.recurring_status === 'cancelled' && (
                               <span className="px-2 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-xs rounded-full font-bold">
                                 <Cross className="inline w-4 h-4 mr-1"></Cross> Cancelled {hire.cancelled_by === role ? 'by you' : `by ${role === 'owner' ? 'worker' : 'employer'}`}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {/* Multi-day schedule info */}
+                        {hire.num_days && hire.num_days > 1 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            <span className="px-2 py-1 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 text-xs rounded-full font-bold">
+                              📅 {hire.num_days} days
+                            </span>
+                            {hire.daily_start_time && hire.daily_end_time && (
+                              <span className="px-2 py-1 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 text-xs rounded-full font-bold">
+                                🕐 {hire.daily_start_time} – {hire.daily_end_time}
+                              </span>
+                            )}
+                            {hire.day_schedules && hire.day_schedules.length > 0 && (
+                              <span className="px-2 py-1 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300 text-xs rounded-full font-bold">
+                                ✅ {hire.day_schedules.filter(d => d.status === 'completed').length}/{hire.day_schedules.length} days done
                               </span>
                             )}
                           </div>
@@ -858,6 +921,20 @@ export default function DirectHiresList({ role, onClose }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Daily Completion Modal */}
+      {showDailyCompletionModal && dailyCompletionHire && (
+        <DailyCompletionModal
+          hireId={dailyCompletionHire.hire_id}
+          jobTitle={`Booking with ${role === 'owner' ? dailyCompletionHire.worker_name : dailyCompletionHire.employer_name}`}
+          userRole={role === 'owner' ? 'owner' : 'housekeeper'}
+          onClose={() => {
+            setShowDailyCompletionModal(false);
+            setDailyCompletionHire(null);
+          }}
+          onDayConfirmed={() => loadHires()}
+        />
       )}
     </div>
   );

@@ -43,7 +43,11 @@ export default function CreateJobPage() {
     day_of_week: '',
     start_time: '',
     end_time: '',
-    frequency: 'weekly'
+    frequency: 'weekly',
+    // Multi-day schedule fields
+    num_days: '1',
+    daily_start_time: '',
+    daily_end_time: ''
   });
   
   const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
@@ -179,6 +183,16 @@ export default function CreateJobPage() {
           start_time: formData.start_time,
           end_time: formData.end_time,
           frequency: formData.frequency
+        };
+      }
+      
+      // Add multi-day schedule if num_days > 1 or daily times are specified
+      const numDays = parseInt(formData.num_days) || 1;
+      if (numDays >= 1 && formData.daily_start_time && formData.daily_end_time) {
+        jobData.multi_day_schedule = {
+          num_days: numDays,
+          daily_start_time: formData.daily_start_time,
+          daily_end_time: formData.daily_end_time
         };
       }
       
@@ -463,7 +477,7 @@ export default function CreateJobPage() {
             {formData.duration_type === 'short_term' && (
               <div className="mt-4 space-y-4">
                 <div>
-                  <label className={labelClass}>Job Date *</label>
+                  <label className={labelClass}>Job Date (Start Date) *</label>
                   <input
                     type="date"
                     name="job_date"
@@ -473,7 +487,82 @@ export default function CreateJobPage() {
                     min={new Date().toISOString().split('T')[0]}
                     className={inputClass}
                   />
-                  <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mt-1">When should the housekeeper come?</p>
+                  <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mt-1">When should the housekeeper start?</p>
+                </div>
+
+                {/* Multi-Day Schedule Section */}
+                <div className="bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/30 rounded-xl p-4 space-y-3">
+                  <h3 className="text-purple-800 dark:text-white font-bold text-sm">📅 Job Duration & Daily Hours</h3>
+                  <p className="text-purple-600 dark:text-white/70 text-xs font-medium">
+                    Specify how many days this job will take and the working hours per day.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className={labelClass}>Number of Days *</label>
+                      <input
+                        type="number"
+                        name="num_days"
+                        value={formData.num_days}
+                        onChange={handleInputChange}
+                        min="1"
+                        max="30"
+                        className={inputClass}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Start Time *</label>
+                      <input
+                        type="time"
+                        name="daily_start_time"
+                        value={formData.daily_start_time}
+                        onChange={handleInputChange}
+                        required
+                        className={inputClass}
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>End Time *</label>
+                      <input
+                        type="time"
+                        name="daily_end_time"
+                        value={formData.daily_end_time}
+                        onChange={handleInputChange}
+                        required
+                        className={inputClass}
+                      />
+                    </div>
+                  </div>
+                  {parseInt(formData.num_days) > 1 && formData.job_date && (
+                    <div className="bg-white/60 dark:bg-white/5 rounded-lg p-3 text-xs">
+                      <p className="text-purple-800 dark:text-purple-200 font-bold mb-1">
+                        📋 Schedule Preview
+                      </p>
+                      {Array.from({ length: Math.min(parseInt(formData.num_days), 7) }, (_, i) => {
+                        const d = new Date(formData.job_date);
+                        d.setDate(d.getDate() + i);
+                        return (
+                          <p key={i} className="text-purple-700 dark:text-purple-300/80">
+                            Day {i + 1}: {d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            {formData.daily_start_time && formData.daily_end_time
+                              ? ` • ${formData.daily_start_time} – ${formData.daily_end_time}`
+                              : ''}
+                          </p>
+                        );
+                      })}
+                      {parseInt(formData.num_days) > 7 && (
+                        <p className="text-purple-500 dark:text-purple-400/60 mt-1">
+                          ... and {parseInt(formData.num_days) - 7} more days
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {parseInt(formData.num_days) > 1 && (
+                    <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-3">
+                      <p className="text-blue-700 dark:text-blue-200 text-xs font-medium">
+                        ℹ️ <strong>Multi-day jobs:</strong> Both you and the housekeeper must confirm each day's work is done before the next day is unlocked. The housekeeper can accept other jobs outside these hours.
+                      </p>
+                    </div>
+                  )}
                 </div>
                 
                 {/* Recurring Schedule Option */}

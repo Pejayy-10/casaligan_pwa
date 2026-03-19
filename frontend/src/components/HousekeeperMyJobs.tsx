@@ -5,6 +5,7 @@ import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail,
 import { createPortal } from 'react-dom';
 import ContractExtensionResponseModal, { type PendingExtension } from './ContractExtensionResponseModal';
 import HousekeeperSummaryModal from './HousekeeperSummaryModal';
+import DailyCompletionModal from './DailyCompletionModal';
 
 interface AcceptedJob {
   post_id: number;
@@ -53,6 +54,21 @@ interface AcceptedJob {
       reference_number?: string | null;
     }>;
   };
+  multi_day_schedule?: {
+    num_days: number;
+    daily_start_time: string | null;
+    daily_end_time: string | null;
+  } | null;
+  day_schedules?: Array<{
+    day_schedule_id: number;
+    day_number: number;
+    work_date: string;
+    start_time: string | null;
+    end_time: string | null;
+    status: string;
+    owner_confirmed: boolean;
+    housekeeper_confirmed: boolean;
+  }>;
 }
 
 interface Props {
@@ -76,6 +92,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
     url: string;
     jobTitle: string;
   } | null>(null);
+  const [showDailyCompletion, setShowDailyCompletion] = useState<AcceptedJob | null>(null);
   const ITEMS_PER_PAGE = 5;
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.ceil(jobs.length / ITEMS_PER_PAGE);
@@ -309,6 +326,13 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                     📆 Long-term
                   </span>
                 )}
+                {job.multi_day_schedule && job.multi_day_schedule.num_days > 1 && (
+                  <span className="px-3 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300 rounded-lg text-sm font-semibold">
+                    📅 {job.multi_day_schedule.num_days} days
+                    {job.multi_day_schedule.daily_start_time && job.multi_day_schedule.daily_end_time && 
+                      ` (${job.multi_day_schedule.daily_start_time}–${job.multi_day_schedule.daily_end_time})`}
+                  </span>
+                )}
               </div>
 
               {/* Employer Info */}
@@ -518,6 +542,15 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                     >
                       💬 Message Employer
                     </button>
+                    {/* Daily Progress Button for multi-day jobs */}
+                    {job.multi_day_schedule && job.multi_day_schedule.num_days > 1 && (
+                      <button
+                        onClick={() => setShowDailyCompletion(job)}
+                        className="w-full py-2 bg-indigo-500 text-white font-bold rounded-lg hover:bg-indigo-600 transition-all shadow-md"
+                      >
+                        📅 Daily Progress ({job.day_schedules?.filter(d => d.status === 'completed').length || 0}/{job.multi_day_schedule.num_days} days)
+                      </button>
+                    )}
                     {/* Long-term only actions */}
                     {job.is_longterm && (
                       <button
@@ -669,6 +702,17 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
       {/* Housekeeper Summary Modal */}
       {showSummaryJobId !== null && (
         <HousekeeperSummaryModal jobId={showSummaryJobId} onClose={() => setShowSummaryJobId(null)} />
+      )}
+
+      {/* Daily Completion Modal */}
+      {showDailyCompletion && (
+        <DailyCompletionModal
+          postId={showDailyCompletion.post_id}
+          jobTitle={showDailyCompletion.title}
+          userRole="housekeeper"
+          onClose={() => setShowDailyCompletion(null)}
+          onDayConfirmed={() => loadMyJobs()}
+        />
       )}
     </div>
   );

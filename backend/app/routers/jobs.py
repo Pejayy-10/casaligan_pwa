@@ -152,6 +152,23 @@ def create_job_post(
         "location": job_data.location
     }
     
+    # Multi-day schedule
+    num_days = 1
+    daily_start_time = None
+    daily_end_time = None
+    if job_data.multi_day_schedule:
+        num_days = job_data.multi_day_schedule.num_days
+        daily_start_time = job_data.multi_day_schedule.daily_start_time
+        daily_end_time = job_data.multi_day_schedule.daily_end_time
+        job_details["num_days"] = num_days
+        job_details["daily_start_time"] = daily_start_time
+        job_details["daily_end_time"] = daily_end_time
+        # Auto-compute end_date for multi-day short-term jobs
+        if job_data.start_date and num_days > 1 and not job_data.end_date:
+            from datetime import timedelta
+            computed_end = job_data.start_date + timedelta(days=num_days - 1)
+            job_details["end_date"] = computed_end.isoformat()
+    
     # Add payment schedule if provided (for long-term jobs)
     if job_data.payment_schedule:
         job_details["payment_schedule"] = {
@@ -191,7 +208,7 @@ def create_job_post(
         category_id=job_data.category_ids[0] if job_data.category_ids else job_data.category_id,  # Keep first category for compatibility
         is_longterm=(job_data.duration_type == "long_term"),
         start_date=job_data.start_date.isoformat() if job_data.start_date else None,
-        end_date=job_data.end_date.isoformat() if job_data.end_date else None,
+        end_date=job_details.get("end_date") or (job_data.end_date.isoformat() if job_data.end_date else None),
         payment_frequency=job_data.payment_schedule.frequency if job_data.payment_schedule else None,
         payment_amount=job_data.payment_schedule.payment_amount if job_data.payment_schedule else None,
         payment_schedule=json.dumps(job_details.get("payment_schedule")) if job_data.payment_schedule else None,
@@ -201,7 +218,10 @@ def create_job_post(
         start_time=start_time,
         end_time=end_time,
         frequency=frequency,
-        recurring_status=recurring_status
+        recurring_status=recurring_status,
+        num_days=num_days,
+        daily_start_time=daily_start_time,
+        daily_end_time=daily_end_time,
     )
     
     db.add(post)
@@ -631,7 +651,26 @@ def get_my_accepted_jobs(
                 "total_earned": total_earned,
                 "next_payment_due": next_payment_due,
                 "schedules": payment_schedules
-            }
+            },
+            "multi_day_schedule": {
+                "num_days": post.num_days or 1,
+                "daily_start_time": post.daily_start_time,
+                "daily_end_time": post.daily_end_time,
+            } if post.num_days and post.num_days > 1 else None,
+            "day_schedules": [
+                {
+                    "day_schedule_id": ds.day_schedule_id,
+                    "day_number": ds.day_number,
+                    "work_date": ds.work_date.isoformat() if ds.work_date else None,
+                    "start_time": ds.start_time,
+                    "end_time": ds.end_time,
+                    "status": ds.status or "pending",
+                    "owner_confirmed": any(c.role == "owner" for c in ds.completions),
+                    "housekeeper_confirmed": any(c.role == "housekeeper" for c in ds.completions),
+                }
+                for ds in (post.day_schedules if hasattr(post, 'day_schedules') and post.day_schedules else [])
+                if ds.worker_id == worker_record.worker_id
+            ] if post.num_days and post.num_days > 1 else [],
         })
 
     if has_status_updates:
@@ -1007,6 +1046,60 @@ def apply_to_job(
             existing_application.edit_responded_at = None
             # Use the existing application instead of creating a new one
             interest = existing_application
+
+    # ========== SCHEDULE CONFLICT CHECK (before applying) ==========
+    # Block the worker from applying if the job's schedule conflicts
+    # with their already-accepted commitments.
+    try:
+        from app.services.schedule_conflict_service import detect_schedule_conflicts as _apply_dsc
+        from datetime import datetime as _dt_apply, timedelta as _td_apply
+
+        _is_recurring = post.is_recurring and getattr(post, 'recurring_status', None) == 'active'
+        _recurring_day = post.day_of_week if _is_recurring else None
+
+        _job_start = None
+        _job_end = None
+        if post.start_date:
+            try:
+                _job_start = _dt_apply.fromisoformat(post.start_date).date()
+                if post.end_date:
+                    _job_end = _dt_apply.fromisoformat(post.end_date).date()
+            except Exception:
+                pass
+
+        _num_days = getattr(post, 'num_days', 1) or 1
+        if _job_start and _num_days > 1 and (not _job_end or _job_end == _job_start):
+            _job_end = _job_start + _td_apply(days=_num_days - 1)
+        if not _job_end:
+            _job_end = _job_start
+
+        _daily_start = getattr(post, 'daily_start_time', None) or post.start_time
+        _daily_end = getattr(post, 'daily_end_time', None) or post.end_time
+
+        _apply_conflicts = _apply_dsc(
+            db=db,
+            worker_id=worker_record.worker_id,
+            new_job_start_date=_job_start,
+            new_job_end_date=_job_end,
+            new_job_employer_id=post.employer_id,
+            new_job_is_recurring=_is_recurring,
+            new_job_recurring_day=_recurring_day,
+            new_job_type='job_post',
+            new_job_daily_start_time=_daily_start,
+            new_job_daily_end_time=_daily_end,
+        )
+
+        if _apply_conflicts:
+            conflict_titles = ", ".join([c['title'] for c in _apply_conflicts])
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Cannot apply to this job. Your schedule conflicts with: {conflict_titles}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Non-fatal: allow apply if check fails unexpectedly
+        print(f"Warning: Apply conflict check error: {e}")
     
     # Create interest check only if not re-applying
     if not is_reapplying:
@@ -1613,7 +1706,12 @@ def start_job(
                 )
 
         # Import conflict service
-        from app.services.schedule_conflict_service import detect_schedule_conflicts
+        from app.services.schedule_conflict_service import (
+            detect_schedule_conflicts,
+            withdraw_conflicting_applications,
+            notify_withdrawal_to_housekeeper,
+            notify_withdrawal_to_employers,
+        )
         from app.services.notification_service import notify_application_withdrawn_due_to_conflict, notify_applicant_withdrawn_due_to_conflict
 
         accepted_workers = []
@@ -1627,7 +1725,9 @@ def start_job(
             application.status = InterestStatus.ACCEPTED
             accepted_workers.append(worker_name)
 
-            # ========== SCHEDULE CONFLICT DETECTION ==========
+            # ========== COMPREHENSIVE SCHEDULE CONFLICT HANDLING ==========
+            # Withdraws conflicting pending job-post applications AND rejects
+            # conflicting pending direct hires for this worker.
             if worker and worker_user:
                 try:
                     is_recurring = post.is_recurring and post.recurring_status == 'active'
@@ -1646,56 +1746,44 @@ def start_job(
                         except Exception:
                             pass
 
-                    conflicts = detect_schedule_conflicts(
+                    # Compute end date from num_days if not set
+                    post_num_days = getattr(post, 'num_days', 1) or 1
+                    if job_start_date and post_num_days > 1 and (not job_end_date or job_end_date == job_start_date):
+                        from datetime import timedelta as _td
+                        job_end_date = job_start_date + _td(days=post_num_days - 1)
+
+                    post_daily_start = getattr(post, 'daily_start_time', None) or post.start_time
+                    post_daily_end = getattr(post, 'daily_end_time', None) or post.end_time
+
+                    withdrawn = withdraw_conflicting_applications(
                         db=db,
                         worker_id=application.worker_id,
-                        new_job_start_date=job_start_date,
-                        new_job_end_date=job_end_date,
-                        new_job_employer_id=post.employer_id,
-                        new_job_is_recurring=is_recurring,
-                        new_job_recurring_day=recurring_day,
-                        new_job_type='job_post'
+                        newly_accepted_job_type='job_post',
+                        newly_accepted_job_id=post.post_id,
+                        newly_accepted_start_date=job_start_date,
+                        newly_accepted_end_date=job_end_date,
+                        newly_accepted_employer_id=post.employer_id,
+                        newly_accepted_is_recurring=is_recurring,
+                        newly_accepted_recurring_day=recurring_day,
+                        newly_accepted_daily_start_time=post_daily_start,
+                        newly_accepted_daily_end_time=post_daily_end,
                     )
 
-                    if conflicts:
-                        withdrawn_count = 0
-                        withdrawn_titles = []
-
-                        for conflict in conflicts:
-                            if conflict['type'] == 'job_post':
-                                interest = db.query(InterestCheck).filter(
-                                    InterestCheck.post_id == conflict['job_id'],
-                                    InterestCheck.worker_id == application.worker_id,
-                                    InterestCheck.status == InterestStatus.PENDING
-                                ).first()
-
-                                if interest:
-                                    interest.status = InterestStatus.REJECTED
-                                    interest.withdrawn_due_to_conflict = True
-                                    withdrawn_count += 1
-                                    withdrawn_titles.append(conflict['title'])
-
-                                    conflicting_post = db.query(ForumPost).filter(ForumPost.post_id == conflict['job_id']).first()
-                                    conflicting_employer = db.query(Employer).filter(Employer.employer_id == conflicting_post.employer_id).first() if conflicting_post else None
-
-                                    if conflicting_employer:
-                                        notify_applicant_withdrawn_due_to_conflict(
-                                            db=db,
-                                            employer_user_id=conflicting_employer.user_id,
-                                            worker_name=worker_name,
-                                            job_title=conflicting_post.title,
-                                            accepted_job_title=post.title,
-                                            job_id=conflicting_post.post_id
-                                        )
-
-                        if withdrawn_count > 0:
-                            withdrawn_titles_str = ", ".join(withdrawn_titles)
-                            notify_application_withdrawn_due_to_conflict(
-                                db=db,
-                                worker_user_id=worker_user.id,
-                                withdrawn_job_titles=withdrawn_titles_str,
-                                accepted_job_title=post.title
-                            )
+                    if withdrawn:
+                        # Notify the worker about all withdrawn items
+                        notify_withdrawal_to_housekeeper(
+                            db=db,
+                            worker_user_id=worker_user.id,
+                            newly_accepted_job_title=post.title,
+                            withdrawn_applications=withdrawn
+                        )
+                        # Notify each affected employer
+                        notify_withdrawal_to_employers(
+                            db=db,
+                            withdrawn_applications=withdrawn,
+                            worker_name=worker_name,
+                            accepted_job_title=post.title
+                        )
                 except Exception as e:
                     print(f"Warning: Conflict detection error: {e}")
 

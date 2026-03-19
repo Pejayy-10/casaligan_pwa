@@ -41,6 +41,11 @@ class NotificationType(str, enum.Enum):
     DIRECT_HIRE_REJECTED_DUE_TO_CONFLICT = "direct_hire_rejected_due_to_conflict"    # Direct hire request rejected due to conflict
     HIRE_CANCELED_WORKER_ACCEPTED_CONFLICT = "hire_canceled_worker_accepted_conflict" # Hire request canceled, worker accepted conflicting job
     
+    # Daily completion related (multi-day jobs)
+    DAILY_COMPLETION_SUBMITTED = "daily_completion_submitted"   # Housekeeper confirmed day's work done
+    DAILY_COMPLETION_CONFIRMED = "daily_completion_confirmed"   # Owner confirmed day's work done
+    DAILY_ALL_CONFIRMED = "daily_all_confirmed"                 # Both parties confirmed – day complete
+    
     # General
     SYSTEM = "system"                             # System notification
     REMINDER = "reminder"                         # General reminder

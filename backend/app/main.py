@@ -4,7 +4,7 @@ load_dotenv(override=True)  # Load .env file, always override stale env vars
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
-from app.routers import auth, jobs, payments, checkins, progress, debug, upload, reports, packages, direct_hire, notifications, ratings, messaging, availability, categories, contract_extensions
+from app.routers import auth, jobs, payments, checkins, progress, debug, upload, reports, packages, direct_hire, notifications, ratings, messaging, availability, categories, contract_extensions, daily_completion
 
 try:
     from app.routers import ai_chat
@@ -64,6 +64,7 @@ app.include_router(ratings.router)
 app.include_router(messaging.router)
 app.include_router(availability.router)
 app.include_router(contract_extensions.router)
+app.include_router(daily_completion.router)
 if _has_ai_chat:
     app.include_router(ai_chat.router)
 
@@ -95,6 +96,14 @@ async def startup_event():
             "ALTER TABLE workers ADD COLUMN IF NOT EXISTS years_experience INTEGER",
             "ALTER TABLE workers ADD COLUMN IF NOT EXISTS skills TEXT",
             "ALTER TABLE workers ADD COLUMN IF NOT EXISTS availability VARCHAR",
+            # Multi-day scheduling columns
+            "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS num_days INTEGER DEFAULT 1",
+            "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS daily_start_time VARCHAR(10)",
+            "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS daily_end_time VARCHAR(10)",
+            "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS num_days INTEGER DEFAULT 1",
+            "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS daily_start_time VARCHAR(10)",
+            "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS daily_end_time VARCHAR(10)",
+            "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS end_date DATE",
         ]
         with engine.connect() as conn:
             for sql in migrations:
@@ -103,6 +112,16 @@ async def startup_event():
                     print(f"✓ Migration applied: {sql[:60]}...")
                 except Exception as me:
                     print(f"⚠ Migration skipped (already exists or unsupported): {me}")
+            conn.commit()
+
+        # Create new tables if they don't exist (idempotent)
+        from app.db import Base
+        from app.models_v2.job_day_schedule import JobDaySchedule, DailyCompletion  # noqa: F401
+        Base.metadata.create_all(bind=engine, tables=[
+            JobDaySchedule.__table__,
+            DailyCompletion.__table__,
+        ], checkfirst=True)
+        print("✓ Multi-day scheduling tables verified")
     except Exception as e:
         print(f"⚠ Warning: Could not connect to database: {e}")
         print("  The application will start but database operations may fail.")

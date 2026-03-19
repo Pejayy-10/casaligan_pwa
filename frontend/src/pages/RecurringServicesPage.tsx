@@ -41,6 +41,9 @@ interface RecurringDirectHire {
   recurring_cancelled_at: string | null;
   recurring_cancellation_reason: string | null;
   cancelled_by: string | null;
+  num_days?: number | null;
+  daily_start_time?: string | null;
+  daily_end_time?: string | null;
 }
 
 export default function RecurringServicesPage() {
@@ -320,6 +323,16 @@ return (
                     </p>
                   </div>
                 </div>
+
+                {/* Multi-day info */}
+                {hire.num_days && hire.num_days > 1 && (
+                  <div className="mb-4 px-3 py-2 bg-purple-50 dark:bg-purple-500/10 rounded-xl border border-purple-200 dark:border-purple-500/20 text-sm">
+                    <span className="font-bold text-purple-700 dark:text-purple-300">📅 {hire.num_days}-day booking</span>
+                    {hire.daily_start_time && hire.daily_end_time && (
+                      <span className="text-purple-600 dark:text-purple-400 ml-2">🕐 {hire.daily_start_time} – {hire.daily_end_time}</span>
+                    )}
+                  </div>
+                )}
 
                 {hire.recurring_status === 'active' && (
                   <button 

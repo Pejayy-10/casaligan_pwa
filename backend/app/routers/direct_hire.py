@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import date
+from datetime import date, timedelta
 import math
 from app.db import get_db
 from app.models_v2.user import User
@@ -77,6 +77,10 @@ class DirectHireCreate(BaseModel):
     special_instructions: Optional[str] = None
     use_my_address: bool = True  # If true, use employer's saved address
     recurring_schedule: Optional[RecurringScheduleData] = None  # For recurring bookings
+    # Multi-day scheduling
+    num_days: int = 1  # Number of working days (1 = single day)
+    daily_start_time: Optional[str] = None  # "08:00" format
+    daily_end_time: Optional[str] = None  # "15:00" format
 
 
 class DirectHireResponse(BaseModel):
@@ -98,6 +102,12 @@ class DirectHireResponse(BaseModel):
     address_region: Optional[str]
     special_instructions: Optional[str]
     status: str
+    # Multi-day fields
+    num_days: int = 1
+    daily_start_time: Optional[str] = None
+    daily_end_time: Optional[str] = None
+    end_date: Optional[str] = None
+    day_schedules: List[dict] = []  # Per-day status for multi-day jobs
     completion_proof_url: Optional[str]
     completion_notes: Optional[str]
     completed_at: Optional[str]
@@ -184,6 +194,23 @@ def hire_to_response(hire: DirectHire, db: Session) -> DirectHireResponse:
             for p in pkg_records
         ]
     
+    # Build per-day schedules if available
+    day_schedules_list = []
+    if hasattr(hire, 'day_schedules') and hire.day_schedules:
+        for ds in sorted(hire.day_schedules, key=lambda d: d.day_number):
+            owner_confirmed = any(c.role == "owner" for c in ds.completions) if ds.completions else False
+            hk_confirmed = any(c.role == "housekeeper" for c in ds.completions) if ds.completions else False
+            day_schedules_list.append({
+                "day_schedule_id": ds.day_schedule_id,
+                "day_number": ds.day_number,
+                "work_date": str(ds.work_date),
+                "start_time": ds.start_time,
+                "end_time": ds.end_time,
+                "status": ds.status,
+                "owner_confirmed": owner_confirmed,
+                "housekeeper_confirmed": hk_confirmed,
+            })
+    
     return DirectHireResponse(
         hire_id=hire.hire_id,
         employer_id=hire.employer_id,
@@ -203,6 +230,11 @@ def hire_to_response(hire: DirectHire, db: Session) -> DirectHireResponse:
         address_region=hire.address_region,
         special_instructions=hire.special_instructions,
         status=hire.status.value,
+        num_days=getattr(hire, 'num_days', 1) or 1,
+        daily_start_time=getattr(hire, 'daily_start_time', None),
+        daily_end_time=getattr(hire, 'daily_end_time', None),
+        end_date=str(hire.end_date) if getattr(hire, 'end_date', None) else None,
+        day_schedules=day_schedules_list,
         completion_proof_url=hire.completion_proof_url,
         completion_notes=hire.completion_notes,
         completed_at=str(hire.completed_at) if hire.completed_at else None,
@@ -304,6 +336,43 @@ def create_direct_hire(
         recurring_status = "active"
     
     # Create the hire
+    hire_num_days = hire_data.num_days if hire_data.num_days else 1
+    hire_daily_start = hire_data.daily_start_time
+    hire_daily_end = hire_data.daily_end_time
+    # Compute end_date for multi-day hires
+    hire_end_date = None
+    if hire_num_days > 1:
+        hire_end_date = hire_data.scheduled_date + timedelta(days=hire_num_days - 1)
+
+    # ========== PRE-CREATION CONFLICT CHECK ==========
+    # Warn the employer if the worker already has a conflicting committed job
+    from app.services.schedule_conflict_service import detect_schedule_conflicts as _dsc
+    try:
+        _conflicts = _dsc(
+            db=db,
+            worker_id=hire_data.worker_id,
+            new_job_start_date=hire_data.scheduled_date,
+            new_job_end_date=hire_end_date or hire_data.scheduled_date,
+            new_job_employer_id=employer.employer_id,
+            new_job_is_recurring=is_recurring,
+            new_job_recurring_day=day_of_week,
+            new_job_type='direct_hire',
+            new_job_daily_start_time=hire_daily_start or (start_time if is_recurring else None),
+            new_job_daily_end_time=hire_daily_end or (end_time if is_recurring else None),
+        )
+        if _conflicts:
+            conflict_titles = ", ".join([c['title'] for c in _conflicts])
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"This worker already has a conflicting schedule: {conflict_titles}. "
+                       f"The hire request cannot be created because the time overlaps with an existing job."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Non-fatal: allow creation if conflict check fails unexpectedly
+        print(f"Warning: Pre-creation conflict check error: {e}")
+
     hire = DirectHire(
         employer_id=employer.employer_id,
         worker_id=hire_data.worker_id,
@@ -323,7 +392,11 @@ def create_direct_hire(
         start_time=start_time,
         end_time=end_time,
         frequency=frequency,
-        recurring_status=recurring_status
+        recurring_status=recurring_status,
+        num_days=hire_num_days,
+        daily_start_time=hire_daily_start,
+        daily_end_time=hire_daily_end,
+        end_date=hire_end_date,
     )
     
     db.add(hire)
@@ -564,7 +637,12 @@ def accept_hire(
     db: Session = Depends(get_db)
 ):
     """Accept a direct hire request (worker only)"""
-    from app.services.schedule_conflict_service import detect_schedule_conflicts
+    from app.services.schedule_conflict_service import (
+        detect_schedule_conflicts,
+        withdraw_conflicting_applications,
+        notify_withdrawal_to_housekeeper,
+        notify_withdrawal_to_employers,
+    )
     from app.services.notification_service import (
         notify_direct_hire_rejected_due_to_conflict,
         notify_application_withdrawn_due_to_conflict,
@@ -585,19 +663,32 @@ def accept_hire(
         raise HTTPException(status_code=400, detail="Can only accept pending requests")
     
     # ========== SCHEDULE CONFLICT DETECTION ==========
-    # Check if this direct hire conflicts with existing jobs
     is_recurring = hire.is_recurring
     recurring_day = hire.day_of_week if is_recurring else None
-    
+
+    # Multi-day: compute the actual end date
+    hire_num_days = getattr(hire, 'num_days', 1) or 1
+    hire_end_date = getattr(hire, 'end_date', None)
+    if hire_num_days > 1 and not hire_end_date and hire.scheduled_date:
+        hire_end_date = hire.scheduled_date + timedelta(days=hire_num_days - 1)
+    if not hire_end_date:
+        hire_end_date = hire.scheduled_date
+
+    # Determine daily time window (for recurring hires, fall back to start_time/end_time)
+    hire_daily_start = getattr(hire, 'daily_start_time', None) or (hire.start_time if is_recurring else None)
+    hire_daily_end = getattr(hire, 'daily_end_time', None) or (hire.end_time if is_recurring else None)
+
     conflicts = detect_schedule_conflicts(
         db=db,
         worker_id=worker.worker_id,
         new_job_start_date=hire.scheduled_date,
-        new_job_end_date=hire.scheduled_date,
+        new_job_end_date=hire_end_date,
         new_job_employer_id=hire.employer_id,
         new_job_is_recurring=is_recurring,
         new_job_recurring_day=recurring_day,
-        new_job_type='direct_hire'
+        new_job_type='direct_hire',
+        new_job_daily_start_time=hire_daily_start,
+        new_job_daily_end_time=hire_daily_end,
     )
     
     if conflicts:
@@ -624,63 +715,46 @@ def accept_hire(
     hire.status = DirectHireStatus.ACCEPTED
     db.commit()
     
-    # ========== WITHDRAW CONFLICTING APPLICATIONS ==========
-    # When accepting a direct hire, withdraw pending applications from conflicting job posts (from other employers)
-    from app.models_v2.forum import InterestCheck, InterestStatus
-    
-    conflicting_interests = detect_schedule_conflicts(
-        db=db,
-        worker_id=worker.worker_id,
-        new_job_start_date=hire.scheduled_date,
-        new_job_end_date=hire.scheduled_date,
-        new_job_employer_id=hire.employer_id,
-        new_job_is_recurring=is_recurring,
-        new_job_recurring_day=recurring_day,
-        new_job_type='direct_hire'
-    )
-    
-    if conflicting_interests:
-        for conflict in conflicting_interests:
-            if conflict['type'] == 'job_post':
-                # Withdraw pending applications from conflicting job posts
-                interest = db.query(InterestCheck).filter(
-                    InterestCheck.post_id == conflict['job_id'],
-                    InterestCheck.worker_id == worker.worker_id,
-                    InterestCheck.status == InterestStatus.PENDING
-                ).first()
-                
-                if interest:
-                    interest.status = InterestStatus.REJECTED
-                    interest.withdrawn_due_to_conflict = True
-                    db.commit()
-                    
-                    # Notify the job owner about the withdrawal
-                    from app.models_v2.forum import ForumPost
-                    post = db.query(ForumPost).filter(ForumPost.post_id == conflict['job_id']).first()
-                    if post:
-                        conflicting_employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
-                        if conflicting_employer:
-                            worker_name = f"{current_user.first_name} {current_user.last_name}"
-                            notify_applicant_withdrawn_due_to_conflict(
-                                db=db,
-                                employer_user_id=conflicting_employer.user_id,
-                                worker_name=worker_name,
-                                job_title=post.title,
-                                accepted_job_title=f"Direct Hire from {db.query(Employer).filter(Employer.employer_id == hire.employer_id).first().user.first_name if db.query(Employer).filter(Employer.employer_id == hire.employer_id).first() else 'employer'}",
-                                job_id=post.post_id
-                            )
-        
-        # Notify the worker about withdrawn applications
-        withdrawn_titles = [c['title'] for c in conflicting_interests if c['type'] == 'job_post']
-        if withdrawn_titles:
-            employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
-            employer_name = f"{employer.user.first_name} {employer.user.last_name}" if employer else "Employer"
-            notify_application_withdrawn_due_to_conflict(
+    # ========== WITHDRAW ALL CONFLICTING PENDING ITEMS ==========
+    # Comprehensive: withdraws pending job-post applications AND rejects pending direct hires
+    try:
+        employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
+        employer_name = f"{employer.user.first_name} {employer.user.last_name}" if employer and employer.user else "Employer"
+        worker_name = f"{current_user.first_name} {current_user.last_name}"
+
+        withdrawn = withdraw_conflicting_applications(
+            db=db,
+            worker_id=worker.worker_id,
+            newly_accepted_job_type='direct_hire',
+            newly_accepted_job_id=hire.hire_id,
+            newly_accepted_start_date=hire.scheduled_date,
+            newly_accepted_end_date=hire_end_date,
+            newly_accepted_employer_id=hire.employer_id,
+            newly_accepted_is_recurring=is_recurring,
+            newly_accepted_recurring_day=recurring_day,
+            newly_accepted_daily_start_time=hire_daily_start,
+            newly_accepted_daily_end_time=hire_daily_end,
+        )
+
+        if withdrawn:
+            accepted_job_title = f"Direct Hire #{hire.hire_id} from {employer_name}"
+
+            # Notify the worker
+            notify_withdrawal_to_housekeeper(
                 db=db,
                 worker_user_id=current_user.id,
-                withdrawn_job_titles=", ".join(withdrawn_titles),
-                accepted_job_title=f"Direct Hire from {employer_name}"
+                newly_accepted_job_title=accepted_job_title,
+                withdrawn_applications=withdrawn
             )
+            # Notify each affected employer
+            notify_withdrawal_to_employers(
+                db=db,
+                withdrawn_applications=withdrawn,
+                worker_name=worker_name,
+                accepted_job_title=accepted_job_title
+            )
+    except Exception as e:
+        print(f"Warning: Conflict withdrawal error: {e}")
     
     # Send notification to employer that worker accepted
     employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
@@ -694,13 +768,11 @@ def accept_hire(
         )
         
         # Auto-create conversation for both parties
-        # Check if conversation already exists for this hire
         existing_conv = db.query(Conversation).filter(
             Conversation.hire_id == hire.hire_id
         ).first()
         
         if not existing_conv:
-            # Create conversation with both employer and worker as participants
             conversation = Conversation(
                 hire_id=hire.hire_id,
                 participant_ids=[employer.user_id, current_user.id],
