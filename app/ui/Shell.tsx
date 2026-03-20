@@ -86,6 +86,7 @@ export default function Shell({ children }: ShellProps) {
       icon: ClipboardList,
       children: [
         { key: "job-posts", label: "Job Posts", href: "/jobs", icon: ClipboardList },
+        { key: "job-fee-reviews", label: "Job Fee Reviews", href: "/jobs/fee-reviews", icon: DollarSign },
         { key: "bookings", label: "Bookings", href: "/bookings", icon: Calendar },
       ],
     },

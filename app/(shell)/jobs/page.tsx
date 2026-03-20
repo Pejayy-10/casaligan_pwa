@@ -55,8 +55,13 @@ export default function JobsPage() {
 			}));
 			setJobs(rows);
 		}
+
+		if (error) {
+			console.error("Failed to load jobs:", error);
+		}
 		setLoading(false);
 	}
+
 
 	function filterRows(rows: any[], q: string, f: any) {
 		const search = (q || "").trim().toLowerCase();
