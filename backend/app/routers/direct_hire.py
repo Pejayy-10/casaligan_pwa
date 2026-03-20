@@ -1,11 +1,13 @@
 """Direct Hire router - Booking workers directly with packages"""
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from typing import List, Optional
 from pydantic import BaseModel
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import math
+import os
+from decimal import Decimal
 from app.db import get_db
 from app.models_v2.user import User
 from app.models_v2.worker_employer import Worker, Employer
@@ -22,6 +24,13 @@ from app.services.notification_service import (
     notify_direct_hire_completed,
     notify_direct_hire_approved,
     notify_direct_hire_paid
+)
+from app.services.maya_service import (
+    create_checkout,
+    retrieve_checkout,
+    normalize_checkout_status,
+    maya_is_configured,
+    verify_webhook_signature,
 )
 
 router = APIRouter(prefix="/direct-hire", tags=["direct-hire"])
@@ -114,6 +123,12 @@ class DirectHireResponse(BaseModel):
     package_ids: List[int]
     packages: List[dict]  # Package details
     total_amount: float
+    platform_fee_percentage: float
+    platform_fee_amount: float
+    platform_fee_status: str
+    platform_fee_checkout_id: Optional[str]
+    platform_fee_reference: Optional[str]
+    platform_fee_paid_at: Optional[str]
     scheduled_date: str
     scheduled_time: Optional[str]
     address_street: Optional[str]
@@ -162,6 +177,50 @@ class PaymentSubmit(BaseModel):
     payment_method: str
     payment_proof_url: Optional[str] = None
     reference_number: Optional[str] = None
+
+
+class DirectHireFeeInitiateResponse(BaseModel):
+    hire_id: int
+    checkout_id: str
+    redirect_url: str
+    platform_fee_amount: float
+
+
+class DirectHireFeeVerifyRequest(BaseModel):
+    checkout_id: str
+
+
+class DirectHireOwnerPaymentInitiateRequest(BaseModel):
+    payment_method: str
+
+
+class DirectHireOwnerPaymentInitiateResponse(BaseModel):
+    hire_id: int
+    checkout_id: str
+    redirect_url: str
+    amount: float
+
+
+class DirectHireReceiptResponse(BaseModel):
+    hire_id: int
+    status: str
+    employer_name: str
+    worker_name: str
+    scheduled_date: str
+    scheduled_time: Optional[str]
+    location: str
+    packages: List[dict]
+    total_amount: float
+    payment_method: Optional[str]
+    reference_number: Optional[str]
+    payment_proof_url: Optional[str]
+    paid_at: Optional[str]
+    completion_proof_url: Optional[str]
+    completion_notes: Optional[str]
+    completed_at: Optional[str]
+    platform_fee_amount: float
+    platform_fee_paid_at: Optional[str]
+    generated_at: str
 
 
 # ============== HELPER FUNCTIONS ==============
@@ -243,6 +302,12 @@ def hire_to_response(hire: DirectHire, db: Session) -> DirectHireResponse:
         package_ids=package_ids,
         packages=packages,
         total_amount=float(hire.total_amount),
+        platform_fee_percentage=float(getattr(hire, 'platform_fee_percentage', 7.0) or 7.0),
+        platform_fee_amount=float(getattr(hire, 'platform_fee_amount', 0) or 0),
+        platform_fee_status=getattr(hire, 'platform_fee_status', 'pending') or 'pending',
+        platform_fee_checkout_id=getattr(hire, 'platform_fee_checkout_id', None),
+        platform_fee_reference=getattr(hire, 'platform_fee_reference', None),
+        platform_fee_paid_at=str(hire.platform_fee_paid_at) if getattr(hire, 'platform_fee_paid_at', None) else None,
         scheduled_date=str(hire.scheduled_date),
         scheduled_time=hire.scheduled_time,
         address_street=hire.address_street,
@@ -324,6 +389,8 @@ def create_direct_hire(
     
     # Calculate total amount
     total_amount = sum(float(p.price) for p in packages)
+    platform_fee_percentage = Decimal("7.00")
+    platform_fee_amount = (Decimal(str(total_amount)) * platform_fee_percentage / Decimal("100")).quantize(Decimal("0.01"))
     
     # Get address
     address_street = hire_data.address_street
@@ -410,6 +477,9 @@ def create_direct_hire(
         worker_id=hire_data.worker_id,
         package_ids=hire_data.package_ids,
         total_amount=total_amount,
+        platform_fee_percentage=platform_fee_percentage,
+        platform_fee_amount=platform_fee_amount,
+        platform_fee_status="pending",
         scheduled_date=hire_data.scheduled_date,
         scheduled_time=hire_data.scheduled_time,
         address_street=address_street,
@@ -570,6 +640,135 @@ def submit_payment(
         raise HTTPException(status_code=500, detail=f"Failed to process payment: {str(e)}")
 
 
+@router.post("/{hire_id}/owner-payment/initiate", response_model=DirectHireOwnerPaymentInitiateResponse)
+async def initiate_owner_payment_checkout(
+    hire_id: int,
+    payload: DirectHireOwnerPaymentInitiateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    employer = get_employer_for_user(current_user.id, db)
+
+    hire = db.query(DirectHire).filter(
+        DirectHire.hire_id == hire_id,
+        DirectHire.employer_id == employer.employer_id,
+    ).first()
+
+    if not hire:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    if hire.status != DirectHireStatus.COMPLETED:
+        raise HTTPException(status_code=400, detail="Work must be completed before payment")
+
+    selected_method = (payload.payment_method or "").strip().lower()
+    if selected_method not in {"maya", "gcash", "bank_transfer"}:
+        raise HTTPException(status_code=400, detail="Invalid digital payment method")
+
+    if not maya_is_configured():
+        raise HTTPException(status_code=500, detail="Maya sandbox is not configured on backend")
+
+    frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+    success_url = f"{frontend_base_url}/direct-hires?maya_owner_result=success&hire_id={hire.hire_id}"
+    failure_url = f"{frontend_base_url}/direct-hires?maya_owner_result=failure&hire_id={hire.hire_id}"
+    cancel_url = f"{frontend_base_url}/direct-hires?maya_owner_result=cancel&hire_id={hire.hire_id}"
+
+    reference_number = f"DHP-{hire.hire_id}-{int(datetime.utcnow().timestamp())}"
+
+    try:
+        checkout = await create_checkout(
+            amount=Decimal(str(hire.total_amount)),
+            reference_number=reference_number,
+            success_url=success_url,
+            failure_url=failure_url,
+            cancel_url=cancel_url,
+            buyer_first_name=current_user.first_name,
+            buyer_last_name=current_user.last_name,
+            buyer_email=current_user.email,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Unable to create Maya checkout: {exc}") from exc
+
+    checkout_id = checkout.get("checkoutId") or checkout.get("id")
+    redirect_url = checkout.get("redirectUrl")
+    if not checkout_id or not redirect_url:
+        raise HTTPException(status_code=502, detail="Invalid Maya checkout response")
+
+    hire.payment_method = selected_method
+    hire.reference_number = reference_number
+    db.commit()
+
+    return DirectHireOwnerPaymentInitiateResponse(
+        hire_id=hire.hire_id,
+        checkout_id=str(checkout_id),
+        redirect_url=str(redirect_url),
+        amount=float(hire.total_amount),
+    )
+
+
+@router.post("/{hire_id}/owner-payment/verify")
+async def verify_owner_payment_checkout(
+    hire_id: int,
+    payload: DirectHireFeeVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    employer = get_employer_for_user(current_user.id, db)
+
+    hire = db.query(DirectHire).filter(
+        DirectHire.hire_id == hire_id,
+        DirectHire.employer_id == employer.employer_id,
+    ).first()
+
+    if not hire:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    if hire.status not in {DirectHireStatus.COMPLETED, DirectHireStatus.PAYMENT_PENDING}:
+        raise HTTPException(status_code=400, detail="Hire cannot be verified in current state")
+
+    try:
+        checkout = await retrieve_checkout(payload.checkout_id)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Unable to verify Maya checkout: {exc}") from exc
+
+    payment_status = normalize_checkout_status(checkout)
+
+    if payment_status == "paid":
+        hire.reference_number = checkout.get("requestReferenceNumber") or hire.reference_number
+        hire.paid_at = func.now()
+        hire.status = DirectHireStatus.PAID
+        if not hire.payment_method:
+            hire.payment_method = "maya"
+        db.commit()
+        db.refresh(hire)
+
+        worker = db.query(Worker).filter(Worker.worker_id == hire.worker_id).first()
+        if worker:
+            employer_name = f"{current_user.first_name} {current_user.last_name}"
+            notify_direct_hire_paid(
+                db=db,
+                worker_user_id=worker.user_id,
+                employer_name=employer_name,
+                amount=float(hire.total_amount),
+                hire_id=hire.hire_id,
+            )
+
+        return {
+            "message": "Payment verified and marked as paid.",
+            "status": "paid",
+        }
+
+    if payment_status in {"failed", "cancelled"}:
+        return {
+            "message": "Payment was not completed.",
+            "status": "completed",
+        }
+
+    return {
+        "message": "Payment is still pending.",
+        "status": "completed",
+    }
+
+
 @router.post("/{hire_id}/confirm-payment", response_model=DirectHireResponse)
 def confirm_payment(
     hire_id: int,
@@ -662,43 +861,95 @@ def get_my_direct_jobs(
     return [hire_to_response(h, db) for h in hires]
 
 
-@router.post("/{hire_id}/accept")
-def accept_hire(
+@router.get("/{hire_id}/receipt", response_model=DirectHireReceiptResponse)
+def get_direct_hire_receipt(
     hire_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Accept a direct hire request (worker only)"""
+    hire = db.query(DirectHire).filter(DirectHire.hire_id == hire_id).first()
+    if not hire:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
+    worker = db.query(Worker).filter(Worker.worker_id == hire.worker_id).first()
+
+    employer_user = db.query(User).filter(User.id == employer.user_id).first() if employer else None
+    worker_user = db.query(User).filter(User.id == worker.user_id).first() if worker else None
+
+    is_owner = bool(employer_user and employer_user.id == current_user.id)
+    is_housekeeper = bool(worker_user and worker_user.id == current_user.id)
+    if not is_owner and not is_housekeeper:
+        raise HTTPException(status_code=403, detail="You can only view receipts for your own direct hires")
+
+    package_ids = hire.package_ids or []
+    packages = []
+    if package_ids:
+        pkg_records = db.query(WorkerPackage).filter(WorkerPackage.package_id.in_(package_ids)).all()
+        packages = [
+            {
+                "package_id": p.package_id,
+                "name": p.name,
+                "price": float(p.price),
+                "duration_hours": p.duration_hours,
+                "num_days": p.num_days or 1,
+                "services": normalize_services(p.services),
+            }
+            for p in pkg_records
+        ]
+
+    location_parts = [
+        hire.address_street,
+        hire.address_barangay,
+        hire.address_city,
+        hire.address_province,
+        hire.address_region,
+    ]
+    location = ", ".join([part for part in location_parts if part])
+
+    employer_name = f"{employer_user.first_name} {employer_user.last_name}" if employer_user else "Employer"
+    worker_name = f"{worker_user.first_name} {worker_user.last_name}" if worker_user else "Housekeeper"
+
+    return DirectHireReceiptResponse(
+        hire_id=hire.hire_id,
+        status=hire.status.value if hasattr(hire.status, "value") else str(hire.status),
+        employer_name=employer_name,
+        worker_name=worker_name,
+        scheduled_date=str(hire.scheduled_date),
+        scheduled_time=hire.scheduled_time,
+        location=location,
+        packages=packages,
+        total_amount=float(hire.total_amount or 0),
+        payment_method=hire.payment_method,
+        reference_number=getattr(hire, "reference_number", None),
+        payment_proof_url=hire.payment_proof_url,
+        paid_at=(hire.paid_at.isoformat() if hire.paid_at else None),
+        completion_proof_url=hire.completion_proof_url,
+        completion_notes=hire.completion_notes,
+        completed_at=(hire.completed_at.isoformat() if hire.completed_at else None),
+        platform_fee_amount=float(getattr(hire, "platform_fee_amount", 0) or 0),
+        platform_fee_paid_at=(hire.platform_fee_paid_at.isoformat() if getattr(hire, "platform_fee_paid_at", None) else None),
+        generated_at=datetime.utcnow().isoformat(),
+    )
+
+
+def _accept_hire_after_fee(
+    *,
+    hire: DirectHire,
+    worker: Worker,
+    current_user: User,
+    db: Session,
+) -> None:
     from app.services.schedule_conflict_service import (
         detect_schedule_conflicts,
         withdraw_conflicting_applications,
         notify_withdrawal_to_housekeeper,
         notify_withdrawal_to_employers,
     )
-    from app.services.notification_service import (
-        notify_direct_hire_rejected_due_to_conflict,
-        notify_application_withdrawn_due_to_conflict,
-        notify_applicant_withdrawn_due_to_conflict
-    )
-    
-    worker = get_worker_for_user(current_user.id, db)
-    
-    hire = db.query(DirectHire).filter(
-        DirectHire.hire_id == hire_id,
-        DirectHire.worker_id == worker.worker_id
-    ).first()
-    
-    if not hire:
-        raise HTTPException(status_code=404, detail="Hire request not found")
-    
-    if hire.status != DirectHireStatus.PENDING:
-        raise HTTPException(status_code=400, detail="Can only accept pending requests")
-    
-    # ========== SCHEDULE CONFLICT DETECTION ==========
+    from app.services.notification_service import notify_direct_hire_rejected_due_to_conflict
+
     is_recurring = hire.is_recurring
     recurring_day = hire.day_of_week if is_recurring else None
-
-    # Multi-day: compute the actual end date
     hire_num_days = getattr(hire, 'num_days', 1) or 1
     hire_end_date = getattr(hire, 'end_date', None)
     if hire_num_days > 1 and not hire_end_date and hire.scheduled_date:
@@ -706,7 +957,6 @@ def accept_hire(
     if not hire_end_date:
         hire_end_date = hire.scheduled_date
 
-    # Determine daily time window (for recurring hires, fall back to start_time/end_time)
     hire_daily_start = getattr(hire, 'daily_start_time', None) or (hire.start_time if is_recurring else None)
     hire_daily_end = getattr(hire, 'daily_end_time', None) or (hire.end_time if is_recurring else None)
 
@@ -722,13 +972,11 @@ def accept_hire(
         new_job_daily_start_time=hire_daily_start,
         new_job_daily_end_time=hire_daily_end,
     )
-    
+
     if conflicts:
-        # Reject the hire request
         hire.status = DirectHireStatus.REJECTED
         db.commit()
-        
-        # Notify employer about conflict
+
         employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
         if employer:
             conflict_titles = ", ".join([c['title'] for c in conflicts])
@@ -736,19 +984,17 @@ def accept_hire(
                 db=db,
                 employer_user_id=employer.user_id,
                 worker_name=f"{current_user.first_name} {current_user.last_name}",
-                conflicting_job_title=conflict_titles
+                conflicting_job_title=conflict_titles,
             )
-        
+
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"Cannot accept this hire. You have a conflicting job scheduled: {', '.join([c['title'] for c in conflicts])}"
+            detail=f"Cannot accept this hire. You have a conflicting job scheduled: {', '.join([c['title'] for c in conflicts])}",
         )
-    
+
     hire.status = DirectHireStatus.ACCEPTED
     db.commit()
-    
-    # ========== WITHDRAW ALL CONFLICTING PENDING ITEMS ==========
-    # Comprehensive: withdraws pending job-post applications AND rejects pending direct hires
+
     try:
         employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
         employer_name = f"{employer.user.first_name} {employer.user.last_name}" if employer and employer.user else "Employer"
@@ -770,25 +1016,21 @@ def accept_hire(
 
         if withdrawn:
             accepted_job_title = f"Direct Hire #{hire.hire_id} from {employer_name}"
-
-            # Notify the worker
             notify_withdrawal_to_housekeeper(
                 db=db,
                 worker_user_id=current_user.id,
                 newly_accepted_job_title=accepted_job_title,
-                withdrawn_applications=withdrawn
+                withdrawn_applications=withdrawn,
             )
-            # Notify each affected employer
             notify_withdrawal_to_employers(
                 db=db,
                 withdrawn_applications=withdrawn,
                 worker_name=worker_name,
-                accepted_job_title=accepted_job_title
+                accepted_job_title=accepted_job_title,
             )
     except Exception as e:
         print(f"Warning: Conflict withdrawal error: {e}")
-    
-    # Send notification to employer that worker accepted
+
     employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
     if employer:
         worker_name = f"{current_user.first_name} {current_user.last_name}"
@@ -796,22 +1038,246 @@ def accept_hire(
             db=db,
             employer_user_id=employer.user_id,
             worker_name=worker_name,
-            hire_id=hire.hire_id
+            hire_id=hire.hire_id,
         )
-        
-        # Auto-create conversation for both parties
-        existing_conv = db.query(Conversation).filter(
-            Conversation.hire_id == hire.hire_id
-        ).first()
-        
+
+        existing_conv = db.query(Conversation).filter(Conversation.hire_id == hire.hire_id).first()
         if not existing_conv:
             conversation = Conversation(
                 hire_id=hire.hire_id,
                 participant_ids=[employer.user_id, current_user.id],
-                status='active'
+                status='active',
             )
             db.add(conversation)
             db.commit()
+
+
+@router.post("/{hire_id}/accept/initiate-payment", response_model=DirectHireFeeInitiateResponse)
+async def initiate_acceptance_fee_payment(
+    hire_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    worker = get_worker_for_user(current_user.id, db)
+
+    hire = db.query(DirectHire).filter(
+        DirectHire.hire_id == hire_id,
+        DirectHire.worker_id == worker.worker_id,
+    ).first()
+
+    if not hire:
+        raise HTTPException(status_code=404, detail="Hire request not found")
+
+    if hire.status != DirectHireStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Can only pay fee for pending requests")
+
+    if not maya_is_configured():
+        raise HTTPException(status_code=500, detail="Maya sandbox is not configured on backend")
+
+    fee_amount = Decimal(str(getattr(hire, 'platform_fee_amount', 0) or 0))
+    if fee_amount <= 0:
+        fee_amount = (Decimal(str(hire.total_amount)) * Decimal("0.07")).quantize(Decimal("0.01"))
+        hire.platform_fee_amount = fee_amount
+        hire.platform_fee_percentage = Decimal("7.00")
+        db.commit()
+        db.refresh(hire)
+
+    frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+    success_url = f"{frontend_base_url}/direct-hires?maya_result=success&hire_id={hire.hire_id}"
+    failure_url = f"{frontend_base_url}/direct-hires?maya_result=failure&hire_id={hire.hire_id}"
+    cancel_url = f"{frontend_base_url}/direct-hires?maya_result=cancel&hire_id={hire.hire_id}"
+
+    reference_number = f"DHF-{hire.hire_id}-{int(datetime.utcnow().timestamp())}"
+    try:
+        checkout = await create_checkout(
+            amount=fee_amount,
+            reference_number=reference_number,
+            success_url=success_url,
+            failure_url=failure_url,
+            cancel_url=cancel_url,
+            buyer_first_name=current_user.first_name,
+            buyer_last_name=current_user.last_name,
+            buyer_email=current_user.email,
+        )
+    except Exception as exc:
+        message = str(exc)
+        if "K007" in message or "Invalid key scope" in message or "(401)" in message:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Maya sandbox keys are valid format but missing Checkout scope. "
+                    "Generate sandbox Checkout API keys in Maya Manager and update MAYA_SECRET_KEY/MAYA_PUBLIC_KEY."
+                ),
+            ) from exc
+        raise HTTPException(status_code=502, detail=f"Unable to create Maya checkout: {exc}") from exc
+
+    checkout_id = checkout.get("checkoutId") or checkout.get("id")
+    redirect_url = checkout.get("redirectUrl")
+    if not checkout_id or not redirect_url:
+        raise HTTPException(status_code=502, detail="Invalid Maya checkout response")
+
+    hire.platform_fee_checkout_id = str(checkout_id)
+    hire.platform_fee_reference = reference_number
+    hire.platform_fee_status = "pending"
+    db.commit()
+
+    return DirectHireFeeInitiateResponse(
+        hire_id=hire.hire_id,
+        checkout_id=str(checkout_id),
+        redirect_url=str(redirect_url),
+        platform_fee_amount=float(fee_amount),
+    )
+
+
+@router.post("/{hire_id}/accept/verify")
+async def verify_acceptance_fee_payment(
+    hire_id: int,
+    payload: DirectHireFeeVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    worker = get_worker_for_user(current_user.id, db)
+
+    hire = db.query(DirectHire).filter(
+        DirectHire.hire_id == hire_id,
+        DirectHire.worker_id == worker.worker_id,
+    ).first()
+
+    if not hire:
+        raise HTTPException(status_code=404, detail="Hire request not found")
+
+    if hire.status != DirectHireStatus.PENDING and hire.status != DirectHireStatus.ACCEPTED:
+        raise HTTPException(status_code=400, detail="Hire cannot be verified in current state")
+
+    try:
+        checkout = await retrieve_checkout(payload.checkout_id)
+    except Exception as exc:
+        message = str(exc)
+        if "K007" in message or "Invalid key scope" in message or "(401)" in message:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Maya sandbox keys are valid format but missing Checkout scope. "
+                    "Generate sandbox Checkout API keys in Maya Manager and update MAYA_SECRET_KEY/MAYA_PUBLIC_KEY."
+                ),
+            ) from exc
+        raise HTTPException(status_code=502, detail=f"Unable to verify Maya checkout: {exc}") from exc
+    payment_status = normalize_checkout_status(checkout)
+
+    hire.platform_fee_checkout_id = payload.checkout_id
+    hire.platform_fee_reference = checkout.get("requestReferenceNumber") or hire.platform_fee_reference
+
+    if payment_status == "paid":
+        hire.platform_fee_status = "paid"
+        hire.platform_fee_paid_at = func.now()
+        db.commit()
+        db.refresh(hire)
+
+        if hire.status == DirectHireStatus.PENDING:
+            _accept_hire_after_fee(hire=hire, worker=worker, current_user=current_user, db=db)
+        return {
+            "message": "Platform fee paid and hire accepted.",
+            "status": "accepted",
+            "platform_fee_status": "paid",
+        }
+
+    if payment_status in {"failed", "cancelled"}:
+        hire.platform_fee_status = payment_status
+        db.commit()
+        return {
+            "message": "Payment was not completed.",
+            "status": "pending",
+            "platform_fee_status": payment_status,
+        }
+
+    hire.platform_fee_status = "pending"
+    db.commit()
+    return {
+        "message": "Payment is still pending.",
+        "status": "pending",
+        "platform_fee_status": "pending",
+    }
+
+
+@router.post("/maya/webhook")
+async def maya_webhook_direct_hire(
+    request: Request,
+    x_paymaya_signature: Optional[str] = Header(default=None, alias="x-paymaya-signature"),
+    db: Session = Depends(get_db),
+):
+    raw_body = await request.body()
+
+    signature = x_paymaya_signature or request.headers.get("x-paymaya-signature") or request.headers.get("paymaya-signature")
+    if not verify_webhook_signature(raw_body, signature):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid webhook payload")
+
+    checkout_id = (
+        payload.get("checkoutId")
+        or payload.get("id")
+        or payload.get("checkout_id")
+        or payload.get("data", {}).get("id")
+        or payload.get("data", {}).get("checkoutId")
+    )
+    reference_number = payload.get("requestReferenceNumber") or payload.get("referenceNumber") or payload.get("data", {}).get("requestReferenceNumber")
+
+    hire = None
+    if checkout_id:
+        hire = db.query(DirectHire).filter(DirectHire.platform_fee_checkout_id == str(checkout_id)).first()
+    if not hire and reference_number:
+        hire = db.query(DirectHire).filter(DirectHire.platform_fee_reference == str(reference_number)).first()
+
+    if not hire:
+        return {"ok": True, "message": "No matching direct hire for webhook"}
+
+    payment_status = normalize_checkout_status(payload)
+    hire.platform_fee_checkout_id = str(checkout_id or hire.platform_fee_checkout_id or "") or hire.platform_fee_checkout_id
+    hire.platform_fee_reference = str(reference_number or hire.platform_fee_reference or "") or hire.platform_fee_reference
+
+    if payment_status == "paid":
+        hire.platform_fee_status = "paid"
+        hire.platform_fee_paid_at = func.now()
+    elif payment_status in {"failed", "cancelled"}:
+        hire.platform_fee_status = payment_status
+    else:
+        hire.platform_fee_status = "pending"
+
+    db.commit()
+    return {"ok": True, "platform_fee_status": hire.platform_fee_status}
+
+
+@router.post("/{hire_id}/accept")
+def accept_hire(
+    hire_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Accept a direct hire request (worker only)"""
+    worker = get_worker_for_user(current_user.id, db)
+    
+    hire = db.query(DirectHire).filter(
+        DirectHire.hire_id == hire_id,
+        DirectHire.worker_id == worker.worker_id
+    ).first()
+    
+    if not hire:
+        raise HTTPException(status_code=404, detail="Hire request not found")
+    
+    if hire.status != DirectHireStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Can only accept pending requests")
+
+    platform_fee_status = (getattr(hire, 'platform_fee_status', 'pending') or 'pending').lower()
+    if platform_fee_status != "paid":
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Platform fee must be paid before accepting this hire",
+        )
+
+    _accept_hire_after_fee(hire=hire, worker=worker, current_user=current_user, db=db)
     
     return {"message": "Hire request accepted", "status": "accepted"}
 
@@ -872,6 +1338,13 @@ def start_work(
     
     if hire.status != DirectHireStatus.ACCEPTED:
         raise HTTPException(status_code=400, detail="Hire must be accepted first")
+
+    platform_fee_status = (getattr(hire, 'platform_fee_status', 'pending') or 'pending').lower()
+    if platform_fee_status != "paid":
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Platform fee payment is required before starting work",
+        )
     
     hire.status = DirectHireStatus.IN_PROGRESS
     db.commit()

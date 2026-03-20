@@ -234,6 +234,34 @@ export default function JobsPage() {
     setFilteredJobs([...jobsWithCategory, ...jobsWithoutCategory]);
   }, [jobs, selectedCategory]);
 
+  const handlePayPostFee = useCallback(async (job: JobPost) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/jobs/${job.post_id}/post-fee/initiate-payment`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        alert(result.detail || 'Failed to start post fee payment');
+        return;
+      }
+
+      if (result.checkout_id) {
+        localStorage.setItem(`job_post_fee_checkout_${job.post_id}`, result.checkout_id);
+      }
+
+      window.location.href = result.redirect_url;
+    } catch (error) {
+      console.error('Failed to initiate post fee payment:', error);
+      alert('Failed to start post fee payment');
+    }
+  }, []);
+
   useEffect(() => {
     if (!user) {
       navigate('/login');
@@ -246,6 +274,145 @@ export default function JobsPage() {
       }
     }
   }, [user, navigate, loadJobs, loadReports, loadRatings, loadCategories, statusFilter]);
+
+  useEffect(() => {
+    if (!user || user.active_role !== 'owner') return;
+
+    const postResult = searchParams.get('maya_post_result');
+    const postId = searchParams.get('post_id');
+    const shortResult = searchParams.get('maya_short_payment_result');
+    const shortPostId = searchParams.get('post_id');
+    const shortContractId = searchParams.get('contract_id');
+    const longResult = searchParams.get('maya_long_payment_result');
+    const longPostId = searchParams.get('post_id');
+    const longScheduleId = searchParams.get('schedule_id');
+
+    if (!postResult && !shortResult && !longResult) return;
+
+    const clearMayaParams = () => {
+      const next = new URLSearchParams(searchParams);
+      ['maya_post_result', 'maya_short_payment_result', 'maya_long_payment_result', 'post_id', 'contract_id', 'schedule_id', 'checkout_id'].forEach((key) => next.delete(key));
+      setSearchParams(next, { replace: true });
+    };
+
+    const run = async () => {
+      const token = localStorage.getItem('access_token');
+      const checkoutFromUrl = searchParams.get('checkout_id');
+
+      if (postResult) {
+        const checkoutKey = `job_post_fee_checkout_${postId}`;
+        const checkoutId = checkoutFromUrl || (postId ? localStorage.getItem(checkoutKey) : null);
+        const attemptKey = `jobs_post_fee_verify_${postId}_${postResult}_${checkoutId || 'missing'}`;
+
+        if (sessionStorage.getItem(attemptKey) !== '1') {
+          sessionStorage.setItem(attemptKey, '1');
+          if (postResult !== 'success') {
+            alert('Post fee payment was not completed. You can try again.');
+          } else if (!postId || !checkoutId) {
+            alert('Unable to verify post fee payment. Please retry.');
+          } else {
+            try {
+              const response = await fetch(`${API_BASE_URL}/jobs/${postId}/post-fee/verify`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ checkout_id: checkoutId })
+              });
+              const result = await response.json();
+              if (!response.ok) {
+                alert(result.detail || 'Failed to verify post fee payment');
+              } else {
+                alert(result.message || 'Post published successfully');
+                localStorage.removeItem(checkoutKey);
+              }
+            } catch (error) {
+              console.error('Post fee verify failed:', error);
+              alert('Failed to verify post fee payment');
+            }
+          }
+        }
+      }
+
+      if (shortResult) {
+        const checkoutKey = `short_term_checkout_${shortPostId}_${shortContractId}`;
+        const checkoutId = checkoutFromUrl || localStorage.getItem(checkoutKey);
+        const attemptKey = `jobs_short_verify_${shortPostId}_${shortContractId}_${shortResult}_${checkoutId || 'missing'}`;
+
+        if (sessionStorage.getItem(attemptKey) !== '1') {
+          sessionStorage.setItem(attemptKey, '1');
+          if (shortResult !== 'success') {
+            alert('Maya payment was not completed. You can try again.');
+          } else if (!shortPostId || !shortContractId || !checkoutId) {
+            alert('Unable to verify payment: missing checkout ID. Please retry payment.');
+          } else {
+            try {
+              const response = await fetch(`${API_BASE_URL}/jobs/${shortPostId}/short-term-payment/verify`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ contract_id: Number(shortContractId), checkout_id: checkoutId })
+              });
+              const result = await response.json();
+              if (!response.ok) {
+                alert(result.detail || 'Failed to verify Maya payment');
+              } else {
+                alert(result.message || 'Payment submitted! Waiting for housekeeper confirmation.');
+                localStorage.removeItem(checkoutKey);
+              }
+            } catch (error) {
+              console.error('Short-term Maya verify failed:', error);
+              alert('Failed to verify Maya payment');
+            }
+          }
+        }
+      }
+
+      if (longResult) {
+        const checkoutKey = `long_term_checkout_${longPostId}_${longScheduleId}`;
+        const checkoutId = checkoutFromUrl || localStorage.getItem(checkoutKey);
+        const attemptKey = `jobs_long_verify_${longPostId}_${longScheduleId}_${longResult}_${checkoutId || 'missing'}`;
+
+        if (sessionStorage.getItem(attemptKey) !== '1') {
+          sessionStorage.setItem(attemptKey, '1');
+          if (longResult !== 'success') {
+            alert('Maya payment was not completed. You can try again.');
+          } else if (!longPostId || !longScheduleId || !checkoutId) {
+            alert('Unable to verify payment: missing checkout ID. Please retry payment.');
+          } else {
+            try {
+              const response = await fetch(`${API_BASE_URL}/jobs/${longPostId}/payments/${longScheduleId}/verify`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ checkout_id: checkoutId })
+              });
+              const result = await response.json();
+              if (!response.ok) {
+                alert(result.detail || 'Failed to verify Maya payment');
+              } else {
+                alert(result.message || 'Payment submitted! Waiting for housekeeper confirmation.');
+                localStorage.removeItem(checkoutKey);
+              }
+            } catch (error) {
+              console.error('Long-term Maya verify failed:', error);
+              alert('Failed to verify Maya payment');
+            }
+          }
+        }
+      }
+
+      clearMayaParams();
+      await loadJobs();
+    };
+
+    run();
+  }, [user, searchParams, setSearchParams, loadJobs]);
 
   // Apply category filter when jobs or selected category changes
   useEffect(() => {
@@ -469,6 +636,7 @@ export default function JobsPage() {
             jobs={jobs} 
             navigate={navigate} 
             onViewApplicants={setShowApplicants}
+            onPayPostFee={handlePayPostFee}
             onEditJob={setShowEditJob}
             onShowPaymentTracker={setShowPaymentTracker}
             onShowProgressTracker={setShowProgressTracker}
@@ -844,6 +1012,7 @@ function OwnerJobsContent({
   jobs, 
   navigate, 
   onViewApplicants,
+  onPayPostFee,
   onShowPaymentTracker,
   onShowProgressTracker,
   onShowCompletionReview,
@@ -859,6 +1028,7 @@ function OwnerJobsContent({
   jobs: JobPost[]; 
   navigate: (path: string) => void;
   onViewApplicants: (job: JobPost) => void;
+  onPayPostFee: (job: JobPost) => void;
   onShowPaymentTracker: (job: JobPost) => void;
   onShowProgressTracker: (job: JobPost) => void;
   onShowCompletionReview: (job: JobPost) => void;
@@ -972,30 +1142,51 @@ function OwnerJobsContent({
 
   return (
     <div className="space-y-4">
-      {paginatedJobs.map((job) => (
-        <div key={job.post_id} className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl p-5 border border-white/60 dark:border-white/10 hover:border-[#EA526F]/30 dark:hover:border-[#EA526F]/30 transition-all shadow-sm hover:shadow-md">
+      {paginatedJobs.map((job) => {
+        const isPostFeePending = (job.post_fee_status || 'paid').toLowerCase() !== 'paid';
+        return (
+        <div key={job.post_id} className={`bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl p-5 border transition-all shadow-sm ${
+          isPostFeePending
+            ? 'border-amber-300 dark:border-amber-500/40 opacity-85'
+            : 'border-white/60 dark:border-white/10 hover:border-[#EA526F]/30 dark:hover:border-[#EA526F]/30 hover:shadow-md'
+        }`}>
           {(() => {
             const workers = job.accepted_workers || [];
+            const hasWorkerPaymentSubmitted = (worker: any) => {
+              const status = (worker?.payment_status || '').toLowerCase();
+              return Boolean(
+                worker?.payment_proof_url ||
+                worker?.payment_submitted ||
+                status === 'sent' ||
+                status === 'confirmed'
+              );
+            };
             const needsOwnerReviewOrPayment = workers.some((worker: any) => (
-              (worker.contract_status === 'pending_completion' && !worker.payment_proof_url && !worker.paid_at) ||
-              (worker.contract_status === 'completed' && !worker.payment_proof_url && !worker.paid_at)
+              (worker.contract_status === 'pending_completion' && !hasWorkerPaymentSubmitted(worker) && !worker.paid_at) ||
+              (worker.contract_status === 'completed' && !hasWorkerPaymentSubmitted(worker) && !worker.paid_at)
             ));
             const awaitingWorkerConfirmation = workers.some((worker: any) => (
-              !!worker.payment_proof_url && !worker.paid_at
+              hasWorkerPaymentSubmitted(worker) && !worker.paid_at
             ));
 
             return (
               <>
+          {isPostFeePending && (
+            <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 px-3 py-2 text-xs font-semibold">
+              Unpublished: pay ₱{Number(job.post_fee_amount || 0).toLocaleString()} ({Number(job.post_fee_percentage || 7)}%) to publish this short-term post.
+            </div>
+          )}
           <div className="flex items-start justify-between mb-3 gap-2">
             <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white break-words min-w-0">{job.title}</h3>
             <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
+              isPostFeePending ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
               job.status === 'open' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' : 
               job.status === 'ongoing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' :
               job.status === 'pending_completion' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300' :
               job.status === 'completed' ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300' : 
               'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300'
             }`}>
-              {job.status === 'pending_completion' ? 'PENDING APPROVAL' : job.status.toUpperCase()}
+              {isPostFeePending ? 'UNPUBLISHED' : (job.status === 'pending_completion' ? 'PENDING APPROVAL' : job.status.toUpperCase())}
             </span>
           </div>
           
@@ -1055,7 +1246,16 @@ function OwnerJobsContent({
 
           {/* Action Buttons */}
           <div className="mt-4 grid grid-cols-1 gap-2">
-             {job.status === 'open' && job.total_applicants > 0 && (
+             {isPostFeePending && (
+               <button
+                onClick={() => onPayPostFee(job)}
+                className="w-full py-2.5 bg-amber-500 text-white text-sm font-bold rounded-lg hover:bg-amber-600 transition-all shadow-md"
+               >
+                Pay 7% to Publish (Maya)
+               </button>
+             )}
+
+             {job.status === 'open' && !isPostFeePending && job.total_applicants > 0 && (
                 <button onClick={() => onViewApplicants(job)} className="w-full py-2 bg-[#4B244A] text-white text-sm font-bold rounded-lg hover:bg-[#361a35] transition-all">
                     View Applicants ({job.total_applicants})
                 </button>
@@ -1072,9 +1272,19 @@ function OwnerJobsContent({
              )}
 
              {job.status === 'pending_completion' && !needsOwnerReviewOrPayment && awaitingWorkerConfirmation && (
-               <div className="w-full py-2.5 bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 text-sm font-bold rounded-lg border border-blue-200 dark:border-blue-500/30 flex items-center justify-center gap-2">
-                 <Clock className="w-4 h-4" /> Payment Sent - Waiting for Housekeeper Confirmation
-               </div>
+               <>
+                 <div className="w-full py-2.5 bg-blue-100 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 text-sm font-bold rounded-lg border border-blue-200 dark:border-blue-500/30 flex items-center justify-center gap-2">
+                   <Clock className="w-4 h-4" /> Payment Sent - Waiting for Housekeeper Confirmation
+                 </div>
+                 {onShowSummary && (
+                   <button
+                     onClick={() => onShowSummary(job)}
+                     className="w-full py-2 bg-[#4B244A] text-white text-sm font-bold rounded-lg hover:bg-[#361a35] transition-all shadow-md flex items-center justify-center gap-2"
+                   >
+                     <FileText className="w-4 h-4" /> View Receipt
+                   </button>
+                 )}
+               </>
              )}
 
              {job.status === 'pending_completion' && !needsOwnerReviewOrPayment && !awaitingWorkerConfirmation && (
@@ -1207,7 +1417,7 @@ function OwnerJobsContent({
             );
           })()}
         </div>
-      ))}
+      )})}
 
       {/* Pagination Controls */}
       {totalPages > 1 && (

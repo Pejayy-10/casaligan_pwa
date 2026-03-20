@@ -488,6 +488,12 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                       <DollarSign className="inline w-4 h-4 mr-1" /> Payment Sent - Review Required!
                     </div>
                     <button
+                      onClick={() => setShowSummaryJobId(job.post_id)}
+                      className="w-full py-2 bg-[#4B244A] text-white font-bold rounded-lg hover:bg-[#361a35] transition-all shadow-md"
+                    >
+                      <FileText className="inline w-4 h-4 mr-1" /> View Receipt
+                    </button>
+                    <button
                       onClick={async () => {
                         if (window.confirm('Confirm that you have received the payment?')) {
                           try {
@@ -621,7 +627,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                       onClick={() => setShowSummaryJobId(job.post_id)}
                       className="w-full py-2 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
                     >
-                      <FileText className="inline w-4 h-4 mr-1" /> View Job Summary
+                      <FileText className="inline w-4 h-4 mr-1" /> {job.is_longterm ? 'View Job Summary' : 'View Receipt'}
                     </button>
                     {onReportEmployer && (
                       reportedUsers?.has(`${job.post_id}-${job.employer.user_id}`) ? (

@@ -35,6 +35,12 @@ export interface JobPost {
   employer_address?: string;
   total_applicants: number;
   pending_payments?: number;  // Number of unpaid payments
+  post_fee_percentage?: number | null;
+  post_fee_amount?: number | null;
+  post_fee_status?: string | null;
+  post_fee_checkout_id?: string | null;
+  post_fee_reference?: string | null;
+  post_fee_paid_at?: string | null;
   accepted_workers?: AcceptedWorker[];  // List of accepted housekeepers
   payment_schedule?: {
     frequency: string;

@@ -9,6 +9,8 @@ from typing import List, Optional
 from datetime import datetime, timezone
 from pydantic import BaseModel
 import json
+from decimal import Decimal
+import os
 from app.db import get_db
 from app.models_v2.user import User
 from app.models_v2.worker_employer import Employer, Worker
@@ -30,8 +32,18 @@ from app.services.notification_service import (
     notify_user
 )
 from app.models_v2.notification import NotificationType
+from app.services.maya_service import (
+    create_checkout,
+    retrieve_checkout,
+    normalize_checkout_status,
+    maya_is_configured,
+)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+
+def _calculate_post_fee(amount: float) -> Decimal:
+    return (Decimal(str(amount)) * Decimal("0.07")).quantize(Decimal("0.01"))
 
 
 def _normalize_media_url(url: Optional[str]) -> Optional[str]:
@@ -299,6 +311,9 @@ def create_job_post(
         location=job_data.location or "Not specified",
         job_type=job_type,
         salary=job_data.budget,
+        post_fee_percentage=Decimal("7.00"),
+        post_fee_amount=_calculate_post_fee(job_data.budget),
+        post_fee_status="pending",
         category_id=job_data.category_ids[0] if job_data.category_ids else job_data.category_id,  # Keep first category for compatibility
         is_longterm=(job_data.duration_type == "long_term"),
         start_date=job_data.start_date.isoformat() if job_data.start_date else None,
@@ -348,6 +363,16 @@ def get_job_posts(
     
     # Exclude current user's own posts (they can only be owners posting jobs)
     query = query.filter(ForumPost.user_id != current_user.id)
+
+    # Only show published jobs to housekeepers (posting fee paid).
+    # Legacy rows with null/empty status are treated as already published.
+    query = query.filter(
+        or_(
+            ForumPost.post_fee_status.is_(None),
+            ForumPost.post_fee_status == "",
+            ForumPost.post_fee_status == "paid",
+        )
+    )
     
     if status_filter and status_filter != "all":
         query = query.filter(ForumPost.status == status_filter)
@@ -480,6 +505,31 @@ def get_my_job_posts(
             if worker:
                 worker_user = db.query(User).filter(User.id == worker.user_id).first()
                 contract = worker_contract_map.get(worker_id)
+                latest_schedule = None
+                latest_transaction = None
+                payment_status_value = None
+                payment_submitted = False
+
+                if contract:
+                    latest_schedule = db.query(PaymentSchedule).filter(
+                        PaymentSchedule.contract_id == contract.contract_id
+                    ).order_by(desc(PaymentSchedule.created_at)).first()
+
+                    if latest_schedule:
+                        payment_status_value = (
+                            latest_schedule.status.value
+                            if hasattr(latest_schedule.status, 'value')
+                            else str(latest_schedule.status)
+                        )
+                        latest_transaction = db.query(PaymentTransaction).filter(
+                            PaymentTransaction.schedule_id == latest_schedule.schedule_id
+                        ).first()
+                        payment_submitted = payment_status_value in {
+                            PaymentStatus.SENT.value,
+                            PaymentStatus.CONFIRMED.value,
+                            PaymentStatus.DISPUTED.value,
+                        }
+
                 if worker_user:
                     accepted_workers_list.append({
                         "worker_id": worker.worker_id,
@@ -487,7 +537,13 @@ def get_my_job_posts(
                         "name": f"{worker_user.first_name} {worker_user.last_name}",
                         "contract_id": contract.contract_id if contract else None,
                         "contract_status": contract.status.value if contract and hasattr(contract.status, 'value') else (str(contract.status) if contract else None),
-                        "payment_proof_url": _normalize_media_url(contract.payment_proof_url) if contract else None,
+                        "payment_proof_url": _normalize_media_url(
+                            latest_transaction.payment_proof_url
+                            if latest_transaction and latest_transaction.payment_proof_url
+                            else (contract.payment_proof_url if contract else None)
+                        ) if contract else None,
+                        "payment_status": payment_status_value,
+                        "payment_submitted": payment_submitted,
                         "paid_at": contract.paid_at.isoformat() if contract and contract.paid_at else None,
                     })
                 
@@ -495,7 +551,7 @@ def get_my_job_posts(
                 if contract and post.is_longterm and post.status == ForumPostStatus.ONGOING:
                     contract_pending = db.query(PaymentSchedule).filter(
                         PaymentSchedule.contract_id == contract.contract_id,
-                        PaymentSchedule.status == PaymentStatus.PENDING
+                        PaymentSchedule.status.in_([PaymentStatus.PENDING, PaymentStatus.OVERDUE])
                     ).count()
                     pending_payments_count += contract_pending
         
@@ -688,6 +744,10 @@ def get_my_accepted_jobs(
                 })
                 
                 if status_val == "pending":
+                    pending_payments += 1
+                    if not next_payment_due:
+                        next_payment_due = schedule.due_date
+                elif status_val == "overdue":
                     pending_payments += 1
                     if not next_payment_due:
                         next_payment_due = schedule.due_date
@@ -1157,6 +1217,13 @@ def apply_to_job(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Job post not found or is no longer open"
+        )
+
+    post_fee_status = (getattr(post, 'post_fee_status', 'paid') or 'paid').lower()
+    if post_fee_status != 'paid':
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="This job is not published yet. Posting fee payment is still pending."
         )
     
     # Check if already applied
@@ -2072,10 +2139,26 @@ def start_job(
                             payments_created += 1
 
                         print(f"DEBUG: Created {payments_created} payment schedules for {worker_name}")
+                        if payments_created <= 0:
+                            raise HTTPException(
+                                status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="Unable to create long-term payment schedule. Please review payment settings and try again."
+                            )
+                    elif contract:
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Missing payment schedule for long-term job. Please edit the job and set long-term payment schedule."
+                        )
+                except HTTPException:
+                    raise
                 except Exception as e:
                     print(f"ERROR creating payment schedule for {worker_name}: {e}")
                     import traceback
                     traceback.print_exc()
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail="Failed to initialize long-term payment schedule. Please try again."
+                    )
 
         # Keep exactly one conversation per job and include all accepted participants.
         try:
@@ -2278,6 +2361,9 @@ def repost_job_post(
         location=post.location,
         job_type=post.job_type,
         salary=post.salary,
+        post_fee_percentage=Decimal("7.00"),
+        post_fee_amount=_calculate_post_fee(float(post.salary or 0)),
+        post_fee_status="pending",
         category_id=post.category_id,
         is_longterm=post.is_longterm,
         start_date=post.start_date,
@@ -2308,6 +2394,144 @@ def repost_job_post(
     employer_user = db.query(User).filter(User.id == employer.user_id).first() or current_user
 
     return JobPostResponse.from_orm_model(new_post, employer_user, applicants_count=0, pending_payments_count=0, accepted_workers_list=[])
+
+
+class JobPostFeeInitiateResponse(BaseModel):
+    post_id: int
+    checkout_id: str
+    redirect_url: str
+    post_fee_amount: float
+
+
+class JobPostFeeVerifyRequest(BaseModel):
+    checkout_id: str
+
+
+@router.post("/{post_id}/post-fee/initiate-payment", response_model=JobPostFeeInitiateResponse)
+async def initiate_post_fee_payment(
+    post_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not current_user.is_owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only house owners can pay posting fee")
+
+    post = db.query(ForumPost).filter(
+        ForumPost.post_id == post_id,
+        ForumPost.deleted_at.is_(None)
+    ).first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job post not found")
+
+    employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+    if not employer or employer.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only pay fee for your own posts")
+
+    if not maya_is_configured():
+        raise HTTPException(status_code=500, detail="Maya sandbox is not configured on backend")
+
+    current_fee_status = (getattr(post, 'post_fee_status', 'pending') or 'pending').lower()
+    if current_fee_status == 'paid':
+        raise HTTPException(status_code=400, detail="Posting fee already paid")
+
+    fee_amount = Decimal(str(getattr(post, 'post_fee_amount', 0) or 0))
+    if fee_amount <= 0:
+        fee_amount = _calculate_post_fee(float(post.salary or 0))
+        post.post_fee_amount = fee_amount
+        post.post_fee_percentage = Decimal("7.00")
+        db.commit()
+        db.refresh(post)
+
+    frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+    success_url = f"{frontend_base_url}/jobs?maya_post_result=success&post_id={post.post_id}"
+    failure_url = f"{frontend_base_url}/jobs?maya_post_result=failure&post_id={post.post_id}"
+    cancel_url = f"{frontend_base_url}/jobs?maya_post_result=cancel&post_id={post.post_id}"
+
+    reference_number = f"JPF-{post.post_id}-{int(datetime.utcnow().timestamp())}"
+
+    try:
+        checkout = await create_checkout(
+            amount=fee_amount,
+            reference_number=reference_number,
+            success_url=success_url,
+            failure_url=failure_url,
+            cancel_url=cancel_url,
+            buyer_first_name=current_user.first_name,
+            buyer_last_name=current_user.last_name,
+            buyer_email=current_user.email,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Unable to create Maya checkout: {exc}") from exc
+
+    checkout_id = checkout.get("checkoutId") or checkout.get("id")
+    redirect_url = checkout.get("redirectUrl")
+    if not checkout_id or not redirect_url:
+        raise HTTPException(status_code=502, detail="Invalid Maya checkout response")
+
+    post.post_fee_checkout_id = str(checkout_id)
+    post.post_fee_reference = reference_number
+    post.post_fee_status = "pending"
+    db.commit()
+
+    return JobPostFeeInitiateResponse(
+        post_id=post.post_id,
+        checkout_id=str(checkout_id),
+        redirect_url=str(redirect_url),
+        post_fee_amount=float(fee_amount),
+    )
+
+
+@router.post("/{post_id}/post-fee/verify")
+async def verify_post_fee_payment(
+    post_id: int,
+    payload: JobPostFeeVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    post = db.query(ForumPost).filter(
+        ForumPost.post_id == post_id,
+        ForumPost.deleted_at.is_(None)
+    ).first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job post not found")
+
+    employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+    if not employer or employer.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only verify fee for your own posts")
+
+    try:
+        checkout = await retrieve_checkout(payload.checkout_id)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Unable to verify Maya checkout: {exc}") from exc
+
+    payment_status = normalize_checkout_status(checkout)
+
+    post.post_fee_checkout_id = payload.checkout_id
+    post.post_fee_reference = checkout.get("requestReferenceNumber") or post.post_fee_reference
+
+    if payment_status == "paid":
+        post.post_fee_status = "paid"
+        post.post_fee_paid_at = func.now()
+        db.commit()
+        return {
+            "message": "Posting fee paid. Job is now published.",
+            "status": "paid"
+        }
+
+    if payment_status in {"failed", "cancelled"}:
+        post.post_fee_status = payment_status
+        db.commit()
+        return {
+            "message": "Posting fee payment was not completed.",
+            "status": payment_status
+        }
+
+    post.post_fee_status = "pending"
+    db.commit()
+    return {
+        "message": "Posting fee payment is still pending.",
+        "status": "pending"
+    }
 
 
 # ============== HOUSEKEEPER JOB COMPLETION ENDPOINTS ==============
@@ -2682,10 +2906,30 @@ def get_job_summary(
     if not employer or employer.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the job owner can view the summary")
 
-    if post.status != ForumPostStatus.COMPLETED:
+    allow_pending_short_term_receipt = False
+    if not post.is_longterm and post.status == ForumPostStatus.PENDING_COMPLETION:
+        payable_contracts = db.query(Contract).filter(
+            Contract.post_id == post_id,
+            Contract.status.in_([
+                ContractStatus.ACTIVE,
+                ContractStatus.PENDING_COMPLETION,
+                ContractStatus.COMPLETED,
+            ]),
+        ).all()
+
+        for contract in payable_contracts:
+            submitted_schedule = db.query(PaymentSchedule).filter(
+                PaymentSchedule.contract_id == contract.contract_id,
+                PaymentSchedule.status.in_([PaymentStatus.SENT, PaymentStatus.CONFIRMED]),
+            ).first()
+            if submitted_schedule:
+                allow_pending_short_term_receipt = True
+                break
+
+    if post.status != ForumPostStatus.COMPLETED and not allow_pending_short_term_receipt:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Summary is only available for completed jobs"
+            detail="Summary is only available after payment submission for this job"
         )
 
     job_details = {}
@@ -2774,12 +3018,6 @@ def get_housekeeper_summary(
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job post not found")
 
-    if post.status != ForumPostStatus.COMPLETED:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Summary is only available for completed jobs"
-        )
-
     # Find the contract for this user (housekeeper)
     contract = db.query(Contract).filter(
         Contract.post_id == post_id,
@@ -2788,6 +3026,20 @@ def get_housekeeper_summary(
     
     if not contract:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You did not work on this job")
+
+    allow_pending_short_term_receipt = False
+    if not post.is_longterm and post.status == ForumPostStatus.PENDING_COMPLETION:
+        submitted_schedule = db.query(PaymentSchedule).filter(
+            PaymentSchedule.contract_id == contract.contract_id,
+            PaymentSchedule.status.in_([PaymentStatus.SENT, PaymentStatus.CONFIRMED]),
+        ).first()
+        allow_pending_short_term_receipt = submitted_schedule is not None
+
+    if post.status != ForumPostStatus.COMPLETED and not allow_pending_short_term_receipt:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Summary is only available after payment submission for this job"
+        )
 
     employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
     employer_user = db.query(User).filter(User.id == employer.user_id).first() if employer else None
@@ -2880,6 +3132,270 @@ class ShortTermPaymentRequest(BaseModel):
     reference_number: Optional[str] = None
 
 
+class ShortTermDigitalPaymentInitiateRequest(BaseModel):
+    contract_id: int
+    payment_method: str = "maya"
+
+
+class ShortTermDigitalPaymentVerifyRequest(BaseModel):
+    contract_id: int
+    checkout_id: str
+
+
+def _record_short_term_payment_submission(
+    *,
+    post: ForumPost,
+    contract: Contract,
+    amount: float,
+    payment_method: str,
+    proof_url: Optional[str],
+    reference_number: Optional[str],
+    db: Session,
+):
+    from app.models_v2.contract import ContractStatus
+
+    contract.payment_proof_url = proof_url
+    if contract.status == ContractStatus.PENDING_COMPLETION:
+        contract.status = ContractStatus.COMPLETED
+
+    worker = db.query(Worker).filter(Worker.worker_id == contract.worker_id).first()
+    worker_user = db.query(User).filter(User.id == worker.user_id).first() if worker else None
+    worker_name = f"{worker_user.first_name} {worker_user.last_name}" if worker_user else "Worker"
+
+    payment = PaymentSchedule(
+        contract_id=contract.contract_id,
+        due_date=func.now(),
+        amount=amount,
+        status=PaymentStatus.SENT,
+        worker_id=contract.worker_id,
+        worker_name=worker_name,
+    )
+
+    db.add(payment)
+    db.flush()
+
+    transaction = PaymentTransaction(
+        schedule_id=payment.schedule_id,
+        amount_paid=amount,
+        payment_method=payment_method,
+        reference_number=reference_number,
+        payment_proof_url=proof_url,
+        paid_at=func.now(),
+        confirmed_at=None,
+        confirmed_by_worker=False,
+    )
+    db.add(transaction)
+
+    payable_contracts = db.query(Contract).filter(
+        Contract.post_id == post.post_id,
+        Contract.status.in_([
+            ContractStatus.ACTIVE,
+            ContractStatus.PENDING_COMPLETION,
+            ContractStatus.COMPLETED,
+        ]),
+    ).all()
+    all_paid = bool(payable_contracts) and all(c.paid_at is not None for c in payable_contracts)
+
+    if all_paid:
+        post.status = ForumPostStatus.COMPLETED
+        post.completed_at = func.now()
+
+    db.commit()
+
+    if worker and worker_user:
+        notify_user(
+            db=db,
+            user_id=worker_user.id,
+            notification_type=NotificationType.PAYMENT_REVIEW,
+            title="Payment Submitted - Review Required 💰",
+            message=f"Payment of ₱{amount:,.2f} for '{post.title}' has been submitted. Please review and confirm.",
+            reference_type="job",
+            reference_id=post.post_id,
+        )
+
+    return {
+        "worker_name": worker_name,
+        "all_paid": all_paid,
+    }
+
+
+@router.post("/{post_id}/short-term-payment/initiate-payment")
+async def initiate_short_term_digital_payment(
+    post_id: int,
+    payload: ShortTermDigitalPaymentInitiateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if payload.payment_method.lower() != "maya":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Only maya is supported for digital short-term payout."
+        )
+
+    post = db.query(ForumPost).filter(ForumPost.post_id == post_id, ForumPost.deleted_at.is_(None)).first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job post not found")
+
+    employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+    if not employer or employer.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only pay for your own jobs"
+        )
+
+    contract = db.query(Contract).filter(
+        Contract.contract_id == payload.contract_id,
+        Contract.post_id == post_id,
+    ).first()
+    if not contract:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contract not found")
+
+    if contract.paid_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This worker has already confirmed payment."
+        )
+
+    try:
+        amount = Decimal(str(post.salary or 0)).quantize(Decimal("0.01"))
+    except Exception:
+        amount = Decimal("0.00")
+
+    if amount <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid payout amount. Please set a valid job budget first."
+        )
+
+    if not maya_is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Maya is not configured. Please set MAYA_PUBLIC_KEY and MAYA_SECRET_KEY."
+        )
+
+    frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+    success_url = f"{frontend_base_url}/jobs?maya_short_payment_result=success&post_id={post_id}&contract_id={contract.contract_id}"
+    failure_url = f"{frontend_base_url}/jobs?maya_short_payment_result=failure&post_id={post_id}&contract_id={contract.contract_id}"
+    cancel_url = f"{frontend_base_url}/jobs?maya_short_payment_result=cancel&post_id={post_id}&contract_id={contract.contract_id}"
+
+    reference_number = f"SHORT-PAY-{post_id}-{contract.contract_id}-{int(datetime.now(timezone.utc).timestamp())}"
+
+    try:
+        checkout = await create_checkout(
+            amount=amount,
+            reference_number=reference_number,
+            success_url=success_url,
+            failure_url=failure_url,
+            cancel_url=cancel_url,
+            buyer_first_name=current_user.first_name,
+            buyer_last_name=current_user.last_name,
+            buyer_email=current_user.email,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    checkout_id = checkout.get("checkoutId")
+    redirect_url = checkout.get("redirectUrl")
+    if not checkout_id or not redirect_url:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Maya checkout did not return checkoutId/redirectUrl."
+        )
+
+    return {
+        "checkout_id": checkout_id,
+        "redirect_url": redirect_url,
+        "reference_number": reference_number,
+        "amount": float(amount),
+    }
+
+
+@router.post("/{post_id}/short-term-payment/verify")
+async def verify_short_term_digital_payment(
+    post_id: int,
+    payload: ShortTermDigitalPaymentVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    post = db.query(ForumPost).filter(ForumPost.post_id == post_id, ForumPost.deleted_at.is_(None)).first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job post not found")
+
+    employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+    if not employer or employer.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only verify payments for your own jobs"
+        )
+
+    contract = db.query(Contract).filter(
+        Contract.contract_id == payload.contract_id,
+        Contract.post_id == post_id,
+    ).first()
+    if not contract:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contract not found")
+
+    existing_tx = (
+        db.query(PaymentTransaction)
+        .join(PaymentSchedule, PaymentSchedule.schedule_id == PaymentTransaction.schedule_id)
+        .filter(
+            PaymentSchedule.contract_id == contract.contract_id,
+            PaymentTransaction.reference_number == payload.checkout_id,
+        )
+        .first()
+    )
+    if existing_tx:
+        return {
+            "message": "Payment already submitted and awaiting worker confirmation.",
+            "post_id": post_id,
+            "contract_id": contract.contract_id,
+            "status": "payment_pending",
+            "already_processed": True,
+        }
+
+    try:
+        checkout = await retrieve_checkout(payload.checkout_id)
+    except Exception as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    status_normalized = normalize_checkout_status(checkout)
+    if status_normalized != "paid":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Checkout is not paid yet (status: {status_normalized})."
+        )
+
+    try:
+        amount = Decimal(str(post.salary or 0)).quantize(Decimal("0.01"))
+    except Exception:
+        amount = Decimal("0.00")
+
+    if amount <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid payout amount. Please set a valid job budget first."
+        )
+
+    result = _record_short_term_payment_submission(
+        post=post,
+        contract=contract,
+        amount=float(amount),
+        payment_method="maya",
+        proof_url=None,
+        reference_number=payload.checkout_id,
+        db=db,
+    )
+
+    return {
+        "message": f"Payment to {result['worker_name']} submitted successfully. Waiting for worker confirmation.",
+        "post_id": post_id,
+        "contract_id": contract.contract_id,
+        "amount": float(amount),
+        "status": "payment_pending",
+        "all_paid": result["all_paid"],
+    }
+
+
 @router.post("/{post_id}/record-short-term-payment")
 def record_short_term_payment(
     post_id: int,
@@ -2892,8 +3408,6 @@ def record_short_term_payment(
     If contract_id is provided, records payment for that specific worker.
     Otherwise records for first contract (legacy behavior).
     """
-    from app.models_v2.contract import ContractStatus
-    
     # Check if job exists
     post = db.query(ForumPost).filter(ForumPost.post_id == post_id).first()
     if not post:
@@ -2924,85 +3438,23 @@ def record_short_term_payment(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No contract found for this job"
         )
-    
-    # Store payment proof on contract but DON'T mark as paid yet - worker must confirm first
-    contract.payment_proof_url = payment_data.proof_url
-    # For short-term flow, payment submission implies owner approved the completion
-    if contract.status == ContractStatus.PENDING_COMPLETION:
-        contract.status = ContractStatus.COMPLETED
-    # contract.paid_at will be set when worker confirms payment (don't set it here!)
-    
-    # Create a payment schedule entry for this short-term job
-    worker = db.query(Worker).filter(Worker.worker_id == contract.worker_id).first()
-    worker_user = db.query(User).filter(User.id == worker.user_id).first() if worker else None
-    worker_name = f"{worker_user.first_name} {worker_user.last_name}" if worker_user else "Worker"
-    
-    payment = PaymentSchedule(
-        contract_id=contract.contract_id,
-        due_date=func.now(),
+    result = _record_short_term_payment_submission(
+        post=post,
+        contract=contract,
         amount=payment_data.amount,
-        status=PaymentStatus.SENT,  # SENT = payment submitted, waiting for worker confirmation
-        worker_id=contract.worker_id,
-        worker_name=worker_name
-    )
-    
-    db.add(payment)
-    db.flush()  # Get the schedule_id
-    
-    # Create a transaction record with payment details
-    transaction = PaymentTransaction(
-        schedule_id=payment.schedule_id,
-        amount_paid=payment_data.amount,
-        payment_method=payment_data.payment_method,
+        payment_method=payment_data.payment_method or "cash",
+        proof_url=payment_data.proof_url,
         reference_number=payment_data.reference_number,
-        payment_proof_url=payment_data.proof_url,  # Match database column name
-        paid_at=func.now(),  # Match database column name
-        confirmed_at=None,  # Not confirmed yet
-        confirmed_by_worker=False
+        db=db,
     )
-    db.add(transaction)
-    
-    # Don't mark contract as paid yet - wait for worker confirmation
-    # contract.paid_at will be set when worker confirms
-    
-    # For short-term jobs, check if all payable workers have confirmed payment
-    payable_contracts = db.query(Contract).filter(
-        Contract.post_id == post_id,
-        Contract.status.in_([
-            ContractStatus.ACTIVE,
-            ContractStatus.PENDING_COMPLETION,
-            ContractStatus.COMPLETED,
-        ]),
-    ).all()
-    all_paid = bool(payable_contracts) and all(c.paid_at is not None for c in payable_contracts)
-    
-    if all_paid:
-        post.status = ForumPostStatus.COMPLETED
-        post.completed_at = func.now()
-    
-    db.commit()
-    
-    # Send notification to worker about payment submission (for review)
-    if worker and worker_user:
-        from app.services.notification_service import notify_user
-        from app.models_v2.notification import NotificationType
-        notify_user(
-            db=db,
-            user_id=worker_user.id,
-            notification_type=NotificationType.PAYMENT_REVIEW,
-            title="Payment Submitted - Review Required 💰",
-            message=f"Payment of ₱{payment_data.amount:,.2f} for '{post.title}' has been submitted. Please review and confirm.",
-            reference_type="job",
-            reference_id=post_id
-        )
     
     return {
-        "message": f"Payment to {worker_name} submitted successfully. Waiting for worker confirmation.",
+        "message": f"Payment to {result['worker_name']} submitted successfully. Waiting for worker confirmation.",
         "post_id": post_id,
         "contract_id": contract.contract_id,
         "amount": payment_data.amount,
         "status": "payment_pending",
-        "all_paid": all_paid,
+        "all_paid": result["all_paid"],
         "job_completed": False  # Not completed until worker confirms
     }
 

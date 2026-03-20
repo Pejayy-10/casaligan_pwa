@@ -21,6 +21,8 @@ export interface PaymentRequest {
   requireProof?: boolean;
   // Optional: allowed payment methods (defaults to all)
   allowedMethods?: PaymentMethod[];
+  // Optional: for non-cash methods, hand off to external gateway (e.g., Maya checkout)
+  onExternalGatewayPayment?: (method: Exclude<PaymentMethod, 'cash'>) => Promise<void>;
 }
 
 export interface PaymentResult {
@@ -48,16 +50,16 @@ export function usePayment() {
 // Payment method configurations
 const PAYMENT_METHODS: Record<PaymentMethod, { name: string; color: string; icon: string; description: string }> = {
   gcash: {
-    name: 'GCash',
+    name: 'GCash (via Maya Checkout)',
     color: '#007DFF',
     icon: 'G',
-    description: 'Digital wallet payment'
+    description: 'Redirects to Maya Checkout'
   },
   maya: {
-    name: 'Maya',
+    name: 'Online Payment (Maya Checkout)',
     color: '#00D632',
     icon: 'M',
-    description: 'Digital wallet payment'
+    description: 'Redirects to Maya Checkout'
   },
   cash: {
     name: 'Cash',
@@ -66,10 +68,10 @@ const PAYMENT_METHODS: Record<PaymentMethod, { name: string; color: string; icon
     description: 'Pay in person'
   },
   bank_transfer: {
-    name: 'Bank Transfer',
+    name: 'Bank Transfer (via Maya Checkout)',
     color: '#6B5B95',
     icon: '🏦',
-    description: 'Direct bank transfer'
+    description: 'Redirects to Maya Checkout'
   }
 };
 
@@ -143,8 +145,20 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const handleProceedToProof = () => {
+  const handleProceedToProof = async () => {
     if (!selectedMethod) return;
+
+    if (selectedMethod !== 'cash' && currentRequest?.onExternalGatewayPayment) {
+      try {
+        await currentRequest.onExternalGatewayPayment(selectedMethod as Exclude<PaymentMethod, 'cash'>);
+        setIsOpen(false);
+        setTimeout(resetState, 300);
+      } catch (error) {
+        console.error('External payment handoff failed:', error);
+        alert(error instanceof Error ? error.message : 'Unable to start digital payment');
+      }
+      return;
+    }
     
     if (currentRequest?.requireProof && selectedMethod !== 'cash') {
       setStep('proof');
@@ -181,6 +195,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
   };
 
   const allowedMethods = currentRequest?.allowedMethods || (['gcash', 'maya', 'cash', 'bank_transfer'] as PaymentMethod[]);
+  const hasAnyDigitalMethod = allowedMethods.some((method) => method !== 'cash');
 
   return (
     <PaymentContext.Provider value={{ initiatePayment, isPaymentModalOpen: isOpen }}>
@@ -337,7 +352,12 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
 
                   {/* Payment Methods */}
                   <div>
-                    <h3 className="text-[#4B244A] dark:text-white font-bold mb-3">Select Payment Method</h3>
+                    <h3 className="text-[#4B244A] dark:text-white font-bold mb-1">Select Payment Method</h3>
+                    {hasAnyDigitalMethod && (
+                      <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mb-3 font-medium">
+                        Note: Digital payments are processed through Maya Checkout.
+                      </p>
+                    )}
                     <div className="space-y-3">
                       {allowedMethods.map((method) => {
                         const config = PAYMENT_METHODS[method];
@@ -391,9 +411,11 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
                     className="w-full py-4 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white font-bold text-lg rounded-xl hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30 active:scale-95"
                   >
                     {selectedMethod 
-                      ? (currentRequest.requireProof && selectedMethod !== 'cash' 
+                      ? (selectedMethod !== 'cash' && !!currentRequest.onExternalGatewayPayment
+                          ? 'Proceed to Maya Checkout'
+                          : (currentRequest.requireProof && selectedMethod !== 'cash' 
                           ? `Continue with ${PAYMENT_METHODS[selectedMethod].name}` 
-                          : `Pay with ${PAYMENT_METHODS[selectedMethod].name}`)
+                          : `Pay with ${PAYMENT_METHODS[selectedMethod].name}`))
                       : 'Select Payment Method'}
                   </button>
                 </div>

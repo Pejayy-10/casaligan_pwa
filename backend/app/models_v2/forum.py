@@ -38,6 +38,12 @@ class ForumPost(Base):
     job_type = Column(SQLEnum(JobType, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False)
     salary = Column(Numeric, nullable=False)
     status = Column(SQLEnum(ForumPostStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=ForumPostStatus.OPEN)
+    post_fee_percentage = Column(Numeric(5, 2), nullable=False, default=7.00)
+    post_fee_amount = Column(Numeric(10, 2), nullable=False, default=0)
+    post_fee_status = Column(String(20), nullable=False, default="paid")  # pending, paid, failed, cancelled
+    post_fee_checkout_id = Column(String, nullable=True)
+    post_fee_reference = Column(String, nullable=True)
+    post_fee_paid_at = Column(DateTime(timezone=True), nullable=True)
     
     # Long-term job fields
     is_longterm = Column(Boolean, default=False)

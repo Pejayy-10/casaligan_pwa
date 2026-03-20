@@ -5,6 +5,7 @@ import { AlertTriangle, Upload, CheckCircle, DollarSign } from 'lucide-react';
 
 interface Payment {
   transaction_id: number;
+  schedule_id?: number;
   due_date: string;
   amount: number;
   status: 'pending' | 'sent' | 'confirmed' | 'overdue' | 'disputed';
@@ -103,17 +104,42 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
 
   // Handle payment using the unified payment system
   const handlePayment = (payment: Payment) => {
+    const scheduleId = payment.schedule_id || payment.transaction_id;
+
     initiatePayment({
       amount: payment.amount,
       title: `Job Payment - ${jobTitle}`,
       recipientName: payment.worker_name,
       description: `Scheduled payment due ${new Date(payment.due_date).toLocaleDateString()}`,
-      requireProof: true,
+      allowedMethods: ['maya', 'cash'],
+      requireProof: false,
+      onExternalGatewayPayment: async () => {
+        const token = localStorage.getItem('access_token');
+        const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/payments/${scheduleId}/initiate-payment`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ payment_method: 'maya' })
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.detail || 'Failed to start Maya payment');
+        }
+
+        if (result.checkout_id) {
+          localStorage.setItem(`long_term_checkout_${jobId}_${scheduleId}`, result.checkout_id);
+        }
+
+        window.location.href = result.redirect_url;
+      },
       onSuccess: async (paymentResult) => {
         try {
           const token = localStorage.getItem('access_token');
           const response = await fetch(
-            `${API_BASE_URL}/jobs/${jobId}/payments/${payment.transaction_id}/mark-sent`,
+            `${API_BASE_URL}/jobs/${jobId}/payments/${scheduleId}/mark-sent`,
             {
               method: 'PUT',
               headers: {
@@ -121,7 +147,7 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
                 'Authorization': `Bearer ${token}`
               },
               body: JSON.stringify({
-                payment_proof_url: paymentResult.proofUrl || null,
+                payment_proof_url: paymentResult.proofUrl,
                 payment_method: paymentResult.method,
                 reference_number: paymentResult.referenceNumber
               })

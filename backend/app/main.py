@@ -102,10 +102,22 @@ async def startup_event():
             "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS num_days INTEGER DEFAULT 1",
             "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS daily_start_time VARCHAR(10)",
             "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS daily_end_time VARCHAR(10)",
+            "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS post_fee_percentage NUMERIC(5,2) DEFAULT 7.00",
+            "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS post_fee_amount NUMERIC(10,2) DEFAULT 0",
+            "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS post_fee_status VARCHAR(20) DEFAULT 'paid'",
+            "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS post_fee_checkout_id VARCHAR",
+            "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS post_fee_reference VARCHAR",
+            "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS post_fee_paid_at TIMESTAMPTZ",
             "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS num_days INTEGER DEFAULT 1",
             "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS daily_start_time VARCHAR(10)",
             "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS daily_end_time VARCHAR(10)",
             "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS end_date DATE",
+            "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS platform_fee_percentage NUMERIC(5,2) DEFAULT 7.00",
+            "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS platform_fee_amount NUMERIC(10,2) DEFAULT 0",
+            "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS platform_fee_status VARCHAR(20) DEFAULT 'pending'",
+            "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS platform_fee_checkout_id VARCHAR",
+            "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS platform_fee_reference VARCHAR",
+            "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS platform_fee_paid_at TIMESTAMPTZ",
         ]
         with engine.connect() as conn:
             for sql in migrations:

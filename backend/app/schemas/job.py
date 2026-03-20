@@ -131,6 +131,12 @@ class JobPostResponse(BaseModel):
     category_ids: List[int] = []
     category_names: List[str] = []
     status: str
+    post_fee_percentage: float = 7.0
+    post_fee_amount: float = 0.0
+    post_fee_status: str = "paid"
+    post_fee_checkout_id: Optional[str] = None
+    post_fee_reference: Optional[str] = None
+    post_fee_paid_at: Optional[str] = None
     created_at: str
     payment_schedule: Optional[dict] = None  # Payment schedule data
     recurring_schedule: Optional[dict] = None  # Recurring schedule data
@@ -225,6 +231,12 @@ class JobPostResponse(BaseModel):
             category_ids=[cat.category_id for cat in post.categories] if hasattr(post, 'categories') and post.categories else [],
             category_names=[cat.name for cat in post.categories] if hasattr(post, 'categories') and post.categories else [],
             status=post.status.value if hasattr(post.status, 'value') else post.status,
+            post_fee_percentage=float(getattr(post, 'post_fee_percentage', 7.0) or 7.0),
+            post_fee_amount=float(getattr(post, 'post_fee_amount', 0.0) or 0.0),
+            post_fee_status=(getattr(post, 'post_fee_status', None) or 'paid'),
+            post_fee_checkout_id=getattr(post, 'post_fee_checkout_id', None),
+            post_fee_reference=getattr(post, 'post_fee_reference', None),
+            post_fee_paid_at=(post.post_fee_paid_at.isoformat() if getattr(post, 'post_fee_paid_at', None) else None),
             created_at=post.created_at.isoformat() if post.created_at else '',
             payment_schedule=custom_fields.get('payment_schedule'),
             recurring_schedule={

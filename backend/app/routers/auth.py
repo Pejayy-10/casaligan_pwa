@@ -1467,6 +1467,7 @@ def get_user_analytics(
     from app.models_v2.conversation import Conversation
     from app.models_v2.rating import Rating
     from app.models_v2.worker_employer import Worker, Employer
+    from app.models_v2.direct_hire import DirectHire, DirectHireStatus
     from sqlalchemy import and_, or_
     
     analytics = {}
@@ -1556,6 +1557,19 @@ def get_user_analytics(
                     total_earnings += float(amount)
                 except:
                     pass
+
+        # Include paid direct-hire earnings
+        paid_direct_hires = db.query(DirectHire).filter(
+            DirectHire.worker_id == worker_id,
+            DirectHire.status == DirectHireStatus.PAID,
+            DirectHire.paid_at.isnot(None)
+        ).all()
+
+        for hire in paid_direct_hires:
+            try:
+                total_earnings += float(hire.total_amount or 0)
+            except Exception:
+                pass
         
         analytics = {
             "jobs_applied": jobs_applied,

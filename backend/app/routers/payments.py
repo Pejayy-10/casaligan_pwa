@@ -2,12 +2,17 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
+from decimal import Decimal
+from datetime import timezone
 import json
+import os
+from datetime import date
 from app.db import get_db
 from app.models_v2.payment import PaymentSchedule, PaymentTransaction, PaymentStatus, PaymentFrequency
 from app.models_v2.user import User
 from app.routers.auth import get_current_user
 from app.services.notification_service import notify_payment_sent, notify_payment_received
+from app.services.maya_service import create_checkout, retrieve_checkout, normalize_checkout_status, maya_is_configured
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/jobs", tags=["payments"])
@@ -21,6 +26,37 @@ def _normalize_media_url(url: Optional[str]) -> Optional[str]:
         return url
     second_http = url.find("http", first_http + 4)
     return url[second_http:] if second_http != -1 else url
+
+
+def _coerce_to_datetime(value) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return None
+
+        try:
+            return datetime.fromisoformat(raw.replace('Z', '+00:00'))
+        except ValueError:
+            pass
+
+        try:
+            return datetime.strptime(raw[:10], '%Y-%m-%d')
+        except ValueError:
+            return None
+
+    return None
+
+
+def _as_comparable_naive(dt: datetime) -> datetime:
+    if dt.tzinfo is not None and dt.utcoffset() is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 
 # Pydantic schemas
@@ -44,13 +80,21 @@ class PaymentTransactionResponse(BaseModel):
 
 
 class MarkAsSentRequest(BaseModel):
-    payment_proof_url: str
+    payment_proof_url: Optional[str] = None
     payment_method: str
-    reference_number: str
+    reference_number: Optional[str] = None
 
 
 class ReportIssueRequest(BaseModel):
     dispute_reason: str
+
+
+class LongTermDigitalPaymentInitiateRequest(BaseModel):
+    payment_method: str = "maya"
+
+
+class LongTermDigitalPaymentVerifyRequest(BaseModel):
+    checkout_id: str
 
 
 # Helper function to generate payment schedules and transactions
@@ -256,16 +300,19 @@ async def get_my_payments(
     if not worker:
         raise HTTPException(status_code=403, detail="Worker profile not found")
     
-    # Get the contract for THIS worker on this job
-    contract = db.query(Contract).filter(
+    # Get ALL contracts for THIS worker on this job (can have legacy duplicates)
+    contracts = db.query(Contract).filter(
         Contract.post_id == job_id,
         Contract.worker_id == worker.worker_id
-    ).first()
-    if not contract:
+    ).all()
+    if not contracts:
         return []
     
-    # Get payment schedules for this contract
-    schedules = db.query(PaymentSchedule).filter(PaymentSchedule.contract_id == contract.contract_id).all()
+    contract_ids = [c.contract_id for c in contracts]
+    contract_by_id = {c.contract_id: c for c in contracts}
+
+    # Get payment schedules across all matching contracts
+    schedules = db.query(PaymentSchedule).filter(PaymentSchedule.contract_id.in_(contract_ids)).all()
     if not schedules:
         return []
     
@@ -302,13 +349,19 @@ async def get_my_payments(
         transaction = transaction_map.get(schedule.schedule_id)
         due_date_str = schedule.due_date if isinstance(schedule.due_date, str) else schedule.due_date.strftime('%Y-%m-%d')
         
+        schedule_contract = contract_by_id.get(schedule.contract_id)
+
         result.append(PaymentTransactionResponse(
             transaction_id=transaction.transaction_id if transaction else schedule.schedule_id,
             schedule_id=schedule.schedule_id,
             due_date=due_date_str,
             amount=float(schedule.amount) if schedule.amount else 0,
             status=schedule.status.value if hasattr(schedule.status, 'value') else str(schedule.status),
-            payment_proof_url=_normalize_media_url(transaction.payment_proof_url if transaction and transaction.payment_proof_url else contract.payment_proof_url),
+            payment_proof_url=_normalize_media_url(
+                transaction.payment_proof_url
+                if transaction and transaction.payment_proof_url
+                else (schedule_contract.payment_proof_url if schedule_contract else None)
+            ),
             payment_method=transaction.payment_method if transaction else None,
             reference_number=transaction.reference_number if transaction else None,
             sent_at=transaction.paid_at.isoformat() if transaction and transaction.paid_at else None,
@@ -398,6 +451,178 @@ async def mark_payment_as_sent(
             )
     
     return {"message": "Payment marked as sent successfully"}
+
+
+@router.post("/{job_id}/payments/{schedule_id}/initiate-payment")
+async def initiate_long_term_digital_payment(
+    job_id: int,
+    schedule_id: int,
+    payload: LongTermDigitalPaymentInitiateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from app.routers.jobs import ForumPost
+    from app.models_v2.worker_employer import Employer
+    from app.models_v2.contract import Contract
+
+    if payload.payment_method.lower() != "maya":
+        raise HTTPException(status_code=400, detail="Only maya is supported for digital long-term payout.")
+
+    job = db.query(ForumPost).filter(ForumPost.post_id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    employer = db.query(Employer).filter(Employer.employer_id == job.employer_id).first()
+    if not employer or employer.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    schedule = db.query(PaymentSchedule).filter(PaymentSchedule.schedule_id == schedule_id).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Payment schedule not found")
+
+    contract = db.query(Contract).filter(Contract.contract_id == schedule.contract_id).first()
+    if not contract or contract.post_id != job_id:
+        raise HTTPException(status_code=404, detail="Payment schedule not found for this job")
+
+    if schedule.status == PaymentStatus.CONFIRMED:
+        raise HTTPException(status_code=400, detail="This payment is already confirmed")
+
+    try:
+        amount = Decimal(str(schedule.amount or 0)).quantize(Decimal("0.01"))
+    except Exception:
+        amount = Decimal("0.00")
+
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Invalid payout amount")
+
+    if not maya_is_configured():
+        raise HTTPException(status_code=500, detail="Maya is not configured. Please set MAYA_PUBLIC_KEY and MAYA_SECRET_KEY.")
+
+    frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+    success_url = f"{frontend_base_url}/jobs?maya_long_payment_result=success&post_id={job_id}&schedule_id={schedule_id}"
+    failure_url = f"{frontend_base_url}/jobs?maya_long_payment_result=failure&post_id={job_id}&schedule_id={schedule_id}"
+    cancel_url = f"{frontend_base_url}/jobs?maya_long_payment_result=cancel&post_id={job_id}&schedule_id={schedule_id}"
+
+    reference_number = f"LONG-PAY-{job_id}-{schedule_id}-{int(datetime.now(timezone.utc).timestamp())}"
+
+    try:
+        checkout = await create_checkout(
+            amount=amount,
+            reference_number=reference_number,
+            success_url=success_url,
+            failure_url=failure_url,
+            cancel_url=cancel_url,
+            buyer_first_name=current_user.first_name,
+            buyer_last_name=current_user.last_name,
+            buyer_email=current_user.email,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    checkout_id = checkout.get("checkoutId")
+    redirect_url = checkout.get("redirectUrl")
+    if not checkout_id or not redirect_url:
+        raise HTTPException(status_code=502, detail="Maya checkout did not return checkoutId/redirectUrl.")
+
+    return {
+        "job_id": job_id,
+        "schedule_id": schedule_id,
+        "checkout_id": checkout_id,
+        "redirect_url": redirect_url,
+        "reference_number": reference_number,
+        "amount": float(amount),
+    }
+
+
+@router.post("/{job_id}/payments/{schedule_id}/verify")
+async def verify_long_term_digital_payment(
+    job_id: int,
+    schedule_id: int,
+    payload: LongTermDigitalPaymentVerifyRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from app.routers.jobs import ForumPost
+    from app.models_v2.worker_employer import Employer, Worker
+    from app.models_v2.contract import Contract
+
+    job = db.query(ForumPost).filter(ForumPost.post_id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    employer = db.query(Employer).filter(Employer.employer_id == job.employer_id).first()
+    if not employer or employer.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    schedule = db.query(PaymentSchedule).filter(PaymentSchedule.schedule_id == schedule_id).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Payment schedule not found")
+
+    contract = db.query(Contract).filter(Contract.contract_id == schedule.contract_id).first()
+    if not contract or contract.post_id != job_id:
+        raise HTTPException(status_code=404, detail="Payment schedule not found for this job")
+
+    existing_tx = db.query(PaymentTransaction).filter(
+        PaymentTransaction.schedule_id == schedule_id,
+        PaymentTransaction.reference_number == payload.checkout_id,
+    ).first()
+    if existing_tx and schedule.status in [PaymentStatus.SENT, PaymentStatus.CONFIRMED]:
+        return {
+            "message": "Payment already submitted and awaiting worker confirmation.",
+            "job_id": job_id,
+            "schedule_id": schedule_id,
+            "status": "payment_pending",
+            "already_processed": True,
+        }
+
+    try:
+        checkout = await retrieve_checkout(payload.checkout_id)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    payment_status = normalize_checkout_status(checkout)
+    if payment_status != "paid":
+        raise HTTPException(status_code=400, detail=f"Checkout is not paid yet (status: {payment_status}).")
+
+    transaction = db.query(PaymentTransaction).filter(PaymentTransaction.schedule_id == schedule_id).first()
+    if not transaction:
+        transaction = PaymentTransaction(
+            schedule_id=schedule_id,
+            amount_paid=schedule.amount,
+            payment_proof_url=None,
+            payment_method="maya",
+            reference_number=payload.checkout_id,
+            paid_at=datetime.now()
+        )
+        db.add(transaction)
+    else:
+        transaction.payment_proof_url = transaction.payment_proof_url
+        transaction.payment_method = "maya"
+        transaction.reference_number = payload.checkout_id
+        transaction.paid_at = datetime.now()
+
+    if schedule.status != PaymentStatus.CONFIRMED:
+        schedule.status = PaymentStatus.SENT
+
+    db.commit()
+
+    if schedule.worker_id:
+        worker = db.query(Worker).filter(Worker.worker_id == schedule.worker_id).first()
+        if worker:
+            notify_payment_sent(
+                db=db,
+                worker_user_id=worker.user_id,
+                job_title=job.title,
+                amount=float(schedule.amount) if schedule.amount else 0,
+                post_id=job_id
+            )
+
+    return {
+        "message": "Payment submitted successfully. Waiting for housekeeper confirmation.",
+        "job_id": job_id,
+        "schedule_id": schedule_id,
+        "status": "payment_pending",
+    }
 
 
 @router.put("/{job_id}/payments/{identifier}/confirm")
@@ -493,9 +718,9 @@ async def confirm_payment_received(
             recurring_frequency = job.frequency or payment_schedule_data.get('frequency', 'weekly')
             
             # Calculate next payment due date based on frequency
-            current_due_date = datetime.strptime(schedule.due_date, '%Y-%m-%d') if isinstance(schedule.due_date, str) else schedule.due_date
-            if isinstance(current_due_date, str):
-                current_due_date = datetime.strptime(current_due_date, '%Y-%m-%d')
+            current_due_date = _coerce_to_datetime(schedule.due_date)
+            if current_due_date is None:
+                raise HTTPException(status_code=400, detail="Invalid payment due date format")
             
             next_due_date = current_due_date
             
@@ -516,14 +741,9 @@ async def confirm_payment_received(
             # Check if we should create next payment (check end_date if exists)
             should_create_next = True
             if job.end_date:
-                try:
-                    end_date = datetime.strptime(job.end_date, '%Y-%m-%d') if isinstance(job.end_date, str) else job.end_date
-                    if isinstance(end_date, str):
-                        end_date = datetime.strptime(end_date, '%Y-%m-%d')
-                    if next_due_date > end_date:
-                        should_create_next = False
-                except:
-                    pass
+                end_date = _coerce_to_datetime(job.end_date)
+                if end_date and _as_comparable_naive(next_due_date) > _as_comparable_naive(end_date):
+                    should_create_next = False
             
             # Check if next payment schedule already exists
             existing_next = db.query(PaymentSchedule).filter(

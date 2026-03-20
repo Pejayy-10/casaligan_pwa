@@ -34,6 +34,12 @@ class DirectHire(Base):
     
     # Pricing
     total_amount = Column(Numeric(10, 2), nullable=False)
+    platform_fee_percentage = Column(Numeric(5, 2), nullable=False, default=7.00)
+    platform_fee_amount = Column(Numeric(10, 2), nullable=False, default=0)
+    platform_fee_status = Column(String(20), nullable=False, default="pending")  # pending, paid, failed, cancelled
+    platform_fee_checkout_id = Column(String, nullable=True)
+    platform_fee_reference = Column(String, nullable=True)
+    platform_fee_paid_at = Column(DateTime(timezone=True), nullable=True)
     
     # Scheduling
     scheduled_date = Column(Date, nullable=False)

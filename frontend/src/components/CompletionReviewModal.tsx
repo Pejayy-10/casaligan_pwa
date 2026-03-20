@@ -86,20 +86,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
         // For short-term jobs, if worker is not paid yet, open payment modal after approval.
         if (details?.duration_type === 'short_term' && !worker.paid_at) {
           setProcessingWorker(null);
-          initiatePayment({
-            title: jobTitle,
-            amount: details?.budget || 0,
-            description: `Payment for ${jobTitle}`,
-            recipientName: worker.worker_name,
-            requireProof: true,
-            onSuccess: async (paymentData) => {
-              await handleConfirmPayment(worker, paymentData);
-            },
-            onCancel: () => {
-              // Just reload details to show the approved status
-              loadDetails();
-            }
-          });
+          startShortTermPaymentFlow(worker);
           return;
         }
         
@@ -157,6 +144,48 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
     } finally {
       setProcessingWorker(null);
     }
+  };
+
+  const startShortTermPaymentFlow = (worker: WorkerCompletion) => {
+    initiatePayment({
+      title: jobTitle,
+      amount: details?.budget || 0,
+      description: `Payment for ${jobTitle}`,
+      recipientName: worker.worker_name,
+      requireProof: false,
+      allowedMethods: ['maya', 'cash'],
+      onExternalGatewayPayment: async () => {
+        const token = localStorage.getItem('access_token');
+        const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/short-term-payment/initiate-payment`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            contract_id: worker.contract_id,
+            payment_method: 'maya'
+          })
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.detail || 'Failed to start Maya payment');
+        }
+
+        if (result.checkout_id) {
+          localStorage.setItem(`short_term_checkout_${jobId}_${worker.contract_id}`, result.checkout_id);
+        }
+
+        window.location.href = result.redirect_url;
+      },
+      onSuccess: async (paymentData) => {
+        await handleConfirmPayment(worker, paymentData);
+      },
+      onCancel: () => {
+        loadDetails();
+      }
+    });
   };
 
   const getWorkerStatusBadge = (worker: WorkerCompletion) => {
@@ -311,17 +340,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                           {worker.status === 'completed' && !worker.paid_at && !worker.payment_proof_url && details.duration_type === 'short_term' && (
                             <button
                               onClick={() => {
-                                initiatePayment({
-                                  title: jobTitle,
-                                  amount: details?.budget || 0,
-                                  description: `Payment for ${jobTitle}`,
-                                  recipientName: worker.worker_name,
-                                  requireProof: true,
-                                  onSuccess: async (paymentData) => {
-                                    await handleConfirmPayment(worker, paymentData);
-                                  },
-                                  onCancel: () => {}
-                                });
+                                startShortTermPaymentFlow(worker);
                               }}
                               disabled={processingWorker === worker.contract_id}
                               className="w-full py-2 bg-[#EA526F] text-white font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-1"

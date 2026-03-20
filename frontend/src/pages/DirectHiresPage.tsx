@@ -20,6 +20,14 @@ export default function DirectHiresPage() {
 
   if (!user) return null;
 
+  const handleBack = () => {
+    if (user.active_role === 'housekeeper') {
+      navigate('/jobs?view=my-jobs');
+      return;
+    }
+    navigate('/dashboard');
+  };
+
   return (
     <div className="min-h-screen bg-[#F4F2F0] dark:bg-slate-950 transition-colors duration-300 pb-24 relative font-sans">
       {/* Decorative Background Elements */}
@@ -33,7 +41,7 @@ export default function DirectHiresPage() {
         <div className="max-w-4xl mx-auto px-4 py-3 space-y-4">
           <div className="flex items-center gap-3">
           <button 
-            onClick={() => navigate(-1)} 
+            onClick={handleBack} 
             className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-600 dark:text-white transition-colors active:scale-95"
           >
           <ChevronDown className="w-6 h-6 rotate-90" />

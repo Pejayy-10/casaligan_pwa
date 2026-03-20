@@ -5,6 +5,7 @@ import { Clock, RotateCw, FileText, CheckCircle, CreditCard, ClipboardList, Cale
 import RatingModal from './RatingModal';
 import DailyCompletionModal from './DailyCompletionModal';
 import ReferHousekeeperModal from './ReferHousekeeperModal';
+import DirectHireReceiptModal from './DirectHireReceiptModal';
 import apiClient from '../services/api';
 import { usePayment } from '../context/PaymentContext';
 
@@ -31,6 +32,12 @@ interface DirectHire {
   package_ids: number[];
   packages: Package[];
   total_amount: number;
+  platform_fee_percentage?: number;
+  platform_fee_amount?: number;
+  platform_fee_status?: string;
+  platform_fee_checkout_id?: string | null;
+  platform_fee_reference?: string | null;
+  platform_fee_paid_at?: string | null;
   scheduled_date: string;
   scheduled_time: string | null;
   address_street: string | null;
@@ -82,6 +89,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
   const { initiatePayment } = usePayment();
   const [hires, setHires] = useState<DirectHire[]>([]);
   const [loading, setLoading] = useState(true);
+  const [verifyingFee, setVerifyingFee] = useState(false);
   const [selectedHire, setSelectedHire] = useState<DirectHire | null>(null);
   const [processing, setProcessing] = useState(false);
   
@@ -115,9 +123,87 @@ export default function DirectHiresList({ role, onClose }: Props) {
   // Refer housekeeper state
   const [showReferModal, setShowReferModal] = useState(false);
   const [referHire, setReferHire] = useState<DirectHire | null>(null);
+  const [showReceiptHireId, setShowReceiptHireId] = useState<number | null>(null);
 
   useEffect(() => {
     loadHires();
+  }, [role]);
+
+  useEffect(() => {
+    const verifyMayaReturn = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const hireId = params.get('hire_id');
+      if (!hireId) return;
+
+      const housekeeperMayaResult = params.get('maya_result');
+      const ownerMayaResult = params.get('maya_owner_result');
+      const mayaResult = role === 'housekeeper' ? housekeeperMayaResult : ownerMayaResult;
+      if (!mayaResult) return;
+
+      const checkoutKey = role === 'housekeeper'
+        ? `direct_hire_checkout_${hireId}`
+        : `direct_hire_owner_checkout_${hireId}`;
+      const checkoutId = params.get('checkout_id') || localStorage.getItem(checkoutKey);
+      const returnAttemptKey = `direct_hire_verify_attempt_${role}_${hireId}_${mayaResult}_${checkoutId || 'missing'}`;
+
+      const clearUrlParams = () => {
+        const cleanPath = window.location.pathname;
+        window.history.replaceState({}, '', cleanPath);
+      };
+
+      if (sessionStorage.getItem(returnAttemptKey) === '1') {
+        clearUrlParams();
+        return;
+      }
+      sessionStorage.setItem(returnAttemptKey, '1');
+
+      if (mayaResult !== 'success') {
+        alert('Maya payment was not completed. You can try again.');
+        clearUrlParams();
+        await loadHires();
+        return;
+      }
+
+      if (!checkoutId) {
+        alert('Unable to verify payment: missing checkout ID. Please retry payment.');
+        clearUrlParams();
+        return;
+      }
+
+      try {
+        setVerifyingFee(true);
+        const token = localStorage.getItem('access_token');
+        const verifyEndpoint = role === 'housekeeper'
+          ? `${API_BASE_URL}/direct-hire/${hireId}/accept/verify`
+          : `${API_BASE_URL}/direct-hire/${hireId}/owner-payment/verify`;
+
+        const response = await fetch(verifyEndpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ checkout_id: checkoutId })
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          alert(result.detail || 'Failed to verify Maya payment');
+        } else {
+          alert(result.message || 'Payment verified successfully');
+          localStorage.removeItem(checkoutKey);
+        }
+      } catch (error) {
+        console.error('Maya verify error:', error);
+        alert('Failed to verify Maya payment');
+      } finally {
+        setVerifyingFee(false);
+        clearUrlParams();
+        await loadHires();
+      }
+    };
+
+    verifyMayaReturn();
   }, [role]);
 
   // Check which hires have already been rated
@@ -217,7 +303,31 @@ export default function DirectHiresList({ role, onClose }: Props) {
       title: `Payment for Direct Hire #${hire.hire_id}`,
       recipientName: hire.worker_name,
       description: `Payment for ${hire.packages.map(p => p.name).join(', ')}`,
-      requireProof: true, // Force payment proof upload and reference number
+      requireProof: false,
+      allowedMethods: ['maya', 'cash'],
+      onExternalGatewayPayment: async (method) => {
+        const token = localStorage.getItem('access_token');
+        const response = await fetch(`${API_BASE_URL}/direct-hire/${hire.hire_id}/owner-payment/initiate`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ payment_method: method })
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.detail || 'Unable to start Maya payment');
+        }
+
+        if (!result.redirect_url || !result.checkout_id) {
+          throw new Error('Maya checkout response is incomplete');
+        }
+
+        localStorage.setItem(`direct_hire_owner_checkout_${hire.hire_id}`, String(result.checkout_id));
+        window.location.href = String(result.redirect_url);
+      },
       onSuccess: async (paymentResult) => {
         try {
           const token = localStorage.getItem('access_token');
@@ -303,6 +413,40 @@ export default function DirectHiresList({ role, onClose }: Props) {
     }
   };
 
+  const handleAcceptWithMayaFee = async (hire: DirectHire) => {
+    try {
+      setProcessing(true);
+      const token = localStorage.getItem('access_token');
+
+      const response = await fetch(`${API_BASE_URL}/direct-hire/${hire.hire_id}/accept/initiate-payment`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        alert(result.detail || 'Unable to start Maya payment');
+        return;
+      }
+
+      if (!result.redirect_url || !result.checkout_id) {
+        alert('Maya checkout response is incomplete');
+        return;
+      }
+
+      localStorage.setItem(`direct_hire_checkout_${hire.hire_id}`, String(result.checkout_id));
+      window.location.href = String(result.redirect_url);
+    } catch (error) {
+      console.error('Initiate Maya error:', error);
+      alert('Unable to start Maya payment');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     const badges: Record<string, { text: JSX.Element; class: string }> = {
       pending: { text: <><Clock className="inline w-3 h-3 mr-1" /> Pending</>, class: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300' },
@@ -316,6 +460,16 @@ export default function DirectHiresList({ role, onClose }: Props) {
       cancelled: { text: <><X className="inline w-3 h-3 mr-1" /> Cancelled</>, class: 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300' }
     };
     return badges[status] || { text: <>{status}</>, class: 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300' };
+  };
+
+  const formatPaymentMethodLabel = (method: string | null | undefined) => {
+    const normalized = (method || '').toLowerCase();
+    if (normalized === 'cash') return 'Cash';
+    if (normalized === 'maya') return 'Maya Checkout';
+    if (normalized === 'gcash') return 'GCash via Maya Checkout';
+    if (normalized === 'bank_transfer') return 'Bank Transfer via Maya Checkout';
+    if (!normalized) return '';
+    return normalized.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
   };
 
   // Message button - only show for active hire statuses
@@ -452,21 +606,35 @@ export default function DirectHiresList({ role, onClose }: Props) {
                 disabled={processing}
                 className="px-3 py-1 bg-[#EA526F] text-white text-sm rounded-lg hover:bg-[#d64460] font-semibold shadow-sm disabled:opacity-50"
               >
-                Pay Now
+                Pay (Maya/Cash)
               </button>
               {messageButton}
             </div>
           );
         case 'payment_pending':
           return (
-            <div className="text-blue-600 dark:text-blue-300 text-sm font-medium">
-              <Clock className="inline w-4 h-4 mr-1" /> Waiting for worker to confirm payment
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-blue-600 dark:text-blue-300 text-sm font-medium">
+                <Clock className="inline w-4 h-4 mr-1" /> Waiting for worker to confirm payment
+              </div>
+              <button
+                onClick={() => setShowReceiptHireId(hire.hire_id)}
+                className="px-3 py-1 bg-[#4B244A] text-white text-sm rounded-lg hover:bg-[#361a35] font-semibold shadow-sm"
+              >
+                View Receipt
+              </button>
             </div>
           );
         case 'paid':
           // Show Rate button if not already rated, plus Refer button
           return (
             <div className="space-y-2">
+              <button
+                onClick={() => setShowReceiptHireId(hire.hire_id)}
+                className="w-full px-3 py-1 bg-[#4B244A] text-white text-sm rounded-lg hover:bg-[#361a35] font-semibold shadow-sm"
+              >
+                View Receipt
+              </button>
               {!ratedHires.has(hire.hire_id) ? (
                 <button
                   onClick={() => {
@@ -501,15 +669,15 @@ export default function DirectHiresList({ role, onClose }: Props) {
           return (
             <div className="flex gap-2">
               <button
-                onClick={() => handleAction(hire, 'accept')}
-                disabled={processing}
+                onClick={() => handleAcceptWithMayaFee(hire)}
+                disabled={processing || verifyingFee}
                 className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm disabled:opacity-50 flex items-center gap-1"
               >
-                {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Accept
+                {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Accept & Pay 7%
               </button>
               <button
                 onClick={() => handleAction(hire, 'reject')}
-                disabled={processing}
+                disabled={processing || verifyingFee}
                 className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 font-semibold disabled:opacity-50 flex items-center gap-1"
               >
                 {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Reject
@@ -593,6 +761,18 @@ export default function DirectHiresList({ role, onClose }: Props) {
                 className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm disabled:opacity-50 flex items-center gap-1"
               >
                 {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : '✓'} Confirm Payment Received
+              </button>
+              {messageButton}
+            </div>
+          );
+        case 'paid':
+          return (
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setShowReceiptHireId(hire.hire_id)}
+                className="px-3 py-1 bg-[#4B244A] text-white text-sm rounded-lg hover:bg-[#361a35] font-semibold shadow-sm"
+              >
+                View Receipt
               </button>
               {messageButton}
             </div>
@@ -702,6 +882,18 @@ export default function DirectHiresList({ role, onClose }: Props) {
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                       <div className="text-xl font-bold text-[#EA526F]">
                         ₱{hire.total_amount.toLocaleString()}
+                        {role === 'housekeeper' && hire.status === 'pending' && (
+                          <div className="text-xs font-medium text-[#4B244A]/70 dark:text-white/70 mt-1">
+                            Platform fee (7%): ₱{Number(hire.platform_fee_amount || (hire.total_amount * 0.07)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </div>
+                        )}
+                        {role === 'housekeeper' && hire.payment_method && (
+                          <div className="mt-2">
+                            <span className="inline-flex items-center px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 text-xs rounded-full font-bold">
+                              💳 Payment Source: {formatPaymentMethodLabel(hire.payment_method)}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                         {renderActionButtons(hire)}
@@ -969,6 +1161,13 @@ export default function DirectHiresList({ role, onClose }: Props) {
           onClose={() => { setShowReferModal(false); setReferHire(null); }}
           workerId={referHire.worker_id}
           workerName={referHire.worker_name}
+        />
+      )}
+
+      {showReceiptHireId !== null && (
+        <DirectHireReceiptModal
+          hireId={showReceiptHireId}
+          onClose={() => setShowReceiptHireId(null)}
         />
       )}
     </div>

@@ -36,7 +36,16 @@ class PaymentSchedule(Base):
     # Individual payment due date and amount
     due_date = Column(String, nullable=False)  # YYYY-MM-DD
     amount = Column(Numeric, nullable=False)
-    status = Column(SQLEnum(PaymentStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=PaymentStatus.PENDING)
+    status = Column(
+        SQLEnum(
+            PaymentStatus,
+            name="payment_status",
+            native_enum=True,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        nullable=False,
+        default=PaymentStatus.PENDING,
+    )
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
