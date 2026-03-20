@@ -953,6 +953,7 @@ def confirm_payment_received(
 @router.get("/workers", response_model=List[dict])
 def browse_workers(
     city: Optional[str] = None,
+    name: Optional[str] = None,
     min_rating: Optional[float] = None,
     sort_by: Optional[str] = None,  # "rating", "jobs_completed", "location"
     employer_city: Optional[str] = None,
@@ -1004,6 +1005,15 @@ def browse_workers(
         # Filter by city if specified
         if city and address and address.city_name and address.city_name.lower() != city.lower():
             continue
+
+        # Filter by name if specified (first name, last name, or full name)
+        if name:
+            full_name = f"{user.first_name or ''} {user.last_name or ''}".strip().lower()
+            name_lower = name.strip().lower()
+            if name_lower not in full_name and \
+               name_lower not in (user.first_name or '').lower() and \
+               name_lower not in (user.last_name or '').lower():
+                continue
         
         # Get rating summary for this worker
         ratings = db.query(Rating).filter(Rating.target_user_id == user.id).all()

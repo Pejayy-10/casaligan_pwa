@@ -49,6 +49,7 @@ export default function BrowseWorkersPage() {
   const [selectedCategory, setSelectedCategory] = useState<number | ''>('');
   const [loading, setLoading] = useState(true);
   const [searchCity, setSearchCity] = useState('');
+  const [searchName, setSearchName] = useState('');
   const [minRating, setMinRating] = useState<number | ''>('');
   const [sortBy, setSortBy] = useState<string>('');
   
@@ -273,11 +274,12 @@ export default function BrowseWorkersPage() {
     }
   };
 
-  const loadWorkers = async (city?: string, rating?: number, sort?: string) => {
+  const loadWorkers = async (city?: string, rating?: number, sort?: string, name?: string) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (city) params.append('city', city);
+      if (name) params.append('name', name);
       if (rating) params.append('min_rating', rating.toString());
       if (sort) params.append('sort_by', sort);
       
@@ -329,7 +331,8 @@ export default function BrowseWorkersPage() {
     loadWorkers(
       searchCity.trim() || undefined, 
       minRating || undefined,
-      sortBy || undefined
+      sortBy || undefined,
+      searchName.trim() || undefined
     );
   };
 
@@ -339,7 +342,8 @@ export default function BrowseWorkersPage() {
     loadWorkers(
       searchCity.trim() || undefined,
       newRating || undefined,
-      newSort || undefined
+      newSort || undefined,
+      searchName.trim() || undefined
     );
   };
 
@@ -568,18 +572,33 @@ export default function BrowseWorkersPage() {
               {/* Bottom Row: Search & Filters */}
               <div className="space-y-3 pt-1">
                   {/* Search Input - Uniform Height */}
-                  <div className="relative group">
-                      <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                          <Search className="h-4 w-4 text-gray-400 group-focus-within:text-[#EA526F] transition-colors" />
+                  <div className="flex gap-2">
+                      <div className="relative group flex-1">
+                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                              <Search className="h-4 w-4 text-gray-400 group-focus-within:text-[#EA526F] transition-colors" />
+                          </div>
+                          <input
+                              type="text"
+                              value={searchName}
+                              onChange={(e) => setSearchName(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                              className="block w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] transition-all"
+                              placeholder="Search by name..."
+                          />
                       </div>
-                      <input
-                          type="text"
-                          value={searchCity}
-                          onChange={(e) => setSearchCity(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                          className="block w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] transition-all"
-                          placeholder="Search city or area..."
-                      />
+                      <div className="relative group flex-1">
+                          <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                              <MapPin className="h-4 w-4 text-gray-400 group-focus-within:text-[#EA526F] transition-colors" />
+                          </div>
+                          <input
+                              type="text"
+                              value={searchCity}
+                              onChange={(e) => setSearchCity(e.target.value)}
+                              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                              className="block w-full pl-10 pr-4 py-2.5 bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 rounded-xl text-sm text-gray-900 dark:text-white placeholder-gray-400 shadow-sm focus:outline-none focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] transition-all"
+                              placeholder="Search city or area..."
+                          />
+                      </div>
                   </div>
       
                   {/* Scrollable Filters - Customized Dropdown Look */}
@@ -650,7 +669,7 @@ export default function BrowseWorkersPage() {
                     : "There are no housekeepers in this area yet."}
                 </p>
                 <button 
-                    onClick={() => { setSelectedCategory(''); setSearchCity(''); }}
+                    onClick={() => { setSelectedCategory(''); setSearchCity(''); setSearchName(''); }}
                     className="mt-4 text-[#EA526F] font-bold text-sm hover:underline"
                 >
                     Clear all filters
