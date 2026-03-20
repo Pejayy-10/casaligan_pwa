@@ -158,7 +158,7 @@ export const authService = {
     return response.data;
   },
 
-  async updateProfile(data: { first_name?: string; middle_name?: string; last_name?: string; suffix?: string; profile_picture?: string; email?: string; phone_number?: string }): Promise<UserProfile> {
+  async updateProfile(data: { first_name?: string; middle_name?: string; last_name?: string; suffix?: string; profile_picture?: string; email?: string; phone_number?: string; bio?: string }): Promise<UserProfile> {
     const response = await apiClient.put<UserProfile>('/auth/profile', data);
     const updatedUser = response.data;
     localStorage.setItem('user', JSON.stringify(updatedUser));

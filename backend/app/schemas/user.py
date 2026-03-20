@@ -77,6 +77,7 @@ class UserUpdate(BaseModel):
     profile_picture: Optional[str] = None
     email: Optional[str] = None
     phone_number: Optional[str] = None
+    bio: Optional[str] = None
 
     @field_validator("email", mode="before")
     @classmethod
@@ -124,6 +125,7 @@ class UserResponse(UserBase):
     age: Optional[int] = None
     email_verified: Optional[bool] = None  # None = grandfathered user, False = unverified, True = verified
     phone_verified: Optional[bool] = None  # None = pre-housekeeper flow, True = verified
+    bio: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
     

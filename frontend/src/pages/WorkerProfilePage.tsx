@@ -39,6 +39,7 @@ interface WorkerProfile {
   user_id: number;
   first_name: string;
   last_name: string;
+  bio?: string | null;
   profile_picture?: string | null;
   phone_masked: string | null;
   email_masked: string | null;
@@ -505,6 +506,13 @@ export default function WorkerProfilePage() {
               Full contact details will be shared after booking confirmation
             </p>
           </div>
+
+          {profile.bio && (
+            <div className="mt-4 bg-white/40 dark:bg-white/5 rounded-xl p-4 border border-white/40 dark:border-white/10">
+              <h4 className="text-[#4B244A] dark:text-white font-bold text-sm mb-2">📝 Bio</h4>
+              <p className="text-sm text-[#4B244A]/80 dark:text-white/80 whitespace-pre-wrap">{profile.bio}</p>
+            </div>
+          )}
         </div>
 
         {/* Portfolio Section */}

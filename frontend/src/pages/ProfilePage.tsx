@@ -67,6 +67,7 @@ export default function ProfilePage() {
   // Email & phone edit state
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editBio, setEditBio] = useState('');
 
   // OTP verification modal state
   const [showEmailOtp, setShowEmailOtp] = useState(false);
@@ -89,6 +90,7 @@ export default function ProfilePage() {
     setEditEmail(user.email);
     // Strip +63 prefix for display
     setEditPhone(user.phone_number?.startsWith('+63') ? user.phone_number.slice(3) : user.phone_number || '');
+    setEditBio(user.bio || '');
     setEditProfilePic(user.profile_picture);
     setPreviewPic(null);
     setSelectedFile(null);
@@ -161,7 +163,7 @@ export default function ProfilePage() {
         pictureUrl = await authService.uploadProfilePicture(selectedFile);
       }
 
-      const updates: { first_name?: string; middle_name?: string; last_name?: string; suffix?: string; profile_picture?: string; email?: string; phone_number?: string } = {};
+      const updates: { first_name?: string; middle_name?: string; last_name?: string; suffix?: string; profile_picture?: string; email?: string; phone_number?: string; bio?: string } = {};
       if (editFirstName.trim() !== user.first_name) updates.first_name = editFirstName.trim();
       if (editMiddleName.trim() !== (user.middle_name || '')) updates.middle_name = editMiddleName.trim();
       if (editLastName.trim() !== user.last_name) updates.last_name = editLastName.trim();
@@ -169,6 +171,7 @@ export default function ProfilePage() {
       if (pictureUrl !== user.profile_picture) updates.profile_picture = pictureUrl;
       if (emailChanged) updates.email = emailLower;
       if (phoneChanged) updates.phone_number = fullPhone;
+      if (user.is_housekeeper && editBio.trim() !== (user.bio || '').trim()) updates.bio = editBio.trim();
 
       if (Object.keys(updates).length === 0) {
         setShowEditProfile(false);
@@ -699,6 +702,13 @@ export default function ProfilePage() {
                           </p>
                         )}
                     </div>
+
+                    {user.is_housekeeper && user.bio && (
+                      <div className="mt-4 p-3 rounded-xl bg-white/50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-left">
+                        <p className="text-xs font-bold uppercase tracking-wide text-[#4B244A]/60 dark:text-white/60 mb-1">Bio</p>
+                        <p className="text-sm text-[#4B244A]/80 dark:text-white/80 whitespace-pre-wrap">{user.bio}</p>
+                      </div>
+                    )}
                 </div>
             </div>
         </div>
@@ -1029,6 +1039,21 @@ export default function ProfilePage() {
                   placeholder="e.g. Jr., Sr., III (optional)"
                 />
               </div>
+
+              {user.is_housekeeper && (
+                <div>
+                  <label className="block text-sm font-bold text-[#4B244A] dark:text-white mb-2">Bio</label>
+                  <textarea
+                    value={editBio}
+                    onChange={(e) => setEditBio(e.target.value)}
+                    rows={4}
+                    maxLength={500}
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]/50 focus:border-[#EA526F] transition-all text-sm"
+                    placeholder="Tell house owners about your experience, specialties, and work style."
+                  />
+                  <p className="mt-1 text-xs text-[#4B244A]/60 dark:text-white/60 text-right">{editBio.length}/500</p>
+                </div>
+              )}
 
               {/* Divider */}
               <div className="border-t border-gray-200 dark:border-white/10 pt-2">

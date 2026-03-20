@@ -1276,6 +1276,7 @@ def get_worker_profile(
         "user_id": user.id,
         "first_name": user.first_name,
         "last_name": user.last_name,
+        "bio": worker.bio,
         "profile_picture": user.profile_picture,
         "phone_masked": phone_masked,
         "email_masked": user.email.split('@')[0][:3] + "***@" + user.email.split('@')[1] if '@' in user.email else None,

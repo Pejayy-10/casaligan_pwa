@@ -23,6 +23,7 @@ export interface User {
   created_at: string;
   email_verified?: boolean | null;
   phone_verified?: boolean | null;
+  bio?: string | null;
   address?: Address;
   documents?: UserDocument[];
 }

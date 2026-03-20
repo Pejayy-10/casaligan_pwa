@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, type JSX } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { Clock, RotateCw, FileText, CheckCircle, CreditCard, ClipboardList, Calendar, X, Star, Briefcase, Loader2, Cross, MapPin } from 'lucide-react';
+import { Clock, RotateCw, FileText, CheckCircle, CreditCard, ClipboardList, Calendar, X, Star, Briefcase, Loader2, Cross, MapPin, User } from 'lucide-react';
 import RatingModal from './RatingModal';
 import DailyCompletionModal from './DailyCompletionModal';
 import apiClient from '../services/api';
@@ -611,6 +611,14 @@ export default function DirectHiresList({ role, onClose }: Props) {
                         <h4 className="text-lg font-bold text-[#4B244A] dark:text-white">
                           {role === 'owner' ? hire.worker_name : hire.employer_name}
                         </h4>
+                        {role === 'owner' && (
+                          <button
+                            onClick={() => navigate(`/worker/${hire.worker_id}?from=direct-hire`)}
+                            className="mt-1 px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 text-xs rounded-lg hover:bg-blue-200 dark:hover:bg-blue-500/30 font-semibold flex items-center gap-1"
+                          >
+                            <User className="w-3 h-3" /> View Profile
+                          </button>
+                        )}
                         <p className="text-[#4B244A]/60 dark:text-white/60 text-sm font-medium">
                           <Calendar className="inline w-4 h-4 mr-1"></Calendar> {new Date(hire.scheduled_date).toLocaleDateString()}
                           {hire.scheduled_time && ` at ${hire.scheduled_time}`}

@@ -547,8 +547,13 @@ def login(login_data: LoginRequest, db: Session = Depends(get_db)):
     )
 
 @router.get("/me", response_model=UserProfileResponse)
-def get_current_user_profile(current_user: User = Depends(get_current_user)):
+def get_current_user_profile(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     """Get current user's profile with address"""
+    worker = db.query(Worker).filter(Worker.user_id == current_user.id).first()
+    setattr(current_user, "bio", worker.bio if worker else None)
     return current_user
 
 
@@ -603,12 +608,29 @@ def update_profile(
     elif "phone_number" in data:
         data.pop("phone_number")  # Same phone, skip
 
+    bio_value = data.pop("bio", None) if "bio" in data else None
+
     for key, value in data.items():
         setattr(current_user, key, value)
+
+    if "bio" in update_data.model_fields_set:
+        if not current_user.is_housekeeper:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only housekeepers can update bio"
+            )
+
+        worker = db.query(Worker).filter(Worker.user_id == current_user.id).first()
+        if not worker:
+            worker = Worker(user_id=current_user.id)
+            db.add(worker)
+        worker.bio = bio_value.strip() if isinstance(bio_value, str) else None
 
     current_user.updated_at = func.now()
     db.commit()
     db.refresh(current_user)
+    worker = db.query(Worker).filter(Worker.user_id == current_user.id).first()
+    setattr(current_user, "bio", worker.bio if worker else None)
     return current_user
 
 
