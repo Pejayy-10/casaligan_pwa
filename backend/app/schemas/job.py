@@ -1,9 +1,37 @@
 """
 Job posting schemas based on ForumPost model
 """
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List
 from datetime import date, datetime
+
+
+def _parse_hhmm(value: Optional[str]) -> Optional[int]:
+    """Parse HH:MM into minutes since midnight."""
+    if not value:
+        return None
+    try:
+        hour, minute = value.split(":")
+        h = int(hour)
+        m = int(minute)
+    except Exception as exc:
+        raise ValueError("Time must be in HH:MM format") from exc
+    if h < 0 or h > 23 or m < 0 or m > 59:
+        raise ValueError("Time must be in HH:MM format")
+    return h * 60 + m
+
+
+def _validate_time_window(start_time: Optional[str], end_time: Optional[str], label: str, min_minutes: int = 60) -> None:
+    """Validate non-empty, ordered, and minimum duration between start/end times."""
+    start_minutes = _parse_hhmm(start_time)
+    end_minutes = _parse_hhmm(end_time)
+
+    if start_minutes is None or end_minutes is None:
+        raise ValueError(f"{label}: start time and end time are required")
+    if end_minutes <= start_minutes:
+        raise ValueError(f"{label}: end time must be later than start time")
+    if (end_minutes - start_minutes) < min_minutes:
+        raise ValueError(f"{label}: minimum duration is {min_minutes} minutes")
 
 class PaymentScheduleData(BaseModel):
     frequency: str  # weekly, biweekly, monthly, custom
@@ -43,6 +71,46 @@ class JobPostCreate(BaseModel):
     payment_schedule: Optional[PaymentScheduleData] = None  # For long_term jobs
     recurring_schedule: Optional[RecurringScheduleData] = None  # For recurring jobs
     multi_day_schedule: Optional[MultiDayScheduleData] = None  # For multi-day jobs
+
+    @model_validator(mode="after")
+    def validate_dates_and_times(self):
+        today = date.today()
+
+        if not self.start_date:
+            raise ValueError("Start date is required")
+        if self.start_date < today:
+            raise ValueError("Start date cannot be in the past")
+
+        if self.end_date and self.end_date < self.start_date:
+            raise ValueError("End date cannot be earlier than start date")
+
+        if self.duration_type == "long_term":
+            if not self.end_date:
+                raise ValueError("End date is required for long-term jobs")
+            if self.end_date == self.start_date:
+                raise ValueError("Long-term jobs must span at least 2 days")
+
+        if self.recurring_schedule and self.recurring_schedule.is_recurring:
+            if not self.recurring_schedule.day_of_week:
+                raise ValueError("Recurring jobs require a day of week")
+            if not self.recurring_schedule.frequency:
+                raise ValueError("Recurring jobs require a frequency")
+            _validate_time_window(
+                self.recurring_schedule.start_time,
+                self.recurring_schedule.end_time,
+                label="Recurring schedule",
+                min_minutes=60,
+            )
+
+        if self.multi_day_schedule:
+            _validate_time_window(
+                self.multi_day_schedule.daily_start_time,
+                self.multi_day_schedule.daily_end_time,
+                label="Daily schedule",
+                min_minutes=60,
+            )
+
+        return self
 
 class JobPostResponse(BaseModel):
     post_id: int

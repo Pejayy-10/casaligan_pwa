@@ -19,6 +19,7 @@ export default function CreateJobPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   
   // Form state
   const [formData, setFormData] = useState({
@@ -139,6 +140,13 @@ export default function CreateJobPage() {
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    if (fieldErrors[e.target.name]) {
+      setFieldErrors(prev => {
+        const next = { ...prev };
+        delete next[e.target.name];
+        return next;
+      });
+    }
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -188,9 +196,78 @@ export default function CreateJobPage() {
     setImages(images.filter((_, i) => i !== index));
   };
 
+  const parseTimeToMinutes = (value: string) => {
+    const [h, m] = value.split(':').map(Number);
+    return (h * 60) + m;
+  };
+
+  const validateDateAndTimeRules = (): Record<string, string> => {
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const minDurationMinutes = 60;
+    const errors: Record<string, string> = {};
+
+    if (formData.duration_type === 'short_term') {
+      if (!formData.job_date) errors.job_date = 'Job date is required.';
+      if (formData.job_date && formData.job_date < todayStr) errors.job_date = 'Job date cannot be in the past.';
+    }
+
+    if (formData.duration_type === 'long_term') {
+      if (!formData.start_date || !formData.end_date) {
+        if (!formData.start_date) errors.start_date = 'Start date is required.';
+        if (!formData.end_date) errors.end_date = 'End date is required.';
+      }
+      if (formData.start_date && formData.start_date < todayStr) {
+        errors.start_date = 'Start date cannot be in the past.';
+      }
+      if (formData.start_date && formData.end_date && formData.end_date < formData.start_date) {
+        errors.end_date = 'End date cannot be earlier than start date.';
+      }
+      if (formData.start_date && formData.end_date && formData.end_date === formData.start_date) {
+        errors.end_date = 'Long-term jobs should span at least 2 days.';
+      }
+    }
+
+    if (formData.daily_start_time || formData.daily_end_time) {
+      if (!formData.daily_start_time || !formData.daily_end_time) {
+        if (!formData.daily_start_time) errors.daily_start_time = 'Daily start time is required.';
+        if (!formData.daily_end_time) errors.daily_end_time = 'Daily end time is required.';
+      }
+      if (formData.daily_start_time && formData.daily_end_time) {
+        const dailyStart = parseTimeToMinutes(formData.daily_start_time);
+        const dailyEnd = parseTimeToMinutes(formData.daily_end_time);
+        if (dailyEnd <= dailyStart) {
+          errors.daily_end_time = 'Daily end time must be later than daily start time.';
+        } else if ((dailyEnd - dailyStart) < minDurationMinutes) {
+          errors.daily_end_time = 'Daily schedule must be at least 1 hour.';
+        }
+      }
+    }
+
+    if (formData.is_recurring) {
+      if (!formData.day_of_week) errors.day_of_week = 'Please select the recurring day of week.';
+      if (!formData.start_time || !formData.end_time) {
+        if (!formData.start_time) errors.start_time = 'Recurring start time is required.';
+        if (!formData.end_time) errors.end_time = 'Recurring end time is required.';
+      }
+      if (formData.start_time && formData.end_time) {
+        const recurringStart = parseTimeToMinutes(formData.start_time);
+        const recurringEnd = parseTimeToMinutes(formData.end_time);
+        if (recurringEnd <= recurringStart) {
+          errors.end_time = 'Recurring end time must be later than recurring start time.';
+        } else if ((recurringEnd - recurringStart) < minDurationMinutes) {
+          errors.end_time = 'Recurring schedule must be at least 1 hour.';
+        }
+      }
+    }
+
+    return errors;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
     
     // Validate at least one category is selected
     if (selectedCategories.length === 0) {
@@ -198,11 +275,17 @@ export default function CreateJobPage() {
       return;
     }
 
+    const validationErrors = validateDateAndTimeRules();
+    if (Object.keys(validationErrors).length > 0) {
+      setFieldErrors(validationErrors);
+      return;
+    }
+
     // Validate short-term num_days limit
     if (formData.duration_type === 'short_term') {
       const numDays = parseInt(formData.num_days) || 1;
       if (numDays > 13) {
-        setError('Short-term jobs can have a maximum of 13 days. For 14+ days, please select Long Term.');
+        setFieldErrors({ num_days: 'Short-term jobs can have a maximum of 13 days. For 14+ days, please select Long Term.' });
         return;
       }
     }
@@ -213,7 +296,7 @@ export default function CreateJobPage() {
       const endMs = new Date(formData.end_date).getTime();
       const diffDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
       if (diffDays < 14) {
-        setError('Long-term jobs must have an end date at least 14 days after the start date.');
+        setFieldErrors({ end_date: 'Long-term jobs must have an end date at least 14 days after the start date.' });
         return;
       }
     }
@@ -604,6 +687,9 @@ export default function CreateJobPage() {
                     min={new Date().toISOString().split('T')[0]}
                     className={inputClass}
                   />
+                  {fieldErrors.job_date && (
+                    <p className="text-red-500 text-sm mt-1">{fieldErrors.job_date}</p>
+                  )}
                   <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mt-1">When should the housekeeper start?</p>
                 </div>
 
@@ -625,6 +711,9 @@ export default function CreateJobPage() {
                         max="13"
                         className={inputClass}
                       />
+                      {fieldErrors.num_days && (
+                        <p className="text-red-500 text-sm mt-1">{fieldErrors.num_days}</p>
+                      )}
                       <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
                         Short-term jobs can be up to 13 days. For 14+ days, select Long Term.
                       </p>
@@ -639,6 +728,9 @@ export default function CreateJobPage() {
                         required
                         className={inputClass}
                       />
+                      {fieldErrors.daily_start_time && (
+                        <p className="text-red-500 text-sm mt-1">{fieldErrors.daily_start_time}</p>
+                      )}
                     </div>
                     <div>
                       <label className={labelClass}>End Time *</label>
@@ -650,6 +742,9 @@ export default function CreateJobPage() {
                         required
                         className={inputClass}
                       />
+                      {fieldErrors.daily_end_time && (
+                        <p className="text-red-500 text-sm mt-1">{fieldErrors.daily_end_time}</p>
+                      )}
                     </div>
                   </div>
                   {parseInt(formData.num_days) > 1 && formData.job_date && (
@@ -724,6 +819,9 @@ export default function CreateJobPage() {
                           <option value="saturday" className={optionClass}>Saturday</option>
                           <option value="sunday" className={optionClass}>Sunday</option>
                         </select>
+                        {fieldErrors.day_of_week && (
+                          <p className="text-red-500 text-sm mt-1">{fieldErrors.day_of_week}</p>
+                        )}
                       </div>
                       
                       <div>
@@ -751,6 +849,9 @@ export default function CreateJobPage() {
                           required={formData.is_recurring}
                           className={inputClass}
                         />
+                        {fieldErrors.start_time && (
+                          <p className="text-red-500 text-sm mt-1">{fieldErrors.start_time}</p>
+                        )}
                       </div>
                       
                       <div>
@@ -763,6 +864,9 @@ export default function CreateJobPage() {
                           required={formData.is_recurring}
                           className={inputClass}
                         />
+                        {fieldErrors.end_time && (
+                          <p className="text-red-500 text-sm mt-1">{fieldErrors.end_time}</p>
+                        )}
                       </div>
                     </div>
                     <p className="text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">
@@ -797,8 +901,12 @@ export default function CreateJobPage() {
                       });
                     }}
                     required={formData.duration_type === 'long_term'}
+                    min={new Date().toISOString().split('T')[0]}
                     className={inputClass}
                   />
+                  {fieldErrors.start_date && (
+                    <p className="text-red-500 text-sm mt-1">{fieldErrors.start_date}</p>
+                  )}
                 </div>
                 <div>
                   <label className={labelClass}>End Date *</label>
@@ -815,6 +923,9 @@ export default function CreateJobPage() {
                     })() : undefined}
                     className={inputClass}
                   />
+                  {fieldErrors.end_date && (
+                    <p className="text-red-500 text-sm mt-1">{fieldErrors.end_date}</p>
+                  )}
                   <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
                     Long-term jobs must be at least 14 days from the start date.
                   </p>
