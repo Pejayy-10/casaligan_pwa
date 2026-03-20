@@ -4,7 +4,7 @@ load_dotenv(override=True)  # Load .env file, always override stale env vars
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
-from app.routers import auth, jobs, payments, checkins, progress, debug, upload, reports, packages, direct_hire, notifications, ratings, messaging, availability, categories, contract_extensions, daily_completion, portfolio
+from app.routers import auth, jobs, payments, checkins, progress, debug, upload, reports, packages, direct_hire, notifications, ratings, messaging, availability, categories, contract_extensions, daily_completion, portfolio, referrals
 
 try:
     from app.routers import ai_chat
@@ -66,6 +66,7 @@ app.include_router(availability.router)
 app.include_router(contract_extensions.router)
 app.include_router(daily_completion.router)
 app.include_router(portfolio.router)
+app.include_router(referrals.router)
 if _has_ai_chat:
     app.include_router(ai_chat.router)
 
@@ -84,7 +85,6 @@ async def startup_event():
         migrations = [
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT FALSE",
-            "ALTER TABLE users ADD COLUMN IF NOT EXISTS relationship_status VARCHAR(30)",
             # Housekeeper application — professional info & doc refs
             "ALTER TABLE housekeeper_applications ADD COLUMN IF NOT EXISTS bio TEXT",
             "ALTER TABLE housekeeper_applications ADD COLUMN IF NOT EXISTS years_experience INTEGER",

@@ -363,3 +363,24 @@ def notify_hire_canceled_worker_accepted_conflict(
         reference_id=None
     )
 
+
+# Flow 5: Housekeeper Referral Notifications
+
+def notify_housekeeper_referral(
+    db: Session,
+    target_owner_user_id: int,
+    referrer_name: str,
+    worker_name: str,
+    worker_id: int
+):
+    """Notify a homeowner that another homeowner referred a housekeeper to them"""
+    return notify_user(
+        db=db,
+        user_id=target_owner_user_id,
+        notification_type=NotificationType.HOUSEKEEPER_REFERRAL,
+        title="Housekeeper Referred to You! 🤝",
+        message=f"{referrer_name} referred housekeeper {worker_name} to you.",
+        reference_type="worker_referral",
+        reference_id=worker_id
+    )
+

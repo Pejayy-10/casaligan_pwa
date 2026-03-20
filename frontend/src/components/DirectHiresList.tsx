@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { Clock, RotateCw, FileText, CheckCircle, CreditCard, ClipboardList, Calendar, X, Star, Briefcase, Loader2, Cross, MapPin, User } from 'lucide-react';
 import RatingModal from './RatingModal';
 import DailyCompletionModal from './DailyCompletionModal';
+import ReferHousekeeperModal from './ReferHousekeeperModal';
 import apiClient from '../services/api';
 import { usePayment } from '../context/PaymentContext';
 
@@ -110,6 +111,10 @@ export default function DirectHiresList({ role, onClose }: Props) {
   // Daily completion modal state
   const [showDailyCompletionModal, setShowDailyCompletionModal] = useState(false);
   const [dailyCompletionHire, setDailyCompletionHire] = useState<DirectHire | null>(null);
+
+  // Refer housekeeper state
+  const [showReferModal, setShowReferModal] = useState(false);
+  const [referHire, setReferHire] = useState<DirectHire | null>(null);
 
   useEffect(() => {
     loadHires();
@@ -459,21 +464,33 @@ export default function DirectHiresList({ role, onClose }: Props) {
             </div>
           );
         case 'paid':
-          // Show Rate button if not already rated
-          if (!ratedHires.has(hire.hire_id)) {
-            return (
+          // Show Rate button if not already rated, plus Refer button
+          return (
+            <div className="space-y-2">
+              {!ratedHires.has(hire.hire_id) ? (
+                <button
+                  onClick={() => {
+                    setRatingHire(hire);
+                    setShowRatingModal(true);
+                  }}
+                  className="w-full px-3 py-1 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600 font-semibold shadow-sm"
+                >
+                  <Star className="inline w-4 h-4 mr-1" /> Rate {hire.worker_name}
+                </button>
+              ) : (
+                <span className="block text-green-600 dark:text-green-400 text-sm font-semibold">✓ Rated</span>
+              )}
               <button
                 onClick={() => {
-                  setRatingHire(hire);
-                  setShowRatingModal(true);
+                  setReferHire(hire);
+                  setShowReferModal(true);
                 }}
-                className="px-3 py-1 bg-yellow-500 text-white text-sm rounded-lg hover:bg-yellow-600 font-semibold shadow-sm"
+                className="w-full px-3 py-1 bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400 text-sm rounded-lg hover:bg-blue-100 dark:hover:bg-blue-500/20 font-semibold shadow-sm border border-blue-200 dark:border-blue-500/20 flex items-center justify-center gap-1"
               >
-                <Star className="inline w-4 h-4 mr-1" /> Rate
+                <User className="w-4 h-4" /> Refer {hire.worker_name}
               </button>
-            );
-          }
-          return <span className="text-green-600 dark:text-green-400 text-sm font-semibold">✓ Rated</span>;
+            </div>
+          );
         default:
           return null;
       }
@@ -942,6 +959,16 @@ export default function DirectHiresList({ role, onClose }: Props) {
             setDailyCompletionHire(null);
           }}
           onDayConfirmed={() => loadHires()}
+        />
+      )}
+
+      {/* Refer Housekeeper Modal */}
+      {referHire && (
+        <ReferHousekeeperModal
+          isOpen={showReferModal}
+          onClose={() => { setShowReferModal(false); setReferHire(null); }}
+          workerId={referHire.worker_id}
+          workerName={referHire.worker_name}
         />
       )}
     </div>

@@ -23,6 +23,7 @@ import JobSummaryModal from '../components/JobSummaryModal';
 import RatingModal from '../components/RatingModal';
 import ReportModal from '../components/ReportModal';
 import ExtendContractModal from '../components/ExtendContractModal';
+import ReferHousekeeperModal from '../components/ReferHousekeeperModal';
 import apiClient from '../services/api';
 import type { User } from '../types';
 
@@ -89,6 +90,10 @@ export default function JobsPage() {
   
   // Contract extension state
   const [showExtendContract, setShowExtendContract] = useState<{ job: JobPost; worker: any } | null>(null);
+
+  // Referral state
+  const [showReferModal, setShowReferModal] = useState(false);
+  const [referWorkerData, setReferWorkerData] = useState<{ workerId: number; workerName: string } | null>(null);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -482,6 +487,10 @@ export default function JobsPage() {
             onExtendContract={(job, worker) => {
               setShowExtendContract({ job, worker });
             }}
+            onReferWorker={(worker) => {
+              setReferWorkerData({ workerId: worker.worker_id, workerName: worker.name });
+              setShowReferModal(true);
+            }}
           />
         ) : (
           <>
@@ -784,6 +793,16 @@ export default function JobsPage() {
           reportedUserRole="owner"
         />
       )}
+
+      {/* Refer Housekeeper Modal */}
+      {referWorkerData && (
+        <ReferHousekeeperModal
+          isOpen={showReferModal}
+          onClose={() => { setShowReferModal(false); setReferWorkerData(null); }}
+          workerId={referWorkerData.workerId}
+          workerName={referWorkerData.workerName}
+        />
+      )}
     </div>
   );
 }
@@ -834,7 +853,8 @@ function OwnerJobsContent({
   ratedContracts,
   reportedUsers,
   onReportWorker,
-  onExtendContract
+  onExtendContract,
+  onReferWorker
 }: { 
   jobs: JobPost[]; 
   navigate: (path: string) => void;
@@ -849,6 +869,7 @@ function OwnerJobsContent({
   reportedUsers: Set<string>;
   onReportWorker: (job: JobPost, worker: any) => void;
   onExtendContract: (job: JobPost, worker: any) => void;
+  onReferWorker: (worker: any) => void;
 }) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [cancelModal, setCancelModal] = useState<{
@@ -1132,30 +1153,40 @@ function OwnerJobsContent({
              {job.status === 'completed' && job.accepted_workers && job.accepted_workers.length > 0 && (
                <div className="space-y-2 mt-2">
                  {job.accepted_workers.map((worker) => (
-                   <div key={`rate-${worker.worker_id}`} className="flex gap-2">
-                     {ratedContracts.has(worker.contract_id) ? (
-                       <div className="flex-1 py-2.5 text-sm font-bold rounded-lg flex items-center justify-center gap-2 bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400 border border-green-200 dark:border-green-500/20">
-                         <CheckCircle className="w-4 h-4" />
-                         Rated {worker.name} ✓
-                       </div>
-                     ) : (
-                       <button
-                         onClick={() => onRateWorker(job, worker)}
-                         className="flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 shadow-sm bg-yellow-400 text-[#4B244A] hover:bg-yellow-500"
-                       >
-                         <Star className="w-4 h-4" />
-                         Rate {worker.name}
-                       </button>
-                     )}
-                     {!reportedUsers.has(`${job.post_id}-${worker.worker_user_id}`) && (
-                       <button
-                         onClick={() => onReportWorker(job, worker)}
-                         className="py-2 px-3 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-1 bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500 dark:bg-white/5 dark:text-white/40 dark:hover:bg-red-900/20 dark:hover:text-red-400 shadow-sm"
-                         title={`Report ${worker.name}`}
-                       >
-                         <AlertTriangle className="w-4 h-4" />
-                       </button>
-                     )}
+                   <div key={`rate-${worker.worker_id}`}>
+                     <div className="flex gap-2">
+                       {ratedContracts.has(worker.contract_id) ? (
+                         <div className="flex-1 py-2.5 text-sm font-bold rounded-lg flex items-center justify-center gap-2 bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400 border border-green-200 dark:border-green-500/20">
+                           <CheckCircle className="w-4 h-4" />
+                           Rated {worker.name} ✓
+                         </div>
+                       ) : (
+                         <button
+                           onClick={() => onRateWorker(job, worker)}
+                           className="flex-1 py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 shadow-sm bg-yellow-400 text-[#4B244A] hover:bg-yellow-500"
+                         >
+                           <Star className="w-4 h-4" />
+                           Rate {worker.name}
+                         </button>
+                       )}
+                       {!reportedUsers.has(`${job.post_id}-${worker.worker_user_id}`) && (
+                         <button
+                           onClick={() => onReportWorker(job, worker)}
+                           className="py-2 px-3 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-1 bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500 dark:bg-white/5 dark:text-white/40 dark:hover:bg-red-900/20 dark:hover:text-red-400 shadow-sm"
+                           title={`Report ${worker.name}`}
+                         >
+                           <AlertTriangle className="w-4 h-4" />
+                         </button>
+                       )}
+                     </div>
+                     {/* Refer Housekeeper button */}
+                     <button
+                       onClick={() => onReferWorker(worker)}
+                       className="mt-1 w-full py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 shadow-sm bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-500/10 dark:text-blue-400 dark:hover:bg-blue-500/20 border border-blue-200 dark:border-blue-500/20"
+                     >
+                       <Users className="w-4 h-4" />
+                       Refer {worker.name}
+                     </button>
                    </div>
                  ))}
                </div>

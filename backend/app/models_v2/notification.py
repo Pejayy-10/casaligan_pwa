@@ -46,6 +46,9 @@ class NotificationType(str, enum.Enum):
     DAILY_COMPLETION_CONFIRMED = "daily_completion_confirmed"   # Owner confirmed day's work done
     DAILY_ALL_CONFIRMED = "daily_all_confirmed"                 # Both parties confirmed – day complete
     
+    # Referral related
+    HOUSEKEEPER_REFERRAL = "housekeeper_referral" # Homeowner referred a housekeeper to you
+    
     # General
     SYSTEM = "system"                             # System notification
     REMINDER = "reminder"                         # General reminder

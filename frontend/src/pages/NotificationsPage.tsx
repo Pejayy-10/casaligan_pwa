@@ -66,6 +66,7 @@ const OWNER_ONLY_NOTIFICATIONS = [
   'direct_hire_request',
   'applicant_withdrawn_due_to_conflict',
   'hire_canceled_worker_accepted_conflict',
+  'housekeeper_referral',
 ];
 
 // Worker/Housekeeper-specific notification types
@@ -119,6 +120,7 @@ export default function NotificationsPage() {
   const [showApplicantsModal, setShowApplicantsModal] = useState<{ jobId: number; jobTitle: string } | null>(null);
   const [jobDetail, setJobDetail] = useState<JobPost | null>(null);
   const [loadingJobDetail, setLoadingJobDetail] = useState(false);
+  const [showReferralModal, setShowReferralModal] = useState<{ workerId: number; message: string; title: string } | null>(null);
   const navigate = useNavigate();
 
   const getToken = () => localStorage.getItem('access_token');
@@ -271,6 +273,16 @@ export default function NotificationsPage() {
     // Special handling for payment_review notifications - redirect to my-jobs > completed page
     if (notification.type === 'payment_review') {
       navigate('/jobs?view=my-jobs&tab=completed');
+      return;
+    }
+
+    // Special handling for housekeeper_referral notifications
+    if (notification.type === 'housekeeper_referral' && notification.reference_type === 'worker_referral' && notification.reference_id) {
+      setShowReferralModal({
+        workerId: notification.reference_id,
+        message: notification.message,
+        title: notification.title,
+      });
       return;
     }
 
@@ -460,6 +472,43 @@ export default function NotificationsPage() {
           peopleNeeded={1}
           onClose={() => setShowApplicantsModal(null)}
         />
+      )}
+
+      {/* Housekeeper Referral Modal */}
+      {showReferralModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-sm w-full border border-gray-200 dark:border-white/20 shadow-2xl">
+            <div className="text-center mb-5">
+              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-3xl">🤝</span>
+              </div>
+              <h3 className="text-lg font-bold text-[#4B244A] dark:text-white mb-2">
+                {showReferralModal.title}
+              </h3>
+              <p className="text-sm text-[#4B244A]/70 dark:text-white/70">
+                {showReferralModal.message}
+              </p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowReferralModal(null)}
+                className="flex-1 py-3 bg-gray-100 dark:bg-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-gray-200 dark:hover:bg-white/20 transition-all"
+              >
+                Dismiss
+              </button>
+              <button
+                onClick={() => {
+                  navigate(`/worker/${showReferralModal.workerId}`);
+                  setShowReferralModal(null);
+                }}
+                className="flex-1 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all shadow-md"
+              >
+                View Profile
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       <TabBar role={userRole} />
