@@ -41,6 +41,47 @@ interface WorkerProfile {
   distance_km?: number | null;
 }
 
+const getProximityBadgeStyle = (label?: string) => {
+  switch (label) {
+    case 'same_barangay':
+      return 'bg-emerald-100 text-emerald-700';
+    case 'same_city':
+      return 'bg-green-50 text-green-700';
+    case 'same_province':
+      return 'bg-blue-50 text-blue-700';
+    case 'different_city':
+      return 'bg-amber-50 text-amber-700';
+    case 'different_province':
+      return 'bg-orange-100 text-orange-700';
+    case 'no_gps_coordinates':
+    case 'no_address':
+      return 'bg-gray-100 text-gray-600';
+    default:
+      return 'bg-gray-100 text-gray-600';
+  }
+};
+
+const getProximityBadgeText = (label?: string) => {
+  switch (label) {
+    case 'same_barangay':
+      return 'Neighbor';
+    case 'same_city':
+      return 'Same City';
+    case 'same_province':
+      return 'Same Province';
+    case 'different_city':
+      return 'Different City';
+    case 'different_province':
+      return 'Different Province';
+    case 'no_gps_coordinates':
+      return 'No GPS';
+    case 'no_address':
+      return 'No Address';
+    default:
+      return 'Location';
+  }
+};
+
 export default function BrowseWorkersPage() {
   const navigate = useNavigate();
   const [workers, setWorkers] = useState<WorkerProfile[]>([]);
@@ -699,13 +740,10 @@ export default function BrowseWorkersPage() {
                                     </span>
                                 ) : worker.proximity_label && (
                                     <span className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 ${
-                                        worker.proximity_label === 'same_barangay' ? 'bg-emerald-100 text-emerald-700' :
-                                        worker.proximity_label === 'same_city' ? 'bg-green-50 text-green-700' :
-                                        'bg-gray-100 text-gray-600'
+                                    getProximityBadgeStyle(worker.proximity_label)
                                     }`}>
                                         <MapPin className="w-3 h-3" />
-                                        {worker.proximity_label === 'same_barangay' ? 'Neighbor' :
-                                         worker.proximity_label === 'same_city' ? 'Same City' : 'Nearby'}
+                                    {getProximityBadgeText(worker.proximity_label)}
                                     </span>
                                 )}
                             </div>
