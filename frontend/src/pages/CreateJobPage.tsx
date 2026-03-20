@@ -3,7 +3,8 @@ import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { FileText, ImageIcon, RotateCw, DollarSign, ChevronDown } from 'lucide-react';
 import TabBar from '../components/TabBar';
-import type { User } from '../types';
+import { psgcService } from '../services/psgc';
+import type { User, PSGCRegion, PSGCProvince, PSGCCity, PSGCBarangay } from '../types';
 
 const resolveUploadUrl = (url: string) => {
   if (!url) return '';
@@ -59,6 +60,23 @@ export default function CreateJobPage() {
   const [images, setImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [categories, setCategories] = useState<Array<{category_id: number, name: string, description: string | null, is_active: boolean}>>([]);
+  const [regions, setRegions] = useState<PSGCRegion[]>([]);
+  const [provinces, setProvinces] = useState<PSGCProvince[]>([]);
+  const [cities, setCities] = useState<PSGCCity[]>([]);
+  const [barangays, setBarangays] = useState<PSGCBarangay[]>([]);
+  const [locationData, setLocationData] = useState({
+    region_code: '',
+    region_name: '',
+    province_code: '',
+    province_name: '',
+    city_code: '',
+    city_name: '',
+    barangay_code: '',
+    barangay_name: '',
+    street_address: '',
+    subdivision: '',
+    zip_code: '',
+  });
 
   useEffect(() => {
     if (!user) {
@@ -67,8 +85,109 @@ export default function CreateJobPage() {
       navigate('/dashboard');
     } else {
       loadCategories();
+      loadRegions();
     }
   }, [user, navigate]);
+
+  const loadRegions = async () => {
+    try {
+      const data = await psgcService.getRegions();
+      setRegions(data);
+    } catch (error) {
+      console.error('Failed to load regions:', error);
+    }
+  };
+
+  const handleRegionChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const regionCode = e.target.value;
+    const region = regions.find((r) => r.code === regionCode);
+
+    setLocationData((prev) => ({
+      ...prev,
+      region_code: regionCode,
+      region_name: region?.name || '',
+      province_code: '',
+      province_name: '',
+      city_code: '',
+      city_name: '',
+      barangay_code: '',
+      barangay_name: '',
+    }));
+
+    setProvinces([]);
+    setCities([]);
+    setBarangays([]);
+
+    if (regionCode) {
+      try {
+        const data = await psgcService.getProvinces(regionCode);
+        setProvinces(data);
+      } catch (error) {
+        console.error('Failed to load provinces:', error);
+      }
+    }
+  };
+
+  const handleProvinceChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const provinceCode = e.target.value;
+    const province = provinces.find((p) => p.code === provinceCode);
+
+    setLocationData((prev) => ({
+      ...prev,
+      province_code: provinceCode,
+      province_name: province?.name || '',
+      city_code: '',
+      city_name: '',
+      barangay_code: '',
+      barangay_name: '',
+    }));
+
+    setCities([]);
+    setBarangays([]);
+
+    if (provinceCode) {
+      try {
+        const data = await psgcService.getCities(provinceCode);
+        setCities(data);
+      } catch (error) {
+        console.error('Failed to load cities:', error);
+      }
+    }
+  };
+
+  const handleCityChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const cityCode = e.target.value;
+    const city = cities.find((c) => c.code === cityCode);
+
+    setLocationData((prev) => ({
+      ...prev,
+      city_code: cityCode,
+      city_name: city?.name || '',
+      barangay_code: '',
+      barangay_name: '',
+    }));
+
+    setBarangays([]);
+
+    if (cityCode) {
+      try {
+        const data = await psgcService.getBarangays(cityCode);
+        setBarangays(data);
+      } catch (error) {
+        console.error('Failed to load barangays:', error);
+      }
+    }
+  };
+
+  const handleBarangayChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const barangayCode = e.target.value;
+    const barangay = barangays.find((b) => b.code === barangayCode);
+    setLocationData((prev) => ({
+      ...prev,
+      barangay_code: barangayCode,
+      barangay_name: barangay?.name || '',
+    }));
+  };
 
   const loadCategories = async () => {
     try {
@@ -275,6 +394,11 @@ export default function CreateJobPage() {
       return;
     }
 
+    if (!locationData.region_code || !locationData.province_code || !locationData.city_code || !locationData.barangay_code) {
+      setFieldErrors({ location: 'Please select complete location details (region, province, city/municipality, barangay).' });
+      return;
+    }
+
     const validationErrors = validateDateAndTimeRules();
     if (Object.keys(validationErrors).length > 0) {
       setFieldErrors(validationErrors);
@@ -305,6 +429,14 @@ export default function CreateJobPage() {
 
     try {
       const token = localStorage.getItem('access_token');
+      const locationParts = [
+        locationData.street_address?.trim(),
+        locationData.subdivision?.trim(),
+        locationData.barangay_name,
+        locationData.city_name,
+        locationData.province_name,
+      ].filter(Boolean);
+      const formattedLocation = locationParts.join(', ');
       
       const jobData: Record<string, unknown> = {
         title: formData.title,
@@ -315,7 +447,7 @@ export default function CreateJobPage() {
         people_needed: parseInt(formData.people_needed),
         image_urls: images,
         duration_type: formData.duration_type,
-        location: formData.location || null,
+        location: formattedLocation || null,
         category_ids: selectedCategories
       };
       
@@ -478,17 +610,75 @@ export default function CreateJobPage() {
             <h2 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">Job Details</h2>
             
             <div className="space-y-4">
-              <div>
+              <div className="md:col-span-2 space-y-3">
                 <label className={labelClass}>Location *</label>
-                <input
-                  type="text"
-                  name="location"
-                  value={formData.location}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="e.g., Quezon City, Metro Manila or specific barangay"
-                  className={inputClass}
-                />
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <select
+                    value={locationData.region_code}
+                    onChange={handleRegionChange}
+                    className={inputClass}
+                  >
+                    <option value="" className={optionClass}>Select Region</option>
+                    {regions.map((region) => (
+                      <option key={region.code} value={region.code} className={optionClass}>{region.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={locationData.province_code}
+                    onChange={handleProvinceChange}
+                    disabled={!locationData.region_code}
+                    className={inputClass}
+                  >
+                    <option value="" className={optionClass}>Select Province</option>
+                    {provinces.map((province) => (
+                      <option key={province.code} value={province.code} className={optionClass}>{province.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={locationData.city_code}
+                    onChange={handleCityChange}
+                    disabled={!locationData.province_code}
+                    className={inputClass}
+                  >
+                    <option value="" className={optionClass}>Select City/Municipality</option>
+                    {cities.map((city) => (
+                      <option key={city.code} value={city.code} className={optionClass}>{city.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={locationData.barangay_code}
+                    onChange={handleBarangayChange}
+                    disabled={!locationData.city_code}
+                    className={inputClass}
+                  >
+                    <option value="" className={optionClass}>Select Barangay</option>
+                    {barangays.map((barangay) => (
+                      <option key={barangay.code} value={barangay.code} className={optionClass}>{barangay.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={locationData.street_address}
+                    onChange={(e) => setLocationData((prev) => ({ ...prev, street_address: e.target.value }))}
+                    placeholder="Street address (optional)"
+                    className={inputClass}
+                  />
+                  <input
+                    type="text"
+                    value={locationData.subdivision}
+                    onChange={(e) => setLocationData((prev) => ({ ...prev, subdivision: e.target.value }))}
+                    placeholder="Subdivision/Village (optional)"
+                    className={inputClass}
+                  />
+                </div>
+                {fieldErrors.location && (
+                  <p className="text-red-500 text-sm mt-1">{fieldErrors.location}</p>
+                )}
+                {locationData.barangay_name && locationData.city_name && locationData.province_name && (
+                  <p className="text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">
+                    Selected location: {[locationData.barangay_name, locationData.city_name, locationData.province_name].filter(Boolean).join(', ')}
+                  </p>
+                )}
               </div>
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
