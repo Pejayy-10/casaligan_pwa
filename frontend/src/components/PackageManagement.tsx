@@ -9,6 +9,7 @@ interface Package {
   description: string | null;
   price: number;
   duration_hours: number;
+  num_days: number;
   services: string[];
   is_active: boolean;
   category_ids: number[];
@@ -39,6 +40,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [durationHours, setDurationHours] = useState('2');
+  const [numDays, setNumDays] = useState('1');
   const [services, setServices] = useState('');
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -90,6 +92,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     setDescription('');
     setPrice('');
     setDurationHours('2');
+    setNumDays('1');
     setServices('');
     setSelectedCategoryIds([]);
     setEditingPackage(null);
@@ -102,6 +105,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     setDescription(pkg.description || '');
     setPrice(pkg.price.toString());
     setDurationHours(pkg.duration_hours.toString());
+    setNumDays((pkg.num_days || 1).toString());
     setServices(pkg.services?.join(', ') || '');
     setSelectedCategoryIds(pkg.category_ids || []);
     setShowForm(true);
@@ -124,6 +128,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
         description: description.trim() || null,
         price: parseFloat(price),
         duration_hours: parseInt(durationHours),
+        num_days: parseInt(numDays),
         services: servicesArray,
         category_ids: selectedCategoryIds
       };
@@ -358,7 +363,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
         </div>
 
         <div>
-          <label className={labelClass}>Duration (hours)</label>
+          <label className={labelClass}>Duration (hrs/day)</label>
           <select
             value={durationHours}
             onChange={(e) => setDurationHours(e.target.value)}
@@ -373,6 +378,19 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
             <option value="8" className={optionClass}>8 hours (full day)</option>
           </select>
         </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>Number of Days</label>
+        <input
+          type="number"
+          value={numDays}
+          onChange={(e) => setNumDays(Math.max(1, parseInt(e.target.value) || 1).toString())}
+          min="1"
+          max="30"
+          className={inputClass}
+        />
+        <p className="text-[#4B244A]/50 dark:text-white/50 text-xs mt-1">How many days this package will take to complete</p>
       </div>
 
       <div>
@@ -448,6 +466,10 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
                   ))}
                 </div>
               )}
+              <div className="mt-1 flex items-center gap-3 text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">
+                <span>⏱ {pkg.duration_hours} hrs/day</span>
+                <span>📆 {pkg.num_days || 1} day{(pkg.num_days || 1) > 1 ? 's' : ''}</span>
+              </div>
               </div>
               
               <div className="text-right">

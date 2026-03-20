@@ -38,7 +38,8 @@ class WorkerPackage(Base):
     name = Column(String(100), nullable=True)  # Mobile app uses this
     description = Column(Text, nullable=True)
     price = Column(Numeric, nullable=False)
-    duration_hours = Column(Integer, nullable=True, default=2)  # Estimated hours
+    duration_hours = Column(Integer, nullable=True, default=2)  # Estimated hours per day
+    num_days = Column(Integer, nullable=True, default=1)  # Number of working days for this package
     
     # Services included (JSON array of strings)
     # e.g., ["sweeping", "mopping", "bathroom cleaning", "kitchen cleaning"]

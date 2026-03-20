@@ -29,6 +29,27 @@ router = APIRouter(prefix="/direct-hire", tags=["direct-hire"])
 
 # ============== HELPER FUNCTIONS ==============
 
+def normalize_services(services) -> list:
+    """Normalize package services to always return a list of strings.
+    Handles cases where services is stored as a plain string, a JSON string,
+    a list, or None."""
+    import json
+    if not services:
+        return []
+    if isinstance(services, list):
+        return [str(s).strip() for s in services if str(s).strip()]
+    if isinstance(services, str):
+        # Try parsing as JSON array first
+        try:
+            parsed = json.loads(services)
+            if isinstance(parsed, list):
+                return [str(s).strip() for s in parsed if str(s).strip()]
+        except (json.JSONDecodeError, ValueError):
+            pass
+        # Fall back to comma-separated string
+        return [s.strip() for s in services.split(',') if s.strip()]
+    return []
+
 def calculate_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """
     Calculate the great circle distance between two points on Earth using Haversine formula.
@@ -189,7 +210,8 @@ def hire_to_response(hire: DirectHire, db: Session) -> DirectHireResponse:
                 "name": p.name,
                 "price": float(p.price),
                 "duration_hours": p.duration_hours,
-                "services": p.services or []
+                "num_days": p.num_days or 1,
+                "services": normalize_services(p.services)
             }
             for p in pkg_records
         ]
@@ -336,9 +358,19 @@ def create_direct_hire(
         recurring_status = "active"
     
     # Create the hire
-    hire_num_days = hire_data.num_days if hire_data.num_days else 1
-    hire_daily_start = hire_data.daily_start_time
-    hire_daily_end = hire_data.daily_end_time
+    # Derive num_days and daily hours from the selected packages (set by the housekeeper)
+    max_pkg_num_days = max((p.num_days or 1) for p in packages)
+    max_pkg_duration_hours = max((p.duration_hours or 2) for p in packages)
+    hire_num_days = max_pkg_num_days
+    # If the owner provided start/end times, use them; otherwise compute from package duration
+    hire_daily_start = hire_data.daily_start_time or "08:00"
+    # Compute end time from package duration if not provided
+    if hire_data.daily_end_time:
+        hire_daily_end = hire_data.daily_end_time
+    else:
+        start_hour = int(hire_daily_start.split(":")[0])
+        end_hour = min(start_hour + max_pkg_duration_hours, 23)
+        hire_daily_end = f"{end_hour:02d}:00"
     # Compute end_date for multi-day hires
     hire_end_date = None
     if hire_num_days > 1:
@@ -1266,7 +1298,9 @@ def get_worker_profile(
                 "description": p.description,
                 "price": float(p.price),
                 "duration_hours": p.duration_hours,
-                "services": p.services or []
+                "num_days": p.num_days or 1,
+                "services": normalize_services(p.services),
+                "category_names": [cat.name for cat in p.categories] if p.categories else []
             }
             for p in packages
         ],

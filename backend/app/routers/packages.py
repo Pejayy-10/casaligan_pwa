@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
+import json
 from app.db import get_db
 from app.models_v2.user import User
 from app.models_v2.worker_employer import Worker
@@ -12,6 +13,25 @@ from app.security import get_current_user
 router = APIRouter(prefix="/packages", tags=["packages"])
 
 
+def normalize_services(services) -> list:
+    """Normalize package services to always return a list of strings.
+    Handles cases where services is stored as a plain string, a JSON string,
+    a list, or None."""
+    if not services:
+        return []
+    if isinstance(services, list):
+        return [str(s).strip() for s in services if str(s).strip()]
+    if isinstance(services, str):
+        try:
+            parsed = json.loads(services)
+            if isinstance(parsed, list):
+                return [str(s).strip() for s in parsed if str(s).strip()]
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return [s.strip() for s in services.split(',') if s.strip()]
+    return []
+
+
 # ============== SCHEMAS ==============
 
 class PackageCreate(BaseModel):
@@ -19,6 +39,7 @@ class PackageCreate(BaseModel):
     description: Optional[str] = None
     price: float
     duration_hours: int = 2
+    num_days: int = 1
     services: List[str] = []
     category_ids: List[int] = []  # Multiple categories (at least one required)
 
@@ -28,6 +49,7 @@ class PackageUpdate(BaseModel):
     description: Optional[str] = None
     price: Optional[float] = None
     duration_hours: Optional[int] = None
+    num_days: Optional[int] = None
     services: Optional[List[str]] = None
     is_active: Optional[bool] = None
     category_ids: Optional[List[int]] = None
@@ -40,6 +62,7 @@ class PackageResponse(BaseModel):
     description: Optional[str]
     price: float
     duration_hours: int
+    num_days: int = 1
     services: List[str]
     is_active: bool
     category_ids: List[int] = []
@@ -100,6 +123,7 @@ def create_package(
         description=package_data.description,
         price=package_data.price,
         duration_hours=package_data.duration_hours,
+        num_days=package_data.num_days,
         services=package_data.services,
         category_id=package_data.category_ids[0] if package_data.category_ids else None,  # Keep first for backward compatibility
         status='active',  # Auto-activate for now
@@ -122,7 +146,8 @@ def create_package(
         description=package.description,
         price=float(package.price),
         duration_hours=package.duration_hours,
-        services=package.services or [],
+        num_days=package.num_days or 1,
+        services=normalize_services(package.services),
         is_active=package.is_active,
         category_ids=[c.category_id for c in package.categories],
         category_names=[c.name for c in package.categories]
@@ -149,7 +174,8 @@ def get_my_packages(
             description=p.description,
             price=float(p.price),
             duration_hours=p.duration_hours,
-            services=p.services or [],
+            num_days=p.num_days or 1,
+            services=normalize_services(p.services),
             is_active=p.is_active,
             category_ids=[c.category_id for c in p.categories] if p.categories else [],
             category_names=[c.name for c in p.categories] if p.categories else []
@@ -213,6 +239,8 @@ def update_package(
         package.price = package_data.price
     if package_data.duration_hours is not None:
         package.duration_hours = package_data.duration_hours
+    if package_data.num_days is not None:
+        package.num_days = package_data.num_days
     if package_data.services is not None:
         package.services = package_data.services
     if package_data.is_active is not None:
@@ -228,7 +256,8 @@ def update_package(
         description=package.description,
         price=float(package.price),
         duration_hours=package.duration_hours,
-        services=package.services or [],
+        num_days=package.num_days or 1,
+        services=normalize_services(package.services),
         is_active=package.is_active,
         category_ids=[c.category_id for c in package.categories] if package.categories else [],
         category_names=[c.name for c in package.categories] if package.categories else []
@@ -282,7 +311,8 @@ def get_worker_packages(
             description=p.description,
             price=float(p.price),
             duration_hours=p.duration_hours,
-            services=p.services or [],
+            num_days=p.num_days or 1,
+            services=normalize_services(p.services),
             is_active=p.is_active
         )
         for p in packages

@@ -13,7 +13,9 @@ interface WorkerPackage {
   description: string | null;
   price: number;
   duration_hours: number;
+  num_days: number;
   services: string[];
+  category_names?: string[];
 }
 
 interface Review {
@@ -67,7 +69,6 @@ export default function WorkerProfilePage() {
   const [selectedPackages, setSelectedPackages] = useState<number[]>([]);
   const [showHireModal, setShowHireModal] = useState(false);
   const [scheduledDate, setScheduledDate] = useState('');
-  const [scheduledTime, setScheduledTime] = useState('09:00');
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [useMyAddress, setUseMyAddress] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -76,13 +77,7 @@ export default function WorkerProfilePage() {
   const [isRecurring, setIsRecurring] = useState(false);
   const [dayOfWeek, setDayOfWeek] = useState('');
   const [startTime, setStartTime] = useState('09:00');
-  const [endTime, setEndTime] = useState('11:00');
   const [frequency, setFrequency] = useState('weekly');
-  
-  // Multi-day schedule state
-  const [numDays, setNumDays] = useState(1);
-  const [dailyStartTime, setDailyStartTime] = useState('08:00');
-  const [dailyEndTime, setDailyEndTime] = useState('17:00');
   
   // Custom address fields (when not using registered address)
   const [customStreet, setCustomStreet] = useState('');
@@ -268,8 +263,14 @@ export default function WorkerProfilePage() {
     }
 
     // Validate recurring schedule if enabled
-    if (isRecurring && (!dayOfWeek || !startTime || !endTime)) {
-      alert('Please complete all recurring schedule fields');
+    if (isRecurring && (!dayOfWeek || !startTime)) {
+      alert('Please select a day of week and start time for recurring booking');
+      return;
+    }
+
+    // Validate start time for one-time bookings
+    if (!isRecurring && !startTime) {
+      alert('Please select a start time');
       return;
     }
 
@@ -283,11 +284,21 @@ export default function WorkerProfilePage() {
       setSubmitting(true);
       const token = localStorage.getItem('access_token');
       
+      // Derive num_days and duration from the selected packages (set by the housekeeper)
+      const selectedPkgs = profile.packages.filter(p => selectedPackages.includes(p.package_id));
+      const maxNumDays = Math.max(...selectedPkgs.map(p => p.num_days || 1));
+      const maxDuration = selectedPkgs.length > 0 ? Math.max(...selectedPkgs.map(p => p.duration_hours || 2)) : 2;
+
+      // Compute end time from start time + package duration
+      const [sH, sM] = startTime.split(':').map(Number);
+      const computedEndH = Math.min(sH + maxDuration, 23);
+      const computedEndTime = `${computedEndH.toString().padStart(2, '0')}:${(sM || 0).toString().padStart(2, '0')}`;
+
       const requestBody: Record<string, unknown> = {
         worker_id: profile.worker_id,
         package_ids: selectedPackages,
         scheduled_date: scheduledDate,
-        scheduled_time: scheduledTime,
+        scheduled_time: isRecurring ? null : startTime,
         special_instructions: specialInstructions || null,
         use_my_address: useMyAddress,
         // Include custom address fields when not using registered address
@@ -296,19 +307,23 @@ export default function WorkerProfilePage() {
         address_city: useMyAddress ? null : customCity || null,
         address_province: useMyAddress ? null : customProvince || null,
         address_region: useMyAddress ? null : customRegion || null,
-        // Multi-day scheduling
-        num_days: numDays,
-        daily_start_time: dailyStartTime || null,
-        daily_end_time: dailyEndTime || null
+        // Multi-day scheduling (derived from package settings)
+        num_days: maxNumDays,
+        daily_start_time: isRecurring ? null : startTime,
+        daily_end_time: isRecurring ? null : computedEndTime
       };
       
       // Add recurring schedule if enabled
       if (isRecurring) {
+        const [rH, rM] = startTime.split(':').map(Number);
+        const recurEndH = Math.min(rH + maxDuration, 23);
+        const recurEndTime = `${recurEndH.toString().padStart(2, '0')}:${(rM || 0).toString().padStart(2, '0')}`;
+
         requestBody.recurring_schedule = {
           is_recurring: true,
           day_of_week: dayOfWeek,
           start_time: startTime,
-          end_time: endTime,
+          end_time: recurEndTime,
           frequency: frequency
         };
       }
@@ -715,9 +730,20 @@ export default function WorkerProfilePage() {
                           ))}
                         </div>
                       )}
+
+                      {pkg.category_names && pkg.category_names.length > 0 && (
+                        <div className="mt-2 ml-9 flex flex-wrap gap-1">
+                          {pkg.category_names.map((cat, idx) => (
+                            <span key={idx} className="px-2 py-0.5 bg-[#4B244A]/10 dark:bg-white/10 text-[#4B244A]/70 dark:text-white/60 text-xs font-bold rounded-full">
+                              {cat}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       
                       <div className="mt-3 ml-9 flex items-center gap-4 text-sm text-[#4B244A]/60 dark:text-white/60 font-medium">
-                        <span>⏱ ~{pkg.duration_hours} hours</span>
+                        <span>⏱ ~{pkg.duration_hours} hrs/day</span>
+                        <span>📆 {pkg.num_days || 1} day{(pkg.num_days || 1) > 1 ? 's' : ''}</span>
                       </div>
                     </div>
                     
@@ -770,13 +796,46 @@ export default function WorkerProfilePage() {
             <div className="p-6 space-y-5">
               {/* Selected Packages Summary */}
               <div className="bg-white/50 dark:bg-white/10 rounded-xl p-4 border border-gray-200 dark:border-white/10">
-                <h4 className="text-[#4B244A] dark:text-white font-bold mb-2">Selected Packages</h4>
+                <h4 className="text-[#4B244A] dark:text-white font-bold mb-3">Selected Packages</h4>
                 {profile.packages
                   .filter(p => selectedPackages.includes(p.package_id))
                   .map(pkg => (
-                    <div key={pkg.package_id} className="flex justify-between text-[#4B244A]/80 dark:text-white/80 text-sm py-1 font-medium">
-                      <span>{pkg.name}</span>
-                      <span>₱{pkg.price.toLocaleString()}</span>
+                    <div key={pkg.package_id} className="mb-3 last:mb-0 pb-3 last:pb-0 border-b last:border-b-0 border-gray-200 dark:border-white/10">
+                      <div className="flex justify-between items-start mb-1">
+                        <span className="text-[#4B244A] dark:text-white font-bold text-sm">{pkg.name}</span>
+                        <span className="text-[#EA526F] font-bold text-sm ml-2 shrink-0">₱{pkg.price.toLocaleString()}</span>
+                      </div>
+                      {pkg.description && (
+                        <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mb-1">{pkg.description}</p>
+                      )}
+                      <div className="flex flex-wrap gap-2 text-xs text-[#4B244A]/60 dark:text-white/60 font-medium mb-2">
+                        <span>⏱ ~{pkg.duration_hours} hrs/day</span>
+                        <span>📆 {pkg.num_days || 1} day{(pkg.num_days || 1) > 1 ? 's' : ''}</span>
+                      </div>
+                      {pkg.services && pkg.services.length > 0 && (
+                        <div>
+                          <p className="text-[#4B244A]/50 dark:text-white/50 text-[10px] font-bold uppercase tracking-wide mb-1">Services Included</p>
+                          <div className="flex flex-wrap gap-1">
+                            {pkg.services.map((service, idx) => (
+                              <span key={idx} className="px-2 py-0.5 bg-[#EA526F]/10 dark:bg-[#EA526F]/20 text-[#EA526F] dark:text-pink-300 text-[10px] font-bold rounded-full">
+                                {service}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {pkg.category_names && pkg.category_names.length > 0 && (
+                        <div className="mt-1">
+                          <p className="text-[#4B244A]/50 dark:text-white/50 text-[10px] font-bold uppercase tracking-wide mb-1">Categories</p>
+                          <div className="flex flex-wrap gap-1">
+                            {pkg.category_names.map((cat, idx) => (
+                              <span key={idx} className="px-2 py-0.5 bg-[#4B244A]/10 dark:bg-white/10 text-[#4B244A] dark:text-white/80 text-[10px] font-bold rounded-full">
+                                {cat}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))
                 }
@@ -792,74 +851,60 @@ export default function WorkerProfilePage() {
                 <input
                   type="date"
                   value={scheduledDate}
-                  onChange={(e) => setScheduledDate(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setScheduledDate(val);
+                    if (val) {
+                      const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                      // Parse as local date to avoid UTC offset shifting the day
+                      const [y, mo, d] = val.split('-').map(Number);
+                      const day = new Date(y, mo - 1, d).getDay();
+                      setDayOfWeek(days[day]);
+                    }
+                  }}
                   min={new Date().toISOString().split('T')[0]}
                   className="w-full px-4 py-3 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
                 />
-              </div>
-
-              {/* Time Selection */}
-              <div>
-                <label className="block text-[#4B244A] dark:text-white font-bold mb-2">Preferred Time</label>
-                <select
-                  value={scheduledTime}
-                  onChange={(e) => setScheduledTime(e.target.value)}
-                  className="w-full px-4 py-3 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                >
-                  <option value="06:00" className="text-gray-900">6:00 AM</option>
-                  <option value="07:00" className="text-gray-900">7:00 AM</option>
-                  <option value="08:00" className="text-gray-900">8:00 AM</option>
-                  <option value="09:00" className="text-gray-900">9:00 AM</option>
-                  <option value="10:00" className="text-gray-900">10:00 AM</option>
-                  <option value="11:00" className="text-gray-900">11:00 AM</option>
-                  <option value="12:00" className="text-gray-900">12:00 PM</option>
-                  <option value="13:00" className="text-gray-900">1:00 PM</option>
-                  <option value="14:00" className="text-gray-900">2:00 PM</option>
-                  <option value="15:00" className="text-gray-900">3:00 PM</option>
-                  <option value="16:00" className="text-gray-900">4:00 PM</option>
-                </select>
-              </div>
-
-              {/* Recurring Schedule Option */}
-              <div className="bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/30 rounded-xl p-4 space-y-3">
-                <h4 className="text-purple-800 dark:text-white font-bold text-sm">📅 Job Duration & Daily Hours</h4>
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-[#4B244A] dark:text-white font-bold mb-1 text-xs">Days</label>
-                    <input
-                      type="number"
-                      value={numDays}
-                      onChange={(e) => setNumDays(Math.max(1, parseInt(e.target.value) || 1))}
-                      min="1"
-                      max="30"
-                      className="w-full px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[#4B244A] dark:text-white font-bold mb-1 text-xs">Start Time</label>
-                    <input
-                      type="time"
-                      value={dailyStartTime}
-                      onChange={(e) => setDailyStartTime(e.target.value)}
-                      className="w-full px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[#4B244A] dark:text-white font-bold mb-1 text-xs">End Time</label>
-                    <input
-                      type="time"
-                      value={dailyEndTime}
-                      onChange={(e) => setDailyEndTime(e.target.value)}
-                      className="w-full px-3 py-2 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] text-sm"
-                    />
-                  </div>
-                </div>
-                {numDays > 1 && (
-                  <p className="text-purple-600 dark:text-purple-300/70 text-xs font-medium">
-                    ℹ️ Multi-day booking: Both parties must confirm each day before the next day is unlocked.
+                {scheduledDate && (
+                  <p className="text-[#4B244A]/50 dark:text-white/50 text-xs mt-1 font-medium">
+                    📅 {dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1)}
                   </p>
                 )}
               </div>
+
+              {/* Start Time (one-time bookings) */}
+              {!isRecurring && (
+                <div>
+                  <label className="block text-[#4B244A] dark:text-white font-bold mb-2">Start Time *</label>
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="w-full px-4 py-3 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                  />
+                </div>
+              )}
+
+              {/* Estimated End Time (one-time bookings) */}
+              {!isRecurring && (
+                <div>
+                  <label className="block text-[#4B244A] dark:text-white font-bold mb-2">Estimated End Time</label>
+                  <div className="w-full px-4 py-3 bg-gray-100/80 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-[#4B244A]/70 dark:text-white/70 text-sm">
+                    {(() => {
+                      const selectedPkgs = profile.packages.filter(p => selectedPackages.includes(p.package_id));
+                      const maxDuration = selectedPkgs.length > 0 ? Math.max(...selectedPkgs.map(p => p.duration_hours || 2)) : 2;
+                      const [h, m] = startTime.split(':').map(Number);
+                      const endH = Math.min(h + maxDuration, 23);
+                      const displayH = endH > 12 ? endH - 12 : endH === 0 ? 12 : endH;
+                      const ampm = endH >= 12 ? 'PM' : 'AM';
+                      return `~${displayH}:${(m || 0).toString().padStart(2, '0')} ${ampm} (${maxDuration} hrs based on package)`;
+                    })()}
+                  </div>
+                  <p className="text-[#4B244A]/50 dark:text-white/50 text-[10px] mt-1 italic font-medium">
+                    Auto-calculated from the package duration set by the housekeeper
+                  </p>
+                </div>
+              )}
 
               {/* Recurring Schedule Option */}
               <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4">
@@ -883,22 +928,38 @@ export default function WorkerProfilePage() {
                 <div className="bg-white/50 dark:bg-white/10 rounded-xl p-4 space-y-4 border border-gray-200 dark:border-white/20">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[#4B244A] dark:text-white font-bold mb-2 text-sm">Day of Week *</label>
-                      <select
-                        value={dayOfWeek}
-                        onChange={(e) => setDayOfWeek(e.target.value)}
-                        required={isRecurring}
-                        className="w-full px-4 py-3 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] text-sm"
-                      >
-                        <option value="" className="text-gray-900">Select day</option>
-                        <option value="monday" className="text-gray-900">Monday</option>
-                        <option value="tuesday" className="text-gray-900">Tuesday</option>
-                        <option value="wednesday" className="text-gray-900">Wednesday</option>
-                        <option value="thursday" className="text-gray-900">Thursday</option>
-                        <option value="friday" className="text-gray-900">Friday</option>
-                        <option value="saturday" className="text-gray-900">Saturday</option>
-                        <option value="sunday" className="text-gray-900">Sunday</option>
-                      </select>
+                      <label className="block text-[#4B244A] dark:text-white font-bold mb-2 text-sm">
+                        Day of Week *
+                        {scheduledDate && dayOfWeek && (
+                          <span className="ml-2 text-[10px] font-bold text-green-600 dark:text-green-400 normal-case">
+                            ✓ Auto-detected from date
+                          </span>
+                        )}
+                      </label>
+                      {scheduledDate && dayOfWeek ? (
+                        <div className="w-full px-4 py-3 bg-gray-100/80 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-[#4B244A] dark:text-white/80 text-sm font-bold">
+                          {dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1)}
+                        </div>
+                      ) : (
+                        <select
+                          value={dayOfWeek}
+                          onChange={(e) => setDayOfWeek(e.target.value)}
+                          required={isRecurring}
+                          className="w-full px-4 py-3 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] text-sm"
+                        >
+                          <option value="" className="text-gray-900">Select day</option>
+                          <option value="monday" className="text-gray-900">Monday</option>
+                          <option value="tuesday" className="text-gray-900">Tuesday</option>
+                          <option value="wednesday" className="text-gray-900">Wednesday</option>
+                          <option value="thursday" className="text-gray-900">Thursday</option>
+                          <option value="friday" className="text-gray-900">Friday</option>
+                          <option value="saturday" className="text-gray-900">Saturday</option>
+                          <option value="sunday" className="text-gray-900">Sunday</option>
+                        </select>
+                      )}
+                      <p className="text-[#4B244A]/50 dark:text-white/50 text-[10px] mt-1 italic font-medium">
+                        Based on your selected scheduled date
+                      </p>
                     </div>
                     
                     <div>
@@ -916,7 +977,7 @@ export default function WorkerProfilePage() {
                     </div>
                     
                     <div>
-                      <label className="block text-[#4B244A] dark:text-white font-bold mb-2 text-sm">Start Time *</label>
+                      <label className="block text-[#4B244A] dark:text-white font-bold mb-2 text-sm">Preferred Start Time *</label>
                       <input
                         type="time"
                         value={startTime}
@@ -927,18 +988,26 @@ export default function WorkerProfilePage() {
                     </div>
                     
                     <div>
-                      <label className="block text-[#4B244A] dark:text-white font-bold mb-2 text-sm">End Time *</label>
-                      <input
-                        type="time"
-                        value={endTime}
-                        onChange={(e) => setEndTime(e.target.value)}
-                        required={isRecurring}
-                        className="w-full px-4 py-3 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] text-sm"
-                      />
+                      <label className="block text-[#4B244A] dark:text-white font-bold mb-2 text-sm">Estimated End Time</label>
+                      <div className="w-full px-4 py-3 bg-gray-100/80 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-[#4B244A]/70 dark:text-white/70 text-sm">
+                        {(() => {
+                          const selectedPkgs = profile.packages.filter(p => selectedPackages.includes(p.package_id));
+                          const maxDuration = selectedPkgs.length > 0 ? Math.max(...selectedPkgs.map(p => p.duration_hours || 2)) : 2;
+                          const [h, m] = startTime.split(':').map(Number);
+                          const endH = Math.min(h + maxDuration, 23);
+                          const endTimeStr = `${endH.toString().padStart(2, '0')}:${(m || 0).toString().padStart(2, '0')}`;
+                          const displayH = endH > 12 ? endH - 12 : endH === 0 ? 12 : endH;
+                          const ampm = endH >= 12 ? 'PM' : 'AM';
+                          return `~${displayH}:${(m || 0).toString().padStart(2, '0')} ${ampm} (${maxDuration} hrs based on package)`;
+                        })()}
+                      </div>
+                      <p className="text-[#4B244A]/50 dark:text-white/50 text-[10px] mt-1 italic font-medium">
+                        Auto-calculated from the package duration set by the housekeeper
+                      </p>
                     </div>
                   </div>
                   <p className="text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">
-                    Example: Every Saturday from 9:00 AM to 11:00 AM
+                    Example: Every Saturday starting at 9:00 AM
                   </p>
                 </div>
               )}
