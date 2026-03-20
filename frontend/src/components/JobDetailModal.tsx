@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Home, Zap, Users, Calendar, FileText, Camera, User, Clock, RotateCw, Check, AlertTriangle, MapPin } from 'lucide-react';
+import { API_BASE_URL } from '../config';
 
 export interface AcceptedWorker {
   worker_id: number;
@@ -70,6 +71,12 @@ interface JobDetailModalProps {
 
 export default function JobDetailModal({ job, onClose, onApply, hasApplied = false, applicationStatus, canReapply = false, withdrawnDueToConflict = false, onStatusRefresh }: JobDetailModalProps) {
   const [isApplying, setIsApplying] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  const resolveImageUrl = (url: string) => {
+    if (!url) return '';
+    return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
+  };
 
   const handleApply = async () => {
     if (!onApply) return;
@@ -82,7 +89,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${selectedImage ? 'bg-black/25' : 'bg-black/60 backdrop-blur-sm'}`}>
       <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
         <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10 p-6 flex items-center justify-between z-10">
@@ -201,14 +208,21 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
               <h3 className="text-[#4B244A] dark:text-white font-bold mb-3"><Camera className="inline w-4 h-4 mr-1" /> Images</h3>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {job.image_urls.map((url, idx) => (
-                  <img 
-                    key={idx} 
-                    src={url} 
-                    alt={`Job ${idx + 1}`} 
-                    className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-white/20"
-                  />
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setSelectedImage(resolveImageUrl(url))}
+                    className="group w-full text-left"
+                  >
+                    <img
+                      src={resolveImageUrl(url)}
+                      alt={`Job ${idx + 1}`}
+                      className="w-full h-32 object-cover rounded-lg border border-gray-200 dark:border-white/20 group-hover:opacity-90 transition-opacity"
+                    />
+                  </button>
                 ))}
               </div>
+              <p className="text-xs text-[#4B244A]/60 dark:text-white/60 mt-2">Tap any photo to view full size.</p>
             </div>
           )}
 
@@ -277,6 +291,25 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
           </div>
         )}
       </div>
+
+      {selectedImage && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-transparent" onClick={() => setSelectedImage(null)}>
+          <button
+            type="button"
+            onClick={() => setSelectedImage(null)}
+            className="absolute top-4 right-4 h-12 w-12 rounded-full !bg-[#EA526F] !text-white text-3xl leading-none !border-0 shadow-xl shadow-black/40 hover:brightness-95 transition-all flex items-center justify-center"
+            aria-label="Close image preview"
+          >
+            ×
+          </button>
+          <img
+            src={selectedImage}
+            alt="Job image preview"
+            className="max-h-[88vh] max-w-[94vw] object-contain rounded-xl border border-white/20 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 }
