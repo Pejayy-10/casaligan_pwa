@@ -68,6 +68,7 @@ export default function ProfilePage() {
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editBio, setEditBio] = useState('');
+  const [editRelationshipStatus, setEditRelationshipStatus] = useState<User['relationship_status'] | ''>('');
 
   // OTP verification modal state
   const [showEmailOtp, setShowEmailOtp] = useState(false);
@@ -91,6 +92,7 @@ export default function ProfilePage() {
     // Strip +63 prefix for display
     setEditPhone(user.phone_number?.startsWith('+63') ? user.phone_number.slice(3) : user.phone_number || '');
     setEditBio(user.bio || '');
+    setEditRelationshipStatus(user.relationship_status || '');
     setEditProfilePic(user.profile_picture);
     setPreviewPic(null);
     setSelectedFile(null);
@@ -129,6 +131,25 @@ export default function ProfilePage() {
     return /^\d{10}$/.test(raw);
   };
 
+  const getRelationshipStatusLabel = (status?: User['relationship_status']) => {
+    switch (status) {
+      case 'single':
+        return 'Single';
+      case 'married':
+        return 'Married';
+      case 'in_a_relationship':
+        return 'In a relationship';
+      case 'widowed':
+        return 'Widowed';
+      case 'separated':
+        return 'Separated';
+      case 'prefer_not_to_say':
+        return 'Prefer not to say';
+      default:
+        return null;
+    }
+  };
+
   const handleSaveProfile = async () => {
     if (!user) return;
     if (!editFirstName.trim() || !editLastName.trim()) {
@@ -163,7 +184,7 @@ export default function ProfilePage() {
         pictureUrl = await authService.uploadProfilePicture(selectedFile);
       }
 
-      const updates: { first_name?: string; middle_name?: string; last_name?: string; suffix?: string; profile_picture?: string; email?: string; phone_number?: string; bio?: string } = {};
+      const updates: { first_name?: string; middle_name?: string; last_name?: string; suffix?: string; profile_picture?: string; email?: string; phone_number?: string; bio?: string; relationship_status?: User['relationship_status'] } = {};
       if (editFirstName.trim() !== user.first_name) updates.first_name = editFirstName.trim();
       if (editMiddleName.trim() !== (user.middle_name || '')) updates.middle_name = editMiddleName.trim();
       if (editLastName.trim() !== user.last_name) updates.last_name = editLastName.trim();
@@ -172,6 +193,9 @@ export default function ProfilePage() {
       if (emailChanged) updates.email = emailLower;
       if (phoneChanged) updates.phone_number = fullPhone;
       if (user.is_housekeeper && editBio.trim() !== (user.bio || '').trim()) updates.bio = editBio.trim();
+      if ((editRelationshipStatus || '') !== (user.relationship_status || '')) {
+        updates.relationship_status = editRelationshipStatus || undefined;
+      }
 
       if (Object.keys(updates).length === 0) {
         setShowEditProfile(false);
@@ -701,6 +725,12 @@ export default function ProfilePage() {
                             })()}
                           </p>
                         )}
+                        {getRelationshipStatusLabel(user.relationship_status) && (
+                          <p className="flex items-center justify-center sm:justify-start gap-1.5">
+                            <UserIcon className="w-4 h-4" />
+                            Relationship status: {getRelationshipStatusLabel(user.relationship_status)}
+                          </p>
+                        )}
                     </div>
 
                     {user.is_housekeeper && user.bio && (
@@ -1038,6 +1068,23 @@ export default function ProfilePage() {
                   className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]/50 focus:border-[#EA526F] transition-all text-sm"
                   placeholder="e.g. Jr., Sr., III (optional)"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-[#4B244A] dark:text-white mb-2">Relationship Status</label>
+                <select
+                  value={editRelationshipStatus}
+                  onChange={(e) => setEditRelationshipStatus((e.target.value || '') as User['relationship_status'] | '')}
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]/50 focus:border-[#EA526F] transition-all text-sm"
+                >
+                  <option value="">Prefer not to say / Unset</option>
+                  <option value="single">Single</option>
+                  <option value="married">Married</option>
+                  <option value="in_a_relationship">In a relationship</option>
+                  <option value="widowed">Widowed</option>
+                  <option value="separated">Separated</option>
+                  <option value="prefer_not_to_say">Prefer not to say</option>
+                </select>
               </div>
 
               {user.is_housekeeper && (

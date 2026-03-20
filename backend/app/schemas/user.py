@@ -15,6 +15,7 @@ class UserBase(BaseModel):
     last_name: str
     suffix: Optional[str] = None
     gender: Optional[Literal['male', 'female', 'other', 'prefer_not_to_say']] = None
+    relationship_status: Optional[Literal['single', 'married', 'in_a_relationship', 'widowed', 'separated', 'prefer_not_to_say']] = None
     birthday: Optional[date] = None
 
     @field_validator("first_name", "middle_name", "last_name", "suffix", mode="before")
@@ -78,6 +79,7 @@ class UserUpdate(BaseModel):
     email: Optional[str] = None
     phone_number: Optional[str] = None
     bio: Optional[str] = None
+    relationship_status: Optional[Literal['single', 'married', 'in_a_relationship', 'widowed', 'separated', 'prefer_not_to_say']] = None
 
     @field_validator("email", mode="before")
     @classmethod

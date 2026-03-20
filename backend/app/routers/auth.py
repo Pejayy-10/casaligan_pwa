@@ -491,6 +491,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
         last_name=user_data.last_name,
         suffix=user_data.suffix,
         gender=user_data.gender,
+        relationship_status=user_data.relationship_status,
         birthday=user_data.birthday,
         status="active",  # Owners are active immediately
         email_verified=False,  # Must verify email after document approval

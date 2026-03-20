@@ -14,6 +14,7 @@ export interface User {
   last_name: string;
   suffix?: string;
   gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
+  relationship_status?: 'single' | 'married' | 'in_a_relationship' | 'widowed' | 'separated' | 'prefer_not_to_say';
   birthday?: string;
   profile_picture?: string;
   is_owner: boolean;
@@ -57,6 +58,7 @@ export interface RegisterData {
   last_name: string;
   suffix?: string;
   gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say';
+  relationship_status?: 'single' | 'married' | 'in_a_relationship' | 'widowed' | 'separated' | 'prefer_not_to_say';
   birthday?: string;
 }
 

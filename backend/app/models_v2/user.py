@@ -44,6 +44,7 @@ class User(Base):
     suffix = Column(String, nullable=True)
     gender = Column(SQLEnum(Gender, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=True)
     birthday = Column(Date, nullable=True)
+    relationship_status = Column(String, nullable=True)
     
     # Role and status
     is_owner = Column(Boolean, default=True, nullable=False)

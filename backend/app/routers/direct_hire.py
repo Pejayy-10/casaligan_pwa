@@ -1291,6 +1291,7 @@ def get_worker_profile(
         "phone_masked": phone_masked,
         "email_masked": user.email.split('@')[0][:3] + "***@" + user.email.split('@')[1] if '@' in user.email else None,
         "gender": user.gender.value if user.gender else None,
+        "relationship_status": user.relationship_status,
         "city": address.city_name if address else None,
         "barangay": address.barangay_name if address else None,
         "province": address.province_name if address else None,

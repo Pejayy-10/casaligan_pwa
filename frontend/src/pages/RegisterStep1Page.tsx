@@ -15,6 +15,7 @@ export default function RegisterStep1Page() {
     last_name: '',
     suffix: '',
     gender: undefined,
+    relationship_status: undefined,
     birthday: '',
   });
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -240,6 +241,27 @@ export default function RegisterStep1Page() {
                 <option value="male">Male</option>
                 <option value="female">Female</option>
                 <option value="other">Other</option>
+                <option value="prefer_not_to_say">Prefer not to say</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="relationship_status" className={labelClass}>
+                Relationship Status
+              </label>
+              <select
+                id="relationship_status"
+                value={formData.relationship_status || ''}
+                onChange={(e) => setFormData({ ...formData, relationship_status: e.target.value as RegisterData['relationship_status'] })}
+                className={inputClass}
+                disabled={loading}
+              >
+                <option value="">Select relationship status (optional)</option>
+                <option value="single">Single</option>
+                <option value="married">Married</option>
+                <option value="in_a_relationship">In a relationship</option>
+                <option value="widowed">Widowed</option>
+                <option value="separated">Separated</option>
                 <option value="prefer_not_to_say">Prefer not to say</option>
               </select>
             </div>

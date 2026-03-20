@@ -84,6 +84,7 @@ async def startup_event():
         migrations = [
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_verified BOOLEAN DEFAULT FALSE",
+            "ALTER TABLE users ADD COLUMN IF NOT EXISTS relationship_status VARCHAR(30)",
             # Housekeeper application — professional info & doc refs
             "ALTER TABLE housekeeper_applications ADD COLUMN IF NOT EXISTS bio TEXT",
             "ALTER TABLE housekeeper_applications ADD COLUMN IF NOT EXISTS years_experience INTEGER",

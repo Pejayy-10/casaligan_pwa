@@ -44,6 +44,7 @@ interface WorkerProfile {
   phone_masked: string | null;
   email_masked: string | null;
   gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say' | null;
+  relationship_status?: 'single' | 'married' | 'in_a_relationship' | 'widowed' | 'separated' | 'prefer_not_to_say' | null;
   city: string | null;
   barangay: string | null;
   province: string | null;
@@ -429,6 +430,16 @@ export default function WorkerProfilePage() {
                   {profile.gender === 'female' && '👩 Female'}
                   {profile.gender === 'other' && '⚧️ Other'}
                   {profile.gender === 'prefer_not_to_say' && '🙋 Prefer not to say'}
+                </p>
+              )}
+              {profile.relationship_status && (
+                <p className="text-[#4B244A]/60 dark:text-white/60 text-xs font-medium mt-1">
+                  {profile.relationship_status === 'single' && 'Relationship status: Single'}
+                  {profile.relationship_status === 'married' && 'Relationship status: Married'}
+                  {profile.relationship_status === 'in_a_relationship' && 'Relationship status: In a relationship'}
+                  {profile.relationship_status === 'widowed' && 'Relationship status: Widowed'}
+                  {profile.relationship_status === 'separated' && 'Relationship status: Separated'}
+                  {profile.relationship_status === 'prefer_not_to_say' && 'Relationship status: Prefer not to say'}
                 </p>
               )}
               <div className="flex flex-wrap items-center justify-center gap-2 mt-2">

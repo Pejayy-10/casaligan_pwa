@@ -154,6 +154,7 @@ CREATE TABLE IF NOT EXISTS users (
     middle_name VARCHAR,
     last_name VARCHAR NOT NULL,
     suffix VARCHAR,
+    relationship_status VARCHAR(30),
     is_owner BOOLEAN NOT NULL DEFAULT TRUE,
     is_housekeeper BOOLEAN NOT NULL DEFAULT FALSE,
     active_role user_role NOT NULL DEFAULT 'owner',
