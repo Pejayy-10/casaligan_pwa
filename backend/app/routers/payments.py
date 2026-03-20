@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
@@ -6,6 +6,7 @@ from decimal import Decimal
 from datetime import timezone
 import json
 import os
+from urllib.parse import urlparse
 from datetime import date
 from app.db import get_db
 from app.models_v2.payment import PaymentSchedule, PaymentTransaction, PaymentStatus, PaymentFrequency
@@ -16,6 +17,20 @@ from app.services.maya_service import create_checkout, retrieve_checkout, normal
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/jobs", tags=["payments"])
+
+
+def _resolve_frontend_base_url(request: Request) -> str:
+    origin = (request.headers.get("origin") or "").strip()
+    if origin.startswith("http://") or origin.startswith("https://"):
+        return origin.rstrip("/")
+
+    referer = (request.headers.get("referer") or "").strip()
+    if referer:
+        parsed = urlparse(referer)
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+    return os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
 
 
 def _normalize_media_url(url: Optional[str]) -> Optional[str]:
@@ -457,6 +472,7 @@ async def mark_payment_as_sent(
 async def initiate_long_term_digital_payment(
     job_id: int,
     schedule_id: int,
+    request: Request,
     payload: LongTermDigitalPaymentInitiateRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -498,7 +514,7 @@ async def initiate_long_term_digital_payment(
     if not maya_is_configured():
         raise HTTPException(status_code=500, detail="Maya is not configured. Please set MAYA_PUBLIC_KEY and MAYA_SECRET_KEY.")
 
-    frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+    frontend_base_url = _resolve_frontend_base_url(request)
     success_url = f"{frontend_base_url}/jobs?maya_long_payment_result=success&post_id={job_id}&schedule_id={schedule_id}"
     failure_url = f"{frontend_base_url}/jobs?maya_long_payment_result=failure&post_id={job_id}&schedule_id={schedule_id}"
     cancel_url = f"{frontend_base_url}/jobs?maya_long_payment_result=cancel&post_id={job_id}&schedule_id={schedule_id}"

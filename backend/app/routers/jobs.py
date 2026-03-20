@@ -1,7 +1,7 @@
 """
 Job posting endpoints using ForumPost model
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, or_
 from sqlalchemy.sql import func
@@ -11,6 +11,7 @@ from pydantic import BaseModel
 import json
 from decimal import Decimal
 import os
+from urllib.parse import urlparse
 from app.db import get_db
 from app.models_v2.user import User
 from app.models_v2.worker_employer import Employer, Worker
@@ -40,6 +41,20 @@ from app.services.maya_service import (
 )
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+
+
+def _resolve_frontend_base_url(request: Request) -> str:
+    origin = (request.headers.get("origin") or "").strip()
+    if origin.startswith("http://") or origin.startswith("https://"):
+        return origin.rstrip("/")
+
+    referer = (request.headers.get("referer") or "").strip()
+    if referer:
+        parsed = urlparse(referer)
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+    return os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
 
 
 def _calculate_post_fee(amount: float) -> Decimal:
@@ -2410,6 +2425,7 @@ class JobPostFeeVerifyRequest(BaseModel):
 @router.post("/{post_id}/post-fee/initiate-payment", response_model=JobPostFeeInitiateResponse)
 async def initiate_post_fee_payment(
     post_id: int,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -2442,7 +2458,7 @@ async def initiate_post_fee_payment(
         db.commit()
         db.refresh(post)
 
-    frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+    frontend_base_url = _resolve_frontend_base_url(request)
     success_url = f"{frontend_base_url}/jobs?maya_post_result=success&post_id={post.post_id}"
     failure_url = f"{frontend_base_url}/jobs?maya_post_result=failure&post_id={post.post_id}"
     cancel_url = f"{frontend_base_url}/jobs?maya_post_result=cancel&post_id={post.post_id}"
@@ -3222,6 +3238,7 @@ def _record_short_term_payment_submission(
 @router.post("/{post_id}/short-term-payment/initiate-payment")
 async def initiate_short_term_digital_payment(
     post_id: int,
+    request: Request,
     payload: ShortTermDigitalPaymentInitiateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -3273,7 +3290,7 @@ async def initiate_short_term_digital_payment(
             detail="Maya is not configured. Please set MAYA_PUBLIC_KEY and MAYA_SECRET_KEY."
         )
 
-    frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+    frontend_base_url = _resolve_frontend_base_url(request)
     success_url = f"{frontend_base_url}/jobs?maya_short_payment_result=success&post_id={post_id}&contract_id={contract.contract_id}"
     failure_url = f"{frontend_base_url}/jobs?maya_short_payment_result=failure&post_id={post_id}&contract_id={contract.contract_id}"
     cancel_url = f"{frontend_base_url}/jobs?maya_short_payment_result=cancel&post_id={post_id}&contract_id={contract.contract_id}"

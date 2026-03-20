@@ -8,6 +8,7 @@ from datetime import date, timedelta, datetime
 import math
 import os
 from decimal import Decimal
+from urllib.parse import urlparse
 from app.db import get_db
 from app.models_v2.user import User
 from app.models_v2.worker_employer import Worker, Employer
@@ -37,6 +38,19 @@ router = APIRouter(prefix="/direct-hire", tags=["direct-hire"])
 
 
 # ============== HELPER FUNCTIONS ==============
+
+def _resolve_frontend_base_url(request: Request) -> str:
+    origin = (request.headers.get("origin") or "").strip()
+    if origin.startswith("http://") or origin.startswith("https://"):
+        return origin.rstrip("/")
+
+    referer = (request.headers.get("referer") or "").strip()
+    if referer:
+        parsed = urlparse(referer)
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+    return os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
 
 def normalize_services(services) -> list:
     """Normalize package services to always return a list of strings.
@@ -643,6 +657,7 @@ def submit_payment(
 @router.post("/{hire_id}/owner-payment/initiate", response_model=DirectHireOwnerPaymentInitiateResponse)
 async def initiate_owner_payment_checkout(
     hire_id: int,
+    request: Request,
     payload: DirectHireOwnerPaymentInitiateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -667,7 +682,7 @@ async def initiate_owner_payment_checkout(
     if not maya_is_configured():
         raise HTTPException(status_code=500, detail="Maya sandbox is not configured on backend")
 
-    frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+    frontend_base_url = _resolve_frontend_base_url(request)
     success_url = f"{frontend_base_url}/direct-hires?maya_owner_result=success&hire_id={hire.hire_id}"
     failure_url = f"{frontend_base_url}/direct-hires?maya_owner_result=failure&hire_id={hire.hire_id}"
     cancel_url = f"{frontend_base_url}/direct-hires?maya_owner_result=cancel&hire_id={hire.hire_id}"
@@ -1055,6 +1070,7 @@ def _accept_hire_after_fee(
 @router.post("/{hire_id}/accept/initiate-payment", response_model=DirectHireFeeInitiateResponse)
 async def initiate_acceptance_fee_payment(
     hire_id: int,
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -1082,7 +1098,7 @@ async def initiate_acceptance_fee_payment(
         db.commit()
         db.refresh(hire)
 
-    frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+    frontend_base_url = _resolve_frontend_base_url(request)
     success_url = f"{frontend_base_url}/direct-hires?maya_result=success&hire_id={hire.hire_id}"
     failure_url = f"{frontend_base_url}/direct-hires?maya_result=failure&hire_id={hire.hire_id}"
     cancel_url = f"{frontend_base_url}/direct-hires?maya_result=cancel&hire_id={hire.hire_id}"
