@@ -13,7 +13,13 @@ import {
   Receipt,
   X,
 } from 'lucide-react';
+import { createPortal } from 'react-dom';
 import { API_BASE_URL } from '../config';
+
+const resolveMediaUrl = (url: string | null | undefined): string => {
+  if (!url) return '';
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
+};
 
 interface HousekeeperSummaryData {
   post_id: number;
@@ -87,8 +93,8 @@ export default function HousekeeperSummaryModal({ jobId, onClose }: Props) {
   const labelClass = 'text-xs font-bold text-[#4B244A]/70 dark:text-white/70 uppercase tracking-wide mb-2';
   const valueClass = 'text-[#4B244A] dark:text-white text-sm font-medium';
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+  const modalContent = (
+    <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10 p-4 flex items-center justify-between z-10">
           <h2 className="text-xl font-bold text-[#4B244A] dark:text-white flex items-center gap-2">
@@ -170,12 +176,12 @@ export default function HousekeeperSummaryModal({ jobId, onClose }: Props) {
                     {data.image_urls.map((url, i) => (
                       <a
                         key={i}
-                        href={url}
+                        href={resolveMediaUrl(url)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="block rounded-lg overflow-hidden border border-gray-200 dark:border-white/10 aspect-square"
                       >
-                        <img src={url} alt={`Job ${i + 1}`} className="w-full h-full object-cover" />
+                        <img src={resolveMediaUrl(url)} alt={`Job ${i + 1}`} className="w-full h-full object-cover" />
                       </a>
                     ))}
                   </div>
@@ -212,13 +218,13 @@ export default function HousekeeperSummaryModal({ jobId, onClose }: Props) {
                   )}
                   {data.completion_proof_url && (
                     <a
-                      href={data.completion_proof_url}
+                      href={resolveMediaUrl(data.completion_proof_url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-block mt-2 rounded-lg overflow-hidden border border-gray-200 dark:border-white/10 max-w-[180px]"
                     >
                       <img
-                        src={data.completion_proof_url}
+                        src={resolveMediaUrl(data.completion_proof_url)}
                         alt="Completion proof"
                         className="w-full h-24 object-cover"
                       />
@@ -271,13 +277,13 @@ export default function HousekeeperSummaryModal({ jobId, onClose }: Props) {
                 {data.payment_proof_url ? (
                   <div className="space-y-2">
                     <a
-                      href={data.payment_proof_url}
+                      href={resolveMediaUrl(data.payment_proof_url)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-block rounded-lg overflow-hidden border border-gray-200 dark:border-white/10 max-w-[180px]"
                     >
                       <img
-                        src={data.payment_proof_url}
+                        src={resolveMediaUrl(data.payment_proof_url)}
                         alt="Payment proof"
                         className="w-full h-24 object-cover"
                       />
@@ -309,5 +315,14 @@ export default function HousekeeperSummaryModal({ jobId, onClose }: Props) {
         </div>
       </div>
     </div>
+  );
+
+  if (typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(
+    modalContent,
+    document.body
   );
 }

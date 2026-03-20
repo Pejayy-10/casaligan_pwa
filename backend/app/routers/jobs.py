@@ -2821,6 +2821,28 @@ def get_housekeeper_summary(
         if status_val == "confirmed":
             total_paid += amount_float
 
+    latest_payment_tx = db.query(PaymentTransaction).join(
+        PaymentSchedule,
+        PaymentTransaction.schedule_id == PaymentSchedule.schedule_id,
+    ).filter(
+        PaymentSchedule.contract_id == contract.contract_id,
+        PaymentTransaction.payment_proof_url.isnot(None),
+    ).order_by(
+        desc(PaymentTransaction.paid_at),
+        desc(PaymentTransaction.transaction_id),
+    ).first()
+
+    payment_proof_url = (
+        latest_payment_tx.payment_proof_url
+        if latest_payment_tx and latest_payment_tx.payment_proof_url
+        else contract.payment_proof_url
+    )
+    paid_at_value = (
+        latest_payment_tx.paid_at
+        if latest_payment_tx and latest_payment_tx.paid_at
+        else contract.paid_at
+    )
+
     return {
         "post_id": post.post_id,
         "title": post.title,
@@ -2842,8 +2864,8 @@ def get_housekeeper_summary(
         "completion_proof_url": _normalize_media_url(contract.completion_proof_url),
         "completion_notes": contract.completion_notes,
         "completed_at_contract": contract.completed_at.isoformat() if contract.completed_at else None,
-        "payment_proof_url": _normalize_media_url(contract.payment_proof_url),
-        "paid_at": contract.paid_at.isoformat() if contract.paid_at else None,
+        "payment_proof_url": _normalize_media_url(payment_proof_url),
+        "paid_at": paid_at_value.isoformat() if paid_at_value else None,
         "total_paid": total_paid,
         "payment_schedule": payment_schedule,
     }
