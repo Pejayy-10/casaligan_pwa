@@ -631,3 +631,61 @@ export async function createPayment(paymentData: {
   return { data, error }
 }
 
+export async function getPlatformFinanceOverview() {
+  const supabase = createClient()
+
+  const [postFeesResult, directHireFeesResult, settingsResult] = await Promise.all([
+    supabase
+      .from('forumposts')
+      .select('post_fee_amount, post_fee_status'),
+    supabase
+      .from('direct_hires')
+      .select('platform_fee_amount, platform_fee_status'),
+    supabase
+      .from('platform_settings')
+      .select('post_fee_percentage, direct_hire_fee_percentage')
+      .eq('id', 1)
+      .maybeSingle(),
+  ])
+
+  const postFeesPaid = (postFeesResult.data || []).filter((row: any) => String(row.post_fee_status || '').toLowerCase() === 'paid')
+  const directHiresPaid = (directHireFeesResult.data || []).filter((row: any) => String(row.platform_fee_status || '').toLowerCase() === 'paid')
+
+  const postFeeRevenue = postFeesPaid.reduce((sum: number, row: any) => sum + (parseFloat(row.post_fee_amount?.toString() || '0') || 0), 0)
+  const directHireFeeRevenue = directHiresPaid.reduce((sum: number, row: any) => sum + (parseFloat(row.platform_fee_amount?.toString() || '0') || 0), 0)
+
+  const settings = settingsResult.data || {
+    post_fee_percentage: 7,
+    direct_hire_fee_percentage: 7,
+  }
+
+  return {
+    data: {
+      postFeeRevenue,
+      directHireFeeRevenue,
+      totalPlatformWallet: Number((postFeeRevenue + directHireFeeRevenue).toFixed(2)),
+      postFeePercentage: Number(settings.post_fee_percentage ?? 7),
+      directHireFeePercentage: Number(settings.direct_hire_fee_percentage ?? 7),
+    },
+    error: postFeesResult.error || directHireFeesResult.error || settingsResult.error || null,
+  }
+}
+
+export async function updatePlatformFeeSettings(postFeePercentage: number, directHireFeePercentage: number) {
+  const supabase = createClient()
+
+  const payload = {
+    id: 1,
+    post_fee_percentage: Number(postFeePercentage.toFixed(2)),
+    direct_hire_fee_percentage: Number(directHireFeePercentage.toFixed(2)),
+  }
+
+  const { data, error } = await supabase
+    .from('platform_settings')
+    .upsert(payload, { onConflict: 'id' })
+    .select('post_fee_percentage, direct_hire_fee_percentage')
+    .single()
+
+  return { data, error }
+}
+

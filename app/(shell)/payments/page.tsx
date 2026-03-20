@@ -2,16 +2,68 @@
 
 import { useEffect, useState } from "react";
 import TableShell from "@/app/components/TableShell";
-import { getPayments, deletePayment, updatePaymentStatus } from "@/lib/supabase/paymentsqueries";
+import { getPayments, deletePayment, updatePaymentStatus, getPlatformFinanceOverview, updatePlatformFeeSettings } from "@/lib/supabase/paymentsqueries";
 
 export default function PaymentsPage() {
 	const [payments, setPayments] = useState<any[]>([]);
 	const [count, setCount] = useState(0);
 	const [loading, setLoading] = useState(true);
+	const [finance, setFinance] = useState({
+		postFeeRevenue: 0,
+		directHireFeeRevenue: 0,
+		totalPlatformWallet: 0,
+		postFeePercentage: 7,
+		directHireFeePercentage: 7,
+	});
+	const [postFeeInput, setPostFeeInput] = useState("7.00");
+	const [directHireFeeInput, setDirectHireFeeInput] = useState("7.00");
+	const [savingFees, setSavingFees] = useState(false);
 
 	useEffect(() => {
 		loadPayments();
+		loadFinanceOverview();
 	}, []);
+
+	async function loadFinanceOverview() {
+		const { data, error } = await getPlatformFinanceOverview();
+		if (error) {
+			console.error("Error loading finance overview:", error);
+			return;
+		}
+
+		if (data) {
+			setFinance(data);
+			setPostFeeInput(Number(data.postFeePercentage || 7).toFixed(2));
+			setDirectHireFeeInput(Number(data.directHireFeePercentage || 7).toFixed(2));
+		}
+	}
+
+	async function handleSaveFees() {
+		const postFee = Number(postFeeInput);
+		const directHireFee = Number(directHireFeeInput);
+
+		if (Number.isNaN(postFee) || Number.isNaN(directHireFee)) {
+			alert("Please enter valid fee percentages.");
+			return;
+		}
+
+		if (postFee < 0 || postFee > 100 || directHireFee < 0 || directHireFee > 100) {
+			alert("Fee percentages must be between 0 and 100.");
+			return;
+		}
+
+		setSavingFees(true);
+		const { error } = await updatePlatformFeeSettings(postFee, directHireFee);
+		setSavingFees(false);
+
+		if (error) {
+			alert(`Failed to update fee settings: ${error.message}`);
+			return;
+		}
+
+		await loadFinanceOverview();
+		alert("Platform fee settings updated successfully.");
+	}
 
 	async function loadPayments() {
 		setLoading(true);
@@ -147,6 +199,59 @@ export default function PaymentsPage() {
 				<p className="text-muted-foreground">
 					Track and reconcile payments and transactions. Total: {count} payments
 				</p>
+			</div>
+
+			<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+				<div className="rounded-xl border p-4">
+					<p className="text-sm text-muted-foreground">Post Fee Revenue</p>
+					<p className="text-2xl font-semibold">₱{finance.postFeeRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+				</div>
+				<div className="rounded-xl border p-4">
+					<p className="text-sm text-muted-foreground">Direct Hire Fee Revenue</p>
+					<p className="text-2xl font-semibold">₱{finance.directHireFeeRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+				</div>
+				<div className="rounded-xl border p-4">
+					<p className="text-sm text-muted-foreground">Company Wallet (Total Platform Revenue)</p>
+					<p className="text-2xl font-semibold">₱{finance.totalPlatformWallet.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+				</div>
+			</div>
+
+			<div className="rounded-xl border p-4">
+				<h2 className="text-lg font-semibold">Platform Fee Settings</h2>
+				<p className="mt-1 text-sm text-muted-foreground">Edit the percentage collected by the platform for new transactions.</p>
+				<div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+					<label className="space-y-1">
+						<span className="text-sm font-medium">Job Post Fee (%)</span>
+						<input
+							type="number"
+							min={0}
+							max={100}
+							step={0.01}
+							value={postFeeInput}
+							onChange={(e) => setPostFeeInput(e.target.value)}
+							className="w-full rounded-md border px-3 py-2"
+						/>
+					</label>
+					<label className="space-y-1">
+						<span className="text-sm font-medium">Direct Hire Fee (%)</span>
+						<input
+							type="number"
+							min={0}
+							max={100}
+							step={0.01}
+							value={directHireFeeInput}
+							onChange={(e) => setDirectHireFeeInput(e.target.value)}
+							className="w-full rounded-md border px-3 py-2"
+						/>
+					</label>
+				</div>
+				<button
+					onClick={handleSaveFees}
+					disabled={savingFees}
+					className="mt-4 rounded-md bg-black px-4 py-2 text-white disabled:opacity-60"
+				>
+					{savingFees ? "Saving..." : "Save Fee Settings"}
+				</button>
 			</div>
 
 			{loading ? (
