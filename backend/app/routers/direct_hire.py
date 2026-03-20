@@ -948,18 +948,16 @@ def browse_workers(
     
     GPS-based search takes priority over address-based search.
     """
-    from app.models_v2.application import HousekeeperApplication, ApplicationStatus
     from app.models_v2.rating import Rating
     from sqlalchemy import func
     from sqlalchemy.orm import joinedload
     
-    # Get all approved housekeepers
+    # Get all active registered housekeepers.
+    # Do not hard-require a housekeeper_applications row because some valid
+    # worker accounts were created/approved through legacy flows.
     query = db.query(Worker).join(
         User, Worker.user_id == User.id
-    ).join(
-        HousekeeperApplication, HousekeeperApplication.user_id == User.id
     ).filter(
-        HousekeeperApplication.status == ApplicationStatus.APPROVED,
         User.is_housekeeper == True,
         User.id != current_user.id  # Exclude current user from browse results
     )
