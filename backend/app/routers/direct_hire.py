@@ -33,6 +33,7 @@ from app.services.maya_service import (
     maya_is_configured,
     verify_webhook_signature,
 )
+from app.utils.platform_fees import get_direct_hire_fee_percentage
 
 router = APIRouter(prefix="/direct-hire", tags=["direct-hire"])
 
@@ -403,7 +404,7 @@ def create_direct_hire(
     
     # Calculate total amount
     total_amount = sum(float(p.price) for p in packages)
-    platform_fee_percentage = Decimal("7.00")
+    platform_fee_percentage = get_direct_hire_fee_percentage(db)
     platform_fee_amount = (Decimal(str(total_amount)) * platform_fee_percentage / Decimal("100")).quantize(Decimal("0.01"))
     
     # Get address
@@ -1092,9 +1093,10 @@ async def initiate_acceptance_fee_payment(
 
     fee_amount = Decimal(str(getattr(hire, 'platform_fee_amount', 0) or 0))
     if fee_amount <= 0:
-        fee_amount = (Decimal(str(hire.total_amount)) * Decimal("0.07")).quantize(Decimal("0.01"))
+        platform_fee_percentage = get_direct_hire_fee_percentage(db)
+        fee_amount = (Decimal(str(hire.total_amount)) * platform_fee_percentage / Decimal("100")).quantize(Decimal("0.01"))
         hire.platform_fee_amount = fee_amount
-        hire.platform_fee_percentage = Decimal("7.00")
+        hire.platform_fee_percentage = platform_fee_percentage
         db.commit()
         db.refresh(hire)
 

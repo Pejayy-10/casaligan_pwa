@@ -4,7 +4,7 @@ load_dotenv(override=True)  # Load .env file, always override stale env vars
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
-from app.routers import auth, jobs, payments, checkins, progress, debug, upload, reports, packages, direct_hire, notifications, ratings, messaging, availability, categories, contract_extensions, daily_completion, portfolio, referrals
+from app.routers import auth, jobs, payments, checkins, progress, debug, upload, reports, packages, direct_hire, notifications, ratings, messaging, availability, categories, contract_extensions, daily_completion, portfolio, referrals, admin_finance
 
 try:
     from app.routers import ai_chat
@@ -67,6 +67,7 @@ app.include_router(contract_extensions.router)
 app.include_router(daily_completion.router)
 app.include_router(portfolio.router)
 app.include_router(referrals.router)
+app.include_router(admin_finance.router)
 if _has_ai_chat:
     app.include_router(ai_chat.router)
 
@@ -118,6 +119,8 @@ async def startup_event():
             "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS platform_fee_checkout_id VARCHAR",
             "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS platform_fee_reference VARCHAR",
             "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS platform_fee_paid_at TIMESTAMPTZ",
+            "CREATE TABLE IF NOT EXISTS platform_settings (id INTEGER PRIMARY KEY, post_fee_percentage NUMERIC(5,2) NOT NULL DEFAULT 7.00, direct_hire_fee_percentage NUMERIC(5,2) NOT NULL DEFAULT 7.00, updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW())",
+            "INSERT INTO platform_settings (id, post_fee_percentage, direct_hire_fee_percentage) VALUES (1, 7.00, 7.00) ON CONFLICT (id) DO NOTHING",
         ]
         with engine.connect() as conn:
             for sql in migrations:

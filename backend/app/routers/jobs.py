@@ -39,6 +39,7 @@ from app.services.maya_service import (
     normalize_checkout_status,
     maya_is_configured,
 )
+from app.utils.platform_fees import get_post_fee_percentage
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -57,8 +58,8 @@ def _resolve_frontend_base_url(request: Request) -> str:
     return os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
 
 
-def _calculate_post_fee(amount: float) -> Decimal:
-    return (Decimal(str(amount)) * Decimal("0.07")).quantize(Decimal("0.01"))
+def _calculate_post_fee(amount: float, fee_percentage: Decimal) -> Decimal:
+    return (Decimal(str(amount)) * fee_percentage / Decimal("100")).quantize(Decimal("0.01"))
 
 
 def _normalize_media_url(url: Optional[str]) -> Optional[str]:
@@ -318,6 +319,7 @@ def create_job_post(
     # Map schema fields to model fields
     job_type = JobType.LONGTERM if job_data.duration_type == "long_term" else JobType.ONETIME
     
+    post_fee_percentage = get_post_fee_percentage(db)
     post = ForumPost(
         employer_id=employer_id,
         user_id=current_user.id,
@@ -326,8 +328,8 @@ def create_job_post(
         location=job_data.location or "Not specified",
         job_type=job_type,
         salary=job_data.budget,
-        post_fee_percentage=Decimal("7.00"),
-        post_fee_amount=_calculate_post_fee(job_data.budget),
+        post_fee_percentage=post_fee_percentage,
+        post_fee_amount=_calculate_post_fee(job_data.budget, post_fee_percentage),
         post_fee_status="pending",
         category_id=job_data.category_ids[0] if job_data.category_ids else job_data.category_id,  # Keep first category for compatibility
         is_longterm=(job_data.duration_type == "long_term"),
@@ -2368,6 +2370,7 @@ def repost_job_post(
         )
 
     # Clone the job fields; keep the same details but reset status and timestamps
+    post_fee_percentage = get_post_fee_percentage(db)
     new_post = ForumPost(
         employer_id=post.employer_id,
         user_id=current_user.id,
@@ -2376,8 +2379,8 @@ def repost_job_post(
         location=post.location,
         job_type=post.job_type,
         salary=post.salary,
-        post_fee_percentage=Decimal("7.00"),
-        post_fee_amount=_calculate_post_fee(float(post.salary or 0)),
+        post_fee_percentage=post_fee_percentage,
+        post_fee_amount=_calculate_post_fee(float(post.salary or 0), post_fee_percentage),
         post_fee_status="pending",
         category_id=post.category_id,
         is_longterm=post.is_longterm,
@@ -2452,9 +2455,10 @@ async def initiate_post_fee_payment(
 
     fee_amount = Decimal(str(getattr(post, 'post_fee_amount', 0) or 0))
     if fee_amount <= 0:
-        fee_amount = _calculate_post_fee(float(post.salary or 0))
+        post_fee_percentage = get_post_fee_percentage(db)
+        fee_amount = _calculate_post_fee(float(post.salary or 0), post_fee_percentage)
         post.post_fee_amount = fee_amount
-        post.post_fee_percentage = Decimal("7.00")
+        post.post_fee_percentage = post_fee_percentage
         db.commit()
         db.refresh(post)
 
