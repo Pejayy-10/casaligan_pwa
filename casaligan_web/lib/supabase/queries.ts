@@ -9,19 +9,31 @@ import { createClient } from './server'
 export async function getDashboardStats() {
   const supabase = await createClient()
   
-  const [usersResult, jobsResult, contractsResult, directHiresResult] = await Promise.all([
+  const [usersResult, jobsResult, contractsResult, directHiresResult, postFeesResult, directHireFeesResult] = await Promise.all([
     supabase.from('users').select('*', { count: 'exact', head: true }),
     supabase.from('forumposts').select('*', { count: 'exact', head: true }),
     supabase.from('contracts').select('*', { count: 'exact', head: true }),
     supabase.from('direct_hires').select('*', { count: 'exact', head: true }),
+    supabase.from('forumposts').select('post_fee_amount, post_fee_status'),
+    supabase.from('direct_hires').select('platform_fee_amount, platform_fee_status'),
   ])
 
   const totalBookings = (contractsResult.count || 0) + (directHiresResult.count || 0)
+  const postFeeRevenue = (postFeesResult.data || [])
+    .filter((row: any) => String(row.post_fee_status || '').toLowerCase() === 'paid')
+    .reduce((sum: number, row: any) => sum + (parseFloat(row.post_fee_amount?.toString() || '0') || 0), 0)
+
+  const directHireFeeRevenue = (directHireFeesResult.data || [])
+    .filter((row: any) => String(row.platform_fee_status || '').toLowerCase() === 'paid')
+    .reduce((sum: number, row: any) => sum + (parseFloat(row.platform_fee_amount?.toString() || '0') || 0), 0)
 
   return {
     totalUsers: usersResult.count || 0,
     totalJobs: jobsResult.count || 0,
     totalBookings: totalBookings,
+    totalRevenue: Number((postFeeRevenue + directHireFeeRevenue).toFixed(2)),
+    postFeeRevenue: Number(postFeeRevenue.toFixed(2)),
+    directHireFeeRevenue: Number(directHireFeeRevenue.toFixed(2)),
   }
 }
 
