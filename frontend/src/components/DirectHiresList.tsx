@@ -673,7 +673,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
                 disabled={processing || verifyingFee}
                 className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm disabled:opacity-50 flex items-center gap-1"
               >
-                {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Accept & Pay 7%
+                {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Accept & Pay {Number(hire.platform_fee_percentage ?? 7).toFixed(2).replace(/\.00$/, '')}%
               </button>
               <button
                 onClick={() => handleAction(hire, 'reject')}
@@ -884,7 +884,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
                         ₱{hire.total_amount.toLocaleString()}
                         {role === 'housekeeper' && hire.status === 'pending' && (
                           <div className="text-xs font-medium text-[#4B244A]/70 dark:text-white/70 mt-1">
-                            Platform fee (7%): ₱{Number(hire.platform_fee_amount || (hire.total_amount * 0.07)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            Platform fee ({Number(hire.platform_fee_percentage ?? 7).toFixed(2).replace(/\.00$/, '')}%): ₱{Number(hire.platform_fee_amount || (hire.total_amount * (Number(hire.platform_fee_percentage ?? 7) / 100))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </div>
                         )}
                         {role === 'housekeeper' && hire.payment_method && (

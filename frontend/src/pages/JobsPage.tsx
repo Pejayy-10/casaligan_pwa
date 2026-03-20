@@ -1251,7 +1251,7 @@ function OwnerJobsContent({
                 onClick={() => onPayPostFee(job)}
                 className="w-full py-2.5 bg-amber-500 text-white text-sm font-bold rounded-lg hover:bg-amber-600 transition-all shadow-md"
                >
-                Pay 7% to Publish (Maya)
+                Pay {Number(job.post_fee_percentage ?? 7).toFixed(2).replace(/\.00$/, '')}% to Publish (Maya)
                </button>
              )}
 
