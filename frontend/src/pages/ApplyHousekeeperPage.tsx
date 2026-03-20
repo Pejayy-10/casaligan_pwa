@@ -21,18 +21,17 @@ const SKILLS = [
   { value: 'dishwashing', label: 'Dishwashing' },
 ];
 
-const SECONDARY_DOC_TYPES = [
-  { value: 'barangay_clearance', label: 'Barangay Clearance' },
-  { value: 'police_clearance', label: 'Police Clearance' },
-  { value: 'medical_certificate', label: 'Medical Certificate' },
-  { value: 'drivers_license', label: "Driver's License" },
-  { value: 'passport', label: 'Passport' },
-];
-
-const PRIMARY_DOC_TYPES = [
+const HOUSEKEEPER_DOC_TYPES = [
   { value: 'nbi_clearance', label: 'NBI Clearance' },
   { value: 'police_clearance', label: 'Police Clearance' },
   { value: 'barangay_clearance', label: 'Barangay Clearance' },
+  { value: 'medical_certificate', label: 'Medical Certificate' },
+  { value: 'drivers_license', label: "Driver's License" },
+  { value: 'passport', label: 'Passport' },
+  { value: 'national_id', label: 'National ID' },
+  { value: 'voters_id', label: "Voter's ID" },
+  { value: 'postal_id', label: 'Postal ID' },
+  { value: 'other', label: 'Other' },
 ];
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -47,7 +46,7 @@ interface DocResult {
 // ─── Step indicator ───────────────────────────────────────────────────────────
 
 function StepBar({ current, total }: { current: number; total: number }) {
-  const labels = ['Professional Info', 'NBI Clearance', 'Supporting Doc', 'Portfolio', 'Phone Verify'];
+  const labels = ['Professional Info', 'Document 1', 'Document 2', 'Portfolio', 'Phone Verify'];
   return (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-2">
@@ -580,9 +579,9 @@ export default function ApplyHousekeeperPage() {
           {step === 2 && (
             <div className="space-y-5">
               <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                <p className="text-blue-500 text-sm font-semibold mb-1">Primary Clearance Document</p>
+                <p className="text-blue-500 text-sm font-semibold mb-1">Primary Verification Document</p>
                 <p className="text-blue-400/80 dark:text-blue-200/70 text-xs">
-                  Upload a government-issued clearance. Your name must match your registered name: <strong className="text-blue-500 dark:text-white font-semibold">{user.first_name} {user.last_name}</strong>.
+                  Upload any accepted verification document. Your name must match your registered name: <strong className="text-blue-500 dark:text-white font-semibold">{user.first_name} {user.last_name}</strong>.
                   Our AI (Gemini Vision) will verify the document automatically.
                 </p>
               </div>
@@ -590,27 +589,22 @@ export default function ApplyHousekeeperPage() {
               {/* Document type selector */}
               <div>
                 <label className={labelClass}>Document Type <span className="text-[#EA526F]">*</span></label>
-                <div className="grid grid-cols-3 gap-2">
-                  {PRIMARY_DOC_TYPES.map(dt => (
-                    <button
-                      key={dt.value}
-                      type="button"
-                      onClick={() => { setNbiDocType(dt.value); setNbiResult(null); setNbiError(''); setNbiSkipped(false); }}
-                      className={`px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-all border ${
-                        nbiDocType === dt.value
-                          ? 'bg-[#EA526F]/30 border-[#EA526F] text-white'
-                          : 'bg-white/5 border-white/20 text-[#4B244A]/70 dark:text-white/70 hover:bg-white/10'
-                      }`}
-                    >
-                      {nbiDocType === dt.value ? '✓ ' : ''}{dt.label}
-                    </button>
+                <select
+                  value={nbiDocType}
+                  onChange={(e) => { setNbiDocType(e.target.value); setNbiResult(null); setNbiError(''); setNbiSkipped(false); }}
+                  className={inputClass}
+                >
+                  {HOUSEKEEPER_DOC_TYPES.map(dt => (
+                    <option key={dt.value} value={dt.value} className="text-gray-900 dark:text-gray-900">
+                      {dt.label}
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
 
               {/* File upload */}
               <div>
-                <label className={labelClass}>Upload {PRIMARY_DOC_TYPES.find(d => d.value === nbiDocType)?.label} <span className="text-[#EA526F]">*</span></label>
+                <label className={labelClass}>Upload {HOUSEKEEPER_DOC_TYPES.find(d => d.value === nbiDocType)?.label} <span className="text-[#EA526F]">*</span></label>
                 <input
                   type="file"
                   ref={nbiFileRef}
@@ -645,7 +639,7 @@ export default function ApplyHousekeeperPage() {
                         {nbiResult?.status === 'approved' ? '✅' : nbiResult?.status === 'rejected' ? '❌' : nbiSkipped ? '⏭️' : '📄'}
                       </span>
                       <span className="text-sm font-medium">
-                        {nbiSkipped ? 'Skipped — click to upload anyway' : nbiResult ? 'Click to re-upload' : `Click to upload ${PRIMARY_DOC_TYPES.find(d => d.value === nbiDocType)?.label}`}
+                        {nbiSkipped ? 'Skipped — click to upload anyway' : nbiResult ? 'Click to re-upload' : `Click to upload ${HOUSEKEEPER_DOC_TYPES.find(d => d.value === nbiDocType)?.label}`}
                       </span>
                       <span className="text-xs opacity-60">JPEG, PNG, PDF — max 10MB</span>
                     </>
@@ -701,27 +695,22 @@ export default function ApplyHousekeeperPage() {
               {/* Document type selector */}
               <div>
                 <label className={labelClass}>Document Type <span className="text-[#EA526F]">*</span></label>
-                <div className="grid grid-cols-2 gap-2">
-                  {SECONDARY_DOC_TYPES.map(dt => (
-                    <button
-                      key={dt.value}
-                      type="button"
-                      onClick={() => { setSecDocType(dt.value); setSecResult(null); setSecError(''); setSecSkipped(false); }}
-                      className={`px-3 py-2.5 rounded-xl text-sm font-medium text-left transition-all border ${
-                        secDocType === dt.value
-                          ? 'bg-[#EA526F]/30 border-[#EA526F] text-white'
-                          : 'bg-white/5 border-white/20 text-[#4B244A]/70 dark:text-white/70 hover:bg-white/10'
-                      }`}
-                    >
-                      {secDocType === dt.value ? '✓ ' : ''}{dt.label}
-                    </button>
+                <select
+                  value={secDocType}
+                  onChange={(e) => { setSecDocType(e.target.value); setSecResult(null); setSecError(''); setSecSkipped(false); }}
+                  className={inputClass}
+                >
+                  {HOUSEKEEPER_DOC_TYPES.map(dt => (
+                    <option key={dt.value} value={dt.value} className="text-gray-900 dark:text-gray-900">
+                      {dt.label}
+                    </option>
                   ))}
-                </div>
+                </select>
               </div>
 
               {/* File upload */}
               <div>
-                <label className={labelClass}>Upload {SECONDARY_DOC_TYPES.find(d => d.value === secDocType)?.label} <span className="text-[#EA526F]">*</span></label>
+                <label className={labelClass}>Upload {HOUSEKEEPER_DOC_TYPES.find(d => d.value === secDocType)?.label} <span className="text-[#EA526F]">*</span></label>
                 <input ref={secFileRef} type="file" onChange={handleSecFile} accept="image/*,.pdf" className="hidden" />
                 <button
                   type="button"
@@ -746,7 +735,7 @@ export default function ApplyHousekeeperPage() {
                     <>
                       <span className="text-3xl">{secResult?.status === 'approved' ? '✅' : secResult?.status === 'rejected' ? '❌' : '📄'}</span>
                       <span className="text-sm font-medium">
-                        {secResult ? 'Click to re-upload' : `Click to upload ${SECONDARY_DOC_TYPES.find(d => d.value === secDocType)?.label}`}
+                        {secResult ? 'Click to re-upload' : `Click to upload ${HOUSEKEEPER_DOC_TYPES.find(d => d.value === secDocType)?.label}`}
                       </span>
                       <span className="text-xs opacity-60">JPEG, PNG, PDF — max 10MB</span>
                     </>

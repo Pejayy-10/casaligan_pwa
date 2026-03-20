@@ -49,6 +49,39 @@ _password_reset_store: dict = {}
 
 OTP_EXPIRY_MINUTES = 10
 
+
+def _extract_json_payload(text: str) -> dict:
+    """Extract and parse JSON object from LLM text output."""
+    cleaned = text.strip()
+    cleaned = re.sub(r'^```json\s*', '', cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r'^```\s*', '', cleaned)
+    cleaned = re.sub(r'\s*```$', '', cleaned)
+
+    try:
+        return json.loads(cleaned)
+    except Exception:
+        pass
+
+    start = cleaned.find('{')
+    end = cleaned.rfind('}')
+    if start != -1 and end != -1 and end > start:
+        return json.loads(cleaned[start:end + 1])
+
+    raise ValueError("No JSON object found in model output")
+
+
+def _run_gemini_document_check(model_name: str, prompt: str, mime_type: str, file_b64: str) -> dict:
+    """Run a Gemini vision model and return parsed JSON result."""
+    model = genai.GenerativeModel(model_name)
+    response = model.generate_content([
+        prompt,
+        {"mime_type": mime_type, "data": file_b64}
+    ])
+    text = (response.text or "").strip()
+    if not text:
+        raise ValueError("Empty response from Gemini")
+    return _extract_json_payload(text)
+
 # Email via Brevo HTTP API (https://brevo.com) — works on Render free tier
 # SMTP was blocked by Render (OSError 101). Brevo uses HTTPS port 443.
 BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
@@ -344,7 +377,6 @@ def verify_document_with_ai(file_path: str, document_type: str, first_name: str,
         # google-generativeai SDK requires base64-encoded string for inline image data
         file_b64 = base64.b64encode(file_bytes).decode('utf-8')
 
-        model = genai.GenerativeModel('gemini-2.5-flash')
         doc_label = document_type.replace('_', ' ').title()
 
         prompt = f"""You are a strict document verification officer for Casaligan, a Philippine housekeeping platform.
@@ -402,15 +434,19 @@ Return ONLY this JSON, no extra text:
   "rejection_reason": null
 }}"""
 
-        response = model.generate_content([
-            prompt,
-            {"mime_type": mime_type, "data": file_b64}
-        ])
+        # Try primary model first, then fallback model for robustness.
+        result = None
+        verification_errors = []
+        for model_name in ("gemini-2.5-flash", "gemini-1.5-flash"):
+            try:
+                result = _run_gemini_document_check(model_name, prompt, mime_type, file_b64)
+                break
+            except Exception as model_error:
+                verification_errors.append(f"{model_name}: {type(model_error).__name__}")
 
-        text = response.text.strip()
-        text = re.sub(r'^```json\s*', '', text)
-        text = re.sub(r'\s*```$', '', text)
-        result = json.loads(text)
+        if not result:
+            logger.warning(f"AI verification fell back to manual review. Errors: {verification_errors}")
+            return {"status": "pending", "notes": "Pending admin review.", "rejection_reason": None}
 
         confidence = int(result.get("confidence", 0))
         is_legit = result.get("is_legitimate", False)
@@ -421,7 +457,7 @@ Return ONLY this JSON, no extra text:
         name_matches = result.get("name_matches", True)
 
         # Hard reject conditions — any one of these fails the document
-        hard_reject = not is_legit or is_screenshot or is_expired or not correct_type or not name_matches or confidence < 50
+        hard_reject = not is_legit or is_screenshot or is_expired or not correct_type or not name_matches
 
         if hard_reject:
             reason = result.get("rejection_reason") or result.get("notes", "Document failed verification.")
@@ -440,7 +476,7 @@ Return ONLY this JSON, no extra text:
                 "notes": f"AI rejected ({confidence}% confidence): {result.get('notes', '')}",
                 "rejection_reason": reason
             }
-        elif confidence >= 80 and is_legible:
+        elif confidence >= 75 and is_legible:
             return {
                 "status": "approved",
                 "notes": f"AI verified ({confidence}% confidence): {result.get('notes', 'Document looks valid.')}",
@@ -1314,7 +1350,7 @@ def apply_housekeeper(
         db.delete(existing_app)
         db.commit()
 
-    # ── Validate NBI document (if provided) ──────────────────────────────
+    # ── Validate primary document (if provided) ──────────────────────────
     nbi_doc = None
     if application_data.nbi_document_id:
         nbi_doc = db.query(UserDocument).filter(
@@ -1324,7 +1360,7 @@ def apply_housekeeper(
         if not nbi_doc:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Primary clearance document not found or does not belong to you."
+                detail="Primary document not found or does not belong to you."
             )
 
     # ── Validate secondary document (if provided) ──────────────────────────

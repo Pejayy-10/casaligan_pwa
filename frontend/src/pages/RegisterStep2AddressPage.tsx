@@ -150,7 +150,7 @@ export default function RegisterStep2AddressPage() {
         zip_code: formData.zip_code?.trim() || undefined,
       };
       await authService.addAddress(payload);
-      navigate('/verify-email');
+      navigate('/register/documents');
     } catch (err: unknown) {
       const errorDetail =
         typeof err === 'object' && err !== null && 'response' in err

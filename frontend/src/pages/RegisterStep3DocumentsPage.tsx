@@ -28,6 +28,10 @@ export default function RegisterStep3DocumentsPage() {
     { value: 'drivers_license', label: "Driver's License" },
     { value: 'voters_id', label: "Voter's ID" },
     { value: 'postal_id', label: 'Postal ID' },
+    { value: 'nbi_clearance', label: 'NBI Clearance' },
+    { value: 'police_clearance', label: 'Police Clearance' },
+    { value: 'barangay_clearance', label: 'Barangay Clearance' },
+    { value: 'medical_certificate', label: 'Medical Certificate' },
     { value: 'other', label: 'Other' },
   ];
 
