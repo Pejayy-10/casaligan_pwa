@@ -62,7 +62,7 @@ END $$;
 
 -- Interest/application status enum
 DO $$ BEGIN
-    CREATE TYPE interest_status AS ENUM ('pending', 'accepted', 'rejected');
+    CREATE TYPE interest_status AS ENUM ('pending', 'accepted', 'rejected', 'cancelled');
 EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;

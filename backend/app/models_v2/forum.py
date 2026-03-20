@@ -84,6 +84,7 @@ class InterestStatus(str, enum.Enum):
     PENDING = "pending"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
+    CANCELLED = "cancelled"
     
     def __str__(self):
         return self.value

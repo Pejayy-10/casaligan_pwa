@@ -15,6 +15,7 @@ interface AcceptedJob {
   budget: number;
   status: string;
   application_status?: string;
+  cancellation_reason?: string | null;
   edit_response?: string | null;
   edit_notified_at?: string | null;
   start_date: string | null;
@@ -170,33 +171,32 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
     }
   };
 
-  const getStatusColor = (status: string, contractStatus?: string | null) => {
-    // Use contract status if available (for individual worker's status)
-    const effectiveStatus = contractStatus || status;
-    switch (effectiveStatus) {
+  const getStatusColor = (status: string) => {
+    switch (status) {
       case 'active':
       case 'ongoing': return 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300';
       case 'pending_application': return 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300';
       case 'pending_completion': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300';
       case 'completed': return 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300';
+      case 'cancelled': return 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300';
       default: return 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300';
     }
   };
 
-  const getStatusLabel = (status: string, contractStatus?: string | null) => {
-    // Use contract status if available (for individual worker's status)
-    const effectiveStatus = contractStatus || status;
-    switch (effectiveStatus) {
+  const getStatusLabel = (status: string) => {
+    switch (status) {
       case 'active':
       case 'ongoing': return <><RotateCw className="inline w-4 h-4 mr-1" /> Ongoing</>;
       case 'pending_completion': return <><Clock className="inline w-4 h-4 mr-1" /> Pending Approval</>;
       case 'completed': return <><CheckCircle className="inline w-4 h-4 mr-1" /> Completed</>;
-      default: return effectiveStatus;
+      case 'cancelled': return <><AlertTriangle className="inline w-4 h-4 mr-1" /> Cancelled</>;
+      default: return status;
     }
   };
 
   // Get the effective status for a job (use contract status for worker's individual progress)
   const getEffectiveStatus = (job: AcceptedJob): string => {
+    if (job.status === 'cancelled') return 'cancelled';
     if (job.application_status === 'pending') return 'pending_application';
     return job.contract?.status || job.status;
   };
@@ -305,8 +305,8 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
               {/* Header */}
               <div className="flex items-start justify-between mb-3 gap-2">
                 <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white">{job.title}</h3>
-                <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(myStatus, job.contract?.status)}`}>
-                  {myStatus === 'pending_application' ? 'Pending' : getStatusLabel(job.status, job.contract?.status)}
+                <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(myStatus)}`}>
+                  {myStatus === 'pending_application' ? 'Pending' : getStatusLabel(myStatus)}
                 </span>
               </div>
 
@@ -598,6 +598,17 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                 {myStatus === 'pending_completion' && (
                   <div className="py-3 text-center text-yellow-700 dark:text-yellow-300 font-bold bg-yellow-100 dark:bg-yellow-500/10 rounded-lg">
                     <Clock className="inline w-4 h-4 mr-1" /> Waiting for owner to approve completion
+                  </div>
+                )}
+
+                {myStatus === 'cancelled' && (
+                  <div className="py-3 text-center text-red-700 dark:text-red-300 font-bold bg-red-100 dark:bg-red-500/10 rounded-lg border border-red-200 dark:border-red-500/30">
+                    <AlertTriangle className="inline w-4 h-4 mr-1" /> This job was cancelled by the house owner.
+                    {job.cancellation_reason && (
+                      <div className="mt-2 text-sm font-medium text-red-700/90 dark:text-red-200/90">
+                        Reason: {job.cancellation_reason}
+                      </div>
+                    )}
                   </div>
                 )}
 

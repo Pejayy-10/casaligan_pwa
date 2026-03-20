@@ -47,7 +47,7 @@ def _normalize_media_url(url: Optional[str]) -> Optional[str]:
 def _count_active_applicants(db: Session, post_id: int) -> int:
     return db.query(InterestCheck).filter(
         InterestCheck.post_id == post_id,
-        InterestCheck.status != InterestStatus.REJECTED,
+        InterestCheck.status.notin_([InterestStatus.REJECTED, InterestStatus.CANCELLED]),
         or_(
             InterestCheck.edit_response.is_(None),
             InterestCheck.edit_response != EditResponseStatus.REJECTED,
@@ -109,6 +109,40 @@ def _sync_job_activation_state(db: Session, post: ForumPost) -> bool:
             has_updates = True
 
     return has_updates
+
+
+def _notify_pending_applicants_job_cancelled(db: Session, post: ForumPost) -> None:
+    """Notify pending applicants that the job was cancelled by the owner."""
+    pending_interests = db.query(InterestCheck).filter(
+        InterestCheck.post_id == post.post_id,
+        InterestCheck.status == InterestStatus.PENDING,
+    ).all()
+
+    if not pending_interests:
+        return
+
+    worker_ids = [interest.worker_id for interest in pending_interests]
+    workers = db.query(Worker).filter(Worker.worker_id.in_(worker_ids)).all() if worker_ids else []
+
+    for interest in pending_interests:
+        interest.status = InterestStatus.CANCELLED
+
+    for worker in workers:
+        if not worker.user_id:
+            continue
+        notify_user(
+            db=db,
+            user_id=worker.user_id,
+            notification_type=NotificationType.SYSTEM,
+            title="Job Cancelled",
+            message=(
+                f"The job '{post.title}' you applied for was cancelled by the house owner."
+                + (f" Reason: {post.recurring_cancellation_reason}" if post.recurring_cancellation_reason else "")
+            ),
+            reference_type="job",
+            reference_id=post.post_id,
+            commit=False,
+        )
 
 def get_or_create_employer(user_id: int, db: Session) -> int:
     """Get or create employer record for user"""
@@ -444,7 +478,7 @@ def get_my_accepted_jobs(
     # Get all accepted AND pending interest checks for this worker, ordered by most recent first
     accepted_interests = db.query(InterestCheck).filter(
         InterestCheck.worker_id == worker_record.worker_id,
-        InterestCheck.status.in_([InterestStatus.ACCEPTED, InterestStatus.PENDING])
+        InterestCheck.status.in_([InterestStatus.ACCEPTED, InterestStatus.PENDING, InterestStatus.CANCELLED])
     ).order_by(InterestCheck.created_at.desc()).all()
     
     if not accepted_interests:
@@ -462,6 +496,8 @@ def get_my_accepted_jobs(
         existing_status = existing.status.value if hasattr(existing.status, 'value') else str(existing.status)
         new_status = interest.status.value if hasattr(interest.status, 'value') else str(interest.status)
         if existing_status == 'pending' and new_status == 'accepted':
+            canonical_interest_by_post[interest.post_id] = interest
+        elif existing_status == 'cancelled' and new_status in ('accepted', 'pending'):
             canonical_interest_by_post[interest.post_id] = interest
 
     accepted_interests = list(canonical_interest_by_post.values())
@@ -540,6 +576,10 @@ def get_my_accepted_jobs(
         
         # Get the application status (pending vs accepted)
         interest_status = interest.status.value if hasattr(interest.status, 'value') else str(interest.status)
+        post_status_val = post.status.value if hasattr(post.status, 'value') else str(post.status)
+        # Keep cancelled jobs visible to applicants, but no longer as "pending_application".
+        if interest_status == 'pending' and post_status_val.lower() == 'cancelled':
+            interest_status = 'cancelled'
         edit_response_status = interest.edit_response.value if interest.edit_response and hasattr(interest.edit_response, 'value') else (str(interest.edit_response) if interest.edit_response else None)
         edit_notified_at = interest.edit_notified_at.isoformat() if interest.edit_notified_at else None
         
@@ -558,7 +598,6 @@ def get_my_accepted_jobs(
                     if not (status_filter.lower() == 'ongoing' and contract_status.lower() == 'active'):
                         continue
             else:
-                post_status_val = post.status.value if hasattr(post.status, 'value') else str(post.status)
                 if post_status_val.lower() != status_filter.lower():
                     continue
         
@@ -603,7 +642,7 @@ def get_my_accepted_jobs(
             except:
                 pass
         
-        post_status = post.status.value if hasattr(post.status, 'value') else str(post.status)
+        post_status = post_status_val
         
         # Pending extension
         pending_extension = None
@@ -628,6 +667,7 @@ def get_my_accepted_jobs(
             "budget": float(post.salary) if post.salary else 0,
             "status": post_status,
             "application_status": interest_status,
+            "cancellation_reason": post.recurring_cancellation_reason,
             "edit_response": edit_response_status,
             "edit_notified_at": edit_notified_at,
             "start_date": post.start_date,
@@ -2015,6 +2055,7 @@ def start_job(
 def update_job_status(
     post_id: int,
     new_status: str,
+    cancel_reason: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -2060,8 +2101,23 @@ def update_job_status(
             detail=f"Cannot transition from '{current_status}' to '{new_status}'"
         )
     
+    if new_status == "cancelled":
+        reason = (cancel_reason or "").strip()
+        if not reason:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cancellation reason is required"
+            )
+        post.recurring_cancellation_reason = reason
+        post.recurring_cancelled_at = datetime.now(timezone.utc)
+        post.cancelled_by = "employer"
+
     # Update status
     post.status = ForumPostStatus(new_status)
+
+    if new_status == "cancelled":
+        _notify_pending_applicants_job_cancelled(db, post)
+
     db.commit()
     
     return {

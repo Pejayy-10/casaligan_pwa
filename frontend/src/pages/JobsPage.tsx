@@ -851,6 +851,13 @@ function OwnerJobsContent({
   onExtendContract: (job: JobPost, worker: any) => void;
 }) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [cancelModal, setCancelModal] = useState<{
+    postId: number;
+    title: string;
+    reason: string;
+    error: string | null;
+    submitting: boolean;
+  } | null>(null);
   const ITEMS_PER_PAGE = 5;
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.ceil(jobs.length / ITEMS_PER_PAGE);
@@ -859,11 +866,21 @@ function OwnerJobsContent({
   // Reset to page 1 when jobs list changes
   useEffect(() => { setCurrentPage(1); }, [jobs.length]);
 
-  const handleStatusUpdate = async (postId: number, newStatus: string) => {
+  const handleStatusUpdate = async (postId: number, newStatus: string, cancelReason?: string): Promise<boolean> => {
     try {
       setActionLoading(`status-${postId}`);
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_BASE_URL}/jobs/${postId}/status?new_status=${newStatus}`, {
+      let endpoint = `${API_BASE_URL}/jobs/${postId}/status?new_status=${newStatus}`;
+
+      if (newStatus === 'cancelled') {
+        const trimmedReason = (cancelReason || '').trim();
+        if (!trimmedReason) {
+          return false;
+        }
+        endpoint += `&cancel_reason=${encodeURIComponent(trimmedReason)}`;
+      }
+
+      const response = await fetch(endpoint, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -873,13 +890,16 @@ function OwnerJobsContent({
       if (response.ok) {
         alert(`Job status updated to ${newStatus.toUpperCase()}!`);
         window.location.reload(); // Refresh to update UI
+        return true;
       } else {
         const error = await response.json();
         alert(error.detail || 'Failed to update job status');
+        return false;
       }
     } catch (error) {
       console.error('Failed to update status:', error);
       alert('Failed to update job status');
+      return false;
     } finally {
       setActionLoading(null);
     }
@@ -1081,7 +1101,15 @@ function OwnerJobsContent({
                         Edit
                     </button>
                     <button 
-                        onClick={() => { if (confirm('Are you sure?')) handleStatusUpdate(job.post_id, 'cancelled'); }} 
+                        onClick={() => {
+                          setCancelModal({
+                            postId: job.post_id,
+                            title: job.title,
+                            reason: '',
+                            error: null,
+                            submitting: false,
+                          });
+                        }} 
                         disabled={actionLoading === `status-${job.post_id}`}
                         className="py-2 bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white text-sm font-bold rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
                     >
@@ -1170,6 +1198,68 @@ function OwnerJobsContent({
           >
             <ChevronRight className="w-5 h-5" />
           </button>
+        </div>
+      )}
+
+      {cancelModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 shadow-2xl">
+            <div className="p-5 border-b border-gray-200 dark:border-white/10">
+              <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Cancel Job</h3>
+              <p className="mt-1 text-sm text-[#4B244A]/70 dark:text-white/70">
+                Tell the housekeeper why you are cancelling "{cancelModal.title}".
+              </p>
+            </div>
+
+            <div className="p-5 space-y-3">
+              <label className="block text-sm font-semibold text-[#4B244A] dark:text-white">
+                Cancellation reason
+              </label>
+              <textarea
+                value={cancelModal.reason}
+                onChange={(e) => setCancelModal((prev) => prev ? { ...prev, reason: e.target.value, error: null } : prev)}
+                rows={4}
+                maxLength={400}
+                placeholder="Example: We already found a helper nearby and no longer need this post."
+                className="w-full rounded-xl border border-gray-300 dark:border-white/20 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-[#4B244A] dark:text-white outline-none focus:ring-2 focus:ring-[#EA526F]/40 focus:border-[#EA526F]"
+              />
+              <div className="flex items-center justify-between text-xs text-[#4B244A]/60 dark:text-white/60">
+                <span>{cancelModal.error ? <span className="text-red-600 dark:text-red-400">{cancelModal.error}</span> : 'Reason is required.'}</span>
+                <span>{cancelModal.reason.length}/400</span>
+              </div>
+            </div>
+
+            <div className="p-5 pt-0 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setCancelModal(null)}
+                disabled={cancelModal.submitting}
+                className="py-2.5 rounded-lg bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white font-semibold hover:bg-gray-200 dark:hover:bg-white/20 transition-colors disabled:opacity-50"
+              >
+                Keep Job
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const reason = cancelModal.reason.trim();
+                  if (!reason) {
+                    setCancelModal((prev) => prev ? { ...prev, error: 'Please enter a cancellation reason.' } : prev);
+                    return;
+                  }
+
+                  setCancelModal((prev) => prev ? { ...prev, submitting: true, error: null } : prev);
+                  const ok = await handleStatusUpdate(cancelModal.postId, 'cancelled', reason);
+                  if (!ok) {
+                    setCancelModal((prev) => prev ? { ...prev, submitting: false } : prev);
+                  }
+                }}
+                disabled={cancelModal.submitting}
+                className="py-2.5 rounded-lg bg-red-500 text-white font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {cancelModal.submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Cancelling...</> : 'Confirm Cancel'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

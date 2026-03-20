@@ -68,13 +68,13 @@ CREATE TABLE public.contracts (
   status USER-DEFINED NOT NULL DEFAULT 'pending'::contract_status,
   worker_accepted integer DEFAULT 0,
   employer_accepted integer DEFAULT 0,
-  completion_proof_url character varying,
   completion_notes text,
   completed_at timestamp with time zone,
   payment_proof_url character varying,
   paid_at timestamp with time zone,
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone,
+  completion_proof_urls text,
   CONSTRAINT contracts_pkey PRIMARY KEY (contract_id),
   CONSTRAINT contracts_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forumposts(post_id),
   CONSTRAINT contracts_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(booking_id),
@@ -112,6 +112,18 @@ CREATE TABLE public.conversations (
   CONSTRAINT conversations_hire_id_fkey FOREIGN KEY (hire_id) REFERENCES public.direct_hires(hire_id),
   CONSTRAINT conversations_restricted_by_admin_id_fkey FOREIGN KEY (restricted_by_admin_id) REFERENCES public.admins(admin_id)
 );
+CREATE TABLE public.daily_completions (
+  completion_id integer NOT NULL DEFAULT nextval('daily_completions_completion_id_seq'::regclass),
+  day_schedule_id integer NOT NULL,
+  confirmed_by integer NOT NULL,
+  role character varying NOT NULL,
+  proof_url character varying,
+  notes text,
+  confirmed_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT daily_completions_pkey PRIMARY KEY (completion_id),
+  CONSTRAINT daily_completions_day_schedule_id_fkey FOREIGN KEY (day_schedule_id) REFERENCES public.job_day_schedules(day_schedule_id),
+  CONSTRAINT daily_completions_confirmed_by_fkey FOREIGN KEY (confirmed_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.direct_hires (
   hire_id integer NOT NULL DEFAULT nextval('direct_hires_hire_id_seq'::regclass),
   employer_id integer NOT NULL,
@@ -145,6 +157,10 @@ CREATE TABLE public.direct_hires (
   recurring_cancelled_at timestamp with time zone,
   recurring_cancellation_reason text,
   cancelled_by character varying,
+  num_days integer DEFAULT 1,
+  daily_start_time character varying,
+  daily_end_time character varying,
+  end_date date,
   CONSTRAINT direct_hires_pkey PRIMARY KEY (hire_id),
   CONSTRAINT direct_hires_employer_id_fkey FOREIGN KEY (employer_id) REFERENCES public.employers(employer_id),
   CONSTRAINT direct_hires_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id)
@@ -211,6 +227,9 @@ CREATE TABLE public.forumposts (
   recurring_cancellation_reason text,
   cancelled_by character varying,
   category_id integer,
+  num_days integer DEFAULT 1,
+  daily_start_time character varying,
+  daily_end_time character varying,
   CONSTRAINT forumposts_pkey PRIMARY KEY (post_id),
   CONSTRAINT forumposts_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.package_categories(category_id),
   CONSTRAINT forumposts_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
@@ -274,6 +293,23 @@ CREATE TABLE public.job_category_mapping (
   CONSTRAINT job_category_mapping_pkey PRIMARY KEY (post_id, category_id),
   CONSTRAINT job_category_mapping_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forumposts(post_id),
   CONSTRAINT job_category_mapping_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.package_categories(category_id)
+);
+CREATE TABLE public.job_day_schedules (
+  day_schedule_id integer NOT NULL DEFAULT nextval('job_day_schedules_day_schedule_id_seq'::regclass),
+  post_id integer,
+  hire_id integer,
+  worker_id integer NOT NULL,
+  work_date date NOT NULL,
+  start_time character varying NOT NULL,
+  end_time character varying NOT NULL,
+  day_number integer NOT NULL,
+  status character varying NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone,
+  CONSTRAINT job_day_schedules_pkey PRIMARY KEY (day_schedule_id),
+  CONSTRAINT job_day_schedules_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forumposts(post_id),
+  CONSTRAINT job_day_schedules_hire_id_fkey FOREIGN KEY (hire_id) REFERENCES public.direct_hires(hire_id),
+  CONSTRAINT job_day_schedules_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id)
 );
 CREATE TABLE public.languages (
   language_id integer NOT NULL DEFAULT nextval('languages_language_id_seq'::regclass),
@@ -342,6 +378,7 @@ CREATE TABLE public.notifications (
   is_read boolean NOT NULL DEFAULT false,
   read_at timestamp with time zone,
   created_at timestamp with time zone DEFAULT now(),
+  recipient_role character varying,
   CONSTRAINT notifications_pkey PRIMARY KEY (notification_id),
   CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
@@ -378,6 +415,7 @@ CREATE TABLE public.packages (
   updated_at timestamp with time zone,
   deleted_at timestamp with time zone,
   category_id integer,
+  num_days integer DEFAULT 1,
   CONSTRAINT packages_pkey PRIMARY KEY (package_id),
   CONSTRAINT packages_category_id_fkey FOREIGN KEY (category_id) REFERENCES public.package_categories(category_id),
   CONSTRAINT packages_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id)
@@ -425,6 +463,16 @@ CREATE TABLE public.payments (
   CONSTRAINT payments_pkey PRIMARY KEY (payment_id),
   CONSTRAINT payments_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(contract_id),
   CONSTRAINT payments_method_id_fkey FOREIGN KEY (method_id) REFERENCES public.payment_methods(method_id)
+);
+CREATE TABLE public.portfolio_photos (
+  id integer NOT NULL DEFAULT nextval('portfolio_photos_id_seq'::regclass),
+  worker_id integer NOT NULL,
+  image_url character varying NOT NULL,
+  caption character varying,
+  category character varying NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT portfolio_photos_pkey PRIMARY KEY (id),
+  CONSTRAINT portfolio_photos_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id)
 );
 CREATE TABLE public.refunds (
   refund_id integer NOT NULL DEFAULT nextval('refunds_refund_id_seq'::regclass),
