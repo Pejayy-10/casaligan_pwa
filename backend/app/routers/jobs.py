@@ -172,6 +172,49 @@ def create_job_post(
     # Get or create employer record
     employer_id = get_or_create_employer(current_user.id, db)
     
+    # If the owner provided a new category name, create it and add to category_ids
+    if job_data.new_category_name and job_data.new_category_name.strip():
+        from app.models_v2.category import PackageCategory
+        from sqlalchemy import text as sa_text
+        new_cat_name = job_data.new_category_name.strip()
+        # Check if a category with this name already exists (case-insensitive)
+        existing_cat = db.query(PackageCategory).filter(
+            PackageCategory.name.ilike(new_cat_name)
+        ).first()
+        if existing_cat:
+            # Category already exists, just add its ID if not already selected
+            if existing_cat.category_id not in job_data.category_ids:
+                job_data.category_ids.append(existing_cat.category_id)
+        else:
+            # Create the new category
+            new_category = PackageCategory(
+                name=new_cat_name,
+                description=f"Custom category added by job owner",
+                is_active=True,
+            )
+            db.add(new_category)
+            db.commit()
+            db.refresh(new_category)
+            job_data.category_ids.append(new_category.category_id)
+
+            # Register as owner-private custom category so it doesn't pollute the admin list
+            db.execute(sa_text("""
+                CREATE TABLE IF NOT EXISTS owner_custom_categories (
+                    category_id INTEGER PRIMARY KEY REFERENCES package_categories(category_id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """))
+            db.execute(
+                sa_text("""
+                    INSERT INTO owner_custom_categories (category_id, user_id)
+                    VALUES (:category_id, :user_id)
+                    ON CONFLICT (category_id) DO NOTHING
+                """),
+                {"category_id": new_category.category_id, "user_id": current_user.id}
+            )
+            db.commit()
+    
     # Store job details as JSON in description field
     job_details = {
         "description": job_data.description,
@@ -185,6 +228,23 @@ def create_job_post(
         "end_date": job_data.end_date.isoformat() if job_data.end_date else None,
         "location": job_data.location
     }
+
+    # Validate short-term num_days limit (max 13)
+    if job_data.duration_type == "short_term" and job_data.multi_day_schedule:
+        if job_data.multi_day_schedule.num_days > 13:
+            raise HTTPException(status_code=400, detail="Short-term jobs can have a maximum of 13 days. For 14+ days, use long_term.")
+
+    # Validate long-term end date is at least 14 days from start date
+    if job_data.duration_type == "long_term" and job_data.start_date and job_data.end_date:
+        from datetime import timedelta
+        diff = (job_data.end_date - job_data.start_date).days
+        if diff < 14:
+            raise HTTPException(status_code=400, detail="Long-term jobs must have an end date at least 14 days after the start date.")
+
+    # Validate long-term payment frequency (only biweekly and monthly allowed)
+    if job_data.duration_type == "long_term" and job_data.payment_schedule:
+        if job_data.payment_schedule.frequency not in ("biweekly", "monthly"):
+            raise HTTPException(status_code=400, detail="Long-term jobs only support biweekly or monthly payment frequency.")
     
     # Multi-day schedule
     num_days = 1
@@ -883,6 +943,49 @@ def update_job_post(
     
     if job_update.status:
         post.status = ForumPostStatus(job_update.status)
+    
+    # If the owner provided a new category name, create it and add to category_ids
+    if job_update.new_category_name and job_update.new_category_name.strip():
+        from sqlalchemy import text as sa_text
+        new_cat_name = job_update.new_category_name.strip()
+        existing_cat = db.query(PackageCategory).filter(
+            PackageCategory.name.ilike(new_cat_name)
+        ).first()
+        if existing_cat:
+            if job_update.category_ids is None:
+                job_update.category_ids = []
+            if existing_cat.category_id not in job_update.category_ids:
+                job_update.category_ids.append(existing_cat.category_id)
+        else:
+            new_category = PackageCategory(
+                name=new_cat_name,
+                description=f"Custom category added by job owner",
+                is_active=True,
+            )
+            db.add(new_category)
+            db.commit()
+            db.refresh(new_category)
+            if job_update.category_ids is None:
+                job_update.category_ids = []
+            job_update.category_ids.append(new_category.category_id)
+
+            # Register as owner-private custom category
+            db.execute(sa_text("""
+                CREATE TABLE IF NOT EXISTS owner_custom_categories (
+                    category_id INTEGER PRIMARY KEY REFERENCES package_categories(category_id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """))
+            db.execute(
+                sa_text("""
+                    INSERT INTO owner_custom_categories (category_id, user_id)
+                    VALUES (:category_id, :user_id)
+                    ON CONFLICT (category_id) DO NOTHING
+                """),
+                {"category_id": new_category.category_id, "user_id": current_user.id}
+            )
+            db.commit()
     
     # Update categories if provided
     if job_update.category_ids is not None:

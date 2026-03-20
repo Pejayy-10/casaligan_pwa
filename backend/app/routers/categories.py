@@ -80,6 +80,13 @@ def _ensure_custom_category_table(db: Session):
             created_at TIMESTAMPTZ DEFAULT NOW()
         )
     """))
+    db.execute(text("""
+        CREATE TABLE IF NOT EXISTS owner_custom_categories (
+            category_id INTEGER PRIMARY KEY REFERENCES package_categories(category_id) ON DELETE CASCADE,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TIMESTAMPTZ DEFAULT NOW()
+        )
+    """))
     db.commit()
 
 
@@ -89,6 +96,18 @@ def _get_custom_category_ids(db: Session, user_id: Optional[int] = None) -> set[
     else:
         rows = db.execute(
             text("SELECT category_id FROM housekeeper_custom_categories WHERE user_id = :user_id"),
+            {"user_id": user_id}
+        ).fetchall()
+    return {int(row[0]) for row in rows}
+
+
+def _get_owner_custom_category_ids(db: Session, user_id: Optional[int] = None) -> set[int]:
+    """Get category IDs created by owners (private to each owner)."""
+    if user_id is None:
+        rows = db.execute(text("SELECT category_id FROM owner_custom_categories")).fetchall()
+    else:
+        rows = db.execute(
+            text("SELECT category_id FROM owner_custom_categories WHERE user_id = :user_id"),
             {"user_id": user_id}
         ).fetchall()
     return {int(row[0]) for row in rows}
@@ -165,6 +184,7 @@ def get_all_categories(
     _ensure_custom_category_table(db)
     _migrate_legacy_custom_markers(db)
     custom_category_ids = _get_custom_category_ids(db)
+    owner_custom_ids = _get_owner_custom_category_ids(db)
 
     query = db.query(PackageCategory)
     
@@ -172,8 +192,10 @@ def get_all_categories(
         query = query.filter(PackageCategory.is_active == True)
     
     categories = query.order_by(PackageCategory.name).all()
-    if custom_category_ids:
-        categories = [cat for cat in categories if cat.category_id not in custom_category_ids]
+    # Exclude housekeeper and owner private categories from the public list
+    excluded_ids = custom_category_ids | owner_custom_ids
+    if excluded_ids:
+        categories = [cat for cat in categories if cat.category_id not in excluded_ids]
     
     return [_to_category_response(cat) for cat in categories]
 
@@ -191,6 +213,7 @@ def get_my_categories(
 
     all_custom_ids = _get_custom_category_ids(db)
     my_custom_ids = _get_custom_category_ids(db, current_user.id)
+    all_owner_custom_ids = _get_owner_custom_category_ids(db)
 
     query = db.query(PackageCategory)
     if active_only:
@@ -199,15 +222,68 @@ def get_my_categories(
     all_categories = query.order_by(PackageCategory.name).all()
     visible_categories = []
     for category in all_categories:
+        cat_id = category.category_id
         is_legacy_custom = _is_custom_category(category)
         is_mine_legacy = _is_custom_for_user(category, current_user.id)
 
-        if category.category_id in my_custom_ids or is_mine_legacy:
+        # Hide owner custom categories from housekeepers
+        if cat_id in all_owner_custom_ids:
+            continue
+
+        if cat_id in my_custom_ids or is_mine_legacy:
             visible_categories.append(category)
             continue
 
-        if category.category_id not in all_custom_ids and not is_legacy_custom:
+        if cat_id not in all_custom_ids and not is_legacy_custom:
             visible_categories.append(category)
+
+    return [_to_category_response(cat) for cat in visible_categories]
+
+
+@router.get("/owner-categories", response_model=List[CategoryResponse])
+def get_owner_categories(
+    active_only: bool = True,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get admin/global categories + current owner's own custom categories.
+    Owner custom categories are private – only the owner who created them can see them."""
+    _ensure_custom_category_table(db)
+    _migrate_legacy_custom_markers(db)
+
+    # All private category IDs (housekeeper + owner)
+    all_hk_custom_ids = _get_custom_category_ids(db)
+    all_owner_custom_ids = _get_owner_custom_category_ids(db)
+    my_owner_custom_ids = _get_owner_custom_category_ids(db, current_user.id)
+
+    query = db.query(PackageCategory)
+    if active_only:
+        query = query.filter(PackageCategory.is_active == True)
+
+    all_categories = query.order_by(PackageCategory.name).all()
+    visible_categories = []
+    for category in all_categories:
+        cat_id = category.category_id
+
+        # Always show this owner's own custom categories
+        if cat_id in my_owner_custom_ids:
+            visible_categories.append(category)
+            continue
+
+        # Hide other owners' custom categories
+        if cat_id in all_owner_custom_ids:
+            continue
+
+        # Hide housekeeper custom categories
+        if cat_id in all_hk_custom_ids:
+            continue
+
+        # Legacy marker check
+        if _is_custom_category(category):
+            continue
+
+        # It's a global/admin category – show it
+        visible_categories.append(category)
 
     return [_to_category_response(cat) for cat in visible_categories]
 
@@ -263,6 +339,61 @@ def create_custom_category(
     db.commit()
 
     return _to_category_response(category)
+
+
+@router.post("/owner-custom", response_model=CategoryResponse)
+def create_owner_custom_category(
+    category_data: CategoryCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new custom category (owner/employer only, private to the owner)"""
+    if not current_user.is_owner:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only house owners can create custom categories from job posts"
+        )
+    _ensure_custom_category_table(db)
+
+    normalized_name = category_data.name.strip()
+    if not normalized_name:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Category name is required"
+        )
+
+    existing = db.query(PackageCategory).filter(
+        PackageCategory.name.ilike(normalized_name)
+    ).first()
+
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Category with this name already exists"
+        )
+
+    category = PackageCategory(
+        name=normalized_name,
+        description=category_data.description.strip() if category_data.description else None,
+        is_active=True
+    )
+
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+
+    db.execute(
+        text("""
+            INSERT INTO owner_custom_categories (category_id, user_id)
+            VALUES (:category_id, :user_id)
+            ON CONFLICT (category_id) DO NOTHING
+        """),
+        {"category_id": category.category_id, "user_id": current_user.id}
+    )
+    db.commit()
+
+    return _to_category_response(category)
+
 
 @router.post("/", response_model=CategoryResponse)
 def create_category(

@@ -36,6 +36,9 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
         ? [job.category_id] 
         : []
   );
+  const [customCategoryName, setCustomCategoryName] = useState('');
+  const [customCategoryDescription, setCustomCategoryDescription] = useState('');
+  const [addingCategory, setAddingCategory] = useState(false);
   
   const [images, setImages] = useState<string[]>(job.image_urls || []);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -46,13 +49,70 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
 
   const loadCategories = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/categories/?active_only=true`);
+      const token = localStorage.getItem('access_token');
+      // Use owner-categories endpoint to include this owner's custom categories
+      const response = await fetch(`${API_BASE_URL}/categories/owner-categories?active_only=true`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
+      } else {
+        // Fallback to public endpoint
+        const fallback = await fetch(`${API_BASE_URL}/categories/?active_only=true`);
+        if (fallback.ok) {
+          const data = await fallback.json();
+          setCategories(data);
+        }
       }
     } catch (error) {
       console.error('Failed to load categories:', error);
+    }
+  };
+
+  const handleAddCustomCategory = async () => {
+    if (!customCategoryName.trim()) {
+      alert('Please enter a category name');
+      return;
+    }
+
+    try {
+      setAddingCategory(true);
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/categories/owner-custom`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: customCategoryName.trim(),
+          description: customCategoryDescription.trim() || null
+        })
+      });
+
+      if (response.ok) {
+        const newCategory = await response.json();
+        setCategories((prev) => {
+          if (prev.some((c) => c.category_id === newCategory.category_id)) {
+            return prev;
+          }
+          return [...prev, newCategory].sort((a, b) => a.name.localeCompare(b.name));
+        });
+        setSelectedCategories((prev) =>
+          prev.includes(newCategory.category_id) ? prev : [...prev, newCategory.category_id]
+        );
+        setCustomCategoryName('');
+        setCustomCategoryDescription('');
+      } else {
+        const errorData = await response.json();
+        alert(errorData.detail || 'Failed to create category');
+      }
+    } catch (error) {
+      console.error('Failed to create custom category:', error);
+      alert('Failed to create category');
+    } finally {
+      setAddingCategory(false);
     }
   };
 
@@ -226,7 +286,34 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
           {/* Categories */}
           <div>
             <label className={labelClass}>Categories * (Select one or more)</label>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+            <div className="mb-3 p-3 bg-white/40 dark:bg-slate-800/40 rounded-xl border border-gray-200 dark:border-white/10 space-y-2">
+              <p className="text-[#4B244A]/70 dark:text-white/70 text-xs font-medium">Add custom category</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  value={customCategoryName}
+                  onChange={(e) => setCustomCategoryName(e.target.value)}
+                  placeholder="Category name"
+                  className={`${inputClass} !py-2 text-sm`}
+                />
+                <input
+                  type="text"
+                  value={customCategoryDescription}
+                  onChange={(e) => setCustomCategoryDescription(e.target.value)}
+                  placeholder="Description (optional)"
+                  className={`${inputClass} !py-2 text-sm`}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleAddCustomCategory}
+                disabled={addingCategory}
+                className="px-3 py-2 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d64460] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {addingCategory ? 'Adding...' : 'Add Category'}
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {categories.map(cat => (
                 <label
                   key={cat.category_id}

@@ -51,6 +51,9 @@ export default function CreateJobPage() {
   });
   
   const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
+  const [customCategoryName, setCustomCategoryName] = useState('');
+  const [customCategoryDescription, setCustomCategoryDescription] = useState('');
+  const [addingCategory, setAddingCategory] = useState(false);
   
   const [images, setImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -68,13 +71,70 @@ export default function CreateJobPage() {
 
   const loadCategories = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/categories/?active_only=true`);
+      const token = localStorage.getItem('access_token');
+      // Use owner-categories endpoint to include this owner's custom categories
+      const response = await fetch(`${API_BASE_URL}/categories/owner-categories?active_only=true`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
       if (response.ok) {
         const data = await response.json();
         setCategories(data);
+      } else {
+        // Fallback to public endpoint if owner-categories fails (e.g. no token)
+        const fallback = await fetch(`${API_BASE_URL}/categories/?active_only=true`);
+        if (fallback.ok) {
+          const data = await fallback.json();
+          setCategories(data);
+        }
       }
     } catch (error) {
       console.error('Failed to load categories:', error);
+    }
+  };
+
+  const handleAddCustomCategory = async () => {
+    if (!customCategoryName.trim()) {
+      alert('Please enter a category name');
+      return;
+    }
+
+    try {
+      setAddingCategory(true);
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/categories/owner-custom`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: customCategoryName.trim(),
+          description: customCategoryDescription.trim() || null
+        })
+      });
+
+      if (response.ok) {
+        const newCategory = await response.json();
+        setCategories((prev) => {
+          if (prev.some((c) => c.category_id === newCategory.category_id)) {
+            return prev;
+          }
+          return [...prev, newCategory].sort((a, b) => a.name.localeCompare(b.name));
+        });
+        setSelectedCategories((prev) =>
+          prev.includes(newCategory.category_id) ? prev : [...prev, newCategory.category_id]
+        );
+        setCustomCategoryName('');
+        setCustomCategoryDescription('');
+      } else {
+        const errorData = await response.json();
+        alert(errorData.detail || 'Failed to create category');
+      }
+    } catch (error) {
+      console.error('Failed to create custom category:', error);
+      alert('Failed to create category');
+    } finally {
+      setAddingCategory(false);
     }
   };
 
@@ -137,6 +197,26 @@ export default function CreateJobPage() {
       setError('Please select at least one category');
       return;
     }
+
+    // Validate short-term num_days limit
+    if (formData.duration_type === 'short_term') {
+      const numDays = parseInt(formData.num_days) || 1;
+      if (numDays > 13) {
+        setError('Short-term jobs can have a maximum of 13 days. For 14+ days, please select Long Term.');
+        return;
+      }
+    }
+
+    // Validate long-term end date is at least 14 days from start date
+    if (formData.duration_type === 'long_term' && formData.start_date && formData.end_date) {
+      const startMs = new Date(formData.start_date).getTime();
+      const endMs = new Date(formData.end_date).getTime();
+      const diffDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
+      if (diffDays < 14) {
+        setError('Long-term jobs must have an end date at least 14 days after the start date.');
+        return;
+      }
+    }
     
     setLoading(true);
 
@@ -167,9 +247,19 @@ export default function CreateJobPage() {
       
       // Add payment schedule for long-term jobs
       if (formData.duration_type === 'long_term') {
+        // Budget is total per person for the entire contract
+        // Compute per-cycle installment from daily rate
+        const totalBudget = parseFloat(formData.budget);
+        let perCycleAmount = totalBudget;
+        if (formData.start_date && formData.end_date) {
+          const totalDays = Math.round((new Date(formData.end_date).getTime() - new Date(formData.start_date).getTime()) / (1000 * 60 * 60 * 24));
+          const cycleDays = formData.payment_frequency === 'biweekly' ? 14 : 30;
+          const dailyRate = totalBudget / totalDays;
+          perCycleAmount = Math.round(dailyRate * cycleDays * 100) / 100;
+        }
         jobData.payment_schedule = {
           frequency: formData.payment_frequency,
-          payment_amount: parseFloat(formData.payment_amount),
+          payment_amount: perCycleAmount,
           payment_dates: formData.payment_dates,
           payment_method_preference: formData.payment_method_preference
         };
@@ -355,7 +445,34 @@ export default function CreateJobPage() {
 
                 <div className="md:col-span-2">
                   <label className={labelClass}>Categories * (Select one or more)</label>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-2">
+                  <div className="mb-3 p-3 bg-white/40 dark:bg-slate-800/40 rounded-xl border border-gray-200 dark:border-white/10 space-y-2">
+                    <p className="text-[#4B244A]/70 dark:text-white/70 text-xs font-medium">Add custom category</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={customCategoryName}
+                        onChange={(e) => setCustomCategoryName(e.target.value)}
+                        placeholder="Category name"
+                        className={`${inputClass} !py-2 text-sm`}
+                      />
+                      <input
+                        type="text"
+                        value={customCategoryDescription}
+                        onChange={(e) => setCustomCategoryDescription(e.target.value)}
+                        placeholder="Description (optional)"
+                        className={`${inputClass} !py-2 text-sm`}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddCustomCategory}
+                      disabled={addingCategory}
+                      className="px-3 py-2 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d64460] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {addingCategory ? 'Adding...' : 'Add Category'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                     {categories.map(cat => (
                       <label
                         key={cat.category_id}
@@ -468,8 +585,8 @@ export default function CreateJobPage() {
                 onChange={handleInputChange}
                 className={inputClass}
               >
-                <option value="short_term" className={optionClass}>Short Term (One-time)</option>
-                <option value="long_term" className={optionClass}>Long Term (Recurring)</option>
+                <option value="short_term" className={optionClass}>Short Term (1–13 days)</option>
+                <option value="long_term" className={optionClass}>Long Term (14+ days)</option>
               </select>
             </div>
 
@@ -505,9 +622,12 @@ export default function CreateJobPage() {
                         value={formData.num_days}
                         onChange={handleInputChange}
                         min="1"
-                        max="30"
+                        max="13"
                         className={inputClass}
                       />
+                      <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
+                        Short-term jobs can be up to 13 days. For 14+ days, select Long Term.
+                      </p>
                     </div>
                     <div>
                       <label className={labelClass}>Start Time *</label>
@@ -661,7 +781,21 @@ export default function CreateJobPage() {
                     type="date"
                     name="start_date"
                     value={formData.start_date}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      const newStart = e.target.value;
+                      setFormData(prev => {
+                        // If end_date is set but less than 14 days from new start, reset it
+                        if (prev.end_date && newStart) {
+                          const startMs = new Date(newStart).getTime();
+                          const endMs = new Date(prev.end_date).getTime();
+                          const diffDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
+                          if (diffDays < 14) {
+                            return { ...prev, start_date: newStart, end_date: '' };
+                          }
+                        }
+                        return { ...prev, start_date: newStart };
+                      });
+                    }}
                     required={formData.duration_type === 'long_term'}
                     className={inputClass}
                   />
@@ -674,9 +808,24 @@ export default function CreateJobPage() {
                     value={formData.end_date}
                     onChange={handleInputChange}
                     required={formData.duration_type === 'long_term'}
-                    min={formData.start_date}
+                    min={formData.start_date ? (() => {
+                      const d = new Date(formData.start_date);
+                      d.setDate(d.getDate() + 14);
+                      return d.toISOString().split('T')[0];
+                    })() : undefined}
                     className={inputClass}
                   />
+                  <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
+                    Long-term jobs must be at least 14 days from the start date.
+                  </p>
+                  {formData.start_date && formData.end_date && (() => {
+                    const diffDays = Math.round((new Date(formData.end_date).getTime() - new Date(formData.start_date).getTime()) / (1000 * 60 * 60 * 24));
+                    return diffDays < 14 ? (
+                      <p className="text-red-500 text-xs mt-1 font-medium">
+                        ⚠️ End date must be at least 14 days after the start date ({diffDays} days selected).
+                      </p>
+                    ) : null;
+                  })()}
                 </div>
               </div>
             )}
@@ -697,10 +846,8 @@ export default function CreateJobPage() {
                     onChange={handleInputChange}
                     className={inputClass}
                   >
-                    <option value="weekly" className={optionClass}>Weekly - Every week</option>
                     <option value="biweekly" className={optionClass}>Bi-weekly - Every 2 weeks</option>
                     <option value="monthly" className={optionClass}>Monthly - Once a month</option>
-                    <option value="custom" className={optionClass}>Custom - Specific dates</option>
                   </select>
                 </div>
 
@@ -708,84 +855,65 @@ export default function CreateJobPage() {
                 <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4 mb-4">
                   <p className="text-blue-800 dark:text-blue-200 text-sm font-bold mb-2">💡 How Payment Works (Per Person)</p>
                   <p className="text-blue-700 dark:text-blue-200/80 text-xs font-medium">
-                    The budget you set is <strong>PER HOUSEKEEPER</strong>. If you need {formData.people_needed} housekeeper(s) 
-                    and set ₱{formData.payment_amount || '0'} per payment, each housekeeper receives ₱{formData.payment_amount || '0'} on each payment date.
+                    The budget (₱{formData.budget || '0'}) is the <strong>total amount PER HOUSEKEEPER</strong> for the entire contract duration. 
+                    It will be split into {formData.payment_frequency === 'biweekly' ? 'bi-weekly (every 14 days)' : 'monthly (every 30 days)'} installments.
                   </p>
-                  {parseInt(formData.people_needed) > 1 && formData.payment_amount && (
+                  {parseInt(formData.people_needed) > 1 && formData.budget && (
                     <p className="text-orange-600 dark:text-yellow-300 text-xs mt-2 font-bold">
-                      <strong>Total per payment date:</strong> ₱{parseInt(formData.payment_amount) * parseInt(formData.people_needed)} 
-                      ({formData.people_needed} workers × ₱{formData.payment_amount})
+                      <strong>Grand total for all workers:</strong> ₱{(parseFloat(formData.budget) * parseInt(formData.people_needed)).toLocaleString()} 
+                      ({formData.people_needed} workers × ₱{parseFloat(formData.budget).toLocaleString()})
                     </p>
                   )}
                 </div>
 
-                <div>
-                  <label className={labelClass}>Payment Amount per Person per Schedule (₱) *</label>
-                  <input
-                    type="number"
-                    name="payment_amount"
-                    value={formData.payment_amount}
-                    onChange={handleInputChange}
-                    required={formData.duration_type === 'long_term'}
-                    min="100"
-                    step="50"
-                    placeholder="e.g., 2500 per person per payment"
-                    className={inputClass}
-                  />
-                  <p className="text-[#4B244A]/60 dark:text-white/50 text-xs mt-1 font-medium">
-                    Amount each housekeeper receives on each payment date
-                  </p>
-                </div>
-
-                {formData.payment_frequency === 'monthly' && (
-                  <div>
-                    <label className={labelClass}>Payment Dates (Day of Month)</label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={formData.payment_dates.includes('15')}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormData({...formData, payment_dates: [...formData.payment_dates, '15'].sort()});
-                            } else {
-                              setFormData({...formData, payment_dates: formData.payment_dates.filter(d => d !== '15')});
-                            }
-                          }}
-                          className="w-5 h-5 rounded border-gray-300 dark:border-white/30 text-[#EA526F] focus:ring-[#EA526F]"
-                        />
-                        <label className="text-[#4B244A] dark:text-white font-medium">15th of month</label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={formData.payment_dates.includes('30')}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setFormData({...formData, payment_dates: [...formData.payment_dates, '30'].sort()});
-                            } else {
-                              setFormData({...formData, payment_dates: formData.payment_dates.filter(d => d !== '30')});
-                            }
-                          }}
-                          className="w-5 h-5 rounded border-gray-300 dark:border-white/30 text-[#EA526F] focus:ring-[#EA526F]"
-                        />
-                        <label className="text-[#4B244A] dark:text-white font-medium">30th/End of month</label>
-                      </div>
-                    </div>
-                    <p className="text-[#4B244A]/60 dark:text-white/50 text-xs mt-2 font-medium">
-                      Select when you'll pay during the month. You can choose both dates for twice-monthly payments.
-                    </p>
-                  </div>
-                )}
-
-                {(formData.payment_frequency === 'weekly' || formData.payment_frequency === 'biweekly') && (
+                {formData.payment_frequency === 'biweekly' && (
                   <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4">
                     <p className="text-blue-800 dark:text-blue-200 text-sm">
                       <strong>📅 Payment Schedule:</strong> Payments will be calculated automatically based on your start and end dates.
-                      {formData.payment_frequency === 'weekly' ? ' You\'ll pay every 7 days.' : ' You\'ll pay every 14 days.'}
+                      You'll pay every 14 days.
                     </p>
                   </div>
                 )}
+
+                {/* Payment Breakdown */}
+                {formData.start_date && formData.end_date && formData.budget && (() => {
+                  const totalDays = Math.round((new Date(formData.end_date).getTime() - new Date(formData.start_date).getTime()) / (1000 * 60 * 60 * 24));
+                  const totalBudget = parseFloat(formData.budget) || 0;
+                  const dailyRate = totalBudget / totalDays;
+                  const cycleDays = formData.payment_frequency === 'biweekly' ? 14 : 30;
+                  const fullCycles = Math.floor(totalDays / cycleDays);
+                  const extraDays = totalDays % cycleDays;
+                  const perCycleAmount = Math.round(dailyRate * cycleDays * 100) / 100;
+                  const extraDaysPay = Math.round(dailyRate * extraDays * 100) / 100;
+                  const peopleNeeded = parseInt(formData.people_needed) || 1;
+
+                  return (
+                    <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-xl p-4 space-y-2">
+                      <p className="text-green-800 dark:text-green-200 text-sm font-bold">📊 Payment Breakdown (Per Person)</p>
+                      <div className="text-green-700 dark:text-green-200/80 text-xs space-y-1 font-medium">
+                        <p>📅 Total duration: <strong>{totalDays} days</strong></p>
+                        <p>� Daily rate: ₱{totalBudget.toLocaleString()} ÷ {totalDays} days = <strong>₱{dailyRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/day</strong></p>
+                        <p>🔄 {formData.payment_frequency === 'biweekly' ? 'Bi-weekly' : 'Monthly'} installment ({cycleDays} days): <strong>₱{perCycleAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> × {fullCycles} = ₱{(perCycleAmount * fullCycles).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        {extraDays > 0 ? (
+                          <>
+                            <p>📐 Remaining days: <strong>{extraDays} day{extraDays > 1 ? 's' : ''}</strong> → ₱{dailyRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} × {extraDays} = <strong>₱{extraDaysPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+                          </>
+                        ) : (
+                          <p>✅ Duration fits perfectly into {fullCycles} full {formData.payment_frequency === 'biweekly' ? 'bi-weekly' : 'monthly'} cycle{fullCycles > 1 ? 's' : ''} — no extra days.</p>
+                        )}
+                        <hr className="border-green-300 dark:border-green-500/30 my-2" />
+                        <p className="text-sm">
+                          💵 Total per person: <strong>₱{totalBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                        </p>
+                        {peopleNeeded > 1 && (
+                          <p className="text-sm text-orange-600 dark:text-yellow-300 font-bold">
+                            👥 Grand total ({peopleNeeded} workers): <strong>₱{(totalBudget * peopleNeeded).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div>
                   <label className={labelClass}>Preferred Payment Method</label>

@@ -21,7 +21,7 @@ class RecurringScheduleData(BaseModel):
 
 class MultiDayScheduleData(BaseModel):
     """Multi-day schedule with daily working hours"""
-    num_days: int = Field(1, ge=1, le=30, description="Number of working days")
+    num_days: int = Field(1, ge=1, le=13, description="Number of working days (1-13 for short term)")
     daily_start_time: str = Field(..., description="Daily start time in HH:MM format, e.g. '08:00'")
     daily_end_time: str = Field(..., description="Daily end time in HH:MM format, e.g. '15:00'")
 
@@ -39,6 +39,7 @@ class JobPostCreate(BaseModel):
     location: Optional[str] = None  # Job location (city/address)
     category_id: Optional[int] = None  # Legacy single category (kept for compatibility)
     category_ids: List[int] = []  # Multiple categories from package_categories
+    new_category_name: Optional[str] = None  # Allow owner to create a new category if not found
     payment_schedule: Optional[PaymentScheduleData] = None  # For long_term jobs
     recurring_schedule: Optional[RecurringScheduleData] = None  # For recurring jobs
     multi_day_schedule: Optional[MultiDayScheduleData] = None  # For multi-day jobs
@@ -192,5 +193,6 @@ class JobPostUpdate(BaseModel):
     location: Optional[str] = None
     category_id: Optional[int] = None
     category_ids: Optional[List[int]] = None
+    new_category_name: Optional[str] = None  # Allow owner to create a new category if not found
     status: Optional[str] = None  # "open", "closed"
     multi_day_schedule: Optional[MultiDayScheduleData] = None
