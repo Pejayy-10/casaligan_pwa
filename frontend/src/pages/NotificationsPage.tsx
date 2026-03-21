@@ -63,7 +63,6 @@ const OWNER_ONLY_NOTIFICATIONS = [
   'job_application',
   'job_edited',
   'completion_submitted',
-  'direct_hire_request',
   'applicant_withdrawn_due_to_conflict',
   'hire_canceled_worker_accepted_conflict',
   'housekeeper_referral',
@@ -80,6 +79,7 @@ const HOUSEKEEPER_ONLY_NOTIFICATIONS = [
   'payment_review',
   'payment_due',
   'payment_overdue',
+  'direct_hire_request',
   'direct_hire_accepted',
   'direct_hire_rejected',
   'direct_hire_started',
@@ -317,6 +317,9 @@ export default function NotificationsPage() {
 
     if (notification.reference_type && notification.reference_id) {
       switch (notification.reference_type) {
+        case 'direct_hire':
+          navigate('/direct-hires');
+          break;
         case 'chat':
           navigate(`/chat/${notification.reference_id}`);
           break;
