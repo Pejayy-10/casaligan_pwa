@@ -62,6 +62,12 @@ export interface JobPost {
     status: string;
     worker_id: number;
   }>;
+  is_recurring?: boolean;
+  recurring_status?: string | null;
+  day_of_week?: string | null;
+  start_time?: string | null;
+  end_time?: string | null;
+  frequency?: string | null;
 }
 
 interface JobDetailModalProps {
@@ -138,6 +144,14 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
             <span className="px-4 py-2 bg-white/60 dark:bg-white/10 text-[#4B244A] dark:text-white/90 rounded-lg text-sm font-semibold border border-gray-200 dark:border-white/5">
               <Home className="inline w-4 h-4 mr-1" /> {job.house_type}
             </span>
+            <span className={`px-4 py-2 rounded-lg text-sm font-semibold border ${
+              job.is_recurring
+                ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300 border-indigo-200 dark:border-indigo-500/20'
+                : 'bg-white/60 dark:bg-white/10 text-[#4B244A] dark:text-white/90 border-gray-200 dark:border-white/5'
+            }`}>
+              {job.is_recurring ? <RotateCw className="inline w-4 h-4 mr-1" /> : <Clock className="inline w-4 h-4 mr-1" />}
+              {job.is_recurring ? 'Recurring' : 'One-time'}
+            </span>
             <span className="px-4 py-2 bg-white/60 dark:bg-white/10 text-[#4B244A] dark:text-white/90 rounded-lg text-sm font-semibold border border-gray-200 dark:border-white/5">
               <Zap className="inline w-4 h-4 mr-1" /> {job.cleaning_type}
             </span>
@@ -162,6 +176,36 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
                 {job.end_date && (
                   <p className="text-[#4B244A]/80 dark:text-white/80">
                     <span className="font-semibold">End Date:</span> <span className="font-bold">{new Date(job.end_date).toLocaleDateString()}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {job.is_recurring && (
+            <div className="bg-indigo-50/80 dark:bg-indigo-500/10 rounded-xl p-4 border border-indigo-200 dark:border-indigo-500/20">
+              <h3 className="text-[#4B244A] dark:text-white font-bold mb-2"><RotateCw className="inline w-4 h-4 mr-1" /> Recurring Schedule</h3>
+              <div className="space-y-2 text-sm text-[#4B244A]/80 dark:text-white/80">
+                <p>
+                  <span className="font-semibold">Status:</span>{' '}
+                  <span className="font-bold capitalize">{job.recurring_status || 'active'}</span>
+                </p>
+                {job.day_of_week && (
+                  <p>
+                    <span className="font-semibold">Days:</span>{' '}
+                    <span className="font-bold capitalize">{job.day_of_week.split(',').map((d) => d.trim()).join(', ')}</span>
+                  </p>
+                )}
+                {job.start_time && job.end_time && (
+                  <p>
+                    <span className="font-semibold">Time:</span>{' '}
+                    <span className="font-bold">{job.start_time} – {job.end_time}</span>
+                  </p>
+                )}
+                {job.frequency && (
+                  <p>
+                    <span className="font-semibold">Frequency:</span>{' '}
+                    <span className="font-bold capitalize">{job.frequency}</span>
                   </p>
                 )}
               </div>

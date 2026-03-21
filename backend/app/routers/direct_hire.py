@@ -102,6 +102,135 @@ def calculate_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) ->
     return round(distance, 2)
 
 
+def _parse_recurring_days(day_of_week: Optional[str]) -> List[int]:
+    day_map = {
+        "monday": 0,
+        "tuesday": 1,
+        "wednesday": 2,
+        "thursday": 3,
+        "friday": 4,
+        "saturday": 5,
+        "sunday": 6,
+    }
+    if not day_of_week:
+        return []
+    parsed = []
+    for item in day_of_week.split(","):
+        key = item.strip().lower()
+        if key in day_map:
+            parsed.append(day_map[key])
+    return sorted(set(parsed))
+
+
+def _next_recurring_date(hire: DirectHire) -> Optional[date]:
+    if not hire.scheduled_date:
+        return None
+
+    days = _parse_recurring_days(getattr(hire, "day_of_week", None))
+    if not days:
+        return None
+
+    frequency = (getattr(hire, "frequency", None) or "weekly").lower()
+    current_date = hire.scheduled_date
+    current_weekday = current_date.weekday()
+
+    # 1) Same-cycle next day (e.g., Monday -> Wednesday)
+    for day in days:
+        if day > current_weekday:
+            return current_date + timedelta(days=(day - current_weekday))
+
+    # 2) Roll to next cycle's first selected day
+    if frequency == "biweekly":
+        cycle_weeks = 2
+    elif frequency == "monthly":
+        cycle_weeks = 4
+    else:
+        cycle_weeks = 1
+
+    start_of_week = current_date - timedelta(days=current_weekday)
+    next_cycle_start = start_of_week + timedelta(weeks=cycle_weeks)
+    return next_cycle_start + timedelta(days=days[0])
+
+
+def _should_reset_fee_for_next_cycle(*, current_date: date, next_date: date, frequency: str) -> bool:
+    freq = (frequency or "weekly").lower()
+    if freq == "weekly":
+        return current_date.isocalendar()[:2] != next_date.isocalendar()[:2]
+    if freq == "biweekly":
+        return (next_date - current_date).days > 7
+    if freq == "monthly":
+        return (current_date.year, current_date.month) != (next_date.year, next_date.month)
+    return True
+
+
+def _is_short_term_weekly_recurring(hire: DirectHire) -> bool:
+    return bool(getattr(hire, "is_recurring", False)) and ((getattr(hire, "frequency", None) or "").lower() == "weekly")
+
+
+def _rollover_recurring_after_paid(*, hire: DirectHire, db: Session) -> Optional[DirectHire]:
+    """
+    After a recurring cycle is paid, archive current cycle and create next active occurrence.
+    """
+    if not getattr(hire, "is_recurring", False):
+        return None
+    if (getattr(hire, "recurring_status", None) or "active") != "active":
+        return None
+
+    next_date = _next_recurring_date(hire)
+    if not next_date:
+        return None
+
+    frequency = (getattr(hire, "frequency", None) or "weekly").lower()
+    reset_fee_for_next = _should_reset_fee_for_next_cycle(
+        current_date=hire.scheduled_date,
+        next_date=next_date,
+        frequency=frequency,
+    )
+
+    num_days = getattr(hire, "num_days", 1) or 1
+    next_end_date = next_date + timedelta(days=num_days - 1) if num_days > 1 else None
+
+    # Archive current cycle so recurring screens only show the active future cycle
+    hire.is_recurring = False
+    hire.recurring_status = None
+
+    next_platform_fee_status = "pending_owner_weekly" if (reset_fee_for_next and _is_short_term_weekly_recurring(hire)) else ("pending" if reset_fee_for_next else "paid")
+
+    next_hire = DirectHire(
+        employer_id=hire.employer_id,
+        worker_id=hire.worker_id,
+        package_ids=hire.package_ids,
+        total_amount=hire.total_amount,
+        platform_fee_percentage=hire.platform_fee_percentage,
+        platform_fee_amount=hire.platform_fee_amount,
+        platform_fee_status=next_platform_fee_status,
+        platform_fee_checkout_id=None if reset_fee_for_next else hire.platform_fee_checkout_id,
+        platform_fee_reference=None if reset_fee_for_next else hire.platform_fee_reference,
+        platform_fee_paid_at=None if reset_fee_for_next else hire.platform_fee_paid_at,
+        scheduled_date=next_date,
+        scheduled_time=hire.scheduled_time,
+        num_days=num_days,
+        daily_start_time=hire.daily_start_time,
+        daily_end_time=hire.daily_end_time,
+        end_date=next_end_date,
+        is_recurring=True,
+        day_of_week=hire.day_of_week,
+        start_time=hire.start_time,
+        end_time=hire.end_time,
+        frequency=hire.frequency,
+        recurring_status="active",
+        address_street=hire.address_street,
+        address_barangay=hire.address_barangay,
+        address_city=hire.address_city,
+        address_province=hire.address_province,
+        address_region=hire.address_region,
+        special_instructions=hire.special_instructions,
+        status=DirectHireStatus.PENDING if reset_fee_for_next else DirectHireStatus.ACCEPTED,
+    )
+    db.add(next_hire)
+    return next_hire
+
+
 # ============== SCHEMAS ==============
 
 class RecurringScheduleData(BaseModel):
@@ -217,6 +346,12 @@ class DirectHireOwnerPaymentInitiateResponse(BaseModel):
     checkout_id: str
     redirect_url: str
     amount: float
+
+
+class RecurringWeeklyFeeSubmit(BaseModel):
+    payment_method: Optional[str] = "cash"
+    reference_number: Optional[str] = None
+    payment_proof_url: Optional[str] = None
 
 
 class DirectHireReceiptResponse(BaseModel):
@@ -554,6 +689,10 @@ def create_direct_hire(
         end_time = hire_data.recurring_schedule.end_time
         frequency = hire_data.recurring_schedule.frequency
         recurring_status = "active"
+
+    initial_platform_fee_status = "pending"
+    if is_recurring and (frequency or "").lower() == "weekly":
+        initial_platform_fee_status = "pending_owner_weekly"
     
     # Create the hire
     # Derive num_days and daily hours from the selected packages (set by the housekeeper)
@@ -610,7 +749,7 @@ def create_direct_hire(
         total_amount=total_amount,
         platform_fee_percentage=platform_fee_percentage,
         platform_fee_amount=platform_fee_amount,
-        platform_fee_status="pending",
+        platform_fee_status=initial_platform_fee_status,
         scheduled_date=hire_data.scheduled_date,
         scheduled_time=hire_data.scheduled_time,
         address_street=address_street,
@@ -870,6 +1009,8 @@ async def verify_owner_payment_checkout(
         hire.status = DirectHireStatus.PAID
         if not hire.payment_method:
             hire.payment_method = "maya"
+
+        _rollover_recurring_after_paid(hire=hire, db=db)
         db.commit()
         db.refresh(hire)
 
@@ -923,7 +1064,7 @@ def confirm_payment(
     
     # Confirm payment
     hire.status = DirectHireStatus.PAID
-    
+    _rollover_recurring_after_paid(hire=hire, db=db)
     db.commit()
     db.refresh(hire)
     
@@ -963,6 +1104,13 @@ def cancel_booking(
         raise HTTPException(status_code=400, detail="Cannot cancel a booking that is already in progress or completed")
     
     hire.status = DirectHireStatus.CANCELLED
+
+    if hire.is_recurring:
+        hire.recurring_status = "cancelled"
+        hire.recurring_cancelled_at = datetime.now()
+        if not hire.recurring_cancellation_reason:
+            hire.recurring_cancellation_reason = "Cancelled from direct hire"
+        hire.cancelled_by = "employer"
     db.commit()
     
     return {"message": "Booking cancelled"}
@@ -1204,6 +1352,12 @@ async def initiate_acceptance_fee_payment(
     if hire.status != DirectHireStatus.PENDING:
         raise HTTPException(status_code=400, detail="Can only pay fee for pending requests")
 
+    if _is_short_term_weekly_recurring(hire):
+        raise HTTPException(
+            status_code=400,
+            detail="Weekly recurring posting fee must be paid by the house owner",
+        )
+
     if not maya_is_configured():
         raise HTTPException(status_code=500, detail="Maya sandbox is not configured on backend")
 
@@ -1282,6 +1436,12 @@ async def verify_acceptance_fee_payment(
 
     if hire.status != DirectHireStatus.PENDING and hire.status != DirectHireStatus.ACCEPTED:
         raise HTTPException(status_code=400, detail="Hire cannot be verified in current state")
+
+    if _is_short_term_weekly_recurring(hire):
+        raise HTTPException(
+            status_code=400,
+            detail="Weekly recurring posting fee must be paid by the house owner",
+        )
 
     try:
         checkout = await retrieve_checkout(payload.checkout_id)
@@ -1405,11 +1565,18 @@ def accept_hire(
         raise HTTPException(status_code=400, detail="Can only accept pending requests")
 
     platform_fee_status = (getattr(hire, 'platform_fee_status', 'pending') or 'pending').lower()
-    if platform_fee_status != "paid":
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="Platform fee must be paid before accepting this hire",
-        )
+    if _is_short_term_weekly_recurring(hire):
+        if platform_fee_status != "paid":
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="House owner must pay the weekly posting fee before this recurring hire can be accepted",
+            )
+    else:
+        if platform_fee_status != "paid":
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Platform fee must be paid before accepting this hire",
+            )
 
     _accept_hire_after_fee(hire=hire, worker=worker, current_user=current_user, db=db)
     
@@ -1437,6 +1604,13 @@ def reject_hire(
         raise HTTPException(status_code=400, detail="Can only reject pending requests")
     
     hire.status = DirectHireStatus.REJECTED
+
+    if hire.is_recurring:
+        hire.recurring_status = "cancelled"
+        hire.recurring_cancelled_at = datetime.now()
+        if not hire.recurring_cancellation_reason:
+            hire.recurring_cancellation_reason = "Rejected from direct hire"
+        hire.cancelled_by = "worker"
     db.commit()
     
     # Send notification to employer that worker rejected
@@ -1549,6 +1723,7 @@ def confirm_payment_received(
     if hire.status == DirectHireStatus.COMPLETED:
         hire.paid_at = func.now()
         hire.status = DirectHireStatus.PAID
+        _rollover_recurring_after_paid(hire=hire, db=db)
         db.commit()
         return {"message": "Payment confirmed", "status": "paid"}
     
@@ -1829,6 +2004,42 @@ def cancel_recurring_hire(
             worker_name = f"{current_user.first_name} {current_user.last_name}"
             # Notify employer that worker cancelled recurring service
     
+    return hire_to_response(hire, db)
+
+
+@router.post("/{hire_id}/weekly-fee/mark-paid", response_model=DirectHireResponse)
+def mark_weekly_recurring_fee_paid(
+    hire_id: int,
+    payload: RecurringWeeklyFeeSubmit,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    employer = get_employer_for_user(current_user.id, db)
+
+    hire = db.query(DirectHire).filter(
+        DirectHire.hire_id == hire_id,
+        DirectHire.employer_id == employer.employer_id,
+    ).first()
+
+    if not hire:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    if not _is_short_term_weekly_recurring(hire):
+        raise HTTPException(status_code=400, detail="This endpoint is only for weekly recurring direct hires")
+
+    if hire.status != DirectHireStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Weekly posting fee can only be paid while hire is pending")
+
+    hire.platform_fee_status = "paid"
+    hire.platform_fee_paid_at = func.now()
+    hire.platform_fee_reference = payload.reference_number or hire.platform_fee_reference
+    if payload.payment_method:
+        hire.payment_method = payload.payment_method
+    if payload.payment_proof_url:
+        hire.payment_proof_url = payload.payment_proof_url
+
+    db.commit()
+    db.refresh(hire)
     return hire_to_response(hire, db)
 
 

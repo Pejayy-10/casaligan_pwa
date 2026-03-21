@@ -70,30 +70,34 @@ export default function RecurringServicesPage() {
       setLoading(true);
       const token = localStorage.getItem('access_token');
 
-      // Load recurring job posts
-      const jobsResponse = await fetch(`${API_BASE_URL}/jobs/my-posts`, {
+      // Load recurring jobs based on role
+      const jobsEndpoint = user?.active_role === 'owner'
+        ? `${API_BASE_URL}/jobs/my-posts`
+        : `${API_BASE_URL}/jobs/my-accepted-jobs`;
+
+      const jobsResponse = await fetch(jobsEndpoint, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (jobsResponse.ok) {
         const allJobs = await jobsResponse.json();
-        const recurring = allJobs.filter((job: any) => 
-          job.recurring_schedule?.is_recurring === true || job.recurring_status !== null
-        ).map((job: any) => ({
-          post_id: job.post_id,
-          title: job.title,
-          description: job.description,
-          status: job.status,
-          created_at: job.created_at,
-          is_recurring: job.recurring_schedule?.is_recurring || false,
-          day_of_week: job.recurring_schedule?.day_of_week || null,
-          start_time: job.recurring_schedule?.start_time || null,
-          end_time: job.recurring_schedule?.end_time || null,
-          frequency: job.recurring_schedule?.frequency || null,
-          recurring_status: job.recurring_status || null,
-          recurring_cancelled_at: job.recurring_cancelled_at || null,
-          recurring_cancellation_reason: job.recurring_cancellation_reason || null,
-          cancelled_by: job.cancelled_by || null,
-        }));
+        const recurring = allJobs
+          .filter((job: any) => Boolean(job.is_recurring) || Boolean(job.recurring_status))
+          .map((job: any) => ({
+            post_id: job.post_id,
+            title: job.title,
+            description: job.description,
+            status: job.status,
+            created_at: job.created_at || job.accepted_at || new Date().toISOString(),
+            is_recurring: Boolean(job.is_recurring),
+            day_of_week: job.day_of_week || null,
+            start_time: job.start_time || null,
+            end_time: job.end_time || null,
+            frequency: job.frequency || null,
+            recurring_status: job.recurring_status || (job.is_recurring ? 'active' : null),
+            recurring_cancelled_at: job.recurring_cancelled_at || null,
+            recurring_cancellation_reason: job.recurring_cancellation_reason || null,
+            cancelled_by: job.cancelled_by || null,
+          }));
         setRecurringJobs(recurring);
       }
 
@@ -156,6 +160,29 @@ export default function RecurringServicesPage() {
       setCancelling(false);
     }
   };
+
+  const handleStartRecurringHire = async (hireId: number) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/direct-hire/${hireId}/start`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        alert('Recurring service started successfully');
+        loadRecurringServices();
+      } else {
+        const error = await response.json();
+        alert(error.detail || 'Failed to start recurring service');
+      }
+    } catch (error) {
+      console.error('Start recurring service error:', error);
+      alert('Failed to start recurring service');
+    }
+  };
   
   function FilterTab({ 
     active, 
@@ -199,23 +226,26 @@ export default function RecurringServicesPage() {
     return `Every ${days} from ${startTime} to ${endTime} (${frequency})`;
   };
 
+  const isActiveRecurring = (item: { recurring_status: string | null; is_recurring: boolean }) =>
+    item.is_recurring && (item.recurring_status === null || item.recurring_status === 'active');
+
   const filteredJobs = filter === 'all' 
     ? recurringJobs 
     : filter === 'active'
-    ? recurringJobs.filter(job => job.recurring_status === 'active')
+    ? recurringJobs.filter(job => isActiveRecurring(job))
     : recurringJobs.filter(job => job.recurring_status === 'cancelled');
 
   const filteredHires = filter === 'all'
     ? recurringHires
     : filter === 'active'
-    ? recurringHires.filter(hire => hire.recurring_status === 'active')
+    ? recurringHires.filter(hire => isActiveRecurring(hire))
     : recurringHires.filter(hire => hire.recurring_status === 'cancelled');
 
   const allServices = [
     ...filteredJobs.map(job => ({ type: 'job' as const, data: job })),
     ...filteredHires.map(hire => ({ type: 'hire' as const, data: hire }))
   ].sort((a, b) => new Date(b.data.created_at).getTime() - new Date(a.data.created_at).getTime());
-  const countActive = recurringJobs.filter(j => j.recurring_status === 'active').length + recurringHires.filter(h => h.recurring_status === 'active').length;
+  const countActive = recurringJobs.filter(j => isActiveRecurring(j)).length + recurringHires.filter(h => isActiveRecurring(h)).length;
   const countCancelled = recurringJobs.filter(j => j.recurring_status === 'cancelled').length + recurringHires.filter(h => h.recurring_status === 'cancelled').length;
   const countAll = recurringJobs.length + recurringHires.length;
 
@@ -339,15 +369,33 @@ return (
                 )}
 
                 {hire.recurring_status === 'active' && (
-                  <button 
-                    onClick={() => {
-                      setCancelTarget({ id: hire.hire_id, type: 'hire' });
-                      setShowCancelModal(true);
-                    }}
-                    className="w-full py-2.5 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-sm font-bold rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2"
-                  >
-                    Cancel Service
-                  </button>
+                  <div className="space-y-2">
+                    {user?.active_role === 'housekeeper' && hire.status === 'accepted' && (
+                      <button
+                        onClick={() => handleStartRecurringHire(hire.hire_id)}
+                        className="w-full py-2.5 bg-blue-500 text-white text-sm font-bold rounded-xl hover:bg-blue-600 transition-colors flex items-center justify-center gap-2"
+                      >
+                        Start Next Service
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => navigate('/direct-hires')}
+                      className="w-full py-2.5 border border-blue-200 dark:border-blue-500/30 text-blue-600 dark:text-blue-300 text-sm font-bold rounded-xl hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors flex items-center justify-center gap-2"
+                    >
+                      Open Direct Hires
+                    </button>
+
+                    <button 
+                      onClick={() => {
+                        setCancelTarget({ id: hire.hire_id, type: 'hire' });
+                        setShowCancelModal(true);
+                      }}
+                      className="w-full py-2.5 border border-red-200 dark:border-red-500/30 text-red-600 dark:text-red-400 text-sm font-bold rounded-xl hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors flex items-center justify-center gap-2"
+                    >
+                      Cancel Service
+                    </button>
+                  </div>
                 )}
               </div>
             ))}

@@ -1186,6 +1186,14 @@ function OwnerJobsContent({
             <span className="px-2.5 py-1 bg-[#EA526F]/10 text-[#EA526F] dark:bg-[#EA526F]/20 dark:text-[#EA526F] rounded-md text-xs font-semibold flex items-center">
               <Home className="w-3.5 h-3.5 mr-1" /> {job.house_type}
             </span>
+            <span className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center ${
+              job.is_recurring
+                ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300'
+                : 'bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white/70'
+            }`}>
+              {job.is_recurring ? <RotateCw className="w-3.5 h-3.5 mr-1" /> : <Clock className="w-3.5 h-3.5 mr-1" />}
+              {job.is_recurring ? 'Recurring' : 'One-time'}
+            </span>
             <span className="px-2.5 py-1 bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 rounded-md text-xs font-semibold flex items-center">
               🧹 {job.cleaning_type}
             </span>
@@ -1572,6 +1580,14 @@ function HousekeeperJobsContent({
             <div className="flex flex-wrap gap-1.5 sm:gap-2 mb-4">
               <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
                 🏠 {job.house_type}
+              </span>
+              <span className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-medium flex items-center ${
+                job.is_recurring
+                  ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300'
+                  : 'bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80'
+              }`}>
+                {job.is_recurring ? <RotateCw className="w-3.5 h-3.5 mr-1" /> : <Clock className="w-3.5 h-3.5 mr-1" />}
+                {job.is_recurring ? 'Recurring' : 'One-time'}
               </span>
               <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
                 🧹 {job.cleaning_type}

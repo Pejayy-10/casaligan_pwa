@@ -509,7 +509,7 @@ export default function CreateJobPage() {
       }
     }
 
-    if (formData.daily_start_time || formData.daily_end_time) {
+    if (!formData.is_recurring && (formData.daily_start_time || formData.daily_end_time)) {
       if (!formData.daily_start_time || !formData.daily_end_time) {
         if (!formData.daily_start_time) errors.daily_start_time = 'Daily start time is required.';
         if (!formData.daily_end_time) errors.daily_end_time = 'Daily end time is required.';
@@ -655,7 +655,7 @@ export default function CreateJobPage() {
       
       // Add multi-day schedule if num_days > 1 or daily times are specified
       const numDays = parseInt(formData.num_days) || 1;
-      if (numDays >= 1 && formData.daily_start_time && formData.daily_end_time) {
+      if (!formData.is_recurring && numDays >= 1 && formData.daily_start_time && formData.daily_end_time) {
         jobData.multi_day_schedule = {
           num_days: numDays,
           daily_start_time: formData.daily_start_time,
@@ -1221,6 +1221,7 @@ export default function CreateJobPage() {
                 </div>
 
                 {/* Multi-Day Schedule Section */}
+                {!formData.is_recurring && (
                 <div className="bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/30 rounded-xl p-4 space-y-3">
                   <h3 className="text-purple-800 dark:text-white font-bold text-sm">Job Duration & Daily Hours</h3>
                   <p className="text-purple-600 dark:text-white/70 text-xs font-medium">
@@ -1320,6 +1321,7 @@ export default function CreateJobPage() {
                     </div>
                   )}
                 </div>
+                )}
                 
                 {/* Recurring Schedule Option */}
                 <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4">
@@ -1327,7 +1329,29 @@ export default function CreateJobPage() {
                     <input
                       type="checkbox"
                       checked={formData.is_recurring}
-                      onChange={(e) => setFormData({ ...formData, is_recurring: e.target.checked })}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setFormData((prev) => ({
+                          ...prev,
+                          is_recurring: checked,
+                          ...(checked
+                            ? {
+                                num_days: '1',
+                                daily_start_time: '',
+                                daily_end_time: ''
+                              }
+                            : {})
+                        }));
+                        if (checked) {
+                          setFieldErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.num_days;
+                            delete next.daily_start_time;
+                            delete next.daily_end_time;
+                            return next;
+                          });
+                        }
+                      }}
                       className="w-5 h-5 rounded border-gray-300 dark:border-white/30 text-[#EA526F] focus:ring-[#EA526F]"
                     />
                     <div>

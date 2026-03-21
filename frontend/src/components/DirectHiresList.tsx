@@ -413,6 +413,39 @@ export default function DirectHiresList({ role, onClose }: Props) {
     }
   };
 
+  const isShortTermWeeklyRecurring = (hire: DirectHire) => {
+    return Boolean(hire.is_recurring) && (hire.frequency || '').toLowerCase() === 'weekly';
+  };
+
+  const handleOwnerWeeklyFeePayment = async (hire: DirectHire) => {
+    try {
+      setProcessing(true);
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/direct-hire/${hire.hire_id}/weekly-fee/mark-paid`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ payment_method: 'cash' })
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        alert(result.detail || 'Failed to mark weekly fee as paid');
+        return;
+      }
+
+      alert('Weekly posting fee marked as paid. Housekeeper can now accept this recurring hire.');
+      loadHires();
+    } catch (error) {
+      console.error('Weekly fee payment error:', error);
+      alert('Failed to pay weekly posting fee');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleAcceptWithMayaFee = async (hire: DirectHire) => {
     try {
       setProcessing(true);
@@ -555,6 +588,26 @@ export default function DirectHiresList({ role, onClose }: Props) {
       // Owner actions
       switch (hire.status) {
         case 'pending':
+          if (isShortTermWeeklyRecurring(hire) && (hire.platform_fee_status || '').toLowerCase() !== 'paid') {
+            return (
+              <div className="flex gap-2 w-full sm:w-auto">
+                <button
+                  onClick={() => handleOwnerWeeklyFeePayment(hire)}
+                  disabled={processing || verifyingFee}
+                  className="px-3 py-1 bg-[#EA526F] text-white text-sm rounded-lg hover:bg-[#d64460] font-semibold shadow-sm disabled:opacity-50 flex items-center gap-1"
+                >
+                  {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Pay Weekly Post Fee
+                </button>
+                <button
+                  onClick={() => handleAction(hire, 'cancel')}
+                  disabled={processing || verifyingFee}
+                  className="px-3 py-1 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200 text-sm rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 font-semibold disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            );
+          }
           return (
             <button
               onClick={() => handleAction(hire, 'cancel')}
@@ -666,6 +719,32 @@ export default function DirectHiresList({ role, onClose }: Props) {
       // Housekeeper actions
       switch (hire.status) {
         case 'pending':
+          if (isShortTermWeeklyRecurring(hire)) {
+            const ownerWeeklyFeePaid = (hire.platform_fee_status || '').toLowerCase() === 'paid';
+            return (
+              <div className="flex gap-2 flex-wrap">
+                <button
+                  onClick={() => handleAction(hire, 'accept')}
+                  disabled={processing || verifyingFee || !ownerWeeklyFeePaid}
+                  className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm disabled:opacity-50 flex items-center gap-1"
+                >
+                  {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Accept
+                </button>
+                <button
+                  onClick={() => handleAction(hire, 'reject')}
+                  disabled={processing || verifyingFee}
+                  className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 font-semibold disabled:opacity-50 flex items-center gap-1"
+                >
+                  {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Reject
+                </button>
+                {!ownerWeeklyFeePaid && (
+                  <span className="text-xs font-medium text-amber-600 dark:text-amber-300 self-center">
+                    Waiting for owner weekly post fee
+                  </span>
+                )}
+              </div>
+            );
+          }
           return (
             <div className="flex gap-2">
               <button
@@ -827,7 +906,12 @@ export default function DirectHiresList({ role, onClose }: Props) {
                             </span>
                             {hire.recurring_status === 'cancelled' && (
                               <span className="px-2 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-xs rounded-full font-bold">
-                                <Cross className="inline w-4 h-4 mr-1"></Cross> Cancelled {hire.cancelled_by === role ? 'by you' : `by ${role === 'owner' ? 'worker' : 'employer'}`}
+                                <Cross className="inline w-4 h-4 mr-1"></Cross> Cancelled {
+                                  (role === 'owner' && hire.cancelled_by === 'employer') ||
+                                  (role === 'housekeeper' && hire.cancelled_by === 'worker')
+                                    ? 'by you'
+                                    : `by ${hire.cancelled_by || (role === 'owner' ? 'worker' : 'employer')}`
+                                }
                               </span>
                             )}
                           </div>
@@ -882,9 +966,16 @@ export default function DirectHiresList({ role, onClose }: Props) {
                     <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                       <div className="text-xl font-bold text-[#EA526F]">
                         ₱{hire.total_amount.toLocaleString()}
+                        {role === 'owner' && hire.status === 'pending' && isShortTermWeeklyRecurring(hire) && (
+                          <div className="text-xs font-medium text-[#4B244A]/70 dark:text-white/70 mt-1">
+                            Weekly posting fee status: {(hire.platform_fee_status || 'pending_owner_weekly').replace(/_/g, ' ')}
+                          </div>
+                        )}
                         {role === 'housekeeper' && hire.status === 'pending' && (
                           <div className="text-xs font-medium text-[#4B244A]/70 dark:text-white/70 mt-1">
-                            Platform fee ({Number(hire.platform_fee_percentage ?? 7).toFixed(2).replace(/\.00$/, '')}%): ₱{Number(hire.platform_fee_amount || (hire.total_amount * (Number(hire.platform_fee_percentage ?? 7) / 100))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {isShortTermWeeklyRecurring(hire)
+                              ? 'Owner pays weekly posting fee for this recurring hire'
+                              : `Platform fee (${Number(hire.platform_fee_percentage ?? 7).toFixed(2).replace(/\.00$/, '')}%): ₱${Number(hire.platform_fee_amount || (hire.total_amount * (Number(hire.platform_fee_percentage ?? 7) / 100))).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
                           </div>
                         )}
                         {role === 'housekeeper' && hire.payment_method && (

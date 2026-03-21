@@ -74,6 +74,51 @@ def _as_comparable_naive(dt: datetime) -> datetime:
     return dt
 
 
+def _parse_recurring_days(day_of_week: Optional[str]) -> List[int]:
+    day_map = {
+        "monday": 0,
+        "tuesday": 1,
+        "wednesday": 2,
+        "thursday": 3,
+        "friday": 4,
+        "saturday": 5,
+        "sunday": 6,
+    }
+    if not day_of_week:
+        return []
+    parsed = []
+    for item in day_of_week.split(","):
+        key = item.strip().lower()
+        if key in day_map:
+            parsed.append(day_map[key])
+    return sorted(set(parsed))
+
+
+def _next_recurring_service_date(*, current_date: date, day_of_week: Optional[str], frequency: Optional[str]) -> Optional[date]:
+    days = _parse_recurring_days(day_of_week)
+    if not days:
+        return current_date + timedelta(weeks=1)
+
+    current_weekday = current_date.weekday()
+
+    # Prefer next selected day in the same cycle (e.g., Monday -> Wednesday)
+    for day in days:
+        if day > current_weekday:
+            return current_date + timedelta(days=(day - current_weekday))
+
+    freq = (frequency or "weekly").lower()
+    if freq == "biweekly":
+        cycle_weeks = 2
+    elif freq == "monthly":
+        cycle_weeks = 4
+    else:
+        cycle_weeks = 1
+
+    start_of_week = current_date - timedelta(days=current_weekday)
+    next_cycle_start = start_of_week + timedelta(weeks=cycle_weeks)
+    return next_cycle_start + timedelta(days=days[0])
+
+
 # Pydantic schemas
 class PaymentTransactionResponse(BaseModel):
     transaction_id: int
@@ -654,7 +699,7 @@ async def confirm_payment_received(
     When all payments for a long-term job are confirmed, the job automatically completes.
     """
     from app.routers.jobs import ForumPost, ForumPostStatus
-    from app.models_v2.contract import Contract
+    from app.models_v2.contract import Contract, ContractStatus
     
     # Verify job exists
     job = db.query(ForumPost).filter(ForumPost.post_id == job_id).first()
@@ -780,6 +825,33 @@ async def confirm_payment_received(
                 )
                 db.add(next_schedule)
                 print(f"DEBUG: Created next payment schedule for recurring service - due: {next_due_date.strftime('%Y-%m-%d')}")
+
+            # Re-arm recurring short-term cycle after successful payment confirmation
+            # so the next occurrence can continue instead of staying completed.
+            if not job.is_longterm:
+                contract.status = ContractStatus.ACTIVE
+                contract.paid_at = None
+                contract.completion_proof_url = None
+                contract.completion_notes = None
+                contract.completed_at = None
+
+                anchor_dt = _coerce_to_datetime(job.start_date) or current_due_date
+                anchor_date = anchor_dt.date() if anchor_dt else datetime.now().date()
+                next_service_date = _next_recurring_service_date(
+                    current_date=anchor_date,
+                    day_of_week=getattr(job, 'day_of_week', None),
+                    frequency=getattr(job, 'frequency', None),
+                )
+                if next_service_date:
+                    job.start_date = next_service_date
+                    num_days = getattr(job, 'num_days', 1) or 1
+                    if num_days > 1:
+                        job.end_date = next_service_date + timedelta(days=num_days - 1)
+                    else:
+                        job.end_date = next_service_date
+
+                job.status = ForumPostStatus.ONGOING
+                job.completed_at = None
     
     db.commit()
     

@@ -138,6 +138,11 @@ class JobPostResponse(BaseModel):
     post_fee_reference: Optional[str] = None
     post_fee_paid_at: Optional[str] = None
     created_at: str
+    is_recurring: bool = False
+    day_of_week: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    frequency: Optional[str] = None
     payment_schedule: Optional[dict] = None  # Payment schedule data
     recurring_schedule: Optional[dict] = None  # Recurring schedule data
     recurring_status: Optional[str] = None  # "active", "cancelled", "paused"
@@ -178,6 +183,20 @@ class JobPostResponse(BaseModel):
         
         # Map job_type enum to duration_type string
         duration_type = "long_term" if post.is_longterm else "short_term"
+
+        recurring_status = getattr(post, 'recurring_status', None)
+        day_of_week = post.day_of_week if hasattr(post, 'day_of_week') else None
+        start_time = post.start_time if hasattr(post, 'start_time') else None
+        end_time = post.end_time if hasattr(post, 'end_time') else None
+        frequency = post.frequency if hasattr(post, 'frequency') else None
+        inferred_is_recurring = bool(
+            (post.is_recurring if hasattr(post, 'is_recurring') else False)
+            or recurring_status is not None
+            or day_of_week
+            or start_time
+            or end_time
+            or frequency
+        )
         
         # Build multi-day schedule info
         num_days = getattr(post, 'num_days', None) or custom_fields.get('num_days', 1)
@@ -238,15 +257,20 @@ class JobPostResponse(BaseModel):
             post_fee_reference=getattr(post, 'post_fee_reference', None),
             post_fee_paid_at=(post.post_fee_paid_at.isoformat() if getattr(post, 'post_fee_paid_at', None) else None),
             created_at=post.created_at.isoformat() if post.created_at else '',
+            is_recurring=inferred_is_recurring,
+            day_of_week=day_of_week,
+            start_time=start_time,
+            end_time=end_time,
+            frequency=frequency,
             payment_schedule=custom_fields.get('payment_schedule'),
             recurring_schedule={
-                "is_recurring": post.is_recurring if hasattr(post, 'is_recurring') else False,
-                "day_of_week": post.day_of_week if hasattr(post, 'day_of_week') else None,
-                "start_time": post.start_time if hasattr(post, 'start_time') else None,
-                "end_time": post.end_time if hasattr(post, 'end_time') else None,
-                "frequency": post.frequency if hasattr(post, 'frequency') else None,
-            } if (hasattr(post, 'is_recurring') and post.is_recurring) else None,
-            recurring_status=getattr(post, 'recurring_status', None),
+                "is_recurring": inferred_is_recurring,
+                "day_of_week": day_of_week,
+                "start_time": start_time,
+                "end_time": end_time,
+                "frequency": frequency,
+            } if inferred_is_recurring else None,
+            recurring_status=recurring_status,
             recurring_cancelled_at=str(post.recurring_cancelled_at) if hasattr(post, 'recurring_cancelled_at') and post.recurring_cancelled_at else None,
             recurring_cancellation_reason=getattr(post, 'recurring_cancellation_reason', None),
             cancelled_by=getattr(post, 'cancelled_by', None),
