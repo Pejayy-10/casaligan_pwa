@@ -44,6 +44,194 @@ from app.utils.platform_fees import get_post_fee_percentage
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
+def _safe_float(value, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _percentile(values: List[float], p: float) -> float:
+    if not values:
+        return 0.0
+    if len(values) == 1:
+        return values[0]
+    ordered = sorted(values)
+    rank = (len(ordered) - 1) * p
+    low = int(rank)
+    high = min(low + 1, len(ordered) - 1)
+    weight = rank - low
+    return ordered[low] * (1 - weight) + ordered[high] * weight
+
+
+def _median_int(values: List[int], fallback: int = 1) -> int:
+    if not values:
+        return fallback
+    ordered = sorted(values)
+    mid = len(ordered) // 2
+    if len(ordered) % 2:
+        return max(1, ordered[mid])
+    return max(1, round((ordered[mid - 1] + ordered[mid]) / 2))
+
+
+def _extract_post_details(post: ForumPost) -> dict:
+    if not post.content:
+        return {}
+    try:
+        parsed = json.loads(post.content)
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
+def _build_quick_suggestions(cleaning_type: str, house_type: str, duration_type: str) -> dict:
+    cleaning_label = {
+        "general": "General Cleaning",
+        "deep_cleaning": "Deep Cleaning",
+        "move_in_out": "Move In/Out Cleaning",
+        "post_construction": "Post-Construction Cleaning",
+        "spring_cleaning": "Spring Cleaning",
+        "maintenance": "Regular Maintenance",
+    }.get(cleaning_type, "Home Cleaning")
+
+    house_label = {
+        "house": "House",
+        "apartment": "Apartment",
+        "condo": "Condo",
+        "townhouse": "Townhouse",
+        "office": "Office",
+        "other": "Property",
+    }.get(house_type, "Property")
+
+    duration_label = "Long-term" if duration_type == "long_term" else "Short-term"
+
+    titles = [
+        f"{cleaning_label} Needed for {house_label}",
+        f"{duration_label} {cleaning_label} Service",
+        f"Experienced Housekeeper for {cleaning_label}",
+    ]
+
+    descriptions = [
+        f"Looking for a reliable housekeeper for {cleaning_label.lower()} in our {house_label.lower()}. Please bring your own cleaning tools if possible.",
+        "Main priorities are cleanliness, attention to detail, and punctuality. We prefer someone with relevant experience and good communication.",
+        "Please include your availability, nearby location, and experience with similar homes when applying.",
+    ]
+
+    checklist = [
+        "Sweep and mop all floors",
+        "Clean kitchen surfaces and sink",
+        "Scrub and disinfect bathroom",
+        "Dust furniture and wipe surfaces",
+        "Dispose of trash and tidy common areas",
+    ]
+
+    return {
+        "titles": titles,
+        "descriptions": descriptions,
+        "checklist": checklist,
+    }
+
+
+@router.get("/benchmark/suggestions")
+def get_job_benchmark_suggestions(
+    cleaning_type: str,
+    house_type: str,
+    duration_type: str,
+    city_name: Optional[str] = None,
+    people_needed: Optional[int] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get benchmark budget and quick suggestions for job posting using historical completed jobs."""
+    _ = current_user
+
+    is_long_term = duration_type == "long_term"
+    city_query = (city_name or "").strip().lower()
+
+    candidates = db.query(ForumPost).filter(
+        ForumPost.deleted_at.is_(None),
+        ForumPost.status == ForumPostStatus.COMPLETED,
+        ForumPost.is_longterm == is_long_term,
+        ForumPost.salary.isnot(None),
+    ).order_by(desc(ForumPost.created_at)).limit(500).all()
+
+    def matches(post: ForumPost, mode: str) -> bool:
+        details = _extract_post_details(post)
+        post_cleaning = (details.get("cleaning_type") or "").strip().lower()
+        post_house = (details.get("house_type") or "").strip().lower()
+        location_text = ((details.get("location") or post.location or "")).lower()
+
+        if post_cleaning != cleaning_type.strip().lower():
+            return False
+        if mode == "strict" and post_house and post_house != house_type.strip().lower():
+            return False
+        if city_query and mode in {"strict", "broad"} and city_query not in location_text:
+            return False
+        return True
+
+    scope = "strict"
+    filtered = [post for post in candidates if matches(post, "strict")]
+    if len(filtered) < 8:
+        scope = "broad"
+        filtered = [post for post in candidates if matches(post, "broad")]
+    if len(filtered) < 5:
+        scope = "global"
+        filtered = [post for post in candidates if _extract_post_details(post).get("cleaning_type", "").strip().lower() == cleaning_type.strip().lower()]
+
+    budgets: List[float] = []
+    people_values: List[int] = []
+    num_days_values: List[int] = []
+
+    for post in filtered:
+        details = _extract_post_details(post)
+        budget = _safe_float(post.salary, 0.0)
+        if budget > 0:
+            budgets.append(budget)
+
+        try:
+            people = int(details.get("people_needed", 1))
+            if people > 0:
+                people_values.append(people)
+        except (TypeError, ValueError):
+            pass
+
+        try:
+            num_days = int(details.get("num_days", 1))
+            if num_days > 0:
+                num_days_values.append(num_days)
+        except (TypeError, ValueError):
+            pass
+
+    if not budgets:
+        budgets = [500.0, 800.0, 1200.0]
+
+    p25 = round(_percentile(budgets, 0.25), 2)
+    p50 = round(_percentile(budgets, 0.50), 2)
+    p75 = round(_percentile(budgets, 0.75), 2)
+
+    recommended_people = _median_int(people_values, fallback=people_needed or 1)
+    recommended_days = _median_int(num_days_values, fallback=1 if duration_type == "short_term" else 14)
+
+    sample_size = len(filtered)
+    confidence = "high" if sample_size >= 20 else "medium" if sample_size >= 8 else "low"
+
+    return {
+        "budget": {
+            "min": p25,
+            "recommended": p50,
+            "max": p75,
+        },
+        "recommended_people_needed": recommended_people,
+        "recommended_num_days": recommended_days,
+        "quick_suggestions": _build_quick_suggestions(cleaning_type, house_type, duration_type),
+        "meta": {
+            "sample_size": sample_size,
+            "scope": scope,
+            "confidence": confidence,
+        },
+    }
+
+
 def _resolve_frontend_base_url(request: Request) -> str:
     origin = (request.headers.get("origin") or "").strip()
     if origin.startswith("http://") or origin.startswith("https://"):

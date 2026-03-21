@@ -6,6 +6,26 @@ import TabBar from '../components/TabBar';
 import { psgcService } from '../services/psgc';
 import type { User, PSGCRegion, PSGCProvince, PSGCCity, PSGCBarangay } from '../types';
 
+type JobBenchmarkSuggestions = {
+  budget: {
+    min: number;
+    recommended: number;
+    max: number;
+  };
+  recommended_people_needed: number;
+  recommended_num_days: number;
+  quick_suggestions: {
+    titles: string[];
+    descriptions: string[];
+    checklist: string[];
+  };
+  meta: {
+    sample_size: number;
+    scope: string;
+    confidence: 'high' | 'medium' | 'low';
+  };
+};
+
 const resolveUploadUrl = (url: string) => {
   if (!url) return '';
   return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
@@ -60,6 +80,8 @@ export default function CreateJobPage() {
   const [images, setImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [categories, setCategories] = useState<Array<{category_id: number, name: string, description: string | null, is_active: boolean}>>([]);
+  const [benchmarkLoading, setBenchmarkLoading] = useState(false);
+  const [benchmarkSuggestions, setBenchmarkSuggestions] = useState<JobBenchmarkSuggestions | null>(null);
   const [regions, setRegions] = useState<PSGCRegion[]>([]);
   const [provinces, setProvinces] = useState<PSGCProvince[]>([]);
   const [cities, setCities] = useState<PSGCCity[]>([]);
@@ -88,6 +110,50 @@ export default function CreateJobPage() {
       loadRegions();
     }
   }, [user, navigate]);
+
+  useEffect(() => {
+    const shouldFetch = !!formData.cleaning_type && !!formData.house_type && !!formData.duration_type;
+    if (!shouldFetch) {
+      setBenchmarkSuggestions(null);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      fetchBenchmarkSuggestions();
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [formData.cleaning_type, formData.house_type, formData.duration_type, locationData.city_name]);
+
+  const fetchBenchmarkSuggestions = async () => {
+    try {
+      setBenchmarkLoading(true);
+      const token = localStorage.getItem('access_token');
+      const params = new URLSearchParams({
+        cleaning_type: formData.cleaning_type,
+        house_type: formData.house_type,
+        duration_type: formData.duration_type,
+      });
+      if (locationData.city_name) {
+        params.append('city_name', locationData.city_name);
+      }
+      params.append('people_needed', formData.people_needed || '1');
+
+      const response = await fetch(`${API_BASE_URL}/jobs/benchmark/suggestions?${params.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBenchmarkSuggestions(data);
+      }
+    } catch (benchmarkError) {
+      console.error('Failed to fetch benchmark suggestions:', benchmarkError);
+      setBenchmarkSuggestions(null);
+    } finally {
+      setBenchmarkLoading(false);
+    }
+  };
 
   const loadRegions = async () => {
     try {
@@ -800,6 +866,84 @@ export default function CreateJobPage() {
                     className={inputClass}
                   />
                 </div>
+              </div>
+
+              <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-blue-700 dark:text-blue-200 text-sm font-bold">📊 Benchmark & Quick Suggestions</p>
+                  {benchmarkLoading && <span className="text-blue-600 dark:text-blue-300 text-xs">Updating...</span>}
+                </div>
+
+                {benchmarkSuggestions ? (
+                  <div className="space-y-3">
+                    <p className="text-blue-700 dark:text-blue-200 text-xs">
+                      Based on {benchmarkSuggestions.meta.sample_size} similar completed jobs • Scope: {benchmarkSuggestions.meta.scope} • Confidence: {benchmarkSuggestions.meta.confidence}
+                    </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, budget: String(Math.round(benchmarkSuggestions.budget.recommended)) }))}
+                        className="text-left p-3 bg-white/70 dark:bg-white/5 border border-blue-200 dark:border-blue-500/20 rounded-lg hover:bg-white dark:hover:bg-white/10 transition-colors"
+                      >
+                        <p className="text-[#4B244A] dark:text-white text-sm font-semibold">Suggested budget</p>
+                        <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">₱{Math.round(benchmarkSuggestions.budget.min)} – ₱{Math.round(benchmarkSuggestions.budget.max)} (Use ₱{Math.round(benchmarkSuggestions.budget.recommended)})</p>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, people_needed: String(benchmarkSuggestions.recommended_people_needed) }))}
+                        className="text-left p-3 bg-white/70 dark:bg-white/5 border border-blue-200 dark:border-blue-500/20 rounded-lg hover:bg-white dark:hover:bg-white/10 transition-colors"
+                      >
+                        <p className="text-[#4B244A] dark:text-white text-sm font-semibold">Suggested people needed</p>
+                        <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">Recommended: {benchmarkSuggestions.recommended_people_needed} worker(s)</p>
+                      </button>
+                    </div>
+
+                    {formData.duration_type === 'short_term' && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, num_days: String(Math.max(1, Math.min(13, benchmarkSuggestions.recommended_num_days))) }))}
+                        className="w-full text-left p-3 bg-white/70 dark:bg-white/5 border border-blue-200 dark:border-blue-500/20 rounded-lg hover:bg-white dark:hover:bg-white/10 transition-colors"
+                      >
+                        <p className="text-[#4B244A] dark:text-white text-sm font-semibold">Suggested number of days</p>
+                        <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">Recommended: {Math.max(1, Math.min(13, benchmarkSuggestions.recommended_num_days))} day(s)</p>
+                      </button>
+                    )}
+
+                    <div>
+                      <p className="text-[#4B244A] dark:text-white text-xs font-semibold mb-2">Quick title ideas</p>
+                      <div className="flex flex-wrap gap-2">
+                        {benchmarkSuggestions.quick_suggestions.titles.map((title, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, title }))}
+                            className="px-3 py-1.5 text-xs bg-white/80 dark:bg-white/10 border border-blue-200 dark:border-blue-500/20 rounded-full text-[#4B244A] dark:text-white hover:bg-white dark:hover:bg-white/20 transition-colors"
+                          >
+                            {title}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-[#4B244A] dark:text-white text-xs font-semibold mb-2">Quick description starter</p>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({
+                          ...prev,
+                          description: benchmarkSuggestions.quick_suggestions.descriptions.join(' '),
+                        }))}
+                        className="w-full text-left p-3 bg-white/70 dark:bg-white/5 border border-blue-200 dark:border-blue-500/20 rounded-lg hover:bg-white dark:hover:bg-white/10 transition-colors"
+                      >
+                        <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">Apply a pre-filled description based on similar jobs</p>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-blue-700 dark:text-blue-200 text-xs">Suggestions will appear after selecting house type and cleaning type.</p>
+                )}
               </div>
             </div>
           </div>

@@ -437,7 +437,7 @@ Return ONLY this JSON, no extra text:
         # Try primary model first, then fallback model for robustness.
         result = None
         verification_errors = []
-        for model_name in ("gemini-2.5-flash", "gemini-1.5-flash"):
+        for model_name in ("gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"):
             try:
                 result = _run_gemini_document_check(model_name, prompt, mime_type, file_b64)
                 break
