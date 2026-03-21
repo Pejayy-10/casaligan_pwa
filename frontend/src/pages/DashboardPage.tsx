@@ -44,6 +44,8 @@ export default function DashboardPage() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(true);
   const [loadingRatings, setLoadingRatings] = useState(true);
+  const [isAvailable, setIsAvailable] = useState<boolean>(true);
+  const [togglingAvailability, setTogglingAvailability] = useState(false);
 
   useEffect(() => {
     if (!user) {
@@ -118,6 +120,37 @@ export default function DashboardPage() {
 
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [locationPromptLoading, setLocationPromptLoading] = useState(false);
+
+  // Fetch worker availability status for housekeepers
+  useEffect(() => {
+    const fetchWorkerAvailability = async () => {
+      if (!user || user.active_role !== 'housekeeper') return;
+      try {
+        const res = await apiClient.get('/auth/me');
+        // The backend returns is_available from the worker record
+        if (res.data && typeof res.data.is_available === 'boolean') {
+          setIsAvailable(res.data.is_available);
+        }
+      } catch {
+        // Default to true if fetch fails
+        setIsAvailable(true);
+      }
+    };
+    fetchWorkerAvailability();
+  }, [user?.id, user?.active_role]);
+
+  const handleToggleAvailability = async () => {
+    if (togglingAvailability) return;
+    setTogglingAvailability(true);
+    try {
+      const res = await apiClient.post('/direct-hire/toggle-availability');
+      setIsAvailable(res.data.is_available);
+    } catch (err: any) {
+      alert(err?.response?.data?.detail || 'Failed to toggle availability.');
+    } finally {
+      setTogglingAvailability(false);
+    }
+  };
 
   const requestLocationForHousekeeper = async (): Promise<boolean> => {
     if (!navigator.geolocation) {
@@ -243,16 +276,55 @@ export default function DashboardPage() {
                 {user.active_role === 'owner' ? 'House Owner' : 'Housekeeper'}
               </span>
               
-              <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold border shadow-sm ${
-                user.status === 'active'
-                  ? 'bg-green-50 text-green-700 border-green-100 dark:bg-green-500/20 dark:text-green-200 dark:border-green-500/30'
-                  : user.status === 'pending'
-                  ? 'bg-yellow-50 text-yellow-700 border-yellow-100 dark:bg-yellow-500/20 dark:text-yellow-200 dark:border-yellow-500/30'
-                  : 'bg-red-50 text-red-700 border-red-100 dark:bg-red-500/20 dark:text-red-200 dark:border-red-500/30'
-              }`}>
-                {user.status === 'active' ? <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> : user.status === 'pending' ? <Clock className="w-3.5 h-3.5 mr-1.5" /> : <AlertCircle className="w-3.5 h-3.5 mr-1.5" />}
-                {user.status === 'active' ? 'Active Status' : user.status.charAt(0).toUpperCase() + user.status.slice(1)}
-              </span>
+              {/* For housekeepers: pill toggle switch (like light/dark mode). For owners: static badge. */}
+              {user.active_role === 'housekeeper' ? (
+                <button
+                  onClick={handleToggleAvailability}
+                  disabled={togglingAvailability}
+                  title={isAvailable ? 'Click to set yourself Inactive' : 'Click to set yourself Active'}
+                  className="inline-flex items-center gap-2 cursor-pointer select-none disabled:opacity-60 group"
+                  style={{ background: 'none', border: 'none', padding: 0 }}
+                >
+                  {/* Pill track */}
+                  <span
+                    className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors duration-300 ${
+                      togglingAvailability
+                        ? 'bg-gray-300 dark:bg-white/20'
+                        : isAvailable
+                          ? 'bg-green-500'
+                          : 'bg-red-500'
+                    }`}
+                  >
+                    {/* Sliding knob */}
+                    <span
+                      className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-300 flex items-center justify-center ${
+                        isAvailable ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    >
+                      {togglingAvailability && (
+                        <Loader2 className="w-3 h-3 text-gray-400 animate-spin" />
+                      )}
+                    </span>
+                  </span>
+                  {/* Label */}
+                  <span className={`text-xs font-bold transition-colors duration-200 ${
+                    isAvailable ? 'text-green-600 dark:text-green-400' : 'text-red-500 dark:text-red-400'
+                  }`}>
+                    {isAvailable ? 'Active' : 'Inactive'}
+                  </span>
+                </button>
+              ) : (
+                <span className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-bold border shadow-sm ${
+                  user.status === 'active'
+                    ? 'bg-green-50 text-green-700 border-green-100 dark:bg-green-500/20 dark:text-green-200 dark:border-green-500/30'
+                    : user.status === 'pending'
+                    ? 'bg-yellow-50 text-yellow-700 border-yellow-100 dark:bg-yellow-500/20 dark:text-yellow-200 dark:border-yellow-500/30'
+                    : 'bg-red-50 text-red-700 border-red-100 dark:bg-red-500/20 dark:text-red-200 dark:border-red-500/30'
+                }`}>
+                  {user.status === 'active' ? <CheckCircle className="w-3.5 h-3.5 mr-1.5" /> : user.status === 'pending' ? <Clock className="w-3.5 h-3.5 mr-1.5" /> : <AlertCircle className="w-3.5 h-3.5 mr-1.5" />}
+                  {user.status === 'active' ? 'Active' : user.status.charAt(0).toUpperCase() + user.status.slice(1)}
+                </span>
+              )}
             </div>
           </div>
         </div>

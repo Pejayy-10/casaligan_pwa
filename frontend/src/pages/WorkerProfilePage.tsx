@@ -52,6 +52,7 @@ interface WorkerProfile {
   member_since: string | null;
   completed_jobs: number;
   is_verified: boolean;
+  is_available: boolean;
   average_rating: number;
   total_ratings: number;
   rating_breakdown: { [key: number]: number };
@@ -452,6 +453,16 @@ export default function WorkerProfilePage() {
                     <Clock className="inline w-4 h-4 mr-1" /> Pending Verification
                   </span>
                 )}
+                {/* Availability badge */}
+                {profile.is_available ? (
+                  <span className="px-3 py-1 bg-teal-100 text-teal-700 dark:bg-teal-500/20 dark:text-teal-300 text-sm font-bold rounded-full">
+                    ✅ Available for Hire
+                  </span>
+                ) : (
+                  <span className="px-3 py-1 bg-gray-200 text-gray-500 dark:bg-white/10 dark:text-white/50 text-sm font-bold rounded-full">
+                    🚫 Currently Inactive
+                  </span>
+                )}
                 <span className="px-3 py-1 bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white/70 text-sm font-bold rounded-full">
                   {profile.packages.length} package{profile.packages.length !== 1 ? 's' : ''}
                 </span>
@@ -699,6 +710,17 @@ export default function WorkerProfilePage() {
         {/* Packages Section */}
         <div className="mb-6">
 <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4"><Package className="inline w-5 h-5 mr-2" /> Service Packages</h3>
+
+          {/* Inactive notice */}
+          {!isFromApplicants && !profile.is_available && (
+            <div className="mb-4 p-4 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-xl flex items-center gap-3">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-bold text-red-700 dark:text-red-300">This housekeeper is currently inactive</p>
+                <p className="text-xs text-red-500/80 dark:text-red-400/80">They are not accepting direct hire requests at this time.</p>
+              </div>
+            </div>
+          )}
           
           {profile.packages.length === 0 ? (
             <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-6 border border-white/50 dark:border-white/10 text-center shadow-lg">
@@ -710,13 +732,15 @@ export default function WorkerProfilePage() {
               {profile.packages.map((pkg) => (
                 <div
                   key={pkg.package_id}
-                  onClick={() => !isFromApplicants && togglePackage(pkg.package_id)}
+                  onClick={() => !isFromApplicants && profile.is_available && togglePackage(pkg.package_id)}
                   className={`bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-5 border-2 transition-all shadow-lg ${
-                    isFromApplicants 
-                      ? 'border-white/50 dark:border-white/10 cursor-default' 
-                      : selectedPackages.includes(pkg.package_id)
-                        ? 'border-[#EA526F] bg-[#EA526F]/10 dark:bg-[#EA526F]/20 cursor-pointer'
-                        : 'border-white/50 dark:border-white/10 hover:border-white/80 dark:hover:border-white/30 cursor-pointer'
+                    isFromApplicants
+                      ? 'border-white/50 dark:border-white/10 cursor-default'
+                      : !profile.is_available
+                        ? 'border-white/50 dark:border-white/10 opacity-60 cursor-not-allowed'
+                        : selectedPackages.includes(pkg.package_id)
+                          ? 'border-[#EA526F] bg-[#EA526F]/10 dark:bg-[#EA526F]/20 cursor-pointer'
+                          : 'border-white/50 dark:border-white/10 hover:border-white/80 dark:hover:border-white/30 cursor-pointer'
                   }`}
                 >
                   <div className="flex items-start justify-between">
@@ -789,12 +813,24 @@ export default function WorkerProfilePage() {
                     Total: ₱{getSelectedTotal().toLocaleString()}
                   </p>
                 </div>
-                <button
-                  onClick={() => setShowHireModal(true)}
-                  className="px-8 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all shadow-lg shadow-[#EA526F]/30"
-                >
-                  Hire Now 
-                </button>
+                {profile.is_available ? (
+                  <button
+                    onClick={() => setShowHireModal(true)}
+                    className="px-8 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all shadow-lg shadow-[#EA526F]/30"
+                  >
+                    Hire Now
+                  </button>
+                ) : (
+                  <div className="flex flex-col items-end">
+                    <button
+                      disabled
+                      className="px-8 py-3 bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 font-bold rounded-xl cursor-not-allowed"
+                    >
+                      Hire Now
+                    </button>
+                    <span className="text-xs text-red-500 dark:text-red-400 font-medium mt-1">Housekeeper is currently inactive</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>

@@ -591,6 +591,11 @@ def get_current_user_profile(
     """Get current user's profile with address"""
     worker = db.query(Worker).filter(Worker.user_id == current_user.id).first()
     setattr(current_user, "bio", worker.bio if worker else None)
+    # Expose worker's is_available flag so the frontend can show the toggle
+    is_available = getattr(worker, 'is_available', True) if worker else True
+    if is_available is None:
+        is_available = True
+    setattr(current_user, "is_available", is_available)
     return current_user
 
 

@@ -356,6 +356,30 @@ def hire_to_response(hire: DirectHire, db: Session) -> DirectHireResponse:
     )
 
 
+# ============== WORKER AVAILABILITY TOGGLE ==============
+
+@router.post("/toggle-availability")
+def toggle_worker_availability(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Toggle the worker's availability for direct hire (housekeeper only).
+    When is_available=False, employers cannot create new direct hire requests for this worker.
+    """
+    worker = get_worker_for_user(current_user.id, db)
+    # Toggle the flag
+    current_value = getattr(worker, 'is_available', True)
+    if current_value is None:
+        current_value = True
+    worker.is_available = not current_value
+    db.commit()
+    db.refresh(worker)
+    return {
+        "is_available": worker.is_available,
+        "message": "You are now available for direct hire." if worker.is_available else "You are now set to inactive. Employers cannot directly hire you until you re-activate."
+    }
+
+
 # ============== EMPLOYER ENDPOINTS ==============
 
 @router.post("/", response_model=DirectHireResponse)
@@ -373,6 +397,16 @@ def create_direct_hire(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Worker not found"
+        )
+    
+    # Check if worker is available for direct hire
+    worker_is_available = getattr(worker, 'is_available', True)
+    if worker_is_available is None:
+        worker_is_available = True
+    if not worker_is_available:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This housekeeper is currently inactive and not accepting direct hire requests."
         )
     
     # Check if the scheduled date is blocked
@@ -1479,11 +1513,14 @@ def browse_workers(
     # Get all active registered housekeepers.
     # Do not hard-require a housekeeper_applications row because some valid
     # worker accounts were created/approved through legacy flows.
+    # Only return workers who have set themselves as available (is_available=True).
+    # Inactive workers are hidden from browse/search entirely.
     query = db.query(Worker).join(
         User, Worker.user_id == User.id
     ).filter(
         User.is_housekeeper == True,
-        User.id != current_user.id  # Exclude current user from browse results
+        User.id != current_user.id,  # Exclude current user from browse results
+        Worker.is_available == True   # Only show workers who are active/available
     )
     
     workers = query.all()
@@ -1603,6 +1640,7 @@ def browse_workers(
             "proximity_score": proximity_score,
             "proximity_label": proximity_label,
             "distance_km": distance_km,  # Distance in kilometers (only for GPS-based search)
+            "is_available": getattr(worker, 'is_available', True) if getattr(worker, 'is_available', True) is not None else True,
             "packages": [
                 {
                     "package_id": p.package_id,
@@ -1725,6 +1763,13 @@ def get_worker_profile(
     if not worker:
         raise HTTPException(status_code=404, detail="Worker not found")
     
+    # Block access to inactive worker profiles
+    worker_available = getattr(worker, 'is_available', True)
+    if worker_available is None:
+        worker_available = True
+    if not worker_available:
+        raise HTTPException(status_code=404, detail="Worker not found")
+    
     user = db.query(User).filter(User.id == worker.user_id).first()
     address = db.query(Address).filter(Address.user_id == worker.user_id).first()
     
@@ -1794,6 +1839,7 @@ def get_worker_profile(
         "total_ratings": total_ratings,
         "rating_breakdown": rating_breakdown,
         "recent_reviews": recent_reviews,
+        "is_available": getattr(worker, 'is_available', True) if getattr(worker, 'is_available', True) is not None else True,
         "packages": [
             {
                 "package_id": p.package_id,

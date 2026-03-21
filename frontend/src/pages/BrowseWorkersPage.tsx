@@ -39,6 +39,7 @@ interface WorkerProfile {
   proximity_score?: number;
   proximity_label?: string;
   distance_km?: number | null;
+  is_available?: boolean;
 }
 
 const getProximityBadgeStyle = (label?: string) => {
@@ -755,15 +756,17 @@ export default function BrowseWorkersPage() {
                                         {worker.first_name[0]}{worker.last_name[0]}
                                     </div>
                                     <div className="absolute -bottom-1 -right-1 bg-white dark:bg-slate-900 rounded-full p-1 shadow-sm">
-                                        <div className="bg-green-500 w-3 h-3 rounded-full border-2 border-white dark:border-slate-900"></div>
+                                        <div className="w-3 h-3 rounded-full border-2 border-white dark:border-slate-900 bg-green-500"></div>
                                     </div>
                                 </div>
 
                                 {/* Main Info */}
                                 <div className="flex-1 min-w-0 pr-16">
-                                    <h3 className="text-lg font-bold text-gray-900 dark:text-white truncate">
-                                        {worker.first_name} {worker.last_name}
-                                    </h3>
+                                    <div className="flex items-center gap-2">
+                                      <h3 className="text-lg font-bold text-gray-900 dark:text-white truncate">
+                                          {worker.first_name} {worker.last_name}
+                                      </h3>
+                                    </div>
                                     
                                     <div className="flex items-center gap-1.5 mt-1">
                                         <Star className="w-4 h-4 text-yellow-400 fill-current" />

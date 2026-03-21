@@ -1,5 +1,5 @@
 """Worker and Employer models - Clean version"""
-from sqlalchemy import Column, Integer, String, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 from app.db import Base
 
@@ -14,6 +14,9 @@ class Worker(Base):
     years_experience = Column(Integer, nullable=True)
     skills = Column(Text, nullable=True)          # JSON-encoded list of skill strings
     availability = Column(String, nullable=True)  # 'full_time' | 'part_time' | 'weekends_only'
+    
+    # Availability toggle - worker can set this to False to go "Inactive" for direct hire
+    is_available = Column(Boolean, default=True, nullable=False, server_default='true')
     
     # Relationships
     user = relationship("User", back_populates="worker")

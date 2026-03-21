@@ -27,6 +27,7 @@ export interface User {
   bio?: string | null;
   address?: Address;
   documents?: UserDocument[];
+  is_available?: boolean; // For housekeepers: controls direct hire availability
 }
 
 export interface Address {
