@@ -18,7 +18,6 @@ import JobCompletionModal from '../components/JobCompletionModal';
 import ReportUnpaidModal from '../components/ReportUnpaidModal';
 import CompletionReviewModal from '../components/CompletionReviewModal';
 import PackageManagement from '../components/PackageManagement';
-import AvailabilityCalendar from '../components/AvailabilityCalendar';
 import EditJobModal from '../components/EditJobModal';
 import JobSummaryModal from '../components/JobSummaryModal';
 import RatingModal from '../components/RatingModal';
@@ -70,7 +69,6 @@ export default function JobsPage() {
   
   // Direct hire states
   const [showPackageManagement, setShowPackageManagement] = useState(false);
-  const [showAvailabilityCalendar, setShowAvailabilityCalendar] = useState(false);
   
   // Edit job state
   const [showEditJob, setShowEditJob] = useState<JobPost | null>(null);
@@ -581,13 +579,6 @@ export default function JobsPage() {
                           </div>
                         <span className="leading-tight">Direct Jobs</span>
                         </button>
-                        <button onClick={() => setShowAvailabilityCalendar(true)}
-                          className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 p-2 sm:p-3 bg-white/50 dark:bg-slate-900/50 text-[#4B244A] dark:text-white font-medium rounded-xl border border-gray-200/60 dark:border-white/10 hover:border-[#4B244A]/30 dark:hover:border-white/30 hover:bg-white dark:hover:bg-slate-800 transition-all text-xs sm:text-sm group text-center">
-                          <div className="p-1.5 rounded-lg bg-[#4B244A]/5 dark:bg-white/5 group-hover:bg-[#4B244A]/10 dark:group-hover:bg-white/10 transition-colors">
-                            <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-[#4B244A] dark:text-white" />
-                          </div>
-                          <span className="leading-tight">Availability</span>
-                        </button>
                     </div>
 
                     <div className="flex gap-2 bg-gray-100/80 dark:bg-slate-800/50 p-1.5 rounded-xl border border-gray-200 dark:border-white/10">
@@ -838,9 +829,6 @@ export default function JobsPage() {
       {showPackageManagement && ( <PackageManagement onClose={() => setShowPackageManagement(false)} /> )}
       
       {/* Direct Hires List Modal */}
-      
-      {/* Availability Calendar Modal */}
-      {showAvailabilityCalendar && ( <AvailabilityCalendar onClose={() => setShowAvailabilityCalendar(false)} /> )}
       
       {/* Job Summary Modal (completed jobs) */}
       {showSummaryJobId !== null && (
