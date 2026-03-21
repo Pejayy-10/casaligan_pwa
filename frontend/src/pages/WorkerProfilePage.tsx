@@ -78,9 +78,11 @@ export default function WorkerProfilePage() {
   
   // Recurring schedule state
   const [isRecurring, setIsRecurring] = useState(false);
-  const [dayOfWeek, setDayOfWeek] = useState('');
+  const [daysOfWeek, setDaysOfWeek] = useState<string[]>([]);
   const [startTime, setStartTime] = useState('09:00');
   const [frequency, setFrequency] = useState('weekly');
+  const [conflictingDays, setConflictingDays] = useState<string[]>([]);
+  const [conflictCheckLoading, setConflictCheckLoading] = useState(false);
   
   // Custom address fields (when not using registered address)
   const [customStreet, setCustomStreet] = useState('');
@@ -266,8 +268,8 @@ export default function WorkerProfilePage() {
     }
 
     // Validate recurring schedule if enabled
-    if (isRecurring && (!dayOfWeek || !startTime)) {
-      alert('Please select a day of week and start time for recurring booking');
+    if (isRecurring && (daysOfWeek.length === 0 || !startTime)) {
+      alert('Please select at least one day of week and a start time for recurring booking');
       return;
     }
 
@@ -324,7 +326,7 @@ export default function WorkerProfilePage() {
 
         requestBody.recurring_schedule = {
           is_recurring: true,
-          day_of_week: dayOfWeek,
+          day_of_week: daysOfWeek.join(','),
           start_time: startTime,
           end_time: recurEndTime,
           frequency: frequency
@@ -913,16 +915,17 @@ export default function WorkerProfilePage() {
                       const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
                       // Parse as local date to avoid UTC offset shifting the day
                       const [y, mo, d] = val.split('-').map(Number);
-                      const day = new Date(y, mo - 1, d).getDay();
-                      setDayOfWeek(days[day]);
+                      const detectedDay = days[new Date(y, mo - 1, d).getDay()];
+                      // Auto-set the detected day; keep any extra days the user already selected
+                      setDaysOfWeek(prev => prev.includes(detectedDay) ? prev : [detectedDay, ...prev.filter(d => d !== detectedDay)]);
                     }
                   }}
                   min={new Date().toISOString().split('T')[0]}
                   className="w-full px-4 py-3 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
                 />
-                {scheduledDate && (
+                {scheduledDate && daysOfWeek.length > 0 && (
                   <p className="text-[#4B244A]/50 dark:text-white/50 text-xs mt-1 font-medium">
-                    📅 {dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1)}
+                    📅 {daysOfWeek.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}
                   </p>
                 )}
               </div>
@@ -982,39 +985,100 @@ export default function WorkerProfilePage() {
               {isRecurring && (
                 <div className="bg-white/50 dark:bg-white/10 rounded-xl p-4 space-y-4 border border-gray-200 dark:border-white/20">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
+                    <div className="md:col-span-2">
                       <label className="block text-[#4B244A] dark:text-white font-bold mb-2 text-sm">
-                        Day of Week *
-                        {scheduledDate && dayOfWeek && (
+                        Days of Week *
+                        {scheduledDate && daysOfWeek.length > 0 && (
                           <span className="ml-2 text-[10px] font-bold text-green-600 dark:text-green-400 normal-case">
-                            ✓ Auto-detected from date
+                            ✓ {daysOfWeek.length === 1 ? 'Auto-detected from date' : `${daysOfWeek.length} days selected`}
                           </span>
                         )}
                       </label>
-                      {scheduledDate && dayOfWeek ? (
-                        <div className="w-full px-4 py-3 bg-gray-100/80 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-[#4B244A] dark:text-white/80 text-sm font-bold">
-                          {dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1)}
-                        </div>
-                      ) : (
-                        <select
-                          value={dayOfWeek}
-                          onChange={(e) => setDayOfWeek(e.target.value)}
-                          required={isRecurring}
-                          className="w-full px-4 py-3 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-xl text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F] text-sm"
-                        >
-                          <option value="" className="text-gray-900">Select day</option>
-                          <option value="monday" className="text-gray-900">Monday</option>
-                          <option value="tuesday" className="text-gray-900">Tuesday</option>
-                          <option value="wednesday" className="text-gray-900">Wednesday</option>
-                          <option value="thursday" className="text-gray-900">Thursday</option>
-                          <option value="friday" className="text-gray-900">Friday</option>
-                          <option value="saturday" className="text-gray-900">Saturday</option>
-                          <option value="sunday" className="text-gray-900">Sunday</option>
-                        </select>
-                      )}
-                      <p className="text-[#4B244A]/50 dark:text-white/50 text-[10px] mt-1 italic font-medium">
-                        Based on your selected scheduled date
+                      <p className="text-[#4B244A]/60 dark:text-white/60 text-[11px] mb-2 font-medium">
+                        The day from your scheduled date is auto-selected. You can add more days for the recurring schedule.
                       </p>
+                      {conflictingDays.length > 0 && (
+                        <div className="mb-3 p-2 bg-red-50 dark:bg-red-500/20 border border-red-200 dark:border-red-400/50 rounded-lg">
+                          <p className="text-red-700 dark:text-red-300 text-[11px] font-bold">
+                            ⚠️ Schedule conflict detected on: {conflictingDays.map(d => d.charAt(0).toUpperCase() + d.slice(1)).join(', ')}
+                          </p>
+                          <p className="text-red-600 dark:text-red-300/80 text-[10px] mt-1">
+                            These days conflict with existing jobs. Please remove conflicting days or adjust your schedule.
+                          </p>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                        {(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as const).map((day) => {
+                          const isChecked = daysOfWeek.includes(day);
+                          const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                          const detectedDay = scheduledDate ? (() => { const [y,mo,d] = scheduledDate.split('-').map(Number); return days[new Date(y,mo-1,d).getDay()]; })() : '';
+                          const isAutoDetected = day === detectedDay;
+                          return (
+                            <label
+                              key={day}
+                              className={`flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl border-2 cursor-pointer transition-all select-none text-center relative
+                                ${conflictingDays.includes(day)
+                                  ? 'border-red-500 bg-red-50 dark:bg-red-500/20 text-red-600 dark:text-red-300 font-bold'
+                                  : isChecked
+                                  ? 'border-[#EA526F] bg-[#EA526F]/10 dark:bg-[#EA526F]/20 text-[#EA526F] dark:text-pink-300 font-bold'
+                                  : 'border-gray-200 dark:border-white/20 bg-white/40 dark:bg-white/5 text-[#4B244A]/60 dark:text-white/50 hover:border-[#EA526F]/50'
+                                }`}
+                            >
+                              <input
+                                type="checkbox"
+                                className="sr-only"
+                                checked={isChecked}
+                                onChange={async () => {
+                                  if (isAutoDetected && isChecked && daysOfWeek.length === 1) return; // keep at least auto-detected
+                                  const updated = daysOfWeek.includes(day) 
+                                    ? daysOfWeek.filter((d: string) => d !== day) 
+                                    : [...daysOfWeek, day];
+                                  setDaysOfWeek(updated);
+                                  
+                                  // Check for conflicts on the new days if we have a scheduled date and start time
+                                  if (isRecurring && scheduledDate && startTime && updated.length > 0) {
+                                    setConflictCheckLoading(true);
+                                    try {
+                                      const selectedPkgs = profile?.packages.filter((p: any) => selectedPackages.includes(p.package_id)) || [];
+                                      const maxDuration = selectedPkgs.length > 0 ? Math.max(...selectedPkgs.map((p: any) => p.duration_hours || 2)) : 2;
+                                      const [h, m] = startTime.split(':').map(Number);
+                                      const endH = Math.min(h + maxDuration, 23);
+                                      const endTime = `${endH.toString().padStart(2, '0')}:${(m || 0).toString().padStart(2, '0')}`;
+                                      
+                                      const response = await fetch(
+                                        `${API_BASE_URL}/direct-hire/check-conflicts/${profile?.worker_id}?` + new URLSearchParams({
+                                          scheduled_date: scheduledDate,
+                                          days_of_week: updated.join(','),
+                                          start_time: startTime,
+                                          end_time: endTime
+                                        }),
+                                        { headers: { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` } }
+                                      );
+                                      if (response.ok) {
+                                        const data = await response.json();
+                                        setConflictingDays(data.conflicting_days || []);
+                                      }
+                                    } catch (error) {
+                                      console.error('Conflict check error:', error);
+                                    } finally {
+                                      setConflictCheckLoading(false);
+                                    }
+                                  }
+                                }}
+                              />
+                              <span className="text-[11px] font-bold leading-tight capitalize">
+                                {day.slice(0,3).charAt(0).toUpperCase() + day.slice(0,3).slice(1)}
+                              </span>
+                              {conflictingDays.includes(day) && (
+                                <span className="text-[8px] text-red-500 dark:text-red-300 font-bold leading-tight">⚠️conflict</span>
+                              )}
+                              {isAutoDetected && !conflictingDays.includes(day) && (
+                                <span className="text-[8px] text-green-500 dark:text-green-400 font-bold leading-tight">auto</span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
                     </div>
                     
                     <div>
@@ -1062,7 +1126,7 @@ export default function WorkerProfilePage() {
                     </div>
                   </div>
                   <p className="text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">
-                    Example: Every Saturday starting at 9:00 AM
+                    Example: Every Tuesday &amp; Saturday starting at 9:00 AM
                   </p>
                 </div>
               )}
@@ -1190,10 +1254,10 @@ export default function WorkerProfilePage() {
               {/* Submit Button */}
               <button
                 onClick={handleHire}
-                disabled={submitting || !scheduledDate}
+                disabled={submitting || !scheduledDate || conflictingDays.length > 0}
                 className="w-full py-4 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
               >
-                {submitting ? '⏳ Sending Request...' : '✓ Confirm Booking Request'}
+                {submitting ? '⏳ Sending Request...' : conflictingDays.length > 0 ? '❌ Resolve Schedule Conflicts First' : '✓ Confirm Booking Request'}
               </button>
 
               <p className="text-[#4B244A]/60 dark:text-white/60 text-sm text-center font-medium">

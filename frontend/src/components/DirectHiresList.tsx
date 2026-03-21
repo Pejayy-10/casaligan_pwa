@@ -823,7 +823,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
                         {hire.is_recurring && (
                           <div className="mt-2">
                             <span className="px-2 py-1 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 text-xs rounded-full mr-2 font-bold">
-                              <RotateCw className="inline w-4 h-4 mr-1" /> Recurring: Every {hire.day_of_week} ({hire.frequency})
+                              <RotateCw className="inline w-4 h-4 mr-1" /> Recurring: Every {hire.day_of_week ? hire.day_of_week.split(',').map(d => d.trim().charAt(0).toUpperCase() + d.trim().slice(1)).join(' & ') : ''} ({hire.frequency})
                             </span>
                             {hire.recurring_status === 'cancelled' && (
                               <span className="px-2 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-xs rounded-full font-bold">

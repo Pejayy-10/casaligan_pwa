@@ -191,8 +191,12 @@ export default function RecurringServicesPage() {
   const formatSchedule = (dayOfWeek: string | null, startTime: string | null, endTime: string | null, frequency: string | null) => {
     if (!dayOfWeek || !startTime || !endTime || !frequency) return 'N/A';
     
-    const day = dayOfWeek.charAt(0).toUpperCase() + dayOfWeek.slice(1);
-    return `Every ${day} from ${startTime} to ${endTime} (${frequency})`;
+    const days = dayOfWeek
+      .split(',')
+      .map(d => d.trim())
+      .map(d => d.charAt(0).toUpperCase() + d.slice(1))
+      .join(' & ');
+    return `Every ${days} from ${startTime} to ${endTime} (${frequency})`;
   };
 
   const filteredJobs = filter === 'all' 
@@ -377,7 +381,9 @@ return (
                     <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Schedule</p>
                     <p className="font-bold text-[#4B244A] dark:text-white flex items-center">
                       <Calendar className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
-                      {job.day_of_week || 'TBD'}
+                      {job.day_of_week
+                        ? job.day_of_week.split(',').map(d => d.trim().charAt(0).toUpperCase() + d.trim().slice(1)).join(' & ')
+                        : 'TBD'}
                     </p>
                   </div>
                 </div>

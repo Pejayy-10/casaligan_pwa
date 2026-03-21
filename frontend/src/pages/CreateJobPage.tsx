@@ -999,7 +999,15 @@ export default function CreateJobPage() {
               <select
                 name="duration_type"
                 value={formData.duration_type}
-                onChange={handleInputChange}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData(prev => ({
+                    ...prev,
+                    duration_type: val,
+                    // Clear recurring state when switching to long-term
+                    ...(val === 'long_term' ? { is_recurring: false, day_of_week: '' } : {})
+                  }));
+                }}
                 className={inputClass}
               >
                 <option value="short_term" className={optionClass}>Short Term (1–13 days)</option>
@@ -1016,7 +1024,21 @@ export default function CreateJobPage() {
                     type="date"
                     name="job_date"
                     value={formData.job_date}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (fieldErrors.job_date) setFieldErrors(prev => { const n = { ...prev }; delete n.job_date; return n; });
+                      // Auto-detect the day and set it as the first recurring day
+                      if (val && formData.is_recurring) {
+                        const weekDays = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+                        const [y, mo, d] = val.split('-').map(Number);
+                        const detected = weekDays[new Date(y, mo - 1, d).getDay()];
+                        const current = formData.day_of_week ? formData.day_of_week.split(',').map(d => d.trim()).filter(Boolean) : [];
+                        const next = current.includes(detected) ? current : [detected, ...current];
+                        setFormData(prev => ({ ...prev, job_date: val, day_of_week: next.join(',') }));
+                      } else {
+                        setFormData(prev => ({ ...prev, job_date: val }));
+                      }
+                    }}
                     required={formData.duration_type === 'short_term'}
                     min={new Date().toISOString().split('T')[0]}
                     className={inputClass}
@@ -1135,24 +1157,59 @@ export default function CreateJobPage() {
                 {formData.is_recurring && (
                   <div className="bg-white/50 dark:bg-white/10 rounded-xl p-4 space-y-4 border border-gray-200 dark:border-white/20">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className={labelClass}>Day of Week *</label>
-                        <select
-                          name="day_of_week"
-                          value={formData.day_of_week}
-                          onChange={handleInputChange}
-                          required={formData.is_recurring}
-                          className={inputClass}
-                        >
-                          <option value="" className={optionClass}>Select day</option>
-                          <option value="monday" className={optionClass}>Monday</option>
-                          <option value="tuesday" className={optionClass}>Tuesday</option>
-                          <option value="wednesday" className={optionClass}>Wednesday</option>
-                          <option value="thursday" className={optionClass}>Thursday</option>
-                          <option value="friday" className={optionClass}>Friday</option>
-                          <option value="saturday" className={optionClass}>Saturday</option>
-                          <option value="sunday" className={optionClass}>Sunday</option>
-                        </select>
+                      <div className="md:col-span-2">
+                        <label className={labelClass}>
+                          Days of Week *
+                          {formData.day_of_week && (
+                            <span className="ml-2 text-[10px] font-bold text-green-600 dark:text-green-400 normal-case">
+                              ✓ {formData.day_of_week.split(',').length === 1 ? 'Auto-detected from date' : `${formData.day_of_week.split(',').length} days selected`}
+                            </span>
+                          )}
+                        </label>
+                        <p className="text-[#4B244A]/60 dark:text-white/60 text-[11px] mb-2 font-medium">
+                          The day from your job date is auto-selected. You can add more days for the recurring schedule.
+                        </p>
+                        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                          {(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as const).map((day) => {
+                            const selected = formData.day_of_week ? formData.day_of_week.split(',').map(d => d.trim()) : [];
+                            const isChecked = selected.includes(day);
+                            const dateVal = formData.duration_type === 'short_term' ? formData.job_date : formData.start_date;
+                            const weekDays = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+                            const detectedDay = dateVal ? (() => { const [y,mo,d] = dateVal.split('-').map(Number); return weekDays[new Date(y,mo-1,d).getDay()]; })() : '';
+                            const isAutoDetected = day === detectedDay;
+                            return (
+                              <label
+                                key={day}
+                                className={`flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl border-2 cursor-pointer transition-all select-none text-center
+                                  ${isChecked
+                                    ? 'border-[#EA526F] bg-[#EA526F]/10 dark:bg-[#EA526F]/20 text-[#EA526F] dark:text-pink-300 font-bold'
+                                    : 'border-gray-200 dark:border-white/20 bg-white/40 dark:bg-white/5 text-[#4B244A]/60 dark:text-white/50 hover:border-[#EA526F]/50'
+                                  }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="sr-only"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    const current = formData.day_of_week ? formData.day_of_week.split(',').map(d => d.trim()).filter(Boolean) : [];
+                                    if (isAutoDetected && isChecked && current.length === 1) return;
+                                    const next = current.includes(day)
+                                      ? current.filter(d => d !== day)
+                                      : [...current, day];
+                                    if (fieldErrors.day_of_week) setFieldErrors(prev => { const n = { ...prev }; delete n.day_of_week; return n; });
+                                    setFormData(prev => ({ ...prev, day_of_week: next.join(',') }));
+                                  }}
+                                />
+                                <span className="text-[11px] font-bold leading-tight capitalize">
+                                  {day.slice(0,3).charAt(0).toUpperCase() + day.slice(0,3).slice(1)}
+                                </span>
+                                {isAutoDetected && (
+                                  <span className="text-[8px] text-green-500 dark:text-green-400 font-bold leading-tight">auto</span>
+                                )}
+                              </label>
+                            );
+                          })}
+                        </div>
                         {fieldErrors.day_of_week && (
                           <p className="text-red-500 text-sm mt-1">{fieldErrors.day_of_week}</p>
                         )}
@@ -1204,7 +1261,7 @@ export default function CreateJobPage() {
                       </div>
                     </div>
                     <p className="text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">
-                      Example: Every Saturday from 9:00 AM to 11:00 AM
+                      Example: Every Tuesday &amp; Saturday from 9:00 AM to 11:00 AM
                     </p>
                   </div>
                 )}
@@ -1222,16 +1279,25 @@ export default function CreateJobPage() {
                     onChange={(e) => {
                       const newStart = e.target.value;
                       setFormData(prev => {
+                        // Auto-detect recurring day from start date
+                        let updatedDayOfWeek = prev.day_of_week;
+                        if (newStart && prev.is_recurring) {
+                          const weekDays = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+                          const [y, mo, d] = newStart.split('-').map(Number);
+                          const detected = weekDays[new Date(y, mo - 1, d).getDay()];
+                          const current = prev.day_of_week ? prev.day_of_week.split(',').map(d => d.trim()).filter(Boolean) : [];
+                          updatedDayOfWeek = current.includes(detected) ? current.join(',') : [detected, ...current].join(',');
+                        }
                         // If end_date is set but less than 14 days from new start, reset it
                         if (prev.end_date && newStart) {
                           const startMs = new Date(newStart).getTime();
                           const endMs = new Date(prev.end_date).getTime();
                           const diffDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
                           if (diffDays < 14) {
-                            return { ...prev, start_date: newStart, end_date: '' };
+                            return { ...prev, start_date: newStart, end_date: '', day_of_week: updatedDayOfWeek };
                           }
                         }
-                        return { ...prev, start_date: newStart };
+                        return { ...prev, start_date: newStart, day_of_week: updatedDayOfWeek };
                       });
                     }}
                     required={formData.duration_type === 'long_term'}

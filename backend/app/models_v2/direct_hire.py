@@ -53,7 +53,7 @@ class DirectHire(Base):
     
     # Recurring schedule (for regular/repeating bookings)
     is_recurring = Column(Boolean, default=False, nullable=False)
-    day_of_week = Column(String(20), nullable=True)  # e.g., "saturday", "monday"
+    day_of_week = Column(String(100), nullable=True)  # e.g., "saturday" or "tuesday,saturday"
     start_time = Column(String(10), nullable=True)  # e.g., "09:00"
     end_time = Column(String(10), nullable=True)  # e.g., "11:00"
     frequency = Column(String(20), nullable=True)  # "weekly", "biweekly", "monthly"

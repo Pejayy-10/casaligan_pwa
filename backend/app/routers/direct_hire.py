@@ -2,13 +2,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
 from datetime import date, timedelta, datetime
 import math
 import os
 from decimal import Decimal
 from urllib.parse import urlparse
+import logging
 from app.db import get_db
 from app.models_v2.user import User
 from app.models_v2.worker_employer import Worker, Employer
@@ -18,6 +19,8 @@ from app.models_v2.address import Address
 from app.models_v2.conversation import Conversation
 from app.models_v2.notification import Notification, NotificationType
 from app.security import get_current_user
+
+logger = logging.getLogger(__name__)
 from app.services.notification_service import (
     notify_direct_hire_request,
     notify_direct_hire_accepted,
@@ -377,6 +380,85 @@ def toggle_worker_availability(
     return {
         "is_available": worker.is_available,
         "message": "You are now available for direct hire." if worker.is_available else "You are now set to inactive. Employers cannot directly hire you until you re-activate."
+    }
+
+
+# ============== CONFLICT CHECK ENDPOINT ==============
+
+@router.get("/check-conflicts/{worker_id}", response_model=Dict[str, Any])
+def check_recurring_conflicts(
+    worker_id: int,
+    scheduled_date: str,
+    days_of_week: str,  # comma-separated, e.g. "tuesday,saturday"
+    start_time: str,
+    end_time: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Check if adding a recurring booking on specific days conflicts with existing jobs.
+    Returns list of conflicting days with job details.
+    
+    Query params:
+      - scheduled_date: YYYY-MM-DD (used to determine the starting day, for reference)
+      - days_of_week: comma-separated lowercase day names (e.g. "tuesday,saturday")
+      - start_time: HH:MM (e.g. "09:00")
+      - end_time: HH:MM (e.g. "11:00")
+    """
+    from datetime import datetime as dt
+    from app.services.schedule_conflict_service import detect_schedule_conflicts, get_days_set
+    
+    # Get the employer's ID
+    employer = get_employer_for_user(current_user.id, db)
+    if not employer:
+        raise HTTPException(status_code=400, detail="User is not an employer")
+    
+    # Parse input
+    try:
+        sched_date = dt.strptime(scheduled_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid scheduled_date format (use YYYY-MM-DD)")
+    
+    # Check conflicts
+    try:
+        conflicts = detect_schedule_conflicts(
+            db=db,
+            worker_id=worker_id,
+            new_job_start_date=sched_date,
+            new_job_end_date=sched_date,
+            new_job_employer_id=employer.employer_id,
+            new_job_is_recurring=True,
+            new_job_recurring_day=days_of_week,  # Pass the comma-separated string
+            new_job_type='direct_hire',
+            new_job_daily_start_time=start_time,
+            new_job_daily_end_time=end_time,
+        )
+    except Exception as e:
+        logger.error(f"Conflict check error: {e}")
+        raise HTTPException(status_code=500, detail=f"Conflict check failed: {str(e)}")
+    
+    # Extract conflicting days from the conflicts
+    conflicting_days = set()
+    for conflict in conflicts:
+        if conflict.get('recurring_day'):
+            # The conflict's recurring_day is also comma-separated now
+            conflicting_days.update(get_days_set(conflict['recurring_day']))
+        elif conflict.get('start_date'):
+            # One-time job conflict — extract the day of week
+            conflicting_days.add(conflict['start_date'].strftime('%A').lower())
+    
+    return {
+        "has_conflicts": len(conflicts) > 0,
+        "conflicting_days": sorted(list(conflicting_days)),
+        "conflicts": [
+            {
+                "job_title": c.get('title'),
+                "type": c.get('type'),
+                "recurring_day": c.get('recurring_day'),
+                "reason": c.get('reason')
+            }
+            for c in conflicts
+        ]
     }
 
 

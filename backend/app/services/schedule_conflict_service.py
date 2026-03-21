@@ -102,11 +102,23 @@ def check_times_overlap(
 
 
 def check_day_overlap(day1: str, day2: str) -> bool:
-    """Check if two days of week are the same"""
+    """
+    Check if two day-of-week values share at least one common day.
+    Both may be single values ("tuesday") or comma-separated ("tuesday,saturday").
+    """
     if not day1 or not day2:
         return False
-    
-    return day1.lower().strip() == day2.lower().strip()
+
+    days1 = {d.strip().lower() for d in day1.split(',') if d.strip()}
+    days2 = {d.strip().lower() for d in day2.split(',') if d.strip()}
+    return bool(days1 & days2)
+
+
+def get_days_set(day_str: Optional[str]) -> set:
+    """Return a set of lowercase day names from a comma-separated string."""
+    if not day_str:
+        return set()
+    return {d.strip().lower() for d in day_str.split(',') if d.strip()}
 
 
 def get_housekeeper_jobs(
@@ -273,35 +285,36 @@ def detect_schedule_conflicts(
         
         # Case 1: New job is recurring
         if new_job_is_recurring and new_job_recurring_day:
-            # Check if existing job is on same recurring day
+            new_days = get_days_set(new_job_recurring_day)
+            # Check if existing job is also recurring and shares a day
             if existing_job['is_recurring'] and existing_job['recurring_day']:
-                if check_day_overlap(new_job_recurring_day, existing_job['recurring_day']):
-                    # Also check time overlap
+                shared_days = new_days & get_days_set(existing_job['recurring_day'])
+                if shared_days:
                     if check_times_overlap(
                         new_job_daily_start_time, new_job_daily_end_time,
                         existing_job.get('daily_start_time'), existing_job.get('daily_end_time')
                     ):
                         is_conflict = True
-                        conflict_reason = f"Recurring job conflict on {new_job_recurring_day} with overlapping hours"
-            # Check if existing one-time job is on same day
+                        conflict_reason = f"Recurring job conflict on {', '.join(sorted(shared_days))} with overlapping hours"
+            # Check if existing one-time job falls on any of the new recurring days
             elif existing_job['start_date']:
-                if new_job_recurring_day.lower().strip() == existing_job['start_date'].strftime('%A').lower():
+                existing_day_name = existing_job['start_date'].strftime('%A').lower()
+                if existing_day_name in new_days:
                     if check_times_overlap(
                         new_job_daily_start_time, new_job_daily_end_time,
                         existing_job.get('daily_start_time'), existing_job.get('daily_end_time')
                     ):
                         is_conflict = True
-                        conflict_reason = f"Conflicts with existing job on {new_job_recurring_day} during overlapping hours"
-        
+                        conflict_reason = f"Conflicts with existing job on {existing_day_name} during overlapping hours"
+
         # Case 2: Existing job is recurring, new is one-time
         elif existing_job['is_recurring'] and existing_job['recurring_day'] and new_start:
-            # Check if new job falls on the recurring day
-            recurring_day_name = existing_job['recurring_day'].lower().strip()
-            # Check each day of the new job's date range
+            # Check if new job date range contains any of the existing recurring days
+            existing_days = get_days_set(existing_job['recurring_day'])
             check_end = new_end if new_end else new_start
             current_date = new_start
             while current_date <= check_end:
-                if current_date.strftime('%A').lower() == recurring_day_name:
+                if current_date.strftime('%A').lower() in existing_days:
                     if check_times_overlap(
                         new_job_daily_start_time, new_job_daily_end_time,
                         existing_job.get('daily_start_time'), existing_job.get('daily_end_time')
@@ -556,7 +569,7 @@ def _two_jobs_conflict(
     Pure-logic check: do two jobs conflict?
     Covers all combos: recurring↔recurring, recurring↔one-time, one-time↔one-time.
     """
-    # Case 1: Both recurring
+    # Case 1: Both recurring — conflict if any days overlap AND times overlap
     if a_recurring and a_recurring_day and b_recurring and b_recurring_day:
         if check_day_overlap(a_recurring_day, b_recurring_day):
             return check_times_overlap(a_start_time, a_end_time, b_start_time, b_end_time)
@@ -564,10 +577,11 @@ def _two_jobs_conflict(
 
     # Case 2: A is recurring, B is one-time
     if a_recurring and a_recurring_day and start_b:
+        a_days = get_days_set(a_recurring_day)
         b_end_safe = end_b or start_b
         cur = start_b
         while cur <= b_end_safe:
-            if cur.strftime('%A').lower() == a_recurring_day.lower().strip():
+            if cur.strftime('%A').lower() in a_days:
                 if check_times_overlap(a_start_time, a_end_time, b_start_time, b_end_time):
                     return True
             cur += timedelta(days=1)
@@ -575,10 +589,11 @@ def _two_jobs_conflict(
 
     # Case 3: B is recurring, A is one-time
     if b_recurring and b_recurring_day and start_a:
+        b_days = get_days_set(b_recurring_day)
         a_end_safe = end_a or start_a
         cur = start_a
         while cur <= a_end_safe:
-            if cur.strftime('%A').lower() == b_recurring_day.lower().strip():
+            if cur.strftime('%A').lower() in b_days:
                 if check_times_overlap(a_start_time, a_end_time, b_start_time, b_end_time):
                     return True
             cur += timedelta(days=1)
