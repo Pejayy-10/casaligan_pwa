@@ -112,7 +112,7 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
       recipientName: payment.worker_name,
       description: `Scheduled payment due ${new Date(payment.due_date).toLocaleDateString()}`,
       allowedMethods: ['maya', 'cash'],
-      requireProof: false,
+      requireProof: true,
       onExternalGatewayPayment: async () => {
         const token = localStorage.getItem('access_token');
         const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/payments/${scheduleId}/initiate-payment`, {

@@ -152,7 +152,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
       amount: details?.budget || 0,
       description: `Payment for ${jobTitle}`,
       recipientName: worker.worker_name,
-      requireProof: false,
+      requireProof: true,
       allowedMethods: ['maya', 'cash'],
       onExternalGatewayPayment: async () => {
         const token = localStorage.getItem('access_token');

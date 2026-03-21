@@ -1283,7 +1283,7 @@ function OwnerJobsContent({
                      onClick={() => onShowSummary(job)}
                      className="w-full py-2 bg-[#4B244A] text-white text-sm font-bold rounded-lg hover:bg-[#361a35] transition-all shadow-md flex items-center justify-center gap-2"
                    >
-                     <FileText className="w-4 h-4" /> View Receipt
+                     <FileText className="w-4 h-4" /> View Summary & Receipt
                    </button>
                  )}
                </>
@@ -1357,7 +1357,7 @@ function OwnerJobsContent({
                  onClick={() => onShowSummary(job)}
                  className="mt-2 w-full py-2 bg-[#4B244A] text-white text-sm font-bold rounded-lg hover:bg-[#361a35] transition-all shadow-md flex items-center justify-center gap-2"
                >
-                 <FileText className="w-4 h-4" /> Summary
+                 <FileText className="w-4 h-4" /> Summary & Receipt
                </button>
              )}
 

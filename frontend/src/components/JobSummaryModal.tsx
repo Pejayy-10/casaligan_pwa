@@ -101,7 +101,7 @@ export default function JobSummaryModal({ jobId, onClose }: Props) {
       <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10 p-4 flex items-center justify-between z-10">
           <h2 className="text-xl font-bold text-[#4B244A] dark:text-white flex items-center gap-2">
-            <Receipt className="w-5 h-5" /> Job Summary
+            <Receipt className="w-5 h-5" /> Job Summary & Receipt
           </h2>
           <button
             onClick={onClose}

@@ -160,7 +160,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     
-    if (currentRequest?.requireProof && selectedMethod !== 'cash') {
+    if (currentRequest?.requireProof) {
       setStep('proof');
     } else {
       handleProcessPayment();
@@ -302,8 +302,12 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
                     ) : (
                       <div className="space-y-3">
                         <div className="text-4xl opacity-50">📷</div>
-                        <p className="text-[#4B244A] dark:text-white font-bold">Upload Screenshot</p>
-                        <p className="text-[#4B244A]/60 dark:text-white/60 text-sm">Take a screenshot of your payment confirmation</p>
+                        <p className="text-[#4B244A] dark:text-white font-bold">Upload Proof Photo or Screenshot</p>
+                        <p className="text-[#4B244A]/60 dark:text-white/60 text-sm">
+                          {selectedMethod === 'cash'
+                            ? 'Optional for cash payments, but recommended for documentation and security.'
+                            : 'Upload your payment confirmation screenshot.'}
+                        </p>
                       </div>
                     )}
                   </div>
@@ -319,10 +323,10 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
                 <div className="sticky bottom-0 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-gray-200 dark:border-white/20 p-6 rounded-b-3xl">
                   <button
                     onClick={handleProcessPayment}
-                    disabled={!proofUrl || uploading}
+                    disabled={uploading || (!proofUrl && selectedMethod !== 'cash')}
                     className="w-full py-4 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white font-bold text-lg rounded-xl hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
                   >
-                    {uploading ? 'Uploading...' : 'Confirm Payment'}
+                    {uploading ? 'Uploading...' : selectedMethod === 'cash' ? 'Confirm Cash Payment' : 'Confirm Payment'}
                   </button>
                 </div>
               </>
@@ -413,7 +417,7 @@ export function PaymentProvider({ children }: { children: React.ReactNode }) {
                     {selectedMethod 
                       ? (selectedMethod !== 'cash' && !!currentRequest.onExternalGatewayPayment
                           ? 'Proceed to Maya Checkout'
-                          : (currentRequest.requireProof && selectedMethod !== 'cash' 
+                          : (currentRequest.requireProof
                           ? `Continue with ${PAYMENT_METHODS[selectedMethod].name}` 
                           : `Pay with ${PAYMENT_METHODS[selectedMethod].name}`))
                       : 'Select Payment Method'}

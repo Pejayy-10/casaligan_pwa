@@ -956,7 +956,7 @@ def get_my_accepted_jobs(
                     pending_payments += 1
                     if not next_payment_due:
                         next_payment_due = schedule.due_date
-                elif status_val == "confirmed":
+                elif status_val in {"sent", "confirmed"}:
                     total_earned += float(schedule.amount)
         
         # Parse job details
@@ -3174,7 +3174,7 @@ def get_job_summary(
                 "status": status_val,
                 "schedule_id": s.schedule_id,
             })
-            if status_val == "confirmed":
+            if status_val in {"sent", "confirmed"}:
                 worker_total += amount_float
                 total_amount_paid += amount_float
 
@@ -3278,7 +3278,7 @@ def get_housekeeper_summary(
             "amount": amount_float,
             "status": status_val,
         })
-        if status_val == "confirmed":
+        if status_val in {"sent", "confirmed"}:
             total_paid += amount_float
 
     latest_payment_tx = db.query(PaymentTransaction).join(
