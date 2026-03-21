@@ -1145,9 +1145,10 @@ function OwnerJobsContent({
     <div className="space-y-4">
       {paginatedJobs.map((job) => {
         const isPostFeePending = (job.post_fee_status || 'paid').toLowerCase() !== 'paid';
+        const showPostFeeGate = job.status === 'open' && isPostFeePending;
         return (
         <div key={job.post_id} className={`bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl p-5 border transition-all shadow-sm ${
-          isPostFeePending
+          showPostFeeGate
             ? 'border-amber-300 dark:border-amber-500/40 opacity-85'
             : 'border-white/60 dark:border-white/10 hover:border-[#EA526F]/30 dark:hover:border-[#EA526F]/30 hover:shadow-md'
         }`}>
@@ -1172,7 +1173,7 @@ function OwnerJobsContent({
 
             return (
               <>
-          {isPostFeePending && (
+          {showPostFeeGate && (
             <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 px-3 py-2 text-xs font-semibold">
               Unpublished: pay ₱{Number(job.post_fee_amount || 0).toLocaleString()} ({Number(job.post_fee_percentage || 7)}%) to publish this short-term post.
             </div>
@@ -1180,14 +1181,14 @@ function OwnerJobsContent({
           <div className="flex items-start justify-between mb-3 gap-2">
             <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white break-words min-w-0">{job.title}</h3>
             <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
-              isPostFeePending ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
+              showPostFeeGate ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
               job.status === 'open' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' : 
               job.status === 'ongoing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' :
               job.status === 'pending_completion' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300' :
               job.status === 'completed' ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300' : 
               'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300'
             }`}>
-              {isPostFeePending ? 'UNPUBLISHED' : (job.status === 'pending_completion' ? 'PENDING APPROVAL' : job.status.toUpperCase())}
+              {showPostFeeGate ? 'UNPUBLISHED' : (job.status === 'pending_completion' ? 'PENDING APPROVAL' : job.status.toUpperCase())}
             </span>
           </div>
           
@@ -1247,7 +1248,7 @@ function OwnerJobsContent({
 
           {/* Action Buttons */}
           <div className="mt-4 grid grid-cols-1 gap-2">
-             {isPostFeePending && (
+             {showPostFeeGate && (
                <button
                 onClick={() => onPayPostFee(job)}
                 className="w-full py-2.5 bg-amber-500 text-white text-sm font-bold rounded-lg hover:bg-amber-600 transition-all shadow-md"
