@@ -192,7 +192,7 @@ export default function ProfilePage() {
       if (pictureUrl !== user.profile_picture) updates.profile_picture = pictureUrl;
       if (emailChanged) updates.email = emailLower;
       if (phoneChanged) updates.phone_number = fullPhone;
-      if (user.is_housekeeper && editBio.trim() !== (user.bio || '').trim()) updates.bio = editBio.trim();
+      if (user.is_housekeeper && user.active_role === 'housekeeper' && editBio.trim() !== (user.bio || '').trim()) updates.bio = editBio.trim();
       if ((editRelationshipStatus || '') !== (user.relationship_status || '')) {
         updates.relationship_status = editRelationshipStatus || undefined;
       }
@@ -733,7 +733,7 @@ export default function ProfilePage() {
                         )}
                     </div>
 
-                    {user.is_housekeeper && user.bio && (
+                    {user.is_housekeeper && user.active_role === 'housekeeper' && user.bio && (
                       <div className="mt-4 p-3 rounded-xl bg-white/50 dark:bg-white/5 border border-gray-200 dark:border-white/10 text-left">
                         <p className="text-xs font-bold uppercase tracking-wide text-[#4B244A]/60 dark:text-white/60 mb-1">Bio</p>
                         <p className="text-sm text-[#4B244A]/80 dark:text-white/80 whitespace-pre-wrap">{user.bio}</p>
@@ -1087,7 +1087,7 @@ export default function ProfilePage() {
                 </select>
               </div>
 
-              {user.is_housekeeper && (
+              {user.is_housekeeper && user.active_role === 'housekeeper' && (
                 <div>
                   <label className="block text-sm font-bold text-[#4B244A] dark:text-white mb-2">Bio</label>
                   <textarea
