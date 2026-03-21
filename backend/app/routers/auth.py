@@ -500,22 +500,52 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
     """Register a new user (Step 1: Account & Personal Info) and return access token"""
-    
+
+    def _is_incomplete_registration(user: User) -> bool:
+        """
+        A registration is considered incomplete (abandoned mid-flow) when
+        the user has no address saved yet AND their email has never been
+        verified. Such records are safe to overwrite so the user can retry.
+        """
+        return user.address is None and not user.email_verified
+
+    def _delete_incomplete_user(user: User) -> None:
+        """Remove all rows created during an abandoned Step-1 registration."""
+        # Delete related records that were auto-created during Step 1
+        if user.employer:
+            db.delete(user.employer)
+        if user.worker:
+            db.delete(user.worker)
+        # Remove any documents that may have been partially uploaded
+        for doc in user.documents:
+            db.delete(doc)
+        db.delete(user)
+        db.flush()
+
     # Check if email already exists
     existing_user = db.query(User).filter(User.email == user_data.email).first()
     if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
-    
+        if _is_incomplete_registration(existing_user):
+            # Previous registration was abandoned mid-flow — clean it up and allow retry
+            _delete_incomplete_user(existing_user)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email already registered"
+            )
+
     # Check if phone number already exists
     existing_phone = db.query(User).filter(User.phone_number == user_data.phone_number).first()
     if existing_phone:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Phone number already registered"
-        )
+        if _is_incomplete_registration(existing_phone):
+            # Only delete if not already deleted above (different email, same phone)
+            if existing_phone.email != user_data.email:
+                _delete_incomplete_user(existing_phone)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Phone number already registered"
+            )
     
     # Create new user - owners are active by default, housekeepers need approval
     db_user = User(
