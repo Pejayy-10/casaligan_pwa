@@ -26,6 +26,24 @@ type JobBenchmarkSuggestions = {
   };
 };
 
+type JobAISuggestions = {
+  source: 'ai' | 'fallback';
+  title_options: string[];
+  description_draft: string;
+  recommended_budget: {
+    min: number;
+    recommended: number;
+    max: number;
+  };
+  recommended_people_needed: number;
+  recommended_num_days: number;
+  meta?: {
+    sample_size: number;
+    scope: string;
+    confidence: 'high' | 'medium' | 'low';
+  };
+};
+
 const resolveUploadUrl = (url: string) => {
   if (!url) return '';
   return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
@@ -82,6 +100,8 @@ export default function CreateJobPage() {
   const [categories, setCategories] = useState<Array<{category_id: number, name: string, description: string | null, is_active: boolean}>>([]);
   const [benchmarkLoading, setBenchmarkLoading] = useState(false);
   const [benchmarkSuggestions, setBenchmarkSuggestions] = useState<JobBenchmarkSuggestions | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<JobAISuggestions | null>(null);
   const [regions, setRegions] = useState<PSGCRegion[]>([]);
   const [provinces, setProvinces] = useState<PSGCProvince[]>([]);
   const [cities, setCities] = useState<PSGCCity[]>([]);
@@ -125,6 +145,33 @@ export default function CreateJobPage() {
     return () => clearTimeout(timeout);
   }, [formData.cleaning_type, formData.house_type, formData.duration_type, locationData.city_name]);
 
+  useEffect(() => {
+    const hasCategoryContext = selectedCategories.length > 0 && !!formData.cleaning_type && !!formData.house_type;
+    const hasTextContext = formData.title.trim().length >= 8 && formData.description.trim().length >= 20;
+
+    if (!hasCategoryContext && !hasTextContext) {
+      setAiSuggestions(null);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      fetchAISuggestions();
+    }, 700);
+
+    return () => clearTimeout(timeout);
+  }, [
+    selectedCategories,
+    categories,
+    formData.title,
+    formData.description,
+    formData.house_type,
+    formData.cleaning_type,
+    formData.duration_type,
+    formData.people_needed,
+    formData.num_days,
+    locationData.city_name,
+  ]);
+
   const fetchBenchmarkSuggestions = async () => {
     try {
       setBenchmarkLoading(true);
@@ -152,6 +199,55 @@ export default function CreateJobPage() {
       setBenchmarkSuggestions(null);
     } finally {
       setBenchmarkLoading(false);
+    }
+  };
+
+  const fetchAISuggestions = async () => {
+    try {
+      setAiLoading(true);
+      const token = localStorage.getItem('access_token');
+      const selectedCategoryNames = categories
+        .filter((cat) => selectedCategories.includes(cat.category_id))
+        .map((cat) => cat.name);
+
+      const hasTextContext = formData.title.trim().length >= 8 && formData.description.trim().length >= 20;
+      const hasCategoryContext = selectedCategoryNames.length > 0;
+      const mode = hasTextContext && hasCategoryContext
+        ? 'auto'
+        : hasTextContext
+          ? 'from_text'
+          : 'from_categories';
+
+      const response = await fetch(`${API_BASE_URL}/jobs/ai-suggest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          mode,
+          title: formData.title,
+          description: formData.description,
+          house_type: formData.house_type,
+          cleaning_type: formData.cleaning_type,
+          duration_type: formData.duration_type,
+          city_name: locationData.city_name || undefined,
+          categories: selectedCategoryNames,
+          budget: formData.budget ? Number(formData.budget) : undefined,
+          people_needed: formData.people_needed ? Number(formData.people_needed) : undefined,
+          num_days: formData.num_days ? Number(formData.num_days) : undefined,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAiSuggestions(data);
+      }
+    } catch (aiError) {
+      console.error('Failed to fetch AI suggestions:', aiError);
+      setAiSuggestions(null);
+    } finally {
+      setAiLoading(false);
     }
   };
 
@@ -782,6 +878,130 @@ export default function CreateJobPage() {
                   </select>
                 </div>
 
+                <div className="md:col-span-2 p-4 sm:p-5 bg-linear-to-br from-white/70 to-blue-50 dark:from-slate-900/70 dark:to-blue-500/10 border border-blue-200/70 dark:border-blue-500/30 rounded-2xl shadow-sm">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <p className="text-blue-700 dark:text-blue-200 text-sm font-bold">Smart Suggestions</p>
+                      <p className="text-[#4B244A]/70 dark:text-white/70 text-xs">Suggestions are assistive only and won’t overwrite fields unless you apply them.</p>
+                    </div>
+                    {benchmarkLoading && <span className="text-blue-600 dark:text-blue-300 text-xs font-semibold">Updating...</span>}
+                  </div>
+
+                  {benchmarkSuggestions ? (
+                    <div className="space-y-4">
+                      <p className="text-blue-700 dark:text-blue-200 text-xs leading-relaxed">
+                        Based on {benchmarkSuggestions.meta.sample_size} similar completed jobs • Scope: {benchmarkSuggestions.meta.scope} • Confidence: {benchmarkSuggestions.meta.confidence}
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div className="p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl">
+                          <p className="text-[#4B244A] dark:text-white text-[11px] font-semibold uppercase tracking-wide">Budget range</p>
+                          <p className="text-[#4B244A]/85 dark:text-white/85 text-sm font-bold mt-1">₱{Math.round(benchmarkSuggestions.budget.min)} - ₱{Math.round(benchmarkSuggestions.budget.max)}</p>
+                        </div>
+                        <div className="p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl">
+                          <p className="text-[#4B244A] dark:text-white text-[11px] font-semibold uppercase tracking-wide">Recommended workers</p>
+                          <p className="text-[#4B244A]/85 dark:text-white/85 text-sm font-bold mt-1">{benchmarkSuggestions.recommended_people_needed} worker(s)</p>
+                        </div>
+                        <div className="p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl">
+                          <p className="text-[#4B244A] dark:text-white text-[11px] font-semibold uppercase tracking-wide">Recommended days</p>
+                          <p className="text-[#4B244A]/85 dark:text-white/85 text-sm font-bold mt-1">{Math.max(1, Math.min(13, benchmarkSuggestions.recommended_num_days))} day(s)</p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({
+                          ...prev,
+                          budget: String(Math.round(benchmarkSuggestions.budget.recommended)),
+                          people_needed: String(benchmarkSuggestions.recommended_people_needed),
+                          ...(formData.duration_type === 'short_term'
+                            ? { num_days: String(Math.max(1, Math.min(13, benchmarkSuggestions.recommended_num_days))) }
+                            : {}),
+                        }))}
+                        className="w-full p-3.5 bg-[#EA526F] text-white text-sm font-bold rounded-xl hover:bg-[#d64460] transition-colors shadow-sm"
+                      >
+                        Apply all recommended values
+                      </button>
+
+                      <div className="space-y-2">
+                        <p className="text-[#4B244A] dark:text-white text-xs font-semibold">Quick title ideas</p>
+                        <div className="flex flex-wrap gap-2">
+                          {benchmarkSuggestions.quick_suggestions.titles.map((title, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, title }))}
+                              className="px-3 py-1.5 text-xs bg-white/90 dark:bg-white/10 border border-blue-200/80 dark:border-blue-500/20 rounded-full text-[#4B244A] dark:text-white hover:bg-white dark:hover:bg-white/20 transition-colors"
+                            >
+                              {title}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-[#4B244A] dark:text-white text-xs font-semibold">Quick description starter</p>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({
+                            ...prev,
+                            description: benchmarkSuggestions.quick_suggestions.descriptions.join(' '),
+                          }))}
+                          className="w-full text-left p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl hover:bg-white dark:hover:bg-white/10 transition-colors"
+                        >
+                          <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">Apply a pre-filled description based on similar jobs</p>
+                        </button>
+                      </div>
+
+                      <div className="pt-3 border-t border-blue-200/70 dark:border-blue-500/20 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[#4B244A] dark:text-white text-xs font-semibold">AI assistant suggestions</p>
+                          {aiLoading && <span className="text-[#4B244A]/70 dark:text-white/70 text-xs font-semibold">Analyzing...</span>}
+                        </div>
+
+                        {aiSuggestions ? (
+                          <div className="space-y-2.5 p-3 bg-white/60 dark:bg-white/5 border border-blue-200/60 dark:border-blue-500/20 rounded-xl">
+                            <p className="text-[#4B244A]/70 dark:text-white/70 text-xs">
+                              Source: {aiSuggestions.source === 'ai' ? 'AI-generated' : 'Smart fallback'}
+                            </p>
+
+                            {aiSuggestions.title_options?.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {aiSuggestions.title_options.map((title, idx) => (
+                                  <button
+                                    key={`ai-title-${idx}`}
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, title }))}
+                                    className="px-3 py-1.5 text-xs bg-white/90 dark:bg-white/10 border border-blue-200/80 dark:border-blue-500/20 rounded-full text-[#4B244A] dark:text-white hover:bg-white dark:hover:bg-white/20 transition-colors"
+                                  >
+                                    {title}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+
+                            {!!aiSuggestions.description_draft && (
+                              <button
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, description: aiSuggestions.description_draft }))}
+                                className="w-full text-left p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl hover:bg-white dark:hover:bg-white/10 transition-colors"
+                              >
+                                <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">Use AI description draft</p>
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-[#4B244A]/70 dark:text-white/70 text-xs">
+                            Select categories or type title and description to get AI suggestions.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-blue-700 dark:text-blue-200 text-xs">Suggestions will appear after selecting house type and cleaning type.</p>
+                  )}
+                </div>
+
                 <div className="md:col-span-2">
                   <label className={labelClass}>Categories * (Select one or more)</label>
                   <div className="mb-3 p-3 bg-white/40 dark:bg-slate-800/40 rounded-xl border border-gray-200 dark:border-white/10 space-y-2">
@@ -792,14 +1012,14 @@ export default function CreateJobPage() {
                         value={customCategoryName}
                         onChange={(e) => setCustomCategoryName(e.target.value)}
                         placeholder="Category name"
-                        className={`${inputClass} !py-2 text-sm`}
+                        className={`${inputClass} py-2! text-sm`}
                       />
                       <input
                         type="text"
                         value={customCategoryDescription}
                         onChange={(e) => setCustomCategoryDescription(e.target.value)}
                         placeholder="Description (optional)"
-                        className={`${inputClass} !py-2 text-sm`}
+                        className={`${inputClass} py-2! text-sm`}
                       />
                     </div>
                     <button
@@ -851,6 +1071,20 @@ export default function CreateJobPage() {
                     placeholder="5000"
                     className={inputClass}
                   />
+                  {(aiSuggestions || benchmarkSuggestions) && (
+                    <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                      <p className="text-[#4B244A]/70 dark:text-white/70">
+                        Suggested: ₱{Math.round(aiSuggestions?.recommended_budget?.recommended ?? benchmarkSuggestions?.budget.recommended ?? 0).toLocaleString()} (range ₱{Math.round(aiSuggestions?.recommended_budget?.min ?? benchmarkSuggestions?.budget.min ?? 0).toLocaleString()} - ₱{Math.round(aiSuggestions?.recommended_budget?.max ?? benchmarkSuggestions?.budget.max ?? 0).toLocaleString()})
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, budget: String(Math.round(aiSuggestions?.recommended_budget?.recommended ?? benchmarkSuggestions?.budget.recommended ?? 0)) }))}
+                        className="shrink-0 px-2.5 py-1 rounded-md bg-[#EA526F] text-white font-semibold hover:bg-[#d64460] transition-colors"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -865,92 +1099,29 @@ export default function CreateJobPage() {
                     max="10"
                     className={inputClass}
                   />
+                  {(aiSuggestions || benchmarkSuggestions) && (
+                    <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                      <p className="text-[#4B244A]/70 dark:text-white/70">
+                        Suggested: {aiSuggestions?.recommended_people_needed ?? benchmarkSuggestions?.recommended_people_needed ?? 1} worker(s)
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, people_needed: String(aiSuggestions?.recommended_people_needed ?? benchmarkSuggestions?.recommended_people_needed ?? 1) }))}
+                        className="shrink-0 px-2.5 py-1 rounded-md bg-[#EA526F] text-white font-semibold hover:bg-[#d64460] transition-colors"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
-              <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-blue-700 dark:text-blue-200 text-sm font-bold">📊 Benchmark & Quick Suggestions</p>
-                  {benchmarkLoading && <span className="text-blue-600 dark:text-blue-300 text-xs">Updating...</span>}
-                </div>
-
-                {benchmarkSuggestions ? (
-                  <div className="space-y-3">
-                    <p className="text-blue-700 dark:text-blue-200 text-xs">
-                      Based on {benchmarkSuggestions.meta.sample_size} similar completed jobs • Scope: {benchmarkSuggestions.meta.scope} • Confidence: {benchmarkSuggestions.meta.confidence}
-                    </p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, budget: String(Math.round(benchmarkSuggestions.budget.recommended)) }))}
-                        className="text-left p-3 bg-white/70 dark:bg-white/5 border border-blue-200 dark:border-blue-500/20 rounded-lg hover:bg-white dark:hover:bg-white/10 transition-colors"
-                      >
-                        <p className="text-[#4B244A] dark:text-white text-sm font-semibold">Suggested budget</p>
-                        <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">₱{Math.round(benchmarkSuggestions.budget.min)} – ₱{Math.round(benchmarkSuggestions.budget.max)} (Use ₱{Math.round(benchmarkSuggestions.budget.recommended)})</p>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, people_needed: String(benchmarkSuggestions.recommended_people_needed) }))}
-                        className="text-left p-3 bg-white/70 dark:bg-white/5 border border-blue-200 dark:border-blue-500/20 rounded-lg hover:bg-white dark:hover:bg-white/10 transition-colors"
-                      >
-                        <p className="text-[#4B244A] dark:text-white text-sm font-semibold">Suggested people needed</p>
-                        <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">Recommended: {benchmarkSuggestions.recommended_people_needed} worker(s)</p>
-                      </button>
-                    </div>
-
-                    {formData.duration_type === 'short_term' && (
-                      <button
-                        type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, num_days: String(Math.max(1, Math.min(13, benchmarkSuggestions.recommended_num_days))) }))}
-                        className="w-full text-left p-3 bg-white/70 dark:bg-white/5 border border-blue-200 dark:border-blue-500/20 rounded-lg hover:bg-white dark:hover:bg-white/10 transition-colors"
-                      >
-                        <p className="text-[#4B244A] dark:text-white text-sm font-semibold">Suggested number of days</p>
-                        <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">Recommended: {Math.max(1, Math.min(13, benchmarkSuggestions.recommended_num_days))} day(s)</p>
-                      </button>
-                    )}
-
-                    <div>
-                      <p className="text-[#4B244A] dark:text-white text-xs font-semibold mb-2">Quick title ideas</p>
-                      <div className="flex flex-wrap gap-2">
-                        {benchmarkSuggestions.quick_suggestions.titles.map((title, idx) => (
-                          <button
-                            key={idx}
-                            type="button"
-                            onClick={() => setFormData(prev => ({ ...prev, title }))}
-                            className="px-3 py-1.5 text-xs bg-white/80 dark:bg-white/10 border border-blue-200 dark:border-blue-500/20 rounded-full text-[#4B244A] dark:text-white hover:bg-white dark:hover:bg-white/20 transition-colors"
-                          >
-                            {title}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      <p className="text-[#4B244A] dark:text-white text-xs font-semibold mb-2">Quick description starter</p>
-                      <button
-                        type="button"
-                        onClick={() => setFormData(prev => ({
-                          ...prev,
-                          description: benchmarkSuggestions.quick_suggestions.descriptions.join(' '),
-                        }))}
-                        className="w-full text-left p-3 bg-white/70 dark:bg-white/5 border border-blue-200 dark:border-blue-500/20 rounded-lg hover:bg-white dark:hover:bg-white/10 transition-colors"
-                      >
-                        <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">Apply a pre-filled description based on similar jobs</p>
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-blue-700 dark:text-blue-200 text-xs">Suggestions will appear after selecting house type and cleaning type.</p>
-                )}
-              </div>
             </div>
           </div>
 
           {/* Images Card */}
           <div className={cardClass}>
-            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">📷 Area Photos (Optional)</h2>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">Area Photos (Optional)</h2>
             <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-4">Add up to 5 photos of the area to be cleaned</p>
             
             <div className="flex flex-col gap-3">
@@ -1051,7 +1222,7 @@ export default function CreateJobPage() {
 
                 {/* Multi-Day Schedule Section */}
                 <div className="bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/30 rounded-xl p-4 space-y-3">
-                  <h3 className="text-purple-800 dark:text-white font-bold text-sm">📅 Job Duration & Daily Hours</h3>
+                  <h3 className="text-purple-800 dark:text-white font-bold text-sm">Job Duration & Daily Hours</h3>
                   <p className="text-purple-600 dark:text-white/70 text-xs font-medium">
                     Specify how many days this job will take and the working hours per day.
                   </p>
@@ -1073,6 +1244,20 @@ export default function CreateJobPage() {
                       <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
                         Short-term jobs can be up to 13 days. For 14+ days, select Long Term.
                       </p>
+                      {(aiSuggestions || benchmarkSuggestions) && (
+                        <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                          <p className="text-[#4B244A]/70 dark:text-white/70">
+                            Suggested: {Math.max(1, Math.min(13, aiSuggestions?.recommended_num_days ?? benchmarkSuggestions?.recommended_num_days ?? 1))} day(s)
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, num_days: String(Math.max(1, Math.min(13, aiSuggestions?.recommended_num_days ?? benchmarkSuggestions?.recommended_num_days ?? 1))) }))}
+                            className="shrink-0 px-2.5 py-1 rounded-md bg-[#EA526F] text-white font-semibold hover:bg-[#d64460] transition-colors"
+                          >
+                            Apply
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label className={labelClass}>Start Time *</label>
@@ -1106,7 +1291,7 @@ export default function CreateJobPage() {
                   {parseInt(formData.num_days) > 1 && formData.job_date && (
                     <div className="bg-white/60 dark:bg-white/5 rounded-lg p-3 text-xs">
                       <p className="text-purple-800 dark:text-purple-200 font-bold mb-1">
-                        📋 Schedule Preview
+                        Schedule Preview
                       </p>
                       {Array.from({ length: Math.min(parseInt(formData.num_days), 7) }, (_, i) => {
                         const d = new Date(formData.job_date);
@@ -1130,7 +1315,7 @@ export default function CreateJobPage() {
                   {parseInt(formData.num_days) > 1 && (
                     <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-3">
                       <p className="text-blue-700 dark:text-blue-200 text-xs font-medium">
-                        ℹ️ <strong>Multi-day jobs:</strong> Both you and the housekeeper must confirm each day's work is done before the next day is unlocked. The housekeeper can accept other jobs outside these hours.
+                        <strong>Multi-day jobs:</strong> Both you and the housekeeper must confirm each day's work is done before the next day is unlocked. The housekeeper can accept other jobs outside these hours.
                       </p>
                     </div>
                   )}
@@ -1333,7 +1518,7 @@ export default function CreateJobPage() {
                     const diffDays = Math.round((new Date(formData.end_date).getTime() - new Date(formData.start_date).getTime()) / (1000 * 60 * 60 * 24));
                     return diffDays < 14 ? (
                       <p className="text-red-500 text-xs mt-1 font-medium">
-                        ⚠️ End date must be at least 14 days after the start date ({diffDays} days selected).
+                        End date must be at least 14 days after the start date ({diffDays} days selected).
                       </p>
                     ) : null;
                   })()}
@@ -1345,7 +1530,7 @@ export default function CreateJobPage() {
           {/* Payment Schedule Card - Only for Long Term Jobs */}
           {formData.duration_type === 'long_term' && (
             <div className={cardClass}>
-              <h2 className="text-xl font-bold text-[#4B244A] dark:text-white mb-2">💰 Payment Schedule</h2>
+              <h2 className="text-xl font-bold text-[#4B244A] dark:text-white mb-2">Payment Schedule</h2>
               <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mb-4 font-medium">Set up how and when you'll pay your housekeeper</p>
               
               <div className="space-y-4">
@@ -1364,7 +1549,7 @@ export default function CreateJobPage() {
 
                 {/* Payment Explanation Box */}
                 <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4 mb-4">
-                  <p className="text-blue-800 dark:text-blue-200 text-sm font-bold mb-2">💡 How Payment Works (Per Person)</p>
+                  <p className="text-blue-800 dark:text-blue-200 text-sm font-bold mb-2">How Payment Works (Per Person)</p>
                   <p className="text-blue-700 dark:text-blue-200/80 text-xs font-medium">
                     The budget (₱{formData.budget || '0'}) is the <strong>total amount PER HOUSEKEEPER</strong> for the entire contract duration. 
                     It will be split into {formData.payment_frequency === 'biweekly' ? 'bi-weekly (every 14 days)' : 'monthly (every 30 days)'} installments.
@@ -1380,7 +1565,7 @@ export default function CreateJobPage() {
                 {formData.payment_frequency === 'biweekly' && (
                   <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4">
                     <p className="text-blue-800 dark:text-blue-200 text-sm">
-                      <strong>📅 Payment Schedule:</strong> Payments will be calculated automatically based on your start and end dates.
+                      <strong>Payment Schedule:</strong> Payments will be calculated automatically based on your start and end dates.
                       You'll pay every 14 days.
                     </p>
                   </div>
@@ -1400,25 +1585,25 @@ export default function CreateJobPage() {
 
                   return (
                     <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-xl p-4 space-y-2">
-                      <p className="text-green-800 dark:text-green-200 text-sm font-bold">📊 Payment Breakdown (Per Person)</p>
+                      <p className="text-green-800 dark:text-green-200 text-sm font-bold">Payment Breakdown (Per Person)</p>
                       <div className="text-green-700 dark:text-green-200/80 text-xs space-y-1 font-medium">
-                        <p>📅 Total duration: <strong>{totalDays} days</strong></p>
-                        <p>� Daily rate: ₱{totalBudget.toLocaleString()} ÷ {totalDays} days = <strong>₱{dailyRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/day</strong></p>
-                        <p>🔄 {formData.payment_frequency === 'biweekly' ? 'Bi-weekly' : 'Monthly'} installment ({cycleDays} days): <strong>₱{perCycleAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> × {fullCycles} = ₱{(perCycleAmount * fullCycles).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <p>Total duration: <strong>{totalDays} days</strong></p>
+                        <p>Daily rate: ₱{totalBudget.toLocaleString()} ÷ {totalDays} days = <strong>₱{dailyRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/day</strong></p>
+                        <p>{formData.payment_frequency === 'biweekly' ? 'Bi-weekly' : 'Monthly'} installment ({cycleDays} days): <strong>₱{perCycleAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> × {fullCycles} = ₱{(perCycleAmount * fullCycles).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                         {extraDays > 0 ? (
                           <>
-                            <p>📐 Remaining days: <strong>{extraDays} day{extraDays > 1 ? 's' : ''}</strong> → ₱{dailyRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} × {extraDays} = <strong>₱{extraDaysPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+                            <p>Remaining days: <strong>{extraDays} day{extraDays > 1 ? 's' : ''}</strong> → ₱{dailyRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} × {extraDays} = <strong>₱{extraDaysPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
                           </>
                         ) : (
-                          <p>✅ Duration fits perfectly into {fullCycles} full {formData.payment_frequency === 'biweekly' ? 'bi-weekly' : 'monthly'} cycle{fullCycles > 1 ? 's' : ''} — no extra days.</p>
+                          <p>Duration fits perfectly into {fullCycles} full {formData.payment_frequency === 'biweekly' ? 'bi-weekly' : 'monthly'} cycle{fullCycles > 1 ? 's' : ''} — no extra days.</p>
                         )}
                         <hr className="border-green-300 dark:border-green-500/30 my-2" />
                         <p className="text-sm">
-                          💵 Total per person: <strong>₱{totalBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                          Total per person: <strong>₱{totalBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                         </p>
                         {peopleNeeded > 1 && (
                           <p className="text-sm text-orange-600 dark:text-yellow-300 font-bold">
-                            👥 Grand total ({peopleNeeded} workers): <strong>₱{(totalBudget * peopleNeeded).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                            Grand total ({peopleNeeded} workers): <strong>₱{(totalBudget * peopleNeeded).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
                           </p>
                         )}
                       </div>
@@ -1446,7 +1631,7 @@ export default function CreateJobPage() {
 
                 <div className="bg-yellow-100 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-xl p-4">
                   <p className="text-yellow-800 dark:text-yellow-200 text-sm">
-                    <strong>⚠️ Important:</strong> You'll need to upload proof of payment (receipt/screenshot) when marking payments as sent. Housekeepers can confirm receipt or report issues.
+                    <strong>Important:</strong> You'll need to upload proof of payment (receipt/screenshot) when marking payments as sent. Housekeepers can confirm receipt or report issues.
                   </p>
                 </div>
               </div>
@@ -1458,14 +1643,14 @@ export default function CreateJobPage() {
             <button
               type="button"
               onClick={() => navigate('/jobs')}
-              className="flex-1 px-6 py-4 !bg-black/20 !text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/10"
+              className="flex-1 px-6 py-4 bg-black/20! text-white! font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/10"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-6 py-4 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-6 py-4 bg-[#EA526F]! text-white! font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Posting...' : 'Post Job'}
             </button>
