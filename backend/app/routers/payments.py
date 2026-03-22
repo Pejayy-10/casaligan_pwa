@@ -74,6 +74,24 @@ def _as_comparable_naive(dt: datetime) -> datetime:
     return dt
 
 
+def _ensure_job_date_reached(job, *, action: str) -> None:
+    raw_start = getattr(job, "start_date", None)
+    if not raw_start:
+        return
+
+    try:
+        start_date = datetime.fromisoformat(str(raw_start)).date()
+    except ValueError:
+        return
+
+    today_utc = datetime.now(timezone.utc).date()
+    if today_utc < start_date:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot {action} before the scheduled date ({start_date.isoformat()}).",
+        )
+
+
 def _parse_recurring_days(day_of_week: Optional[str]) -> List[int]:
     day_map = {
         "monday": 0,
@@ -705,6 +723,8 @@ async def confirm_payment_received(
     job = db.query(ForumPost).filter(ForumPost.post_id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+
+    _ensure_job_date_reached(job, action="confirm payment")
     
     # Try to find by transaction_id first, then by schedule_id
     transaction = db.query(PaymentTransaction).filter(
@@ -852,6 +872,13 @@ async def confirm_payment_received(
 
                 job.status = ForumPostStatus.ONGOING
                 job.completed_at = None
+
+                # For weekly recurring posted jobs, require owner's next weekly
+                # posting fee immediately after a cycle is settled.
+                if (getattr(job, 'frequency', None) or '').lower() == 'weekly':
+                    job.post_fee_status = 'pending_owner_weekly'
+                    job.post_fee_checkout_id = None
+                    job.post_fee_reference = None
     
     db.commit()
     

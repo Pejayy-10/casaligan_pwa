@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authService } from '../services/auth';
 import { Eye, EyeOff, ArrowLeft, Mail, KeyRound, Lock } from 'lucide-react';
+import logoUrl from '/logo.png';
 
 type ForgotStep = 'email' | 'otp' | 'newPassword';
 
@@ -28,6 +29,12 @@ export default function LoginPage() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  useEffect(() => {
+    if (authService.isAuthenticated()) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [navigate]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -35,7 +42,7 @@ export default function LoginPage() {
 
     try {
       await authService.login(formData);
-      navigate('/dashboard');
+      navigate('/dashboard', { replace: true });
     } catch (err: unknown) {
       const errorMessage = err instanceof Error && 'response' in err 
         ? (err as { response?: { data?: { detail?: string } } }).response?.data?.detail || 'Login failed'
@@ -132,7 +139,7 @@ export default function LoginPage() {
         {/* Logo (outside of card) */}
         <div className="text-center mb-6">
           <div className="flex items-center justify-center mb-4">
-            <img src="/logo.png" alt="Casaligan Logo" className="w-60 h-20 md:w-56 md:h-56 object-contain" />
+            <img src={logoUrl} alt="Casaligan Logo" className="w-60 h-20 md:w-56 md:h-56 object-contain" />
           </div>
         </div>
 

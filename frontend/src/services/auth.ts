@@ -59,6 +59,16 @@ export const authService = {
     }
   },
 
+  async getOnboardingStatus(): Promise<{
+    needs_address: boolean;
+    needs_registration_document: boolean;
+    needs_email_verification: boolean;
+    onboarding_required: boolean;
+  }> {
+    const response = await apiClient.get('/auth/onboarding-status');
+    return response.data;
+  },
+
   async addAddress(data: AddressData): Promise<Address> {
     const response = await apiClient.post<Address>('/auth/register/address', data);
     return response.data;

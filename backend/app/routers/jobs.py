@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, or_
 from sqlalchemy.sql import func
 from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from pydantic import BaseModel
 import json
 import re
@@ -55,6 +55,91 @@ def _safe_float(value, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return default
+
+
+def _is_weekly_recurring_post(post: ForumPost) -> bool:
+    if not getattr(post, "is_recurring", False):
+        return False
+    if (getattr(post, "recurring_status", None) or "active") != "active":
+        return False
+    return (getattr(post, "frequency", None) or "").lower() == "weekly"
+
+
+def _ensure_current_week_post_fee_status(db: Session, post: ForumPost) -> bool:
+    """
+    For active weekly recurring posts, require one owner post-fee payment per ISO week.
+
+    Returns True when post fields were mutated.
+    """
+    if not _is_weekly_recurring_post(post):
+        return False
+
+    current_status = (getattr(post, "post_fee_status", "pending") or "pending").lower()
+    if current_status != "paid":
+        return False
+
+    paid_at = getattr(post, "post_fee_paid_at", None)
+    now_utc = datetime.now(timezone.utc)
+
+    latest_worker_paid_at = db.query(func.max(Contract.paid_at)).filter(
+        Contract.post_id == post.post_id,
+        Contract.paid_at.isnot(None)
+    ).scalar()
+
+    if latest_worker_paid_at and latest_worker_paid_at.tzinfo is None:
+        latest_worker_paid_at = latest_worker_paid_at.replace(tzinfo=timezone.utc)
+
+    if paid_at and paid_at.tzinfo is None:
+        paid_at = paid_at.replace(tzinfo=timezone.utc)
+
+    # If the previous cycle has already been paid out to worker(s), require the
+    # owner's next weekly recurring posting fee before the next cycle proceeds.
+    if latest_worker_paid_at and (not paid_at or latest_worker_paid_at > paid_at):
+        post.post_fee_status = "pending_owner_weekly"
+        post.post_fee_checkout_id = None
+        post.post_fee_reference = None
+        return True
+
+    if not paid_at or paid_at.isocalendar()[:2] != now_utc.isocalendar()[:2]:
+        post.post_fee_status = "pending_owner_weekly"
+        post.post_fee_checkout_id = None
+        post.post_fee_reference = None
+        return True
+
+    return False
+
+
+def _extract_post_start_date(post: ForumPost) -> Optional[date]:
+    raw_start = getattr(post, "start_date", None)
+    if raw_start:
+        try:
+            return datetime.fromisoformat(str(raw_start)).date()
+        except ValueError:
+            pass
+
+    if post.content and str(post.content).startswith("{"):
+        try:
+            details = json.loads(post.content)
+            maybe_start = details.get("start_date") if isinstance(details, dict) else None
+            if maybe_start:
+                return datetime.fromisoformat(str(maybe_start)).date()
+        except Exception:
+            return None
+
+    return None
+
+
+def _ensure_post_date_reached(post: ForumPost, *, action: str) -> None:
+    start_date = _extract_post_start_date(post)
+    if not start_date:
+        return
+
+    today_utc = datetime.now(timezone.utc).date()
+    if today_utc < start_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot {action} before the scheduled date ({start_date.isoformat()}).",
+        )
 
 
 def _percentile(values: List[float], p: float) -> float:
@@ -840,7 +925,14 @@ def get_job_posts(
     posts = query.order_by(desc(ForumPost.created_at)).offset(skip).limit(limit).all()
     
     result = []
+    has_fee_updates = False
     for post in posts:
+        if _ensure_current_week_post_fee_status(db, post):
+            has_fee_updates = True
+
+        if (getattr(post, 'post_fee_status', 'paid') or 'paid').lower() != 'paid':
+            continue
+
         # Get employer user info
         employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
         employer_user = db.query(User).filter(User.id == employer.user_id).first() if employer else current_user
@@ -849,6 +941,9 @@ def get_job_posts(
         applicants_count = _count_active_applicants(db, post.post_id)
         
         result.append(JobPostResponse.from_orm_model(post, employer_user, applicants_count))
+
+    if has_fee_updates:
+        db.commit()
     
     return result
 
@@ -906,6 +1001,9 @@ def get_my_job_posts(
     result = []
     has_status_updates = False
     for post in posts:
+        if _ensure_current_week_post_fee_status(db, post):
+            has_status_updates = True
+
         if _sync_job_activation_state(db, post):
             has_status_updates = True
 
@@ -1145,6 +1243,9 @@ def get_my_accepted_jobs(
         if not post:
             continue
 
+        if _ensure_current_week_post_fee_status(db, post):
+            has_status_updates = True
+
         if _sync_job_activation_state(db, post):
             has_status_updates = True
         
@@ -1221,6 +1322,25 @@ def get_my_accepted_jobs(
                 job_details = json.loads(post.content)
             except:
                 pass
+
+        recurring_details = job_details.get("recurring_schedule") if isinstance(job_details, dict) else None
+        if not isinstance(recurring_details, dict):
+            recurring_details = {}
+
+        resolved_day_of_week = getattr(post, "day_of_week", None) or recurring_details.get("day_of_week")
+        resolved_start_time = getattr(post, "start_time", None) or recurring_details.get("start_time")
+        resolved_end_time = getattr(post, "end_time", None) or recurring_details.get("end_time")
+        resolved_frequency = getattr(post, "frequency", None) or recurring_details.get("frequency")
+        resolved_recurring_status = getattr(post, "recurring_status", None)
+        resolved_is_recurring = bool(
+            getattr(post, "is_recurring", False)
+            or resolved_recurring_status
+            or recurring_details.get("is_recurring")
+            or resolved_day_of_week
+            or resolved_start_time
+            or resolved_end_time
+            or resolved_frequency
+        )
         
         post_status = post_status_val
         
@@ -1246,15 +1366,16 @@ def get_my_accepted_jobs(
             "location": post.location,
             "budget": float(post.salary) if post.salary else 0,
             "status": post_status,
+            "post_fee_status": getattr(post, "post_fee_status", "paid"),
             "created_at": post.created_at.isoformat() if post.created_at else None,
             "application_status": interest_status,
             "cancellation_reason": post.recurring_cancellation_reason,
-            "is_recurring": bool(getattr(post, "is_recurring", False)),
-            "day_of_week": getattr(post, "day_of_week", None),
-            "start_time": getattr(post, "start_time", None),
-            "end_time": getattr(post, "end_time", None),
-            "frequency": getattr(post, "frequency", None),
-            "recurring_status": getattr(post, "recurring_status", None) or ("active" if getattr(post, "is_recurring", False) else None),
+            "is_recurring": resolved_is_recurring,
+            "day_of_week": resolved_day_of_week,
+            "start_time": resolved_start_time,
+            "end_time": resolved_end_time,
+            "frequency": resolved_frequency,
+            "recurring_status": resolved_recurring_status or ("active" if resolved_is_recurring else None),
             "recurring_cancelled_at": post.recurring_cancelled_at.isoformat() if getattr(post, "recurring_cancelled_at", None) else None,
             "recurring_cancellation_reason": getattr(post, "recurring_cancellation_reason", None),
             "cancelled_by": getattr(post, "cancelled_by", None),
@@ -1689,11 +1810,15 @@ def apply_to_job(
             detail="Job post not found or is no longer open"
         )
 
+    if _ensure_current_week_post_fee_status(db, post):
+        db.commit()
+        db.refresh(post)
+
     post_fee_status = (getattr(post, 'post_fee_status', 'paid') or 'paid').lower()
     if post_fee_status != 'paid':
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="This job is not published yet. Posting fee payment is still pending."
+            detail="This recurring job is waiting for the owner's weekly posting fee payment."
         )
     
     # Check if already applied
@@ -2310,6 +2435,19 @@ def start_job(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only manage your own job posts"
         )
+
+    if _ensure_current_week_post_fee_status(db, post):
+        db.commit()
+        db.refresh(post)
+
+    post_fee_status = (getattr(post, 'post_fee_status', 'paid') or 'paid').lower()
+    if post_fee_status != 'paid':
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Please pay this week's posting fee before starting or continuing this recurring job."
+        )
+
+    _ensure_post_date_reached(post, action="start this job")
     
     try:
         job_details = {}
@@ -3061,6 +3199,8 @@ def submit_job_completion(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Can only complete jobs that are ongoing. Current status: {post.status.value}"
         )
+
+    _ensure_post_date_reached(post, action="submit completion")
     
     # For long-term jobs, completion is handled automatically when all payments are confirmed
     # Housekeepers should NOT manually submit completion proofs
@@ -3068,6 +3208,17 @@ def submit_job_completion(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Long-term jobs are completed automatically when all scheduled payments are confirmed. You don't need to submit a completion proof."
+        )
+
+    if _ensure_current_week_post_fee_status(db, post):
+        db.commit()
+        db.refresh(post)
+
+    post_fee_status = (getattr(post, 'post_fee_status', 'paid') or 'paid').lower()
+    if post_fee_status != 'paid':
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Cannot submit completion proof yet. The owner must pay this week's recurring posting fee first."
         )
     
     # Get this worker's contract for this job
@@ -3164,6 +3315,8 @@ def approve_job_completion(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Job is not pending completion. Current status: {post.status.value}"
         )
+
+    _ensure_post_date_reached(post, action="approve completion")
     
     if contract_id:
         # Approve specific worker
@@ -3710,6 +3863,8 @@ async def initiate_short_term_digital_payment(
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job post not found")
 
+    _ensure_post_date_reached(post, action="continue this job")
+
     employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
     if not employer or employer.user_id != current_user.id:
         raise HTTPException(
@@ -3794,6 +3949,8 @@ async def verify_short_term_digital_payment(
     post = db.query(ForumPost).filter(ForumPost.post_id == post_id, ForumPost.deleted_at.is_(None)).first()
     if not post:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job post not found")
+
+    _ensure_post_date_reached(post, action="continue this job")
 
     employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
     if not employer or employer.user_id != current_user.id:
@@ -3889,6 +4046,8 @@ def record_short_term_payment(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Job post not found"
         )
+
+    _ensure_post_date_reached(post, action="continue this job")
     
     # Check ownership
     employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
@@ -4080,12 +4239,38 @@ def cancel_recurring_job(
     
     # Determine who cancelled
     cancelled_by_role = "employer" if is_employer else "worker"
+    cancellation_reason = (cancel_data.reason or "Cancelled from recurring services page").strip()
     
-    # Update recurring status
+    # Update recurring status metadata
     post.recurring_status = "cancelled"
     post.recurring_cancelled_at = datetime.now()
-    post.recurring_cancellation_reason = cancel_data.reason
+    post.recurring_cancellation_reason = cancellation_reason
     post.cancelled_by = cancelled_by_role
+
+    # Keep jobs page consistent by reflecting cancellation at job lifecycle level.
+    if post.status != ForumPostStatus.COMPLETED:
+        post.status = ForumPostStatus.CANCELLED
+
+    # Cancel worker contracts that are still in-progress for this recurring post.
+    from app.models_v2.contract import Contract, ContractStatus
+    active_contracts = db.query(Contract).filter(
+        Contract.post_id == post_id,
+        Contract.status.in_([
+            ContractStatus.PENDING,
+            ContractStatus.ACTIVE,
+            ContractStatus.PENDING_COMPLETION,
+        ])
+    ).all()
+    for contract in active_contracts:
+        contract.status = ContractStatus.CANCELLED
+
+    # Mark related applications as cancelled so worker job lists are aligned.
+    applications_to_cancel = db.query(InterestCheck).filter(
+        InterestCheck.post_id == post_id,
+        InterestCheck.status.in_([InterestStatus.PENDING, InterestStatus.ACCEPTED])
+    ).all()
+    for application in applications_to_cancel:
+        application.status = InterestStatus.CANCELLED
     
     db.commit()
     db.refresh(post)

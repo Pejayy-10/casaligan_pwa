@@ -17,6 +17,7 @@ const EXEMPT_FROM_EMAIL_GUARD = [
 export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   const isAuthenticated = authService.isAuthenticated();
   const [checking, setChecking] = useState(true);
+  const [onboardingRedirect, setOnboardingRedirect] = useState<string | null>(null);
   const location = useLocation();
 
   // Email verification guard — only blocks users whose email_verified is
@@ -33,6 +34,17 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
       if (isAuthenticated) {
         try {
           await authService.checkRestrictionStatus();
+
+          const onboarding = await authService.getOnboardingStatus();
+          if (onboarding.needs_address) {
+            setOnboardingRedirect('/register/address');
+          } else if (onboarding.needs_registration_document) {
+            setOnboardingRedirect('/register/documents');
+          } else if (onboarding.needs_email_verification) {
+            setOnboardingRedirect('/verify-email');
+          } else {
+            setOnboardingRedirect(null);
+          }
         } catch (error) {
           // Error is handled by API interceptor
           // User will be logged out if restricted
@@ -57,6 +69,10 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (onboardingRedirect && onboardingRedirect !== location.pathname) {
+    return <Navigate to={onboardingRedirect} replace />;
   }
 
   // Redirect unverified new users to email verification.

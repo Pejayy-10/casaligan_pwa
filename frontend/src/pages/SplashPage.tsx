@@ -1,13 +1,21 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { authService } from '../services/auth';
+import logoUrl from '/logo.png';
 
 export default function SplashPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Navigate to login after 2.5 seconds
+    const isAuthenticated = authService.isAuthenticated();
+
+    // Navigate after 2.5 seconds
     const timer = setTimeout(() => {
-      navigate('/login');
+      if (isAuthenticated) {
+        navigate('/dashboard', { replace: true });
+      } else {
+        navigate('/login', { replace: true });
+      }
     }, 2500);
 
     return () => clearTimeout(timer);
@@ -27,7 +35,7 @@ export default function SplashPage() {
         {/* Logo container */}
         <div className="mb-12 animate-bounce-slow">
           <div className="w-40 h-40 md:w-48 md:h-48 bg-white/60 dark:bg-white/10 backdrop-blur-xl rounded-3xl flex items-center justify-center border-4 border-white/50 dark:border-white/20 shadow-2xl overflow-hidden transition-all">
-            <img src="/logo.png" alt="Casaligan Logo" className="w-36 h-36 md:w-44 md:h-44 object-contain drop-shadow-md" />
+            <img src={logoUrl} alt="Casaligan Logo" className="w-36 h-36 md:w-44 md:h-44 object-contain drop-shadow-md" />
           </div>
         </div>
 

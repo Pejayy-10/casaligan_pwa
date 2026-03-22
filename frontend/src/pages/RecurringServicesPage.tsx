@@ -11,6 +11,7 @@ interface RecurringJobPost {
   title: string;
   description: string;
   status: string;
+  start_date?: string | null;
   created_at: string;
   is_recurring: boolean;
   day_of_week: string | null;
@@ -80,20 +81,30 @@ export default function RecurringServicesPage() {
       });
       if (jobsResponse.ok) {
         const allJobs = await jobsResponse.json();
+        const isRecurringJob = (job: any) =>
+          Boolean(job?.is_recurring) ||
+          Boolean(job?.recurring_status) ||
+          Boolean(job?.day_of_week) ||
+          Boolean(job?.start_time) ||
+          Boolean(job?.end_time) ||
+          Boolean(job?.frequency) ||
+          Boolean(job?.recurring_schedule?.is_recurring);
+
         const recurring = allJobs
-          .filter((job: any) => Boolean(job.is_recurring) || Boolean(job.recurring_status))
+          .filter((job: any) => isRecurringJob(job))
           .map((job: any) => ({
             post_id: job.post_id,
             title: job.title,
             description: job.description,
             status: job.status,
+            start_date: job.start_date || null,
             created_at: job.created_at || job.accepted_at || new Date().toISOString(),
-            is_recurring: Boolean(job.is_recurring),
-            day_of_week: job.day_of_week || null,
-            start_time: job.start_time || null,
-            end_time: job.end_time || null,
-            frequency: job.frequency || null,
-            recurring_status: job.recurring_status || (job.is_recurring ? 'active' : null),
+            is_recurring: isRecurringJob(job),
+            day_of_week: job.day_of_week || job.recurring_schedule?.day_of_week || null,
+            start_time: job.start_time || job.recurring_schedule?.start_time || null,
+            end_time: job.end_time || job.recurring_schedule?.end_time || null,
+            frequency: job.frequency || job.recurring_schedule?.frequency || null,
+            recurring_status: job.recurring_status || (isRecurringJob(job) ? 'active' : null),
             recurring_cancelled_at: job.recurring_cancelled_at || null,
             recurring_cancellation_reason: job.recurring_cancellation_reason || null,
             cancelled_by: job.cancelled_by || null,
@@ -224,6 +235,55 @@ export default function RecurringServicesPage() {
       .map(d => d.charAt(0).toUpperCase() + d.slice(1))
       .join(' & ');
     return `Every ${days} from ${startTime} to ${endTime} (${frequency})`;
+  };
+
+  const getNextServiceDateLabel = (dayOfWeek: string | null, startDate?: string | null) => {
+    if (startDate) {
+      const configuredStart = new Date(startDate);
+      if (!Number.isNaN(configuredStart.getTime())) {
+        const today = new Date();
+        const todayOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const startOnly = new Date(configuredStart.getFullYear(), configuredStart.getMonth(), configuredStart.getDate());
+        if (startOnly >= todayOnly) {
+          return startOnly.toLocaleDateString();
+        }
+      }
+    }
+
+    if (!dayOfWeek) return 'TBD';
+
+    const dayMap: Record<string, number> = {
+      sunday: 0,
+      monday: 1,
+      tuesday: 2,
+      wednesday: 3,
+      thursday: 4,
+      friday: 5,
+      saturday: 6,
+    };
+
+    const targetDays = dayOfWeek
+      .split(',')
+      .map((item) => dayMap[item.trim().toLowerCase()])
+      .filter((value): value is number => typeof value === 'number');
+
+    if (targetDays.length === 0) return 'TBD';
+
+    const now = new Date();
+    const today = now.getDay();
+    let minDiff = 7;
+
+    for (const target of targetDays) {
+      const diff = (target - today + 7) % 7;
+      const normalizedDiff = diff === 0 ? 7 : diff;
+      if (normalizedDiff < minDiff) {
+        minDiff = normalizedDiff;
+      }
+    }
+
+    const next = new Date(now);
+    next.setDate(now.getDate() + minDiff);
+    return next.toLocaleDateString();
   };
 
   const isActiveRecurring = (item: { recurring_status: string | null; is_recurring: boolean }) =>
@@ -426,12 +486,10 @@ return (
                     </p>
                   </div>
                   <div className="bg-gray-50 dark:bg-white/5 p-2.5 rounded-xl border border-gray-100 dark:border-white/5">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Schedule</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Next Service</p>
                     <p className="font-bold text-[#4B244A] dark:text-white flex items-center">
                       <Calendar className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
-                      {job.day_of_week
-                        ? job.day_of_week.split(',').map(d => d.trim().charAt(0).toUpperCase() + d.trim().slice(1)).join(' & ')
-                        : 'TBD'}
+                      {getNextServiceDateLabel(job.day_of_week, job.start_date)}
                     </p>
                   </div>
                 </div>

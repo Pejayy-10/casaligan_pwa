@@ -1133,7 +1133,8 @@ function OwnerJobsContent({
     <div className="space-y-4">
       {paginatedJobs.map((job) => {
         const isPostFeePending = (job.post_fee_status || 'paid').toLowerCase() !== 'paid';
-        const showPostFeeGate = job.status === 'open' && isPostFeePending;
+        const showPostFeeGate = isPostFeePending && (job.status === 'open' || Boolean(job.is_recurring));
+        const isWeeklyRecurringFeeDue = Boolean(job.is_recurring) && (job.post_fee_status || '').toLowerCase() === 'pending_owner_weekly';
         return (
         <div key={job.post_id} className={`bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl p-5 border transition-all shadow-sm ${
           showPostFeeGate
@@ -1163,7 +1164,9 @@ function OwnerJobsContent({
               <>
           {showPostFeeGate && (
             <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 px-3 py-2 text-xs font-semibold">
-              Unpublished: pay ₱{Number(job.post_fee_amount || 0).toLocaleString()} ({Number(job.post_fee_percentage || 7)}%) to publish this short-term post.
+              {isWeeklyRecurringFeeDue
+                ? `Weekly recurring fee due: pay ₱${Number(job.post_fee_amount || 0).toLocaleString()} (${Number(job.post_fee_percentage || 7)}%) to continue this week's recurring cycle.`
+                : `Unpublished: pay ₱${Number(job.post_fee_amount || 0).toLocaleString()} (${Number(job.post_fee_percentage || 7)}%) to publish this short-term post.`}
             </div>
           )}
           <div className="flex items-start justify-between mb-3 gap-2">
@@ -1212,6 +1215,13 @@ function OwnerJobsContent({
             </div>
           </div>
 
+          {job.is_recurring && job.recurring_status === 'cancelled' && (
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300 px-3 py-2 text-xs font-semibold">
+              Recurring schedule cancelled{job.cancelled_by ? ` by ${job.cancelled_by}` : ''}.
+              {job.recurring_cancellation_reason ? ` Reason: ${job.recurring_cancellation_reason}` : ''}
+            </div>
+          )}
+
           {/* Accepted Workers Section */}
           {job.accepted_workers && job.accepted_workers.length > 0 && (
             <div className="mt-4 bg-gray-50 dark:bg-white/5 rounded-xl p-3 border border-gray-100 dark:border-white/5">
@@ -1249,7 +1259,9 @@ function OwnerJobsContent({
                 onClick={() => onPayPostFee(job)}
                 className="w-full py-2.5 bg-amber-500 text-white text-sm font-bold rounded-lg hover:bg-amber-600 transition-all shadow-md"
                >
-                Pay {Number(job.post_fee_percentage ?? 7).toFixed(2).replace(/\.00$/, '')}% to Publish (Maya)
+                {isWeeklyRecurringFeeDue
+                  ? `Pay Weekly Fee (${Number(job.post_fee_percentage ?? 7).toFixed(2).replace(/\.00$/, '')}%) (Maya)`
+                  : `Pay ${Number(job.post_fee_percentage ?? 7).toFixed(2).replace(/\.00$/, '')}% to Publish (Maya)`}
                </button>
              )}
 

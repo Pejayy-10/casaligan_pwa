@@ -914,6 +914,11 @@ export default function DirectHiresList({ role, onClose }: Props) {
                                 }
                               </span>
                             )}
+                            {hire.recurring_status === 'cancelled' && hire.recurring_cancellation_reason && (
+                              <p className="mt-2 text-xs font-semibold text-red-700 dark:text-red-300">
+                                Reason: {hire.recurring_cancellation_reason}
+                              </p>
+                            )}
                           </div>
                         )}
                         {/* Multi-day schedule info */}

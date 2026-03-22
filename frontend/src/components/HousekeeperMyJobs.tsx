@@ -14,8 +14,11 @@ interface AcceptedJob {
   location: string;
   budget: number;
   status: string;
+  post_fee_status?: string | null;
   application_status?: string;
   cancellation_reason?: string | null;
+  recurring_cancellation_reason?: string | null;
+  cancelled_by?: string | null;
   edit_response?: string | null;
   edit_notified_at?: string | null;
   start_date: string | null;
@@ -299,6 +302,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
           {paginatedJobs.map((job) => {
             // Use contract status for individual worker's progress
             const myStatus = getEffectiveStatus(job);
+            const ownerWeeklyFeeDue = (job.post_fee_status || '').toLowerCase() === 'pending_owner_weekly';
             
             return (
             <div key={job.post_id} className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border border-white/50 dark:border-white/10 shadow-lg transition-all">
@@ -576,13 +580,18 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                       </button>
                     )}
                     {/* Only show Submit Completion for short-term jobs */}
-                    {!job.is_longterm && (
+                    {!job.is_longterm && !ownerWeeklyFeeDue && (
                       <button
                         onClick={() => onSubmitCompletion(job)}
                         className="w-full py-2 bg-yellow-500 text-white font-bold rounded-lg hover:bg-yellow-600 transition-all shadow-md"
                       >
                         <CheckCircle className="inline w-4 h-4 mr-1" /> Submit Completion
                       </button>
+                    )}
+                    {!job.is_longterm && ownerWeeklyFeeDue && (
+                      <div className="py-2 text-center text-amber-700 dark:text-amber-300 text-sm bg-amber-100 dark:bg-amber-500/10 rounded-lg font-medium border border-amber-200 dark:border-amber-500/20">
+                        <Clock className="inline w-4 h-4 mr-1" /> Waiting for owner to pay this week's recurring posting fee
+                      </div>
                     )}
                     {/* For long-term jobs, show info about auto-completion */}
                     {job.is_longterm && (
@@ -609,10 +618,11 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
 
                 {myStatus === 'cancelled' && (
                   <div className="py-3 text-center text-red-700 dark:text-red-300 font-bold bg-red-100 dark:bg-red-500/10 rounded-lg border border-red-200 dark:border-red-500/30">
-                    <AlertTriangle className="inline w-4 h-4 mr-1" /> This job was cancelled by the house owner.
-                    {job.cancellation_reason && (
+                    <AlertTriangle className="inline w-4 h-4 mr-1" /> This recurring job was cancelled
+                    {job.cancelled_by ? ` by ${job.cancelled_by}.` : '.'}
+                    {(job.recurring_cancellation_reason || job.cancellation_reason) && (
                       <div className="mt-2 text-sm font-medium text-red-700/90 dark:text-red-200/90">
-                        Reason: {job.cancellation_reason}
+                        Reason: {job.recurring_cancellation_reason || job.cancellation_reason}
                       </div>
                     )}
                   </div>

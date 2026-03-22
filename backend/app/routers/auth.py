@@ -30,6 +30,7 @@ import secrets
 # smtplib removed — Render blocks outbound SMTP; using Resend HTTP API instead
 from pathlib import Path
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,21 @@ _otp_store: dict = {}
 _password_reset_store: dict = {}
 
 OTP_EXPIRY_MINUTES = 10
+
+ALLOWED_REGISTRATION_DOCUMENT_TYPES = {
+    "national_id",
+    "passport",
+    "drivers_license",
+    "voters_id",
+    "postal_id",
+    "nbi_clearance",
+    "police_clearance",
+    "barangay_clearance",
+    "medical_certificate",
+    "other",
+}
+
+HOUSEKEEPER_ALLOWED_AVAILABILITY = {"full_time", "part_time", "weekends_only"}
 
 
 def _extract_json_payload(text: str) -> dict:
@@ -780,10 +796,26 @@ def upload_document(
     db: Session = Depends(get_db)
 ):
     """Upload a document (Step 3: Documents)"""
+
+    document_type = (document_data.document_type or "").strip().lower()
+    if document_type not in ALLOWED_REGISTRATION_DOCUMENT_TYPES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid document type provided."
+        )
+
+    normalized_file_path = (document_data.file_path or "").strip().rstrip("?")
+    if not _is_allowed_document_url(file_path=normalized_file_path, user_id=current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid document file path. Please upload your document using the app uploader."
+        )
     
     db_document = UserDocument(
         user_id=current_user.id,
-        **document_data.model_dump()
+        document_type=document_type,
+        file_path=normalized_file_path,
+        notes=document_data.notes,
     )
     
     db.add(db_document)
@@ -818,6 +850,23 @@ def get_user_documents(
     return documents
 
 
+class OnboardingStatusResponse(BaseModel):
+    needs_address: bool
+    needs_registration_document: bool
+    needs_email_verification: bool
+    onboarding_required: bool
+
+
+@router.get("/onboarding-status", response_model=OnboardingStatusResponse)
+def get_onboarding_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Return server-side onboarding status for secure route redirects."""
+    db.refresh(current_user)
+    return _get_onboarding_status(current_user=current_user, db=db)
+
+
 # ─── Email OTP Endpoints ──────────────────────────────────────────────────────
 
 class OTPRequest(BaseModel):
@@ -826,6 +875,72 @@ class OTPRequest(BaseModel):
 
 class OTPVerifyRequest(BaseModel):
     otp: str
+
+
+def _ensure_registration_document_uploaded(
+    *,
+    db: Session,
+    user_id: int,
+) -> None:
+    """Require at least one uploaded registration document before email verification."""
+    has_document = db.query(UserDocument).filter(
+        UserDocument.user_id == user_id,
+        UserDocument.status.in_(["approved", "pending"])
+    ).first()
+
+    if not has_document:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please upload your registration document before verifying your email."
+        )
+
+
+def _is_allowed_document_url(*, file_path: str, user_id: int) -> bool:
+    """Only allow document URLs that point to this user's document in trusted storage."""
+    parsed = urlparse(file_path)
+    if parsed.scheme not in {"http", "https"}:
+        return False
+
+    configured_supabase_url = os.getenv("SUPABASE_URL", "").strip()
+    if configured_supabase_url:
+        configured_host = urlparse(configured_supabase_url).netloc.lower()
+        if configured_host and parsed.netloc.lower() != configured_host:
+            return False
+
+    path = parsed.path or ""
+    expected_prefix = f"/storage/v1/object/public/documents/{user_id}/"
+    return expected_prefix in path
+
+
+def _get_onboarding_status(*, current_user: User, db: Session) -> OnboardingStatusResponse:
+    """Determine if onboarding steps are still required for newly registered users."""
+    email_unverified = (getattr(current_user, "email_verified", None) is False)
+
+    # Only enforce onboarding funnel for accounts that are still unverified.
+    if not email_unverified:
+        return OnboardingStatusResponse(
+            needs_address=False,
+            needs_registration_document=False,
+            needs_email_verification=False,
+            onboarding_required=False,
+        )
+
+    has_address = current_user.address is not None
+    has_document = db.query(UserDocument).filter(
+        UserDocument.user_id == current_user.id,
+        UserDocument.status.in_(["approved", "pending"])
+    ).first() is not None
+
+    needs_address = not has_address
+    needs_registration_document = has_address and not has_document
+    needs_email_verification = has_address and has_document and email_unverified
+
+    return OnboardingStatusResponse(
+        needs_address=needs_address,
+        needs_registration_document=needs_registration_document,
+        needs_email_verification=needs_email_verification,
+        onboarding_required=(needs_address or needs_registration_document or needs_email_verification),
+    )
 
 
 @router.post("/send-email-otp")
@@ -842,6 +957,8 @@ def send_email_otp(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email is already verified."
         )
+
+    _ensure_registration_document_uploaded(db=db, user_id=current_user.id)
 
     otp = "".join([str(secrets.randbelow(10)) for _ in range(6)])
     expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXPIRY_MINUTES)
@@ -872,6 +989,8 @@ def verify_email_otp(
     db.refresh(current_user)
     if getattr(current_user, "email_verified", False):
         return {"message": "Email already verified.", "email_verified": True}
+
+    _ensure_registration_document_uploaded(db=db, user_id=current_user.id)
 
     entry = _otp_store.get(current_user.id)
     if not entry:
@@ -1365,6 +1484,53 @@ def apply_housekeeper(
             detail="Please verify your phone number before submitting."
         )
 
+    if not getattr(current_user, "email_verified", False):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please verify your email before submitting."
+        )
+
+    if not application_data.nbi_document_id or not application_data.secondary_document_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please upload both required verification documents before submitting."
+        )
+
+    if application_data.nbi_document_id == application_data.secondary_document_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Primary and secondary documents must be different uploads."
+        )
+
+    normalized_skills = [str(skill).strip() for skill in (application_data.skills or []) if str(skill).strip()]
+    if not normalized_skills:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please select at least one skill before submitting."
+        )
+
+    normalized_availability = (application_data.availability or "").strip().lower()
+    if normalized_availability not in HOUSEKEEPER_ALLOWED_AVAILABILITY:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid availability value."
+        )
+
+    if application_data.years_experience is not None and (
+        application_data.years_experience < 0 or application_data.years_experience > 80
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Years of experience must be between 0 and 80."
+        )
+
+    normalized_bio = (application_data.bio or "").strip() if application_data.bio else None
+    if normalized_bio and len(normalized_bio) > 1500:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Bio must be 1500 characters or less."
+        )
+
     # ── Handle existing application (allow re-apply after rejection) ───────
     existing_app = db.query(HousekeeperApplication).filter(
         HousekeeperApplication.user_id == current_user.id
@@ -1430,18 +1596,30 @@ def apply_housekeeper(
     if nbi_doc: db.refresh(nbi_doc)
     if sec_doc: db.refresh(sec_doc)
 
+    if nbi_doc and nbi_doc.status == "rejected":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Primary document was rejected. Please re-upload a valid document."
+        )
+
+    if sec_doc and sec_doc.status == "rejected":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Secondary document was rejected. Please re-upload a valid document."
+        )
+
     # ── Encode skills as JSON string ───────────────────────────────────────
-    skills_json = _json.dumps(application_data.skills or [])
+    skills_json = _json.dumps(normalized_skills)
 
     # ── Create application record ──────────────────────────────────────────
     application = HousekeeperApplication(
         user_id=current_user.id,
         status=ApplicationStatus.PENDING,
         notes=application_data.notes,
-        bio=application_data.bio,
+        bio=normalized_bio,
         years_experience=application_data.years_experience,
         skills=skills_json,
-        availability=application_data.availability,
+        availability=normalized_availability,
         nbi_document_id=application_data.nbi_document_id,
         secondary_doc_id=application_data.secondary_document_id,
         phone_verified=True,
@@ -1451,11 +1629,7 @@ def apply_housekeeper(
     db.refresh(application)
 
     # ── Auto-approve if both provided docs passed AI ─────────────────────
-    both_approved = (
-        (nbi_doc is None or nbi_doc.status == "approved") and
-        (sec_doc is None or sec_doc.status == "approved") and
-        (nbi_doc is not None or sec_doc is not None)  # at least one doc provided
-    )
+    both_approved = (nbi_doc is not None and sec_doc is not None and nbi_doc.status == "approved" and sec_doc.status == "approved")
     if both_approved:
         _approve_housekeeper(current_user.id, application, db)
         db.refresh(application)
@@ -1486,7 +1660,13 @@ def approve_application(
     user_id: int,
     db: Session = Depends(get_db)
 ):
-    """Approve housekeeper application (for testing - no auth required)"""
+    """Approve housekeeper application (testing-only endpoint)."""
+    allow_insecure_test_endpoints = os.getenv("ALLOW_INSECURE_TEST_ENDPOINTS", "false").strip().lower() == "true"
+    if not allow_insecure_test_endpoints:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This endpoint is disabled."
+        )
     
     application = db.query(HousekeeperApplication).filter(
         HousekeeperApplication.user_id == user_id,

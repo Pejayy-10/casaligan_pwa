@@ -64,6 +64,9 @@ export interface JobPost {
   }>;
   is_recurring?: boolean;
   recurring_status?: string | null;
+  recurring_cancelled_at?: string | null;
+  recurring_cancellation_reason?: string | null;
+  cancelled_by?: string | null;
   day_of_week?: string | null;
   start_time?: string | null;
   end_time?: string | null;
@@ -206,6 +209,18 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
                   <p>
                     <span className="font-semibold">Frequency:</span>{' '}
                     <span className="font-bold capitalize">{job.frequency}</span>
+                  </p>
+                )}
+                {job.recurring_status === 'cancelled' && (
+                  <p>
+                    <span className="font-semibold">Cancelled By:</span>{' '}
+                    <span className="font-bold capitalize">{job.cancelled_by || 'N/A'}</span>
+                  </p>
+                )}
+                {job.recurring_status === 'cancelled' && job.recurring_cancellation_reason && (
+                  <p>
+                    <span className="font-semibold">Cancellation Reason:</span>{' '}
+                    <span className="font-bold">{job.recurring_cancellation_reason}</span>
                   </p>
                 )}
               </div>

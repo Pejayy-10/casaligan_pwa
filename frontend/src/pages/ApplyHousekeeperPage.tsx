@@ -90,7 +90,6 @@ export default function ApplyHousekeeperPage() {
 
   // Step 2: Primary clearance document
   const [nbiDocType, setNbiDocType] = useState('nbi_clearance');
-  const [nbiSkipped, setNbiSkipped] = useState(false);
   const [nbiResult, setNbiResult] = useState<DocResult | null>(null);
   const [nbiUploading, setNbiUploading] = useState(false);
   const [nbiError, setNbiError] = useState('');
@@ -98,7 +97,6 @@ export default function ApplyHousekeeperPage() {
 
   // Step 3: Secondary document
   const [secDocType, setSecDocType] = useState('barangay_clearance');
-  const [secSkipped, setSecSkipped] = useState(false);
   const [secResult, setSecResult] = useState<DocResult | null>(null);
   const [secUploading, setSecUploading] = useState(false);
   const [secError, setSecError] = useState('');
@@ -213,7 +211,6 @@ export default function ApplyHousekeeperPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setNbiResult(null);
-    setNbiSkipped(false);
     const result = await uploadDoc(file, nbiDocType, setNbiUploading, setNbiError);
     if (result) setNbiResult(result);
     if (nbiFileRef.current) nbiFileRef.current.value = '';
@@ -223,7 +220,6 @@ export default function ApplyHousekeeperPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setSecResult(null);
-    setSecSkipped(false);
     const result = await uploadDoc(file, secDocType, setSecUploading, setSecError);
     if (result) setSecResult(result);
     if (secFileRef.current) secFileRef.current.value = '';
@@ -339,8 +335,8 @@ export default function ApplyHousekeeperPage() {
         years_experience: yearsExp ? parseInt(yearsExp) : undefined,
         skills: selectedSkills,
         availability,
-        nbi_document_id: (!nbiSkipped && nbiResult) ? nbiResult.id : undefined,
-        secondary_document_id: (!secSkipped && secResult) ? secResult.id : undefined,
+        nbi_document_id: nbiResult?.id,
+        secondary_document_id: secResult?.id,
       });
       setApproved(res.is_housekeeper);
       setSubmitted(true);
@@ -591,7 +587,7 @@ export default function ApplyHousekeeperPage() {
                 <label className={labelClass}>Document Type <span className="text-[#EA526F]">*</span></label>
                 <select
                   value={nbiDocType}
-                  onChange={(e) => { setNbiDocType(e.target.value); setNbiResult(null); setNbiError(''); setNbiSkipped(false); }}
+                  onChange={(e) => { setNbiDocType(e.target.value); setNbiResult(null); setNbiError(''); }}
                   className={inputClass}
                 >
                   {HOUSEKEEPER_DOC_TYPES.map(dt => (
@@ -623,8 +619,6 @@ export default function ApplyHousekeeperPage() {
                       ? 'border-green-500/50 text-green-300 hover:border-green-400'
                       : nbiResult?.status === 'rejected'
                       ? 'border-red-500/50 text-red-300 hover:border-red-400'
-                      : nbiSkipped
-                      ? 'border-yellow-500/30 text-yellow-300/60 hover:border-yellow-400'
                       : 'border-white/20 text-[#4B244A]/60 dark:text-white/60 hover:border-[#EA526F] hover:text-[#EA526F]'
                   }`}
                 >
@@ -636,34 +630,17 @@ export default function ApplyHousekeeperPage() {
                   ) : (
                     <>
                       <span className="text-3xl">
-                        {nbiResult?.status === 'approved' ? '✅' : nbiResult?.status === 'rejected' ? '❌' : nbiSkipped ? '⏭️' : '📄'}
+                        {nbiResult?.status === 'approved' ? '✅' : nbiResult?.status === 'rejected' ? '❌' : '📄'}
                       </span>
                       <span className="text-sm font-medium">
-                        {nbiSkipped ? 'Skipped — click to upload anyway' : nbiResult ? 'Click to re-upload' : `Click to upload ${HOUSEKEEPER_DOC_TYPES.find(d => d.value === nbiDocType)?.label}`}
+                        {nbiResult ? 'Click to re-upload' : `Click to upload ${HOUSEKEEPER_DOC_TYPES.find(d => d.value === nbiDocType)?.label}`}
                       </span>
                       <span className="text-xs opacity-60">JPEG, PNG, PDF — max 10MB</span>
                     </>
                   )}
                 </button>
                 {nbiError && <p className="mt-2 text-red-300 text-sm">{nbiError}</p>}
-                {nbiResult && !nbiSkipped && <DocStatusBadge result={nbiResult} />}
-
-                {/* Skip option for testing */}
-                {!nbiResult && !nbiSkipped && (
-                  <button
-                    type="button"
-                    onClick={() => setNbiSkipped(true)}
-                    className="mt-3 w-full text-center text-[#4B244A]/50 dark:text-white/60 text-xs hover:text-[#4B244A]/80 dark:hover:text-white/70 transition-colors py-1"
-                  >
-                    ⏭ Skip for now (testing only)
-                  </button>
-                )}
-                {nbiSkipped && (
-                  <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg flex items-center justify-between">
-                    <p className="text-yellow-200/60 text-xs">⏭ Skipped — no document will be submitted</p>
-                    <button type="button" onClick={() => setNbiSkipped(false)} className="text-[#4B244A]/50 dark:text-white/60 text-xs hover:text-[#4B244A]/80 dark:hover:text-white/70">Undo</button>
-                  </div>
-                )}
+                {nbiResult && <DocStatusBadge result={nbiResult} />}
               </div>
 
               <div className="flex gap-3">
@@ -672,7 +649,7 @@ export default function ApplyHousekeeperPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={!nbiSkipped && (!nbiResult || nbiResult.status === 'rejected')}
+                  disabled={!nbiResult || nbiResult.status === 'rejected'}
                   onClick={() => setStep(3)}
                   className="flex-1 py-3 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
                 >
@@ -697,7 +674,7 @@ export default function ApplyHousekeeperPage() {
                 <label className={labelClass}>Document Type <span className="text-[#EA526F]">*</span></label>
                 <select
                   value={secDocType}
-                  onChange={(e) => { setSecDocType(e.target.value); setSecResult(null); setSecError(''); setSecSkipped(false); }}
+                  onChange={(e) => { setSecDocType(e.target.value); setSecResult(null); setSecError(''); }}
                   className={inputClass}
                 >
                   {HOUSEKEEPER_DOC_TYPES.map(dt => (
@@ -742,24 +719,7 @@ export default function ApplyHousekeeperPage() {
                   )}
                 </button>
                 {secError && <p className="mt-2 text-red-300 text-sm">{secError}</p>}
-                {secResult && !secSkipped && <DocStatusBadge result={secResult} />}
-
-                {/* Skip option for testing */}
-                {!secResult && !secSkipped && (
-                  <button
-                    type="button"
-                    onClick={() => setSecSkipped(true)}
-                    className="mt-3 w-full text-center text-[#4B244A]/50 dark:text-white/60 text-xs hover:text-[#4B244A]/80 dark:hover:text-white/70 transition-colors py-1"
-                  >
-                    ⏭ Skip for now (testing only)
-                  </button>
-                )}
-                {secSkipped && (
-                  <div className="mt-3 p-2 bg-yellow-500/10 border border-yellow-500/20 rounded-lg flex items-center justify-between">
-                    <p className="text-yellow-200/60 text-xs">⏭ Skipped — no document will be submitted</p>
-                    <button type="button" onClick={() => setSecSkipped(false)} className="text-[#4B244A]/50 dark:text-white/60 text-xs hover:text-[#4B244A]/80 dark:hover:text-white/70">Undo</button>
-                  </div>
-                )}
+                {secResult && <DocStatusBadge result={secResult} />}
               </div>
 
               <div className="flex gap-3">
@@ -768,7 +728,7 @@ export default function ApplyHousekeeperPage() {
                 </button>
                 <button
                   type="button"
-                  disabled={!secSkipped && (!secResult || secResult.status === 'rejected')}
+                  disabled={!secResult || secResult.status === 'rejected'}
                   onClick={() => setStep(4)}
                   className="flex-1 py-3 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-40 disabled:cursor-not-allowed"
                 >

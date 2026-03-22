@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
 from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
-from datetime import date, timedelta, datetime
+from datetime import date, timedelta, datetime, timezone
 import math
 import os
 from decimal import Decimal
@@ -165,6 +165,19 @@ def _should_reset_fee_for_next_cycle(*, current_date: date, next_date: date, fre
 
 def _is_short_term_weekly_recurring(hire: DirectHire) -> bool:
     return bool(getattr(hire, "is_recurring", False)) and ((getattr(hire, "frequency", None) or "").lower() == "weekly")
+
+
+def _ensure_hire_date_reached(hire: DirectHire, *, action: str) -> None:
+    scheduled = getattr(hire, "scheduled_date", None)
+    if not scheduled:
+        return
+
+    today_utc = datetime.now(timezone.utc).date()
+    if today_utc < scheduled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot {action} before the scheduled date ({scheduled.isoformat()}).",
+        )
 
 
 def _rollover_recurring_after_paid(*, hire: DirectHire, db: Session) -> Optional[DirectHire]:
@@ -826,6 +839,8 @@ def approve_completion(
     
     if not hire:
         raise HTTPException(status_code=404, detail="Booking not found")
+
+    _ensure_hire_date_reached(hire, action="approve completion")
     
     if hire.status != DirectHireStatus.PENDING_COMPLETION:
         raise HTTPException(status_code=400, detail="Work completion not submitted yet")
@@ -867,6 +882,8 @@ def submit_payment(
     
     if not hire:
         raise HTTPException(status_code=404, detail="Booking not found")
+
+    _ensure_hire_date_reached(hire, action="submit payment")
     
     print(f"Current hire status: {hire.status}")
     
@@ -1058,6 +1075,8 @@ def confirm_payment(
     
     if not hire:
         raise HTTPException(status_code=404, detail="Booking not found")
+
+    _ensure_hire_date_reached(hire, action="confirm payment")
     
     if hire.status != DirectHireStatus.PAYMENT_PENDING:
         raise HTTPException(status_code=400, detail="No payment pending confirmation")
@@ -1643,6 +1662,8 @@ def start_work(
     
     if not hire:
         raise HTTPException(status_code=404, detail="Hire not found")
+
+    _ensure_hire_date_reached(hire, action="start work")
     
     if hire.status != DirectHireStatus.ACCEPTED:
         raise HTTPException(status_code=400, detail="Hire must be accepted first")
@@ -1677,6 +1698,8 @@ def submit_completion(
     
     if not hire:
         raise HTTPException(status_code=404, detail="Hire not found")
+
+    _ensure_hire_date_reached(hire, action="submit completion")
     
     if hire.status != DirectHireStatus.IN_PROGRESS:
         raise HTTPException(status_code=400, detail="Work must be in progress to submit completion")
@@ -1717,6 +1740,8 @@ def confirm_payment_received(
     
     if not hire:
         raise HTTPException(status_code=404, detail="Hire not found")
+
+    _ensure_hire_date_reached(hire, action="confirm payment")
     
     # For direct hires, employer marks as paid after completion
     # Worker can confirm if needed

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authService } from '../services/auth';
 import { Eye, EyeOff, Check, X } from 'lucide-react';
@@ -24,6 +24,12 @@ export default function RegisterStep1Page() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  useEffect(() => {
+    if (authService.isAuthenticated()) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [navigate]);
 
   const isGmail = (email: string) => /^[^\s@]+@gmail\.com$/i.test(email.trim());
   const formatPhilippinePhone = (digits: string) => {
