@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { useNavigate } from 'react-router-dom';
+import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight, Flag, FileText } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import ContractExtensionResponseModal, { type PendingExtension } from './ContractExtensionResponseModal';
+import HousekeeperSummaryModal from './HousekeeperSummaryModal';
+import DailyCompletionModal from './DailyCompletionModal';
 
 interface AcceptedJob {
   post_id: number;
@@ -9,11 +14,19 @@ interface AcceptedJob {
   location: string;
   budget: number;
   status: string;
+  post_fee_status?: string | null;
+  application_status?: string;
+  cancellation_reason?: string | null;
+  recurring_cancellation_reason?: string | null;
+  cancelled_by?: string | null;
+  edit_response?: string | null;
+  edit_notified_at?: string | null;
   start_date: string | null;
   end_date: string | null;
   is_longterm: boolean;
   accepted_at: string | null;
   employer: {
+    user_id: number | null;
     name: string;
     email: string | null;
     phone: string | null;
@@ -21,6 +34,14 @@ interface AcceptedJob {
   contract: {
     contract_id: number | null;
     status: string | null;
+  } | null;
+  pending_extension: {
+    extension_id: number;
+    proposed_end_date: string;
+    proposed_budget: number | null;
+    reason: string | null;
+    proposed_by_name: string | null;
+    created_at: string | null;
   } | null;
   payments: {
     total_schedules: number;
@@ -32,8 +53,26 @@ interface AcceptedJob {
       due_date: string;
       amount: number;
       status: string;
+      payment_proof_url?: string | null;
+      payment_method?: string | null;
+      reference_number?: string | null;
     }>;
   };
+  multi_day_schedule?: {
+    num_days: number;
+    daily_start_time: string | null;
+    daily_end_time: string | null;
+  } | null;
+  day_schedules?: Array<{
+    day_schedule_id: number;
+    day_number: number;
+    work_date: string;
+    start_time: string | null;
+    end_time: string | null;
+    status: string;
+    owner_confirmed: boolean;
+    housekeeper_confirmed: boolean;
+  }>;
 }
 
 interface Props {
@@ -41,24 +80,46 @@ interface Props {
   onSubmitCompletion: (job: AcceptedJob) => void;
   onReportUnpaid: (job: AcceptedJob) => void;
   onShowPayments?: (job: AcceptedJob) => void;
+  onReportEmployer?: (job: AcceptedJob) => void;
+  reportedUsers?: Set<string>;
+  initialStatusFilter?: 'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed';
 }
 
-export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, onReportUnpaid, onShowPayments }: Props) {
+export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, onReportUnpaid, onShowPayments, onReportEmployer, reportedUsers, initialStatusFilter }: Props) {
   const navigate = useNavigate();
   const [jobs, setJobs] = useState<AcceptedJob[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'ongoing' | 'pending_completion' | 'completed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed'>(initialStatusFilter || 'all');
+  const [showExtensionResponse, setShowExtensionResponse] = useState<PendingExtension | null>(null);
+  const [showSummaryJobId, setShowSummaryJobId] = useState<number | null>(null);
+  const [proofModal, setProofModal] = useState<{
+    url: string;
+    jobTitle: string;
+  } | null>(null);
+  const [showDailyCompletion, setShowDailyCompletion] = useState<AcceptedJob | null>(null);
+  const ITEMS_PER_PAGE = 5;
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = Math.ceil(jobs.length / ITEMS_PER_PAGE);
+  const paginatedJobs = jobs.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
   useEffect(() => {
-    loadMyJobs();
+    loadMyJobs(true);
+    setCurrentPage(1);
   }, [statusFilter]);
 
-  const loadMyJobs = async () => {
+  // Listen for external events that should trigger a refresh (e.g. after submitting completion)
+  useEffect(() => {
+    const handleRefresh = () => loadMyJobs();
+    window.addEventListener('my-jobs-updated', handleRefresh);
+    return () => window.removeEventListener('my-jobs-updated', handleRefresh);
+  }, [statusFilter]);
+
+  const loadMyJobs = async (showLoader = false) => {
     try {
-      setLoading(true);
+      if (showLoader) setLoading(true);
       const token = localStorage.getItem('access_token');
       const response = await fetch(
-        `http://127.0.0.1:8000/jobs/my-accepted-jobs${statusFilter !== 'all' ? `?status_filter=${statusFilter}` : ''}`,
+        `${API_BASE_URL}/jobs/my-accepted-jobs${statusFilter !== 'all' ? `?status_filter=${statusFilter}` : ''}`,
         {
           headers: { 'Authorization': `Bearer ${token}` }
         }
@@ -75,40 +136,88 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
     }
   };
 
-  const getStatusColor = (status: string, contractStatus?: string | null) => {
-    // Use contract status if available (for individual worker's status)
-    const effectiveStatus = contractStatus || status;
-    switch (effectiveStatus) {
-      case 'active':
-      case 'ongoing': return 'bg-blue-500/20 text-blue-300';
-      case 'pending_completion': return 'bg-yellow-500/20 text-yellow-300';
-      case 'completed': return 'bg-green-500/20 text-green-300';
-      default: return 'bg-gray-500/20 text-gray-300';
+  const handleStatusFilterChange = (nextFilter: 'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed') => {
+    if (statusFilter === nextFilter) return;
+    setLoading(true);
+    setStatusFilter(nextFilter);
+  };
+
+  const respondToEdit = async (job: AcceptedJob, response: 'accept' | 'reject') => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const responseData = await fetch(
+        `${API_BASE_URL}/jobs/${job.post_id}/respond-to-edit?response=${response}`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      if (!responseData.ok) {
+        const errorData = await responseData.json();
+        alert(errorData.detail || 'Failed to submit response');
+        return;
+      }
+
+      alert(
+        response === 'accept'
+          ? 'You accepted the updated job details. Your application will continue.'
+          : 'You withdrew your application for this edited job.'
+      );
+
+      loadMyJobs().catch((err) => console.error('Failed to reload jobs:', err));
+    } catch (error) {
+      console.error('Failed to respond to job edit:', error);
+      alert('Failed to submit response');
     }
   };
 
-  const getStatusLabel = (status: string, contractStatus?: string | null) => {
-    // Use contract status if available (for individual worker's status)
-    const effectiveStatus = contractStatus || status;
-    switch (effectiveStatus) {
+  const getStatusColor = (status: string) => {
+    switch (status) {
       case 'active':
-      case 'ongoing': return '🔄 Ongoing';
-      case 'pending_completion': return '⏳ Pending Approval';
-      case 'completed': return '✅ Completed';
-      default: return effectiveStatus;
+      case 'ongoing': return 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300';
+      case 'pending_application': return 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300';
+      case 'pending_completion': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300';
+      case 'completed': return 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300';
+      case 'cancelled': return 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300';
+      default: return 'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'active':
+      case 'ongoing': return <><RotateCw className="inline w-4 h-4 mr-1" /> Ongoing</>;
+      case 'pending_completion': return <><Clock className="inline w-4 h-4 mr-1" /> Pending Approval</>;
+      case 'completed': return <><CheckCircle className="inline w-4 h-4 mr-1" /> Completed</>;
+      case 'cancelled': return <><AlertTriangle className="inline w-4 h-4 mr-1" /> Cancelled</>;
+      default: return status;
     }
   };
 
   // Get the effective status for a job (use contract status for worker's individual progress)
   const getEffectiveStatus = (job: AcceptedJob): string => {
+    if (job.status === 'cancelled') return 'cancelled';
+    if (job.application_status === 'pending') return 'pending_application';
     return job.contract?.status || job.status;
+  };
+
+  // Check if job has payment pending confirmation (payment sent but not confirmed by worker)
+  const hasPendingPaymentConfirmation = (job: AcceptedJob): boolean => {
+    return job.payments?.schedules?.some(s => s.status === 'sent' || s.status === 'SENT') || false;
+  };
+
+  const getSentPayment = (job: AcceptedJob) => {
+    return job.payments?.schedules?.find(s => s.status === 'sent' || s.status === 'SENT');
   };
 
   if (loading) {
     return (
       <div className="text-center py-20">
         <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#EA526F]"></div>
-        <p className="text-white/70 mt-4">Loading your jobs...</p>
+        <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading your jobs...</p>
       </div>
     );
   }
@@ -116,122 +225,147 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
   return (
     <div>
       {/* Status Filter Tabs */}
-      <div className="mb-4 overflow-x-auto pb-2">
-        <div className="flex gap-2 min-w-max">
+      <div className="mb-6 overflow-x-auto pb-2">
+        <div className="flex gap-2 min-w-max p-1 bg-white/50 dark:bg-slate-900/50 rounded-xl border border-gray-200 dark:border-white/10">
           <button
-            onClick={() => setStatusFilter('all')}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            onClick={() => handleStatusFilterChange('all')}
+            disabled={loading}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
               statusFilter === 'all'
-                ? 'bg-white text-[#4B244A] shadow-lg'
-                : 'bg-white/10 text-white hover:bg-white/20'
+                ? 'bg-white dark:bg-[#4B244A] text-[#4B244A] dark:text-white shadow-md'
+                : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
             }`}
           >
-            📋 All Jobs
+            <ClipboardList className="inline w-4 h-4 mr-1" /> All Jobs
           </button>
           <button
-            onClick={() => setStatusFilter('ongoing')}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            onClick={() => handleStatusFilterChange('pending_application')}
+            disabled={loading}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+              statusFilter === 'pending_application'
+                ? 'bg-orange-500 text-white shadow-md'
+                : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
+            }`}
+          >
+            <Clock className="inline w-4 h-4 mr-1" /> Applied
+          </button>
+          <button
+            onClick={() => handleStatusFilterChange('ongoing')}
+            disabled={loading}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
               statusFilter === 'ongoing'
-                ? 'bg-blue-500 text-white shadow-lg'
-                : 'bg-white/10 text-white hover:bg-white/20'
+                ? 'bg-blue-500 text-white shadow-md'
+                : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
             }`}
           >
-            🔄 Ongoing
+            <RotateCw className="inline w-4 h-4 mr-1" /> Ongoing
           </button>
           <button
-            onClick={() => setStatusFilter('pending_completion')}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            onClick={() => handleStatusFilterChange('pending_completion')}
+            disabled={loading}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
               statusFilter === 'pending_completion'
-                ? 'bg-yellow-500 text-white shadow-lg'
-                : 'bg-white/10 text-white hover:bg-white/20'
+                ? 'bg-yellow-500 text-white shadow-md'
+                : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
             }`}
           >
-            ⏳ Pending Approval
+            <Clock className="inline w-4 h-4 mr-1" /> Pending
           </button>
           <button
-            onClick={() => setStatusFilter('completed')}
-            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+            onClick={() => handleStatusFilterChange('completed')}
+            disabled={loading}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
               statusFilter === 'completed'
-                ? 'bg-green-500 text-white shadow-lg'
-                : 'bg-white/10 text-white hover:bg-white/20'
+                ? 'bg-green-500 text-white shadow-md'
+                : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
             }`}
           >
-            ✅ Completed
+            <CheckCircle className="inline w-4 h-4 mr-1" /> Completed
           </button>
         </div>
       </div>
 
       {jobs.length === 0 ? (
-        <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-12 text-center border border-white/20">
-          <div className="text-6xl mb-4">💼</div>
-          <h3 className="text-2xl font-bold text-white mb-2">No Accepted Jobs</h3>
-          <p className="text-white/70 mb-6">
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-12 text-center border border-white/50 dark:border-white/10 shadow-lg">
+          <div className="flex justify-center mb-4 opacity-50"><Briefcase className="w-16 h-16" /></div>
+          <h3 className="text-2xl font-bold text-[#4B244A] dark:text-white mb-2">No Jobs Found</h3>
+          <p className="text-[#4B244A]/70 dark:text-white/70 mb-6 font-medium">
             {statusFilter === 'all' 
-              ? "You haven't been accepted to any jobs yet. Keep applying!" 
+              ? "You haven't applied to or been accepted to any jobs yet. Start applying!" 
+              : statusFilter === 'pending_application'
+              ? "You have no pending applications."
               : `No ${statusFilter.replace('_', ' ')} jobs found.`}
           </p>
         </div>
       ) : (
         <div className="space-y-4">
-          {jobs.map((job) => {
+          {paginatedJobs.map((job) => {
             // Use contract status for individual worker's progress
             const myStatus = getEffectiveStatus(job);
+            const ownerWeeklyFeeDue = (job.post_fee_status || '').toLowerCase() === 'pending_owner_weekly';
             
             return (
-            <div key={job.post_id} className="bg-white/10 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border border-white/20">
+            <div key={job.post_id} className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 sm:p-6 border border-white/50 dark:border-white/10 shadow-lg transition-all">
               {/* Header */}
               <div className="flex items-start justify-between mb-3 gap-2">
-                <h3 className="text-lg sm:text-xl font-bold text-white">{job.title}</h3>
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(job.status, job.contract?.status)}`}>
-                  {getStatusLabel(job.status, job.contract?.status)}
+                <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white">{job.title}</h3>
+                <span className={`px-3 py-1 rounded-full text-xs font-bold ${getStatusColor(myStatus)}`}>
+                  {myStatus === 'pending_application' ? 'Pending' : getStatusLabel(myStatus)}
                 </span>
               </div>
 
               {/* Description */}
-              <p className="text-white/70 mb-4 line-clamp-2">{job.description}</p>
+              <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 line-clamp-2">{job.description}</p>
 
               {/* Job Details */}
               <div className="flex flex-wrap gap-2 mb-4">
-                <span className="px-3 py-1 bg-green-500/20 text-green-300 rounded-lg text-sm font-semibold">
-                  💰 ₱{job.budget}
+                <span className="px-3 py-1 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300 rounded-lg text-sm font-semibold">
+                  <DollarSign className="inline w-4 h-4 mr-1" /> ₱{job.budget}
                 </span>
-                <span className="px-3 py-1 bg-purple-500/20 text-purple-300 rounded-lg text-sm font-semibold">
+                <span className="px-3 py-1 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 rounded-lg text-sm font-semibold">
                   📍 {job.location}
                 </span>
                 {job.is_longterm && (
-                  <span className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-lg text-sm font-semibold">
+                  <span className="px-3 py-1 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 rounded-lg text-sm font-semibold">
                     📆 Long-term
+                  </span>
+                )}
+                {job.multi_day_schedule && job.multi_day_schedule.num_days > 1 && (
+                  <span className="px-3 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300 rounded-lg text-sm font-semibold">
+                    📅 {job.multi_day_schedule.num_days} days
+                    {job.multi_day_schedule.daily_start_time && job.multi_day_schedule.daily_end_time && 
+                      ` (${job.multi_day_schedule.daily_start_time}–${job.multi_day_schedule.daily_end_time})`}
                   </span>
                 )}
               </div>
 
               {/* Employer Info */}
-              <div className="bg-white/5 rounded-lg p-3 mb-4">
-                <h4 className="text-sm font-semibold text-white/80 mb-2">👤 Employer</h4>
-                <div className="text-sm text-white/70 space-y-1">
+              <div className="bg-white/50 dark:bg-white/5 rounded-lg p-3 mb-4 border border-gray-200 dark:border-white/10">
+                <h4 className="text-sm font-bold text-[#4B244A] dark:text-white mb-2"><User className="inline w-4 h-4 mr-1" /> Employer</h4>
+                <div className="text-sm text-[#4B244A]/70 dark:text-white/70 space-y-1 font-medium">
                   <p>{job.employer.name}</p>
-                  {job.employer.phone && <p>📞 {job.employer.phone}</p>}
-                  {job.employer.email && <p>✉️ {job.employer.email}</p>}
+                  {job.employer.phone && <p><Phone className="inline w-4 h-4 mr-1" />{job.employer.phone}</p>}
+                  {job.employer.email && <p><Mail className="inline w-4 h-4 mr-1" />{job.employer.email}</p>}
                 </div>
               </div>
 
               {/* Payment Summary (for long-term jobs) */}
               {job.is_longterm && job.payments && (
-                <div className="bg-white/5 rounded-lg p-3 mb-4">
-                  <h4 className="text-sm font-semibold text-white/80 mb-2">💳 Payment Summary</h4>
+                <div className="bg-white/50 dark:bg-white/5 rounded-lg p-3 mb-4 border border-gray-200 dark:border-white/10">
+                  <h4 className="text-sm font-bold text-[#4B244A] dark:text-white mb-2"><CreditCard className="inline w-4 h-4 mr-1" /> Payment Summary</h4>
                   <div className="grid grid-cols-2 gap-2 text-sm">
-                    <div className="bg-green-500/10 rounded-lg p-2 text-center">
-                      <div className="text-green-300 font-bold">₱{job.payments.total_earned.toLocaleString()}</div>
-                      <div className="text-white/60 text-xs">Earned</div>
+                    <div className="bg-green-100 dark:bg-green-500/10 rounded-lg p-2 text-center border border-green-200 dark:border-transparent">
+                      <div className="text-green-700 dark:text-green-300 font-bold">₱{job.payments.total_earned.toLocaleString()}</div>
+                      <div className="text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">Earned</div>
                     </div>
-                    <div className="bg-yellow-500/10 rounded-lg p-2 text-center">
-                      <div className="text-yellow-300 font-bold">{job.payments.pending_payments}</div>
-                      <div className="text-white/60 text-xs">Pending</div>
+                    <div className="bg-yellow-100 dark:bg-yellow-500/10 rounded-lg p-2 text-center border border-yellow-200 dark:border-transparent">
+                      <div className="text-yellow-700 dark:text-yellow-300 font-bold">{job.payments.pending_payments}</div>
+                      <div className="text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">Pending</div>
                     </div>
                   </div>
                   {job.payments.next_payment_due && (
-                    <p className="text-xs text-white/60 mt-2">
-                      📅 Next payment due: {new Date(job.payments.next_payment_due).toLocaleDateString()}
+                    <p className="text-xs text-[#4B244A]/60 dark:text-white/60 mt-2 font-medium">
+                      <Calendar className="inline w-4 h-4 mr-1" /> Next payment due: {new Date(job.payments.next_payment_due).toLocaleDateString()}
                     </p>
                   )}
                 </div>
@@ -239,14 +373,171 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
 
               {/* Date Range */}
               {job.start_date && job.end_date && (
-                <div className="text-sm text-white/60 mb-4">
-                  📅 {new Date(job.start_date).toLocaleDateString()} - {new Date(job.end_date).toLocaleDateString()}
+                <div className="text-sm text-[#4B244A]/60 dark:text-white/60 mb-4 font-medium">
+                  <Calendar className="inline w-4 h-4 mr-1" /> {new Date(job.start_date).toLocaleDateString()} - {new Date(job.end_date).toLocaleDateString()}
                 </div>
               )}
 
+              {/* Pending Extension Request Banner */}
+              {job.pending_extension && (myStatus === 'ongoing' || myStatus === 'active') && (
+                <div className="bg-purple-50 dark:bg-purple-500/10 rounded-xl p-4 mb-4 border-2 border-purple-300 dark:border-purple-500/30 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    <h4 className="text-sm font-bold text-purple-700 dark:text-purple-300">Contract Extension Proposed</h4>
+                  </div>
+                  <p className="text-sm text-[#4B244A]/80 dark:text-white/80">
+                    <span className="font-semibold">{job.pending_extension.proposed_by_name || 'Your employer'}</span> wants to extend this contract until{' '}
+                    <span className="font-bold text-purple-700 dark:text-purple-300">{new Date(job.pending_extension.proposed_end_date).toLocaleDateString()}</span>
+                    {job.pending_extension.proposed_budget !== null && (
+                      <> with a new budget of <span className="font-bold text-green-700 dark:text-green-300">₱{job.pending_extension.proposed_budget.toLocaleString()}</span></>  
+                    )}
+                  </p>
+                  {job.pending_extension.reason && (
+                    <p className="text-xs text-[#4B244A]/60 dark:text-white/60 italic">"{job.pending_extension.reason}"</p>
+                  )}
+                  <button
+                    onClick={() => {
+                      setShowExtensionResponse({
+                        extension_id: job.pending_extension!.extension_id,
+                        contract_id: job.contract?.contract_id || 0,
+                        post_id: job.post_id,
+                        job_title: job.title,
+                        current_end_date: job.end_date,
+                        proposed_end_date: job.pending_extension!.proposed_end_date,
+                        proposed_budget: job.pending_extension!.proposed_budget,
+                        reason: job.pending_extension!.reason,
+                        proposed_by_name: job.pending_extension!.proposed_by_name,
+                        status: 'pending',
+                        created_at: job.pending_extension!.created_at,
+                      });
+                    }}
+                    className="w-full py-2 bg-purple-500 text-white font-bold rounded-lg hover:bg-purple-600 transition-all shadow-md text-sm"
+                  >
+                    📋 Review Extension Request
+                  </button>
+                </div>
+              )}
+
+              {/* Pending Application Banner */}
+              {myStatus === 'pending_application' && (
+                <>
+                  {job.edit_response === 'pending' ? (
+                    <div className="mb-4 space-y-3">
+                      <div className="py-2 px-3 text-yellow-800 dark:text-yellow-200 font-semibold bg-yellow-100 dark:bg-yellow-500/10 rounded-lg border border-yellow-200 dark:border-yellow-500/30 flex items-center gap-2">
+                        <Clock className="w-4 h-4 flex-shrink-0" />
+                        <span className="text-sm">Job was edited. Please respond to continue.</span>
+                      </div>
+                      {job.edit_notified_at && (
+                        <div className="text-xs text-yellow-700 dark:text-yellow-300 text-center font-medium">
+                          Notified: {new Date(job.edit_notified_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Continue with this edited job?')) {
+                              respondToEdit(job, 'accept');
+                            }
+                          }}
+                          className="w-full py-2 bg-[#EA526F] text-white font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
+                        >
+                          ✓ Continue Application
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (window.confirm('Withdraw your application for this edited job?')) {
+                              respondToEdit(job, 'reject');
+                            }
+                          }}
+                          className="w-full py-2 bg-gray-200 text-gray-800 dark:bg-white/10 dark:text-white font-bold rounded-lg hover:bg-gray-300 dark:hover:bg-white/20 transition-all shadow-md"
+                        >
+                          ✕ Withdraw Application
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-3 text-center text-orange-700 dark:text-orange-300 font-bold bg-orange-100 dark:bg-orange-500/10 rounded-lg border border-orange-200 dark:border-orange-500/30 mb-4">
+                      <Clock className="inline w-4 h-4 mr-1" /> Waiting for house owner to accept your application
+                    </div>
+                  )}
+                </>
+              )}
+
               {/* Action Buttons - Use myStatus (contract status) for individual worker state */}
-              <div className="space-y-2">
-                {(myStatus === 'ongoing' || myStatus === 'active') && (
+              <div className="space-y-2">                {/* Show payment confirmation if payment is sent but not confirmed */}
+                {hasPendingPaymentConfirmation(job) && (
+                  <>
+                    {getSentPayment(job)?.payment_proof_url && (
+                      <button
+                        onClick={() => {
+                          const proofUrl = getSentPayment(job)?.payment_proof_url;
+                          if (!proofUrl) return;
+                          setProofModal({
+                            url: proofUrl,
+                            jobTitle: job.title,
+                          });
+                        }}
+                        className="w-full py-2 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
+                      >
+                        <CreditCard className="inline w-4 h-4 mr-1" /> View Owner Payment Proof
+                      </button>
+                    )}
+                    <div className="py-3 text-center text-blue-700 dark:text-blue-300 font-bold bg-blue-100 dark:bg-blue-500/10 rounded-lg border border-blue-200 dark:border-blue-500/30">
+                      <DollarSign className="inline w-4 h-4 mr-1" /> Payment Sent - Review Required!
+                    </div>
+                    <button
+                      onClick={() => setShowSummaryJobId(job.post_id)}
+                      className="w-full py-2 bg-[#4B244A] text-white font-bold rounded-lg hover:bg-[#361a35] transition-all shadow-md"
+                    >
+                      <FileText className="inline w-4 h-4 mr-1" /> View Summary & Receipt
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (window.confirm('Confirm that you have received the payment?')) {
+                          try {
+                            const token = localStorage.getItem('access_token');
+                            // Get the transaction_id from the payment schedule with 'sent' status
+                            const sentPayment = getSentPayment(job);
+                            if (!sentPayment) {
+                              alert('No pending payment found');
+                              return;
+                            }
+                            
+                            const response = await fetch(
+                              `${API_BASE_URL}/jobs/${job.post_id}/payments/${sentPayment.schedule_id}/confirm`,
+                              {
+                                method: 'PUT',
+                                headers: { 'Authorization': `Bearer ${token}` }
+                              }
+                            );
+                            
+                            if (response.ok) {
+                              alert('Payment confirmed successfully!');
+                              // Reload jobs list (errors here don't affect confirmation success)
+                              loadMyJobs().catch(err => console.error('Failed to reload jobs:', err));
+                            } else {
+                              const error = await response.json();
+                              alert(error.detail || 'Failed to confirm payment');
+                            }
+                          } catch (error) {
+                            console.error('Payment confirmation error:', error);
+                            alert('Failed to confirm payment');
+                          }
+                        }
+                      }}
+                      className="w-full py-3 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition-all shadow-md"
+                    >
+                      ✓ Confirm Payment Received
+                    </button>
+                  </>
+                )}
+                                {(myStatus === 'ongoing' || myStatus === 'active') && !hasPendingPaymentConfirmation(job) && (
                   <>
                     {/* Message Employer Button */}
                     <button
@@ -258,67 +549,198 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                         });
                         navigate(`/chat/new?${params.toString()}`);
                       }}
-                      className="w-full py-2 bg-purple-500 text-white font-semibold rounded-lg hover:bg-purple-600 transition-all"
+                      className="w-full py-2 bg-purple-500 text-white font-bold rounded-lg hover:bg-purple-600 transition-all shadow-md"
                     >
                       💬 Message Employer
                     </button>
-                    <button
-                      onClick={() => onShowProgress(job)}
-                      className="w-full py-2 bg-blue-500 text-white font-semibold rounded-lg hover:bg-blue-600 transition-all"
-                    >
-                      📊 View Progress
-                    </button>
-                    {/* Show Payment Tracker button for all job types */}
-                    {onShowPayments && (
+                    {/* Daily Progress Button for multi-day jobs */}
+                    {job.multi_day_schedule && job.multi_day_schedule.num_days > 1 && (
+                      <button
+                        onClick={() => setShowDailyCompletion(job)}
+                        className="w-full py-2 bg-indigo-500 text-white font-bold rounded-lg hover:bg-indigo-600 transition-all shadow-md"
+                      >
+                        📅 Daily Progress ({job.day_schedules?.filter(d => d.status === 'completed').length || 0}/{job.multi_day_schedule.num_days} days)
+                      </button>
+                    )}
+                    {/* Long-term only actions */}
+                    {job.is_longterm && (
+                      <button
+                        onClick={() => onShowProgress(job)}
+                        className="w-full py-2 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
+                      >
+                        <BarChart2 className="inline w-4 h-4 mr-1" /> View Progress
+                      </button>
+                    )}
+                    {job.is_longterm && onShowPayments && (
                       <button
                         onClick={() => onShowPayments(job)}
-                        className="w-full py-2 bg-green-500 text-white font-semibold rounded-lg hover:bg-green-600 transition-all"
+                        className="w-full py-2 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition-all shadow-md"
                       >
-                        💰 View Payments {job.payments.schedules?.some(s => s.status === 'sent' || s.status === 'SENT') && '(Action Required!)'}
+                        <DollarSign className="inline w-4 h-4 mr-1" /> View Payments {job.payments.schedules?.some(s => s.status === 'sent' || s.status === 'SENT') && '(Action Required!)'}
                       </button>
                     )}
                     {/* Only show Submit Completion for short-term jobs */}
-                    {!job.is_longterm && (
+                    {!job.is_longterm && !ownerWeeklyFeeDue && (
                       <button
                         onClick={() => onSubmitCompletion(job)}
-                        className="w-full py-2 bg-yellow-500 text-white font-semibold rounded-lg hover:bg-yellow-600 transition-all"
+                        className="w-full py-2 bg-yellow-500 text-white font-bold rounded-lg hover:bg-yellow-600 transition-all shadow-md"
                       >
-                        ✅ Submit Completion
+                        <CheckCircle className="inline w-4 h-4 mr-1" /> Submit Completion
                       </button>
+                    )}
+                    {!job.is_longterm && ownerWeeklyFeeDue && (
+                      <div className="py-2 text-center text-amber-700 dark:text-amber-300 text-sm bg-amber-100 dark:bg-amber-500/10 rounded-lg font-medium border border-amber-200 dark:border-amber-500/20">
+                        <Clock className="inline w-4 h-4 mr-1" /> Waiting for owner to pay this week's recurring posting fee
+                      </div>
                     )}
                     {/* For long-term jobs, show info about auto-completion */}
                     {job.is_longterm && (
-                      <div className="py-2 text-center text-blue-300 text-sm bg-blue-500/10 rounded-lg">
-                        💰 Job completes when all payments are confirmed
+                      <div className="py-2 text-center text-blue-700 dark:text-blue-300 text-sm bg-blue-100 dark:bg-blue-500/10 rounded-lg font-medium">
+                        <DollarSign className="inline w-4 h-4 mr-1" /> Job completes when all payments are confirmed
                       </div>
                     )}
                     {job.payments.pending_payments > 0 && (
                       <button
                         onClick={() => onReportUnpaid(job)}
-                        className="w-full py-2 bg-red-500/80 text-white font-semibold rounded-lg hover:bg-red-600 transition-all"
+                        className="w-full py-2 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 transition-all shadow-md"
                       >
-                        ⚠️ Report Unpaid
+                        <AlertTriangle className="inline w-4 h-4 mr-1" /> Report Unpaid
                       </button>
                     )}
                   </>
                 )}
 
                 {myStatus === 'pending_completion' && (
-                  <div className="py-3 text-center text-yellow-300 font-semibold bg-yellow-500/10 rounded-lg">
-                    ⏳ Waiting for owner to approve completion
+                  <div className="py-3 text-center text-yellow-700 dark:text-yellow-300 font-bold bg-yellow-100 dark:bg-yellow-500/10 rounded-lg">
+                    <Clock className="inline w-4 h-4 mr-1" /> Waiting for owner to approve completion
                   </div>
                 )}
 
-                {myStatus === 'completed' && (
-                  <div className="py-3 text-center text-green-300 font-semibold bg-green-500/10 rounded-lg">
-                    ✅ Job completed! Payment received.
+                {myStatus === 'cancelled' && (
+                  <div className="py-3 text-center text-red-700 dark:text-red-300 font-bold bg-red-100 dark:bg-red-500/10 rounded-lg border border-red-200 dark:border-red-500/30">
+                    <AlertTriangle className="inline w-4 h-4 mr-1" /> This recurring job was cancelled
+                    {job.cancelled_by ? ` by ${job.cancelled_by}.` : '.'}
+                    {(job.recurring_cancellation_reason || job.cancellation_reason) && (
+                      <div className="mt-2 text-sm font-medium text-red-700/90 dark:text-red-200/90">
+                        Reason: {job.recurring_cancellation_reason || job.cancellation_reason}
+                      </div>
+                    )}
                   </div>
+                )}
+
+                {myStatus === 'completed' && !hasPendingPaymentConfirmation(job) && (
+                  <>
+                    <div className="py-3 text-center text-green-700 dark:text-green-300 font-bold bg-green-100 dark:bg-green-500/10 rounded-lg">
+                      <CheckCircle className="inline w-4 h-4 mr-1" /> Job completed! Payment received.
+                    </div>
+                    <button
+                      onClick={() => setShowSummaryJobId(job.post_id)}
+                      className="w-full py-2 bg-blue-500 text-white font-bold rounded-lg hover:bg-blue-600 transition-all shadow-md"
+                    >
+                      <FileText className="inline w-4 h-4 mr-1" /> {job.is_longterm ? 'View Job Summary' : 'View Summary & Receipt'}
+                    </button>
+                    {onReportEmployer && (
+                      reportedUsers?.has(`${job.post_id}-${job.employer.user_id}`) ? (
+                        <div className="py-2 text-center text-orange-700 dark:text-orange-300 font-bold bg-orange-100 dark:bg-orange-500/10 rounded-lg">
+                          ✓ You reported this house owner. Wait for admin review.
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => onReportEmployer(job)}
+                          className="w-full py-2 bg-red-500 text-white font-bold rounded-lg hover:bg-red-600 transition-all shadow-md"
+                        >
+                          <Flag className="inline w-4 h-4 mr-1" /> Report House Owner
+                        </button>
+                      )
+                    )}
+                  </>
                 )}
               </div>
             </div>
           );
           })}
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 pt-4">
+              <button
+                onClick={() => { setCurrentPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                disabled={currentPage === 1}
+                className="p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-gray-200 dark:border-white/10 text-[#4B244A] dark:text-white disabled:opacity-30 hover:bg-white dark:hover:bg-slate-700 transition-all shadow-sm"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+              <span className="text-sm font-bold text-[#4B244A] dark:text-white">
+                Page {currentPage} of {totalPages}
+              </span>
+              <button
+                onClick={() => { setCurrentPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                disabled={currentPage === totalPages}
+                className="p-2 rounded-xl bg-white/80 dark:bg-slate-800/80 border border-gray-200 dark:border-white/10 text-[#4B244A] dark:text-white disabled:opacity-30 hover:bg-white dark:hover:bg-slate-700 transition-all shadow-sm"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          )}
         </div>
+      )}
+
+      {/* Contract Extension Response Modal */}
+      {showExtensionResponse && (
+        <ContractExtensionResponseModal
+          isOpen={true}
+          onClose={() => setShowExtensionResponse(null)}
+          extension={showExtensionResponse}
+          onSuccess={() => {
+            setShowExtensionResponse(null);
+            loadMyJobs();
+          }}
+        />
+      )}
+
+      {/* Payment Proof Modal */}
+      {proofModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-120 flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-xl max-h-[calc(100dvh-6rem)] sm:max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
+            <div className="p-4 border-b border-gray-200 dark:border-white/10 sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur z-10 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Owner Payment Proof</h3>
+                <p className="text-xs text-[#4B244A]/60 dark:text-white/60 font-medium">{proofModal.jobTitle}</p>
+              </div>
+              <button
+                onClick={() => setProofModal(null)}
+                className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-4">
+              <img
+                src={proofModal.url}
+                alt="Owner payment proof"
+                className="w-full h-auto max-h-[70vh] object-contain rounded-lg border border-gray-200 dark:border-white/20 bg-gray-50 dark:bg-slate-800"
+              />
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Housekeeper Summary Modal */}
+      {showSummaryJobId !== null && (
+        <HousekeeperSummaryModal jobId={showSummaryJobId} onClose={() => setShowSummaryJobId(null)} />
+      )}
+
+      {/* Daily Completion Modal */}
+      {showDailyCompletion && (
+        <DailyCompletionModal
+          postId={showDailyCompletion.post_id}
+          jobTitle={showDailyCompletion.title}
+          userRole="housekeeper"
+          onClose={() => setShowDailyCompletion(null)}
+          onDayConfirmed={() => loadMyJobs()}
+        />
       )}
     </div>
   );

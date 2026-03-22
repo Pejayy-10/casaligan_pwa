@@ -1,12 +1,12 @@
 """Address model - Clean version"""
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from app.db import Base
 
 class Address(Base):
     __tablename__ = "addresses"
     
-    id = Column(Integer, primary_key=True, index=True)
+    address_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), unique=True, nullable=False)
     
     # PSGC codes and names (both sent by frontend)
@@ -22,10 +22,14 @@ class Address(Base):
     subdivision = Column(String, nullable=True)
     zip_code = Column(String, nullable=True)
     
+    # GPS coordinates for location-based services
+    latitude = Column(Float, nullable=True)
+    longitude = Column(Float, nullable=True)
+    
     is_current = Column(String, default=True)
     
     # Relationship
     user = relationship("User", back_populates="address")
     
     def __repr__(self):
-        return f"<Address(user_id={self.user_id}, city={self.city})>"
+        return f"<Address(user_id={self.user_id}, city={self.city_name})>"

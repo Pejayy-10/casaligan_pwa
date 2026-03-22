@@ -3,11 +3,15 @@ from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Nume
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db import Base
+from app.models_v2.job_category_mapping import job_category_mapping
 import enum
 
 class JobType(str, enum.Enum):
     ONETIME = "onetime"
     LONGTERM = "longterm"
+    
+    def __str__(self):
+        return self.value
 
 class ForumPostStatus(str, enum.Enum):
     OPEN = "open"
@@ -15,6 +19,9 @@ class ForumPostStatus(str, enum.Enum):
     PENDING_COMPLETION = "pending_completion"  # Housekeeper submitted proof, waiting for owner approval
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    
+    def __str__(self):
+        return self.value
 
 class ForumPost(Base):
     """Job postings"""
@@ -23,13 +30,20 @@ class ForumPost(Base):
     post_id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     employer_id = Column(Integer, ForeignKey("employers.employer_id"), nullable=False)
+    category_id = Column(Integer, ForeignKey("package_categories.category_id"), nullable=True)  # Legacy single category (kept for compatibility)
     
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False)
     location = Column(String, nullable=False)
-    job_type = Column(SQLEnum(JobType), nullable=False)
+    job_type = Column(SQLEnum(JobType, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False)
     salary = Column(Numeric, nullable=False)
-    status = Column(SQLEnum(ForumPostStatus), nullable=False, default=ForumPostStatus.OPEN)
+    status = Column(SQLEnum(ForumPostStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=ForumPostStatus.OPEN)
+    post_fee_percentage = Column(Numeric(5, 2), nullable=False, default=7.00)
+    post_fee_amount = Column(Numeric(10, 2), nullable=False, default=0)
+    post_fee_status = Column(String(20), nullable=False, default="paid")  # pending, paid, failed, cancelled
+    post_fee_checkout_id = Column(String, nullable=True)
+    post_fee_reference = Column(String, nullable=True)
+    post_fee_paid_at = Column(DateTime(timezone=True), nullable=True)
     
     # Long-term job fields
     is_longterm = Column(Boolean, default=False)
@@ -39,6 +53,22 @@ class ForumPost(Base):
     payment_amount = Column(Numeric, nullable=True)
     payment_schedule = Column(Text, nullable=True)  # JSON string
     
+    # Recurring schedule (for regular/repeating jobs)
+    is_recurring = Column(Boolean, default=False, nullable=False)
+    day_of_week = Column(String(100), nullable=True)  # e.g., "saturday" or "tuesday,saturday"
+    start_time = Column(String(10), nullable=True)  # e.g., "09:00"
+    end_time = Column(String(10), nullable=True)  # e.g., "11:00"
+    frequency = Column(String(20), nullable=True)  # "weekly", "biweekly", "monthly"
+    recurring_status = Column(String(20), nullable=True, default="active")  # "active", "cancelled", "paused"
+    recurring_cancelled_at = Column(DateTime(timezone=True), nullable=True)
+    recurring_cancellation_reason = Column(Text, nullable=True)
+    cancelled_by = Column(String(20), nullable=True)  # "employer" or "worker"
+    
+    # Multi-day scheduling
+    num_days = Column(Integer, default=1, nullable=True)  # Number of working days
+    daily_start_time = Column(String(10), nullable=True)  # e.g. "08:00"
+    daily_end_time = Column(String(10), nullable=True)  # e.g. "15:00"
+
     # Job completion fields
     completion_proof_url = Column(String, nullable=True)  # Photo/video proof of completion
     completion_notes = Column(Text, nullable=True)  # Notes from housekeeper
@@ -51,6 +81,8 @@ class ForumPost(Base):
     # Relationships
     user = relationship("User", back_populates="forum_posts")
     employer = relationship("Employer", back_populates="forum_posts")
+    category = relationship("PackageCategory", foreign_keys=[category_id])  # Legacy single category
+    categories = relationship("PackageCategory", secondary=job_category_mapping, backref="job_posts")  # Multiple categories
     interest_checks = relationship("InterestCheck", back_populates="post")
     contracts = relationship("Contract", back_populates="post")  # Multiple contracts per job (one per worker)
 
@@ -58,6 +90,18 @@ class InterestStatus(str, enum.Enum):
     PENDING = "pending"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
+    CANCELLED = "cancelled"
+    
+    def __str__(self):
+        return self.value
+
+class EditResponseStatus(str, enum.Enum):
+    PENDING = "pending"  # Waiting for applicant to respond
+    ACCEPTED = "accepted"  # Applicant accepted the edit
+    REJECTED = "rejected"  # Applicant rejected the edit
+    
+    def __str__(self):
+        return self.value
 
 class InterestCheck(Base):
     """Job applications"""
@@ -66,8 +110,16 @@ class InterestCheck(Base):
     interest_id = Column(Integer, primary_key=True, index=True)
     post_id = Column(Integer, ForeignKey("forumposts.post_id"), nullable=False)
     worker_id = Column(Integer, ForeignKey("workers.worker_id"), nullable=False)
-    status = Column(SQLEnum(InterestStatus), nullable=False, default=InterestStatus.PENDING)
+    status = Column(SQLEnum(InterestStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=InterestStatus.PENDING)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Job edit response tracking
+    edit_response = Column(SQLEnum(EditResponseStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=True)  # NULL if no edit yet, 'pending'/'accepted'/'rejected' after edit
+    edit_notified_at = Column(DateTime(timezone=True), nullable=True)  # When the applicant was notified of the edit
+    edit_responded_at = Column(DateTime(timezone=True), nullable=True)  # When the applicant responded
+    
+    # Schedule conflict tracking
+    withdrawn_due_to_conflict = Column(Boolean, default=False, nullable=False)  # True if withdrawn due to schedule conflict
     
     # Relationships
     post = relationship("ForumPost", back_populates="interest_checks")

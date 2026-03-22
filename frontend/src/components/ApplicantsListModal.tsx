@@ -1,4 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { API_BASE_URL } from '../config';
+import { useNavigate } from 'react-router-dom';
+import { Users, Mail, Phone, User, CheckCircle, Inbox, PartyPopper, Clock } from 'lucide-react';
 
 interface Applicant {
   interest_id: number;
@@ -8,6 +11,8 @@ interface Applicant {
   worker_phone: string;
   status: string;
   applied_at: string;
+  edit_response?: string | null;
+  edit_notified_at?: string | null;
 }
 
 interface ApplicantsListModalProps {
@@ -19,6 +24,7 @@ interface ApplicantsListModalProps {
 }
 
 export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onClose, onJobStarted }: ApplicantsListModalProps) {
+  const navigate = useNavigate();
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedWorkers, setSelectedWorkers] = useState<Set<number>>(new Set());
@@ -27,6 +33,8 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
   // Count already accepted workers (from previous selections)
   const alreadyAcceptedCount = applicants.filter(a => a.status === 'accepted').length;
   const pendingApplicants = applicants.filter(a => a.status === 'pending');
+  const pendingEditResponsesCount = pendingApplicants.filter(a => a.edit_response === 'pending').length;
+  const selectablePendingCount = pendingApplicants.length - pendingEditResponsesCount;
   
   // Total selected = already accepted + newly toggled
   const totalSelected = alreadyAcceptedCount + selectedWorkers.size;
@@ -36,7 +44,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
   const loadApplicants = useCallback(async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/applicants`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/applicants`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -56,6 +64,15 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
   }, [loadApplicants]);
 
   const toggleWorker = (interestId: number) => {
+    // Find the applicant to check if they have pending edit response
+    const applicant = applicants.find(a => a.interest_id === interestId);
+    
+    // Prevent selection if edit response is pending
+    if (applicant?.edit_response === 'pending') {
+      alert('Please wait for this applicant to respond to the job edit before accepting them.');
+      return;
+    }
+
     setSelectedWorkers(prev => {
       const newSet = new Set(prev);
       if (newSet.has(interestId)) {
@@ -81,7 +98,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
       // Get the interest_ids of selected workers
       const selectedInterestIds = Array.from(selectedWorkers);
       
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/start-job`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/start-job`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -94,7 +111,9 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
 
       if (response.ok) {
         const result = await response.json();
-        alert(`🎉 Job Started!\n\n${result.message}\n\nAccepted workers: ${result.accepted_workers.join(', ')}`);
+        alert(`Job Started!\n\n${result.message}\n\nAccepted workers: ${result.accepted_workers.join(', ')}`);
+        // Show visual celebration
+        import('lucide-react').then(({ PartyPopper }) => console.log('Celebration!'));
         
         if (onJobStarted) {
           onJobStarted();
@@ -116,7 +135,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
     try {
       const token = localStorage.getItem('access_token');
       const response = await fetch(
-        `http://127.0.0.1:8000/jobs/${jobId}/applicants/${interestId}?status_update=rejected`,
+        `${API_BASE_URL}/jobs/${jobId}/applicants/${interestId}?status_update=rejected`,
         {
           method: 'PUT',
           headers: { 'Authorization': `Bearer ${token}` }
@@ -146,43 +165,53 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 bg-white/10 backdrop-blur-xl border-b border-white/20 p-6 z-10">
+        <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10 p-6 z-10">
           <div className="flex items-center justify-between mb-2">
-            <h2 className="text-2xl font-bold text-white">👥 Select Housekeepers</h2>
-            <button 
+            <h2 className="text-2xl font-bold text-[#4B244A] dark:text-white"><Users className="inline w-6 h-6 mr-2" /> Select Housekeepers</h2>
+            <button
               onClick={onClose}
-              className="text-white/70 hover:text-white transition-colors text-3xl leading-none"
+              aria-label="Close"
+              className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60"
             >
               ×
             </button>
           </div>
-          <p className="text-white/70 text-sm mb-3">{jobTitle}</p>
+          <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-3 font-medium">{jobTitle}</p>
           
           {/* Selection Status */}
           <div className="flex flex-wrap items-center gap-3">
-            <span className="px-3 py-1 bg-[#EA526F]/20 text-[#EA526F] rounded-full text-sm font-semibold">
+            <span className="px-3 py-1 bg-[#EA526F]/10 dark:bg-[#EA526F]/20 text-[#EA526F] dark:text-pink-300 rounded-full text-sm font-bold border border-[#EA526F]/20">
               Need: {peopleNeeded} {peopleNeeded === 1 ? 'person' : 'people'}
             </span>
-            <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+            <span className={`px-3 py-1 rounded-full text-sm font-bold border ${
               canStartJob 
-                ? 'bg-green-500/20 text-green-300' 
-                : 'bg-yellow-500/20 text-yellow-300'
+                ? 'bg-green-100 text-green-700 border-green-200 dark:bg-green-500/20 dark:text-green-300 dark:border-green-500/30' 
+                : 'bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-300 dark:border-yellow-500/30'
             }`}>
               Selected: {totalSelected}/{peopleNeeded}
             </span>
             {alreadyAcceptedCount > 0 && (
-              <span className="px-3 py-1 bg-blue-500/20 text-blue-300 rounded-full text-sm font-semibold">
+              <span className="px-3 py-1 bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-500/20 dark:text-blue-300 dark:border-blue-500/30 rounded-full text-sm font-bold">
                 Already Hired: {alreadyAcceptedCount}
+              </span>
+            )}
+            {pendingEditResponsesCount > 0 && (
+              <span className="px-3 py-1 bg-yellow-100 text-yellow-700 border-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-300 dark:border-yellow-500/30 rounded-full text-sm font-bold">
+                Waiting Responses: {pendingEditResponsesCount}
               </span>
             )}
           </div>
 
           {/* Instructions */}
-          {needMoreSelections && pendingApplicants.length > 0 && (
-            <p className="text-yellow-300/80 text-sm mt-3 flex items-center gap-2">
-              <span className="text-lg">👆</span>
+          {needMoreSelections && pendingEditResponsesCount > 0 && (
+            <p className="text-yellow-700 dark:text-yellow-300 text-sm mt-3 font-medium">
+              Waiting for {pendingEditResponsesCount} applicant{pendingEditResponsesCount === 1 ? '' : 's'} to respond to your edited job details.
+            </p>
+          )}
+          {needMoreSelections && selectablePendingCount > 0 && (
+            <p className="text-yellow-600 dark:text-yellow-300/80 text-sm mt-3 font-medium">
               Toggle {peopleNeeded - totalSelected} more {peopleNeeded - totalSelected === 1 ? 'person' : 'people'} to start the job
             </p>
           )}
@@ -193,12 +222,12 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
           {loading ? (
             <div className="text-center py-12">
               <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#EA526F] mb-4"></div>
-              <p className="text-white/70">Loading applicants...</p>
+              <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">Loading applicants...</p>
             </div>
           ) : applicants.length === 0 ? (
             <div className="text-center py-12">
-              <div className="text-6xl mb-4">📭</div>
-              <p className="text-white/70">No applicants yet</p>
+              <div className="text-6xl mb-4 opacity-50"><Inbox className="w-16 h-16" /></div>
+              <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">No applicants yet</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -206,16 +235,26 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
               {applicants.filter(a => a.status === 'accepted').map((applicant) => (
                 <div 
                   key={applicant.interest_id}
-                  className="bg-green-500/20 backdrop-blur-xl rounded-2xl p-4 border-2 border-green-400/50"
+                  className="bg-green-50 dark:bg-green-500/20 backdrop-blur-xl rounded-2xl p-4 border-2 border-green-200 dark:border-green-400/50"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center text-white text-xl">
-                      ✓
+                    <div className="w-12 h-12 rounded-full bg-green-500 flex items-center justify-center text-white text-xl shadow-sm">
+                      <CheckCircle className="w-6 h-6" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-bold text-white mb-1">{applicant.worker_name}</h3>
-                      <p className="text-green-200 text-sm">✓ Already Hired</p>
+                      <h3 className="text-lg font-bold text-green-900 dark:text-white mb-1">{applicant.worker_name}</h3>
+                      <p className="text-green-700 dark:text-green-200 text-sm font-medium"><CheckCircle className="inline w-4 h-4 mr-1" /> Already Hired</p>
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/worker/${applicant.worker_id}?from=applicants`);
+                      }}
+                      className="p-2 bg-blue-100 text-blue-700 dark:bg-blue-500/30 dark:text-blue-200 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-500/40 transition-all shadow-sm"
+                      title="View Profile"
+                    >
+                      <User className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -224,41 +263,60 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
               {pendingApplicants.map((applicant) => {
                 const isSelected = selectedWorkers.has(applicant.interest_id);
                 const canSelect = selectedWorkers.size < (peopleNeeded - alreadyAcceptedCount);
+                const hasPendingEdit = applicant.edit_response === 'pending';
                 
                 return (
                   <div 
                     key={applicant.interest_id}
-                    className={`backdrop-blur-xl rounded-2xl p-4 border-2 transition-all cursor-pointer ${
-                      isSelected 
-                        ? 'bg-green-500/20 border-green-400/50' 
-                        : 'bg-white/10 border-white/20 hover:border-white/40'
+                    className={`backdrop-blur-xl rounded-2xl p-4 border-2 transition-all ${
+                      hasPendingEdit
+                        ? 'bg-yellow-50 border-yellow-300 dark:bg-yellow-500/10 dark:border-yellow-400/50 cursor-not-allowed'
+                        : isSelected 
+                          ? 'bg-green-50 border-green-200 dark:bg-green-500/20 dark:border-green-400/50 shadow-md cursor-pointer' 
+                          : 'bg-white/60 border-white/50 dark:bg-white/10 dark:border-white/20 hover:bg-white/80 dark:hover:border-white/40 shadow-sm cursor-pointer'
                     }`}
-                    onClick={() => (isSelected || canSelect) && toggleWorker(applicant.interest_id)}
+                    onClick={() => !hasPendingEdit && (isSelected || canSelect) && toggleWorker(applicant.interest_id)}
                   >
                     <div className="flex items-center gap-4">
-                      {/* Toggle Circle */}
+                      {/* Toggle Checkbox */}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          if (isSelected || canSelect) toggleWorker(applicant.interest_id);
+                          if (!hasPendingEdit && (isSelected || canSelect)) toggleWorker(applicant.interest_id);
                         }}
-                        disabled={!isSelected && !canSelect}
-                        className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${
-                          isSelected 
-                            ? 'bg-green-500 text-white' 
-                            : canSelect
-                              ? 'bg-white/20 text-white/50 hover:bg-white/30'
-                              : 'bg-white/10 text-white/30 cursor-not-allowed'
+                        disabled={!isSelected && (!canSelect || hasPendingEdit)}
+                        role="checkbox"
+                        aria-checked={isSelected}
+                        className={`w-6 h-6 rounded-md flex items-center justify-center transition-all shadow-sm border-2 ${
+                          hasPendingEdit
+                            ? 'bg-yellow-100 text-yellow-600 border-yellow-400 dark:bg-yellow-500/30 dark:text-yellow-300 cursor-not-allowed'
+                            : isSelected 
+                              ? 'bg-green-500 text-white border-green-600' 
+                              : canSelect
+                                ? 'bg-white text-gray-400 border-gray-300 dark:bg-white/20 dark:text-white/50 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-white/30'
+                                : 'bg-gray-100 text-gray-300 border-gray-300 dark:bg-white/10 dark:text-white/30 cursor-not-allowed'
                         }`}
                       >
-                        {isSelected ? '✓' : '○'}
+                        {isSelected ? 
+                          <CheckCircle className="w-3 h-3" /> 
+                          : hasPendingEdit
+                            ? <Clock className="w-3 h-3" />
+                            : <CheckCircle className="w-3 h-3 text-gray-300/40" />
+                        }
                       </button>
                       
                       <div className="flex-1">
-                        <h3 className="text-lg font-bold text-white mb-1">{applicant.worker_name}</h3>
-                        <p className="text-white/70 text-sm">📧 {applicant.worker_email}</p>
-                        <p className="text-white/70 text-sm">📞 {applicant.worker_phone}</p>
-                        <p className="text-white/60 text-xs mt-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">{applicant.worker_name}</h3>
+                          {hasPendingEdit && (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-200 dark:bg-yellow-500/30 text-yellow-800 dark:text-yellow-200 text-xs font-bold rounded-full border border-yellow-400/50">
+                              <Clock className="w-3 h-3" /> Pending Response
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[#4B244A]/70 dark:text-white/70 text-sm"><Mail className="inline w-4 h-4 mr-1" /> {applicant.worker_email}</p>
+                        <p className="text-[#4B244A]/70 dark:text-white/70 text-sm"><Phone className="inline w-4 h-4 mr-1" /> {applicant.worker_phone}</p>
+                        <p className="text-[#4B244A]/50 dark:text-white/60 text-xs mt-2 font-medium">
                           Applied: {new Date(applicant.applied_at).toLocaleDateString('en-US', {
                             month: 'short',
                             day: 'numeric',
@@ -267,21 +325,55 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                             minute: '2-digit'
                           })}
                         </p>
+                        {hasPendingEdit && applicant.edit_notified_at && (
+                          <p className="text-yellow-700 dark:text-yellow-300 text-xs mt-1 font-medium">
+                            Edit notified: {new Date(applicant.edit_notified_at).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        )}
                       </div>
 
-                      {/* Reject Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (confirm(`Reject ${applicant.worker_name}?`)) {
-                            handleReject(applicant.interest_id);
-                          }
-                        }}
-                        className="px-3 py-2 bg-red-500/20 text-red-300 rounded-lg hover:bg-red-500/30 transition-all text-sm"
-                        title="Reject this applicant"
-                      >
-                        ✗
-                      </button>
+                      {/* Action Buttons */}
+                      <div className="flex gap-2">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/worker/${applicant.worker_id}?from=applicants`);
+                          }}
+                          className="p-2 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 rounded-lg hover:bg-blue-200 dark:hover:bg-blue-500/30 transition-all shadow-sm"
+                          title="View Profile"
+                        >
+                          <User className="w-4 h-4" />
+                        </button>
+                        
+                        {/* Reject Button - disabled if pending edit response */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (hasPendingEdit) {
+                              alert('Cannot reject an applicant with a pending job edit response. Please wait for their response.');
+                              return;
+                            }
+                            if (confirm(`Reject ${applicant.worker_name}?`)) {
+                              handleReject(applicant.interest_id);
+                            }
+                          }}
+                          disabled={hasPendingEdit}
+                          className={`p-2 rounded-lg transition-all shadow-sm ${
+                            hasPendingEdit
+                              ? 'bg-gray-100 text-gray-400 dark:bg-white/10 dark:text-white/40 cursor-not-allowed'
+                              : 'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 hover:bg-red-200 dark:hover:bg-red-500/30'
+                          }`}
+                          title={hasPendingEdit ? "Cannot reject while edit response is pending" : "Reject this applicant"}
+                        >
+                          ✗
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -291,15 +383,15 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
               {applicants.filter(a => a.status === 'rejected').map((applicant) => (
                 <div 
                   key={applicant.interest_id}
-                  className="bg-red-500/10 backdrop-blur-xl rounded-2xl p-4 border border-red-400/20 opacity-60"
+                  className="bg-red-50 dark:bg-red-500/10 backdrop-blur-xl rounded-2xl p-4 border border-red-200 dark:border-red-400/20 opacity-60"
                 >
                   <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full bg-red-500/30 flex items-center justify-center text-red-300 text-xl">
+                    <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-500/30 flex items-center justify-center text-red-500 dark:text-red-300 text-xl border border-red-200 dark:border-transparent">
                       ✗
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-lg font-bold text-white/70 mb-1">{applicant.worker_name}</h3>
-                      <p className="text-red-300/70 text-sm">Rejected</p>
+                      <h3 className="text-lg font-bold text-[#4B244A]/70 dark:text-white/70 mb-1">{applicant.worker_name}</h3>
+                      <p className="text-red-600 dark:text-red-300/70 text-sm font-medium">Rejected</p>
                     </div>
                   </div>
                 </div>
@@ -310,11 +402,11 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
 
         {/* Start Job Button - Only shows when exact number is selected */}
         {canStartJob && selectedWorkers.size > 0 && (
-          <div className="sticky bottom-0 p-6 bg-gradient-to-t from-[#4B244A] to-transparent pt-12">
+          <div className="sticky bottom-0 p-6 bg-gradient-to-t from-[#E8E4E1] dark:from-[#4B244A] to-transparent pt-12">
             <button
               onClick={handleStartJob}
               disabled={startingJob}
-              className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-lg rounded-2xl hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/30 disabled:opacity-50 flex items-center justify-center gap-3"
+              className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-lg rounded-2xl hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/30 disabled:opacity-50 flex items-center justify-center gap-3 active:scale-95"
             >
               {startingJob ? (
                 <>
@@ -323,7 +415,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                 </>
               ) : (
                 <>
-                  🚀 Start Job with {selectedWorkers.size} Selected {selectedWorkers.size === 1 ? 'Person' : 'People'}
+                  Start Job with {selectedWorkers.size} Selected {selectedWorkers.size === 1 ? 'Person' : 'People'}
                 </>
               )}
             </button>

@@ -2,6 +2,9 @@
 # Python
 # ===================
 __pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
 *.py[cod]
 *$py.class
 *.so
@@ -29,6 +32,8 @@ build/
 # ===================
 backend/*.py
 !backend/app/**
+backend/app/**/__pycache__/
+backend/app/**/*.pyc
 backend/*.sql
 backend/scripts/
 
@@ -36,6 +41,10 @@ backend/scripts/
 # Node / Frontend
 # ===================
 node_modules/
+.next/
+frontend/.next/
+casaligan_web/.next/
+next-env.d.ts
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*

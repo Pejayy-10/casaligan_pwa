@@ -1,7 +1,53 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
+import { FileText, ImageIcon, RotateCw, DollarSign, ChevronDown } from 'lucide-react';
 import TabBar from '../components/TabBar';
-import type { User } from '../types';
+import { psgcService } from '../services/psgc';
+import type { User, PSGCRegion, PSGCProvince, PSGCCity, PSGCBarangay } from '../types';
+
+type JobBenchmarkSuggestions = {
+  budget: {
+    min: number;
+    recommended: number;
+    max: number;
+  };
+  recommended_people_needed: number;
+  recommended_num_days: number;
+  quick_suggestions: {
+    titles: string[];
+    descriptions: string[];
+    checklist: string[];
+  };
+  meta: {
+    sample_size: number;
+    scope: string;
+    confidence: 'high' | 'medium' | 'low';
+  };
+};
+
+type JobAISuggestions = {
+  source: 'ai' | 'fallback';
+  title_options: string[];
+  description_draft: string;
+  recommended_budget: {
+    min: number;
+    recommended: number;
+    max: number;
+  };
+  recommended_people_needed: number;
+  recommended_num_days: number;
+  meta?: {
+    sample_size: number;
+    scope: string;
+    confidence: 'high' | 'medium' | 'low';
+  };
+};
+
+const resolveUploadUrl = (url: string) => {
+  if (!url) return '';
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
+};
 
 export default function CreateJobPage() {
   const navigate = useNavigate();
@@ -12,6 +58,7 @@ export default function CreateJobPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   
   // Form state
   const [formData, setFormData] = useState({
@@ -30,21 +77,357 @@ export default function CreateJobPage() {
     payment_frequency: 'monthly',
     payment_amount: '',
     payment_dates: ['15', '30'], // For monthly payments
-    payment_method_preference: 'gcash'
+    payment_method_preference: 'gcash',
+    // Recurring schedule fields
+    is_recurring: false,
+    day_of_week: '',
+    start_time: '',
+    end_time: '',
+    frequency: 'weekly',
+    // Multi-day schedule fields
+    num_days: '1',
+    daily_start_time: '',
+    daily_end_time: ''
   });
+  
+  const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
+  const [customCategoryName, setCustomCategoryName] = useState('');
+  const [customCategoryDescription, setCustomCategoryDescription] = useState('');
+  const [addingCategory, setAddingCategory] = useState(false);
   
   const [images, setImages] = useState<string[]>([]);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [categories, setCategories] = useState<Array<{category_id: number, name: string, description: string | null, is_active: boolean}>>([]);
+  const [benchmarkLoading, setBenchmarkLoading] = useState(false);
+  const [benchmarkSuggestions, setBenchmarkSuggestions] = useState<JobBenchmarkSuggestions | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<JobAISuggestions | null>(null);
+  const [regions, setRegions] = useState<PSGCRegion[]>([]);
+  const [provinces, setProvinces] = useState<PSGCProvince[]>([]);
+  const [cities, setCities] = useState<PSGCCity[]>([]);
+  const [barangays, setBarangays] = useState<PSGCBarangay[]>([]);
+  const [locationData, setLocationData] = useState({
+    region_code: '',
+    region_name: '',
+    province_code: '',
+    province_name: '',
+    city_code: '',
+    city_name: '',
+    barangay_code: '',
+    barangay_name: '',
+    street_address: '',
+    subdivision: '',
+    zip_code: '',
+  });
 
   useEffect(() => {
     if (!user) {
       navigate('/login');
     } else if (!user.is_owner) {
       navigate('/dashboard');
+    } else {
+      loadCategories();
+      loadRegions();
     }
   }, [user, navigate]);
 
+  useEffect(() => {
+    const shouldFetch = !!formData.cleaning_type && !!formData.house_type && !!formData.duration_type;
+    if (!shouldFetch) {
+      setBenchmarkSuggestions(null);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      fetchBenchmarkSuggestions();
+    }, 300);
+
+    return () => clearTimeout(timeout);
+  }, [formData.cleaning_type, formData.house_type, formData.duration_type, locationData.city_name]);
+
+  useEffect(() => {
+    const hasCategoryContext = selectedCategories.length > 0 && !!formData.cleaning_type && !!formData.house_type;
+    const hasTextContext = formData.title.trim().length >= 8 && formData.description.trim().length >= 20;
+
+    if (!hasCategoryContext && !hasTextContext) {
+      setAiSuggestions(null);
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      fetchAISuggestions();
+    }, 700);
+
+    return () => clearTimeout(timeout);
+  }, [
+    selectedCategories,
+    categories,
+    formData.title,
+    formData.description,
+    formData.house_type,
+    formData.cleaning_type,
+    formData.duration_type,
+    formData.people_needed,
+    formData.num_days,
+    locationData.city_name,
+  ]);
+
+  const fetchBenchmarkSuggestions = async () => {
+    try {
+      setBenchmarkLoading(true);
+      const token = localStorage.getItem('access_token');
+      const params = new URLSearchParams({
+        cleaning_type: formData.cleaning_type,
+        house_type: formData.house_type,
+        duration_type: formData.duration_type,
+      });
+      if (locationData.city_name) {
+        params.append('city_name', locationData.city_name);
+      }
+      params.append('people_needed', formData.people_needed || '1');
+
+      const response = await fetch(`${API_BASE_URL}/jobs/benchmark/suggestions?${params.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setBenchmarkSuggestions(data);
+      }
+    } catch (benchmarkError) {
+      console.error('Failed to fetch benchmark suggestions:', benchmarkError);
+      setBenchmarkSuggestions(null);
+    } finally {
+      setBenchmarkLoading(false);
+    }
+  };
+
+  const fetchAISuggestions = async () => {
+    try {
+      setAiLoading(true);
+      const token = localStorage.getItem('access_token');
+      const selectedCategoryNames = categories
+        .filter((cat) => selectedCategories.includes(cat.category_id))
+        .map((cat) => cat.name);
+
+      const hasTextContext = formData.title.trim().length >= 8 && formData.description.trim().length >= 20;
+      const hasCategoryContext = selectedCategoryNames.length > 0;
+      const mode = hasTextContext && hasCategoryContext
+        ? 'auto'
+        : hasTextContext
+          ? 'from_text'
+          : 'from_categories';
+
+      const response = await fetch(`${API_BASE_URL}/jobs/ai-suggest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          mode,
+          title: formData.title,
+          description: formData.description,
+          house_type: formData.house_type,
+          cleaning_type: formData.cleaning_type,
+          duration_type: formData.duration_type,
+          city_name: locationData.city_name || undefined,
+          categories: selectedCategoryNames,
+          budget: formData.budget ? Number(formData.budget) : undefined,
+          people_needed: formData.people_needed ? Number(formData.people_needed) : undefined,
+          num_days: formData.num_days ? Number(formData.num_days) : undefined,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setAiSuggestions(data);
+      }
+    } catch (aiError) {
+      console.error('Failed to fetch AI suggestions:', aiError);
+      setAiSuggestions(null);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const loadRegions = async () => {
+    try {
+      const data = await psgcService.getRegions();
+      setRegions(data);
+    } catch (error) {
+      console.error('Failed to load regions:', error);
+    }
+  };
+
+  const handleRegionChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const regionCode = e.target.value;
+    const region = regions.find((r) => r.code === regionCode);
+
+    setLocationData((prev) => ({
+      ...prev,
+      region_code: regionCode,
+      region_name: region?.name || '',
+      province_code: '',
+      province_name: '',
+      city_code: '',
+      city_name: '',
+      barangay_code: '',
+      barangay_name: '',
+    }));
+
+    setProvinces([]);
+    setCities([]);
+    setBarangays([]);
+
+    if (regionCode) {
+      try {
+        const data = await psgcService.getProvinces(regionCode);
+        setProvinces(data);
+      } catch (error) {
+        console.error('Failed to load provinces:', error);
+      }
+    }
+  };
+
+  const handleProvinceChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const provinceCode = e.target.value;
+    const province = provinces.find((p) => p.code === provinceCode);
+
+    setLocationData((prev) => ({
+      ...prev,
+      province_code: provinceCode,
+      province_name: province?.name || '',
+      city_code: '',
+      city_name: '',
+      barangay_code: '',
+      barangay_name: '',
+    }));
+
+    setCities([]);
+    setBarangays([]);
+
+    if (provinceCode) {
+      try {
+        const data = await psgcService.getCities(provinceCode);
+        setCities(data);
+      } catch (error) {
+        console.error('Failed to load cities:', error);
+      }
+    }
+  };
+
+  const handleCityChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const cityCode = e.target.value;
+    const city = cities.find((c) => c.code === cityCode);
+
+    setLocationData((prev) => ({
+      ...prev,
+      city_code: cityCode,
+      city_name: city?.name || '',
+      barangay_code: '',
+      barangay_name: '',
+    }));
+
+    setBarangays([]);
+
+    if (cityCode) {
+      try {
+        const data = await psgcService.getBarangays(cityCode);
+        setBarangays(data);
+      } catch (error) {
+        console.error('Failed to load barangays:', error);
+      }
+    }
+  };
+
+  const handleBarangayChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const barangayCode = e.target.value;
+    const barangay = barangays.find((b) => b.code === barangayCode);
+    setLocationData((prev) => ({
+      ...prev,
+      barangay_code: barangayCode,
+      barangay_name: barangay?.name || '',
+    }));
+  };
+
+  const loadCategories = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      // Use owner-categories endpoint to include this owner's custom categories
+      const response = await fetch(`${API_BASE_URL}/categories/owner-categories?active_only=true`, {
+        headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      } else {
+        // Fallback to public endpoint if owner-categories fails (e.g. no token)
+        const fallback = await fetch(`${API_BASE_URL}/categories/?active_only=true`);
+        if (fallback.ok) {
+          const data = await fallback.json();
+          setCategories(data);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+    }
+  };
+
+  const handleAddCustomCategory = async () => {
+    if (!customCategoryName.trim()) {
+      alert('Please enter a category name');
+      return;
+    }
+
+    try {
+      setAddingCategory(true);
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/categories/owner-custom`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: customCategoryName.trim(),
+          description: customCategoryDescription.trim() || null
+        })
+      });
+
+      if (response.ok) {
+        const newCategory = await response.json();
+        setCategories((prev) => {
+          if (prev.some((c) => c.category_id === newCategory.category_id)) {
+            return prev;
+          }
+          return [...prev, newCategory].sort((a, b) => a.name.localeCompare(b.name));
+        });
+        setSelectedCategories((prev) =>
+          prev.includes(newCategory.category_id) ? prev : [...prev, newCategory.category_id]
+        );
+        setCustomCategoryName('');
+        setCustomCategoryDescription('');
+      } else {
+        const errorData = await response.json();
+        alert(errorData.detail || 'Failed to create category');
+      }
+    } catch (error) {
+      console.error('Failed to create custom category:', error);
+      alert('Failed to create category');
+    } finally {
+      setAddingCategory(false);
+    }
+  };
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    if (fieldErrors[e.target.name]) {
+      setFieldErrors(prev => {
+        const next = { ...prev };
+        delete next[e.target.name];
+        return next;
+      });
+    }
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
@@ -66,7 +449,7 @@ export default function CreateJobPage() {
       formData.append('file', file);
 
       try {
-        const response = await fetch('http://127.0.0.1:8000/upload/image?category=job', {
+        const response = await fetch(`${API_BASE_URL}/upload/image?category=job`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -77,7 +460,7 @@ export default function CreateJobPage() {
         if (response.ok) {
           const data = await response.json();
           // Store full URL for preview, but we'll send relative URL to backend
-          setImages(prev => [...prev, `http://127.0.0.1:8000${data.url}`]);
+          setImages(prev => [...prev, resolveUploadUrl(data.url)]);
         } else {
           console.error('Failed to upload image');
         }
@@ -94,13 +477,128 @@ export default function CreateJobPage() {
     setImages(images.filter((_, i) => i !== index));
   };
 
+  const parseTimeToMinutes = (value: string) => {
+    const [h, m] = value.split(':').map(Number);
+    return (h * 60) + m;
+  };
+
+  const validateDateAndTimeRules = (): Record<string, string> => {
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    const minDurationMinutes = 60;
+    const errors: Record<string, string> = {};
+
+    if (formData.duration_type === 'short_term') {
+      if (!formData.job_date) errors.job_date = 'Job date is required.';
+      if (formData.job_date && formData.job_date < todayStr) errors.job_date = 'Job date cannot be in the past.';
+    }
+
+    if (formData.duration_type === 'long_term') {
+      if (!formData.start_date || !formData.end_date) {
+        if (!formData.start_date) errors.start_date = 'Start date is required.';
+        if (!formData.end_date) errors.end_date = 'End date is required.';
+      }
+      if (formData.start_date && formData.start_date < todayStr) {
+        errors.start_date = 'Start date cannot be in the past.';
+      }
+      if (formData.start_date && formData.end_date && formData.end_date < formData.start_date) {
+        errors.end_date = 'End date cannot be earlier than start date.';
+      }
+      if (formData.start_date && formData.end_date && formData.end_date === formData.start_date) {
+        errors.end_date = 'Long-term jobs should span at least 2 days.';
+      }
+    }
+
+    if (!formData.is_recurring && (formData.daily_start_time || formData.daily_end_time)) {
+      if (!formData.daily_start_time || !formData.daily_end_time) {
+        if (!formData.daily_start_time) errors.daily_start_time = 'Daily start time is required.';
+        if (!formData.daily_end_time) errors.daily_end_time = 'Daily end time is required.';
+      }
+      if (formData.daily_start_time && formData.daily_end_time) {
+        const dailyStart = parseTimeToMinutes(formData.daily_start_time);
+        const dailyEnd = parseTimeToMinutes(formData.daily_end_time);
+        if (dailyEnd <= dailyStart) {
+          errors.daily_end_time = 'Daily end time must be later than daily start time.';
+        } else if ((dailyEnd - dailyStart) < minDurationMinutes) {
+          errors.daily_end_time = 'Daily schedule must be at least 1 hour.';
+        }
+      }
+    }
+
+    if (formData.is_recurring) {
+      if (!formData.day_of_week) errors.day_of_week = 'Please select the recurring day of week.';
+      if (!formData.start_time || !formData.end_time) {
+        if (!formData.start_time) errors.start_time = 'Recurring start time is required.';
+        if (!formData.end_time) errors.end_time = 'Recurring end time is required.';
+      }
+      if (formData.start_time && formData.end_time) {
+        const recurringStart = parseTimeToMinutes(formData.start_time);
+        const recurringEnd = parseTimeToMinutes(formData.end_time);
+        if (recurringEnd <= recurringStart) {
+          errors.end_time = 'Recurring end time must be later than recurring start time.';
+        } else if ((recurringEnd - recurringStart) < minDurationMinutes) {
+          errors.end_time = 'Recurring schedule must be at least 1 hour.';
+        }
+      }
+    }
+
+    return errors;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setFieldErrors({});
+    
+    // Validate at least one category is selected
+    if (selectedCategories.length === 0) {
+      setError('Please select at least one category');
+      return;
+    }
+
+    if (!locationData.region_code || !locationData.province_code || !locationData.city_code || !locationData.barangay_code) {
+      setFieldErrors({ location: 'Please select complete location details (region, province, city/municipality, barangay).' });
+      return;
+    }
+
+    const validationErrors = validateDateAndTimeRules();
+    if (Object.keys(validationErrors).length > 0) {
+      setFieldErrors(validationErrors);
+      return;
+    }
+
+    // Validate short-term num_days limit
+    if (formData.duration_type === 'short_term') {
+      const numDays = parseInt(formData.num_days) || 1;
+      if (numDays > 13) {
+        setFieldErrors({ num_days: 'Short-term jobs can have a maximum of 13 days. For 14+ days, please select Long Term.' });
+        return;
+      }
+    }
+
+    // Validate long-term end date is at least 14 days from start date
+    if (formData.duration_type === 'long_term' && formData.start_date && formData.end_date) {
+      const startMs = new Date(formData.start_date).getTime();
+      const endMs = new Date(formData.end_date).getTime();
+      const diffDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
+      if (diffDays < 14) {
+        setFieldErrors({ end_date: 'Long-term jobs must have an end date at least 14 days after the start date.' });
+        return;
+      }
+    }
+    
     setLoading(true);
 
     try {
       const token = localStorage.getItem('access_token');
+      const locationParts = [
+        locationData.street_address?.trim(),
+        locationData.subdivision?.trim(),
+        locationData.barangay_name,
+        locationData.city_name,
+        locationData.province_name,
+      ].filter(Boolean);
+      const formattedLocation = locationParts.join(', ');
       
       const jobData: Record<string, unknown> = {
         title: formData.title,
@@ -111,8 +609,8 @@ export default function CreateJobPage() {
         people_needed: parseInt(formData.people_needed),
         image_urls: images,
         duration_type: formData.duration_type,
-        location: formData.location || null,
-        category: 'cleaning'
+        location: formattedLocation || null,
+        category_ids: selectedCategories
       };
       
       // For short-term jobs, use job_date as both start and end date
@@ -126,15 +624,46 @@ export default function CreateJobPage() {
       
       // Add payment schedule for long-term jobs
       if (formData.duration_type === 'long_term') {
+        // Budget is total per person for the entire contract
+        // Compute per-cycle installment from daily rate
+        const totalBudget = parseFloat(formData.budget);
+        let perCycleAmount = totalBudget;
+        if (formData.start_date && formData.end_date) {
+          const totalDays = Math.round((new Date(formData.end_date).getTime() - new Date(formData.start_date).getTime()) / (1000 * 60 * 60 * 24));
+          const cycleDays = formData.payment_frequency === 'biweekly' ? 14 : 30;
+          const dailyRate = totalBudget / totalDays;
+          perCycleAmount = Math.round(dailyRate * cycleDays * 100) / 100;
+        }
         jobData.payment_schedule = {
           frequency: formData.payment_frequency,
-          payment_amount: parseFloat(formData.payment_amount),
+          payment_amount: perCycleAmount,
           payment_dates: formData.payment_dates,
           payment_method_preference: formData.payment_method_preference
         };
       }
       
-      const response = await fetch('http://127.0.0.1:8000/jobs/', {
+      // Add recurring schedule if enabled
+      if (formData.is_recurring) {
+        jobData.recurring_schedule = {
+          is_recurring: true,
+          day_of_week: formData.day_of_week,
+          start_time: formData.start_time,
+          end_time: formData.end_time,
+          frequency: formData.frequency
+        };
+      }
+      
+      // Add multi-day schedule if num_days > 1 or daily times are specified
+      const numDays = parseInt(formData.num_days) || 1;
+      if (!formData.is_recurring && numDays >= 1 && formData.daily_start_time && formData.daily_end_time) {
+        jobData.multi_day_schedule = {
+          num_days: numDays,
+          daily_start_time: formData.daily_start_time,
+          daily_end_time: formData.daily_end_time
+        };
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/jobs/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -159,24 +688,38 @@ export default function CreateJobPage() {
 
   if (!user) return null;
 
+  // Shared styles
+  const inputClass = "w-full px-4 py-3 bg-white/50 dark:bg-white/10 backdrop-blur-sm border border-gray-200 dark:border-white/20 rounded-xl text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]";
+  const labelClass = "block text-[#4B244A] dark:text-white font-bold mb-2";
+  const cardClass = "bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-6 border border-white/50 dark:border-white/10 shadow-lg";
+  // Added class for options to ensure visibility in dropdowns
+  const optionClass = "text-gray-900 dark:text-gray-900";
+
   return (
-    <div className="min-h-screen bg-linear-to-br from-[#4B244A] via-[#6B3468] to-[#4B244A] pb-20">
-      {/* Decorative circles */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 left-0 w-96 h-96 bg-[#EA526F] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob"></div>
-        <div className="absolute top-0 right-0 w-96 h-96 bg-yellow-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-2000"></div>
-        <div className="absolute bottom-0 left-1/2 w-96 h-96 bg-pink-300 rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-blob animation-delay-4000"></div>
+    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300 pb-20 relative">
+      {/* Decorative Background Elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-[#EA526F]/10 rounded-full blur-[100px]" />
+        <div className="absolute top-[20%] right-[-10%] w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-[100px]" />
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-blue-400/10 rounded-full blur-[120px]" />
       </div>
 
       {/* Header */}
-      <header className="relative z-10 bg-white/10 backdrop-blur-xl border-b border-white/20">
-        <div className="max-w-7xl mx-auto px-4 py-4 flex items-center">
-          <button onClick={() => navigate('/jobs')} className="text-white mr-4">
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
+      <header className="relative z-10 bg-gray-50 dark:bg-white/10 dark:backdrop-blur-xl border-b border-gray-200 dark:border-white/20 transition-all safe-area-top">
+        <div className="max-w-4xl mx-auto px-4 py-3 space-y-4">
+          <div className="flex items-center gap-3">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-600 dark:text-white transition-colors active:scale-95"
+          >
+          <ChevronDown className="w-6 h-6 rotate-90" />
           </button>
-          <h1 className="text-2xl font-bold text-white">📝 Post a Job</h1>
+          <h1 className="text-xl font-bold text-[#4B244A] dark:text-white tracking-tight">
+            Post a Job
+          </h1>
+          {/* placeholder to balance flex */}
+          <div className="w-12" />
+        </div>
         </div>
       </header>
 
@@ -184,134 +727,405 @@ export default function CreateJobPage() {
       <main className="relative z-10 max-w-3xl mx-auto px-4 py-6">
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
-            <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4">
-              <p className="text-red-200 text-sm">{error}</p>
+            <div className="bg-red-100 dark:bg-red-500/20 border border-red-200 dark:border-red-500/50 rounded-xl p-4">
+              <p className="text-red-600 dark:text-red-200 text-sm font-medium">{error}</p>
             </div>
           )}
 
           {/* Basic Info Card */}
-          <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 space-y-4">
-            <h2 className="text-xl font-bold text-white mb-4">Basic Information</h2>
+          <div className={cardClass}>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">Basic Information</h2>
             
-            <div>
-              <label className="block text-white font-semibold mb-2">Job Title *</label>
-              <input
-                type="text"
-                name="title"
-                value={formData.title}
-                onChange={handleInputChange}
-                required
-                minLength={5}
-                placeholder="e.g., Deep Cleaning Needed for 2-Bedroom Condo"
-                className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-              />
-            </div>
+            <div className="space-y-4">
+              <div>
+                <label className={labelClass}>Job Title *</label>
+                <input
+                  type="text"
+                  name="title"
+                  value={formData.title}
+                  onChange={handleInputChange}
+                  required
+                  minLength={5}
+                  placeholder="e.g., Deep Cleaning Needed for 2-Bedroom Condo"
+                  className={inputClass}
+                />
+              </div>
 
-            <div>
-              <label className="block text-white font-semibold mb-2">Description *</label>
-              <textarea
-                name="description"
-                value={formData.description}
-                onChange={handleInputChange}
-                required
-                minLength={20}
-                rows={4}
-                placeholder="Describe the cleaning job, special requirements, access instructions, etc."
-                className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F] resize-none"
-              />
+              <div>
+                <label className={labelClass}>Description *</label>
+                <textarea
+                  name="description"
+                  value={formData.description}
+                  onChange={handleInputChange}
+                  required
+                  minLength={20}
+                  rows={4}
+                  placeholder="Describe the cleaning job, special requirements, access instructions, etc."
+                  className={`${inputClass} resize-none`}
+                />
+              </div>
             </div>
           </div>
 
           {/* Job Details Card */}
-          <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 space-y-4">
-            <h2 className="text-xl font-bold text-white mb-4">Job Details</h2>
+          <div className={cardClass}>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">Job Details</h2>
             
-            <div>
-              <label className="block text-white font-semibold mb-2">Location *</label>
-              <input
-                type="text"
-                name="location"
-                value={formData.location}
-                onChange={handleInputChange}
-                required
-                placeholder="e.g., Quezon City, Metro Manila or specific barangay"
-                className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-              />
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-white font-semibold mb-2">House Type *</label>
-                <select
-                  name="house_type"
-                  value={formData.house_type}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                >
-                  <option value="house">House</option>
-                  <option value="apartment">Apartment</option>
-                  <option value="condo">Condominium</option>
-                  <option value="townhouse">Townhouse</option>
-                  <option value="office">Office</option>
-                  <option value="other">Other</option>
-                </select>
+            <div className="space-y-4">
+              <div className="md:col-span-2 space-y-3">
+                <label className={labelClass}>Location *</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <select
+                    value={locationData.region_code}
+                    onChange={handleRegionChange}
+                    className={inputClass}
+                  >
+                    <option value="" className={optionClass}>Select Region</option>
+                    {regions.map((region) => (
+                      <option key={region.code} value={region.code} className={optionClass}>{region.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={locationData.province_code}
+                    onChange={handleProvinceChange}
+                    disabled={!locationData.region_code}
+                    className={inputClass}
+                  >
+                    <option value="" className={optionClass}>Select Province</option>
+                    {provinces.map((province) => (
+                      <option key={province.code} value={province.code} className={optionClass}>{province.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={locationData.city_code}
+                    onChange={handleCityChange}
+                    disabled={!locationData.province_code}
+                    className={inputClass}
+                  >
+                    <option value="" className={optionClass}>Select City/Municipality</option>
+                    {cities.map((city) => (
+                      <option key={city.code} value={city.code} className={optionClass}>{city.name}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={locationData.barangay_code}
+                    onChange={handleBarangayChange}
+                    disabled={!locationData.city_code}
+                    className={inputClass}
+                  >
+                    <option value="" className={optionClass}>Select Barangay</option>
+                    {barangays.map((barangay) => (
+                      <option key={barangay.code} value={barangay.code} className={optionClass}>{barangay.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={locationData.street_address}
+                    onChange={(e) => setLocationData((prev) => ({ ...prev, street_address: e.target.value }))}
+                    placeholder="Street address (optional)"
+                    className={inputClass}
+                  />
+                  <input
+                    type="text"
+                    value={locationData.subdivision}
+                    onChange={(e) => setLocationData((prev) => ({ ...prev, subdivision: e.target.value }))}
+                    placeholder="Subdivision/Village (optional)"
+                    className={inputClass}
+                  />
+                </div>
+                {fieldErrors.location && (
+                  <p className="text-red-500 text-sm mt-1">{fieldErrors.location}</p>
+                )}
+                {locationData.barangay_name && locationData.city_name && locationData.province_name && (
+                  <p className="text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">
+                    Selected location: {[locationData.barangay_name, locationData.city_name, locationData.province_name].filter(Boolean).join(', ')}
+                  </p>
+                )}
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className={labelClass}>House Type *</label>
+                  <select
+                    name="house_type"
+                    value={formData.house_type}
+                    onChange={handleInputChange}
+                    className={inputClass}
+                  >
+                    <option value="house" className={optionClass}>House</option>
+                    <option value="apartment" className={optionClass}>Apartment</option>
+                    <option value="condo" className={optionClass}>Condominium</option>
+                    <option value="townhouse" className={optionClass}>Townhouse</option>
+                    <option value="office" className={optionClass}>Office</option>
+                    <option value="other" className={optionClass}>Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Cleaning Type *</label>
+                  <select
+                    name="cleaning_type"
+                    value={formData.cleaning_type}
+                    onChange={handleInputChange}
+                    className={inputClass}
+                  >
+                    <option value="general" className={optionClass}>General Cleaning</option>
+                    <option value="deep_cleaning" className={optionClass}>Deep Cleaning</option>
+                    <option value="move_in_out" className={optionClass}>Move In/Out Cleaning</option>
+                    <option value="post_construction" className={optionClass}>Post-Construction Cleaning</option>
+                    <option value="spring_cleaning" className={optionClass}>Spring Cleaning</option>
+                    <option value="maintenance" className={optionClass}>Regular Maintenance</option>
+                  </select>
+                </div>
+
+                <div className="md:col-span-2 p-4 sm:p-5 bg-linear-to-br from-white/70 to-blue-50 dark:from-slate-900/70 dark:to-blue-500/10 border border-blue-200/70 dark:border-blue-500/30 rounded-2xl shadow-sm">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <p className="text-blue-700 dark:text-blue-200 text-sm font-bold">Smart Suggestions</p>
+                      <p className="text-[#4B244A]/70 dark:text-white/70 text-xs">Suggestions are assistive only and won’t overwrite fields unless you apply them.</p>
+                    </div>
+                    {benchmarkLoading && <span className="text-blue-600 dark:text-blue-300 text-xs font-semibold">Updating...</span>}
+                  </div>
+
+                  {benchmarkSuggestions ? (
+                    <div className="space-y-4">
+                      <p className="text-blue-700 dark:text-blue-200 text-xs leading-relaxed">
+                        Based on {benchmarkSuggestions.meta.sample_size} similar completed jobs • Scope: {benchmarkSuggestions.meta.scope} • Confidence: {benchmarkSuggestions.meta.confidence}
+                      </p>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                        <div className="p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl">
+                          <p className="text-[#4B244A] dark:text-white text-[11px] font-semibold uppercase tracking-wide">Budget range</p>
+                          <p className="text-[#4B244A]/85 dark:text-white/85 text-sm font-bold mt-1">₱{Math.round(benchmarkSuggestions.budget.min)} - ₱{Math.round(benchmarkSuggestions.budget.max)}</p>
+                        </div>
+                        <div className="p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl">
+                          <p className="text-[#4B244A] dark:text-white text-[11px] font-semibold uppercase tracking-wide">Recommended workers</p>
+                          <p className="text-[#4B244A]/85 dark:text-white/85 text-sm font-bold mt-1">{benchmarkSuggestions.recommended_people_needed} worker(s)</p>
+                        </div>
+                        <div className="p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl">
+                          <p className="text-[#4B244A] dark:text-white text-[11px] font-semibold uppercase tracking-wide">Recommended days</p>
+                          <p className="text-[#4B244A]/85 dark:text-white/85 text-sm font-bold mt-1">{Math.max(1, Math.min(13, benchmarkSuggestions.recommended_num_days))} day(s)</p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({
+                          ...prev,
+                          budget: String(Math.round(benchmarkSuggestions.budget.recommended)),
+                          people_needed: String(benchmarkSuggestions.recommended_people_needed),
+                          ...(formData.duration_type === 'short_term'
+                            ? { num_days: String(Math.max(1, Math.min(13, benchmarkSuggestions.recommended_num_days))) }
+                            : {}),
+                        }))}
+                        className="w-full p-3.5 bg-[#EA526F] text-white text-sm font-bold rounded-xl hover:bg-[#d64460] transition-colors shadow-sm"
+                      >
+                        Apply all recommended values
+                      </button>
+
+                      <div className="space-y-2">
+                        <p className="text-[#4B244A] dark:text-white text-xs font-semibold">Quick title ideas</p>
+                        <div className="flex flex-wrap gap-2">
+                          {benchmarkSuggestions.quick_suggestions.titles.map((title, idx) => (
+                            <button
+                              key={idx}
+                              type="button"
+                              onClick={() => setFormData(prev => ({ ...prev, title }))}
+                              className="px-3 py-1.5 text-xs bg-white/90 dark:bg-white/10 border border-blue-200/80 dark:border-blue-500/20 rounded-full text-[#4B244A] dark:text-white hover:bg-white dark:hover:bg-white/20 transition-colors"
+                            >
+                              {title}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-[#4B244A] dark:text-white text-xs font-semibold">Quick description starter</p>
+                        <button
+                          type="button"
+                          onClick={() => setFormData(prev => ({
+                            ...prev,
+                            description: benchmarkSuggestions.quick_suggestions.descriptions.join(' '),
+                          }))}
+                          className="w-full text-left p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl hover:bg-white dark:hover:bg-white/10 transition-colors"
+                        >
+                          <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">Apply a pre-filled description based on similar jobs</p>
+                        </button>
+                      </div>
+
+                      <div className="pt-3 border-t border-blue-200/70 dark:border-blue-500/20 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[#4B244A] dark:text-white text-xs font-semibold">AI assistant suggestions</p>
+                          {aiLoading && <span className="text-[#4B244A]/70 dark:text-white/70 text-xs font-semibold">Analyzing...</span>}
+                        </div>
+
+                        {aiSuggestions ? (
+                          <div className="space-y-2.5 p-3 bg-white/60 dark:bg-white/5 border border-blue-200/60 dark:border-blue-500/20 rounded-xl">
+                            <p className="text-[#4B244A]/70 dark:text-white/70 text-xs">
+                              Source: {aiSuggestions.source === 'ai' ? 'AI-generated' : 'Smart fallback'}
+                            </p>
+
+                            {aiSuggestions.title_options?.length > 0 && (
+                              <div className="flex flex-wrap gap-2">
+                                {aiSuggestions.title_options.map((title, idx) => (
+                                  <button
+                                    key={`ai-title-${idx}`}
+                                    type="button"
+                                    onClick={() => setFormData(prev => ({ ...prev, title }))}
+                                    className="px-3 py-1.5 text-xs bg-white/90 dark:bg-white/10 border border-blue-200/80 dark:border-blue-500/20 rounded-full text-[#4B244A] dark:text-white hover:bg-white dark:hover:bg-white/20 transition-colors"
+                                  >
+                                    {title}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+
+                            {!!aiSuggestions.description_draft && (
+                              <button
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, description: aiSuggestions.description_draft }))}
+                                className="w-full text-left p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl hover:bg-white dark:hover:bg-white/10 transition-colors"
+                              >
+                                <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">Use AI description draft</p>
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="text-[#4B244A]/70 dark:text-white/70 text-xs">
+                            Select categories or type title and description to get AI suggestions.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-blue-700 dark:text-blue-200 text-xs">Suggestions will appear after selecting house type and cleaning type.</p>
+                  )}
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className={labelClass}>Categories * (Select one or more)</label>
+                  <div className="mb-3 p-3 bg-white/40 dark:bg-slate-800/40 rounded-xl border border-gray-200 dark:border-white/10 space-y-2">
+                    <p className="text-[#4B244A]/70 dark:text-white/70 text-xs font-medium">Add custom category</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="text"
+                        value={customCategoryName}
+                        onChange={(e) => setCustomCategoryName(e.target.value)}
+                        placeholder="Category name"
+                        className={`${inputClass} py-2! text-sm`}
+                      />
+                      <input
+                        type="text"
+                        value={customCategoryDescription}
+                        onChange={(e) => setCustomCategoryDescription(e.target.value)}
+                        placeholder="Description (optional)"
+                        className={`${inputClass} py-2! text-sm`}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddCustomCategory}
+                      disabled={addingCategory}
+                      className="px-3 py-2 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d64460] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {addingCategory ? 'Adding...' : 'Add Category'}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {categories.map(cat => (
+                      <label
+                        key={cat.category_id}
+                        className="flex items-center p-3 bg-white/50 dark:bg-white/5 backdrop-blur-sm border border-gray-200 dark:border-white/20 rounded-xl cursor-pointer hover:bg-[#EA526F]/10 dark:hover:bg-[#EA526F]/20 transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedCategories.includes(cat.category_id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedCategories([...selectedCategories, cat.category_id]);
+                            } else {
+                              setSelectedCategories(selectedCategories.filter(id => id !== cat.category_id));
+                            }
+                          }}
+                          className="w-5 h-5 text-[#EA526F] bg-white/50 dark:bg-white/10 border-gray-300 dark:border-white/30 rounded focus:ring-[#EA526F] focus:ring-2"
+                        />
+                        <span className="ml-3 text-[#4B244A] dark:text-white font-medium">{cat.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  {selectedCategories.length === 0 && (
+                    <p className="text-red-500 text-sm mt-2">Please select at least one category</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className={labelClass}>Budget (₱) *</label>
+                  <input
+                    type="number"
+                    name="budget"
+                    value={formData.budget}
+                    onChange={handleInputChange}
+                    required
+                    min="100"
+                    step="50"
+                    placeholder="5000"
+                    className={inputClass}
+                  />
+                  {(aiSuggestions || benchmarkSuggestions) && (
+                    <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                      <p className="text-[#4B244A]/70 dark:text-white/70">
+                        Suggested: ₱{Math.round(aiSuggestions?.recommended_budget?.recommended ?? benchmarkSuggestions?.budget.recommended ?? 0).toLocaleString()} (range ₱{Math.round(aiSuggestions?.recommended_budget?.min ?? benchmarkSuggestions?.budget.min ?? 0).toLocaleString()} - ₱{Math.round(aiSuggestions?.recommended_budget?.max ?? benchmarkSuggestions?.budget.max ?? 0).toLocaleString()})
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, budget: String(Math.round(aiSuggestions?.recommended_budget?.recommended ?? benchmarkSuggestions?.budget.recommended ?? 0)) }))}
+                        className="shrink-0 px-2.5 py-1 rounded-md bg-[#EA526F] text-white font-semibold hover:bg-[#d64460] transition-colors"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className={labelClass}>People Needed *</label>
+                  <input
+                    type="number"
+                    name="people_needed"
+                    value={formData.people_needed}
+                    onChange={handleInputChange}
+                    required
+                    min="1"
+                    max="10"
+                    className={inputClass}
+                  />
+                  {(aiSuggestions || benchmarkSuggestions) && (
+                    <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                      <p className="text-[#4B244A]/70 dark:text-white/70">
+                        Suggested: {aiSuggestions?.recommended_people_needed ?? benchmarkSuggestions?.recommended_people_needed ?? 1} worker(s)
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setFormData(prev => ({ ...prev, people_needed: String(aiSuggestions?.recommended_people_needed ?? benchmarkSuggestions?.recommended_people_needed ?? 1) }))}
+                        className="shrink-0 px-2.5 py-1 rounded-md bg-[#EA526F] text-white font-semibold hover:bg-[#d64460] transition-colors"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div>
-                <label className="block text-white font-semibold mb-2">Cleaning Type *</label>
-                <select
-                  name="cleaning_type"
-                  value={formData.cleaning_type}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                >
-                  <option value="general">General Cleaning</option>
-                  <option value="deep_cleaning">Deep Cleaning</option>
-                  <option value="move_in_out">Move In/Out Cleaning</option>
-                  <option value="post_construction">Post-Construction Cleaning</option>
-                  <option value="spring_cleaning">Spring Cleaning</option>
-                  <option value="maintenance">Regular Maintenance</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-white font-semibold mb-2">Budget (₱) *</label>
-                <input
-                  type="number"
-                  name="budget"
-                  value={formData.budget}
-                  onChange={handleInputChange}
-                  required
-                  min="100"
-                  step="50"
-                  placeholder="5000"
-                  className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-white font-semibold mb-2">People Needed *</label>
-                <input
-                  type="number"
-                  name="people_needed"
-                  value={formData.people_needed}
-                  onChange={handleInputChange}
-                  required
-                  min="1"
-                  max="10"
-                  className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                />
-              </div>
             </div>
           </div>
 
           {/* Images Card */}
-          <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 space-y-4">
-            <h2 className="text-xl font-bold text-white mb-4">📷 Area Photos (Optional)</h2>
-            <p className="text-white/70 text-sm mb-4">Add up to 5 photos of the area to be cleaned</p>
+          <div className={cardClass}>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">Area Photos (Optional)</h2>
+            <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mb-4">Add up to 5 photos of the area to be cleaned</p>
             
             <div className="flex flex-col gap-3">
-              <label className="flex items-center justify-center gap-2 px-6 py-4 bg-white/20 backdrop-blur-sm border-2 border-dashed border-white/30 rounded-xl text-white cursor-pointer hover:bg-white/30 transition-all">
+              <label className="flex items-center justify-center gap-2 px-6 py-4 bg-white/50 dark:bg-white/10 backdrop-blur-sm border-2 border-dashed border-gray-300 dark:border-white/30 rounded-xl text-[#4B244A] dark:text-white cursor-pointer hover:bg-white/80 dark:hover:bg-white/20 transition-all font-medium">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
@@ -328,14 +1142,14 @@ export default function CreateJobPage() {
             </div>
 
             {images.length > 0 && (
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-3 mt-4">
                 {images.map((url, index) => (
-                  <div key={index} className="relative bg-white/10 rounded-lg p-2">
+                  <div key={index} className="relative bg-white/50 dark:bg-white/10 rounded-lg p-2 border border-gray-200 dark:border-white/10">
                     <img src={url} alt={`Preview ${index + 1}`} className="w-full h-32 object-cover rounded" />
                     <button
                       type="button"
                       onClick={() => handleRemoveImage(index)}
-                      className="absolute top-3 right-3 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      className="absolute top-3 right-3 bg-red-500 text-white rounded-full p-1 hover:bg-red-600 transition-colors shadow-sm"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -348,63 +1162,390 @@ export default function CreateJobPage() {
           </div>
 
           {/* Duration Card */}
-          <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 space-y-4">
-            <h2 className="text-xl font-bold text-white mb-4">Duration</h2>
+          <div className={cardClass}>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white mb-4">Duration</h2>
             
             <div>
-              <label className="block text-white font-semibold mb-2">Job Duration *</label>
+              <label className={labelClass}>Job Duration *</label>
               <select
                 name="duration_type"
                 value={formData.duration_type}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setFormData(prev => ({
+                    ...prev,
+                    duration_type: val,
+                    // Clear recurring state when switching to long-term
+                    ...(val === 'long_term' ? { is_recurring: false, day_of_week: '' } : {})
+                  }));
+                }}
+                className={inputClass}
               >
-                <option value="short_term">Short Term (One-time)</option>
-                <option value="long_term">Long Term (Recurring)</option>
+                <option value="short_term" className={optionClass}>Short Term (1–13 days)</option>
+                <option value="long_term" className={optionClass}>Long Term (14+ days)</option>
               </select>
             </div>
 
             {/* Date picker for short-term jobs */}
             {formData.duration_type === 'short_term' && (
-              <div className="mt-4">
-                <label className="block text-white font-semibold mb-2">Job Date *</label>
-                <input
-                  type="date"
-                  name="job_date"
-                  value={formData.job_date}
-                  onChange={handleInputChange}
-                  required={formData.duration_type === 'short_term'}
-                  min={new Date().toISOString().split('T')[0]}
-                  className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                />
-                <p className="text-white/60 text-sm mt-1">When should the housekeeper come?</p>
+              <div className="mt-4 space-y-4">
+                <div>
+                  <label className={labelClass}>Job Date (Start Date) *</label>
+                  <input
+                    type="date"
+                    name="job_date"
+                    value={formData.job_date}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (fieldErrors.job_date) setFieldErrors(prev => { const n = { ...prev }; delete n.job_date; return n; });
+                      // Auto-detect the day and set it as the first recurring day
+                      if (val && formData.is_recurring) {
+                        const weekDays = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+                        const [y, mo, d] = val.split('-').map(Number);
+                        const detected = weekDays[new Date(y, mo - 1, d).getDay()];
+                        const current = formData.day_of_week ? formData.day_of_week.split(',').map(d => d.trim()).filter(Boolean) : [];
+                        const next = current.includes(detected) ? current : [detected, ...current];
+                        setFormData(prev => ({ ...prev, job_date: val, day_of_week: next.join(',') }));
+                      } else {
+                        setFormData(prev => ({ ...prev, job_date: val }));
+                      }
+                    }}
+                    required={formData.duration_type === 'short_term'}
+                    min={new Date().toISOString().split('T')[0]}
+                    className={inputClass}
+                  />
+                  {fieldErrors.job_date && (
+                    <p className="text-red-500 text-sm mt-1">{fieldErrors.job_date}</p>
+                  )}
+                  <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mt-1">When should the housekeeper start?</p>
+                </div>
+
+                {/* Multi-Day Schedule Section */}
+                {!formData.is_recurring && (
+                <div className="bg-purple-50 dark:bg-purple-500/10 border border-purple-200 dark:border-purple-500/30 rounded-xl p-4 space-y-3">
+                  <h3 className="text-purple-800 dark:text-white font-bold text-sm">Job Duration & Daily Hours</h3>
+                  <p className="text-purple-600 dark:text-white/70 text-xs font-medium">
+                    Specify how many days this job will take and the working hours per day.
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div>
+                      <label className={labelClass}>Number of Days *</label>
+                      <input
+                        type="number"
+                        name="num_days"
+                        value={formData.num_days}
+                        onChange={handleInputChange}
+                        min="1"
+                        max="13"
+                        className={inputClass}
+                      />
+                      {fieldErrors.num_days && (
+                        <p className="text-red-500 text-sm mt-1">{fieldErrors.num_days}</p>
+                      )}
+                      <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
+                        Short-term jobs can be up to 13 days. For 14+ days, select Long Term.
+                      </p>
+                      {(aiSuggestions || benchmarkSuggestions) && (
+                        <div className="mt-2 flex items-center justify-between gap-2 text-xs">
+                          <p className="text-[#4B244A]/70 dark:text-white/70">
+                            Suggested: {Math.max(1, Math.min(13, aiSuggestions?.recommended_num_days ?? benchmarkSuggestions?.recommended_num_days ?? 1))} day(s)
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({ ...prev, num_days: String(Math.max(1, Math.min(13, aiSuggestions?.recommended_num_days ?? benchmarkSuggestions?.recommended_num_days ?? 1))) }))}
+                            className="shrink-0 px-2.5 py-1 rounded-md bg-[#EA526F] text-white font-semibold hover:bg-[#d64460] transition-colors"
+                          >
+                            Apply
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    <div>
+                      <label className={labelClass}>Start Time *</label>
+                      <input
+                        type="time"
+                        name="daily_start_time"
+                        value={formData.daily_start_time}
+                        onChange={handleInputChange}
+                        required
+                        className={inputClass}
+                      />
+                      {fieldErrors.daily_start_time && (
+                        <p className="text-red-500 text-sm mt-1">{fieldErrors.daily_start_time}</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className={labelClass}>End Time *</label>
+                      <input
+                        type="time"
+                        name="daily_end_time"
+                        value={formData.daily_end_time}
+                        onChange={handleInputChange}
+                        required
+                        className={inputClass}
+                      />
+                      {fieldErrors.daily_end_time && (
+                        <p className="text-red-500 text-sm mt-1">{fieldErrors.daily_end_time}</p>
+                      )}
+                    </div>
+                  </div>
+                  {parseInt(formData.num_days) > 1 && formData.job_date && (
+                    <div className="bg-white/60 dark:bg-white/5 rounded-lg p-3 text-xs">
+                      <p className="text-purple-800 dark:text-purple-200 font-bold mb-1">
+                        Schedule Preview
+                      </p>
+                      {Array.from({ length: Math.min(parseInt(formData.num_days), 7) }, (_, i) => {
+                        const d = new Date(formData.job_date);
+                        d.setDate(d.getDate() + i);
+                        return (
+                          <p key={i} className="text-purple-700 dark:text-purple-300/80">
+                            Day {i + 1}: {d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                            {formData.daily_start_time && formData.daily_end_time
+                              ? ` • ${formData.daily_start_time} – ${formData.daily_end_time}`
+                              : ''}
+                          </p>
+                        );
+                      })}
+                      {parseInt(formData.num_days) > 7 && (
+                        <p className="text-purple-500 dark:text-purple-400/60 mt-1">
+                          ... and {parseInt(formData.num_days) - 7} more days
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  {parseInt(formData.num_days) > 1 && (
+                    <div className="bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/20 rounded-lg p-3">
+                      <p className="text-blue-700 dark:text-blue-200 text-xs font-medium">
+                        <strong>Multi-day jobs:</strong> Both you and the housekeeper must confirm each day's work is done before the next day is unlocked. The housekeeper can accept other jobs outside these hours.
+                      </p>
+                    </div>
+                  )}
+                </div>
+                )}
+                
+                {/* Recurring Schedule Option */}
+                <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.is_recurring}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setFormData((prev) => ({
+                          ...prev,
+                          is_recurring: checked,
+                          ...(checked
+                            ? {
+                                num_days: '1',
+                                daily_start_time: '',
+                                daily_end_time: ''
+                              }
+                            : {})
+                        }));
+                        if (checked) {
+                          setFieldErrors((prev) => {
+                            const next = { ...prev };
+                            delete next.num_days;
+                            delete next.daily_start_time;
+                            delete next.daily_end_time;
+                            return next;
+                          });
+                        }
+                      }}
+                      className="w-5 h-5 rounded border-gray-300 dark:border-white/30 text-[#EA526F] focus:ring-[#EA526F]"
+                    />
+                    <div>
+                      <span className="text-blue-800 dark:text-white font-bold">Make this a recurring job</span>
+                      <p className="text-blue-600 dark:text-white/70 text-xs mt-1 font-medium">
+                        Set a regular schedule (e.g., every Saturday) so you don't need to post again
+                      </p>
+                    </div>
+                  </label>
+                </div>
+                
+                {formData.is_recurring && (
+                  <div className="bg-white/50 dark:bg-white/10 rounded-xl p-4 space-y-4 border border-gray-200 dark:border-white/20">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="md:col-span-2">
+                        <label className={labelClass}>
+                          Days of Week *
+                          {formData.day_of_week && (
+                            <span className="ml-2 text-[10px] font-bold text-green-600 dark:text-green-400 normal-case">
+                              ✓ {formData.day_of_week.split(',').length === 1 ? 'Auto-detected from date' : `${formData.day_of_week.split(',').length} days selected`}
+                            </span>
+                          )}
+                        </label>
+                        <p className="text-[#4B244A]/60 dark:text-white/60 text-[11px] mb-2 font-medium">
+                          The day from your job date is auto-selected. You can add more days for the recurring schedule.
+                        </p>
+                        <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                          {(['monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as const).map((day) => {
+                            const selected = formData.day_of_week ? formData.day_of_week.split(',').map(d => d.trim()) : [];
+                            const isChecked = selected.includes(day);
+                            const dateVal = formData.duration_type === 'short_term' ? formData.job_date : formData.start_date;
+                            const weekDays = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+                            const detectedDay = dateVal ? (() => { const [y,mo,d] = dateVal.split('-').map(Number); return weekDays[new Date(y,mo-1,d).getDay()]; })() : '';
+                            const isAutoDetected = day === detectedDay;
+                            return (
+                              <label
+                                key={day}
+                                className={`flex flex-col items-center justify-center gap-1 px-2 py-2 rounded-xl border-2 cursor-pointer transition-all select-none text-center
+                                  ${isChecked
+                                    ? 'border-[#EA526F] bg-[#EA526F]/10 dark:bg-[#EA526F]/20 text-[#EA526F] dark:text-pink-300 font-bold'
+                                    : 'border-gray-200 dark:border-white/20 bg-white/40 dark:bg-white/5 text-[#4B244A]/60 dark:text-white/50 hover:border-[#EA526F]/50'
+                                  }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="sr-only"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    const current = formData.day_of_week ? formData.day_of_week.split(',').map(d => d.trim()).filter(Boolean) : [];
+                                    if (isAutoDetected && isChecked && current.length === 1) return;
+                                    const next = current.includes(day)
+                                      ? current.filter(d => d !== day)
+                                      : [...current, day];
+                                    if (fieldErrors.day_of_week) setFieldErrors(prev => { const n = { ...prev }; delete n.day_of_week; return n; });
+                                    setFormData(prev => ({ ...prev, day_of_week: next.join(',') }));
+                                  }}
+                                />
+                                <span className="text-[11px] font-bold leading-tight capitalize">
+                                  {day.slice(0,3).charAt(0).toUpperCase() + day.slice(0,3).slice(1)}
+                                </span>
+                                {isAutoDetected && (
+                                  <span className="text-[8px] text-green-500 dark:text-green-400 font-bold leading-tight">auto</span>
+                                )}
+                              </label>
+                            );
+                          })}
+                        </div>
+                        {fieldErrors.day_of_week && (
+                          <p className="text-red-500 text-sm mt-1">{fieldErrors.day_of_week}</p>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <label className={labelClass}>Frequency *</label>
+                        <select
+                          name="frequency"
+                          value={formData.frequency}
+                          onChange={handleInputChange}
+                          required={formData.is_recurring}
+                          className={inputClass}
+                        >
+                          <option value="weekly" className={optionClass}>Every Week</option>
+                          <option value="biweekly" className={optionClass}>Every 2 Weeks</option>
+                          <option value="monthly" className={optionClass}>Monthly</option>
+                        </select>
+                      </div>
+                      
+                      <div>
+                        <label className={labelClass}>Start Time *</label>
+                        <input
+                          type="time"
+                          name="start_time"
+                          value={formData.start_time}
+                          onChange={handleInputChange}
+                          required={formData.is_recurring}
+                          className={inputClass}
+                        />
+                        {fieldErrors.start_time && (
+                          <p className="text-red-500 text-sm mt-1">{fieldErrors.start_time}</p>
+                        )}
+                      </div>
+                      
+                      <div>
+                        <label className={labelClass}>End Time *</label>
+                        <input
+                          type="time"
+                          name="end_time"
+                          value={formData.end_time}
+                          onChange={handleInputChange}
+                          required={formData.is_recurring}
+                          className={inputClass}
+                        />
+                        {fieldErrors.end_time && (
+                          <p className="text-red-500 text-sm mt-1">{fieldErrors.end_time}</p>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">
+                      Example: Every Tuesday &amp; Saturday from 9:00 AM to 11:00 AM
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 
             {formData.duration_type === 'long_term' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <div>
-                  <label className="block text-white font-semibold mb-2">Start Date *</label>
+                  <label className={labelClass}>Start Date *</label>
                   <input
                     type="date"
                     name="start_date"
                     value={formData.start_date}
-                    onChange={handleInputChange}
+                    onChange={(e) => {
+                      const newStart = e.target.value;
+                      setFormData(prev => {
+                        // Auto-detect recurring day from start date
+                        let updatedDayOfWeek = prev.day_of_week;
+                        if (newStart && prev.is_recurring) {
+                          const weekDays = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'];
+                          const [y, mo, d] = newStart.split('-').map(Number);
+                          const detected = weekDays[new Date(y, mo - 1, d).getDay()];
+                          const current = prev.day_of_week ? prev.day_of_week.split(',').map(d => d.trim()).filter(Boolean) : [];
+                          updatedDayOfWeek = current.includes(detected) ? current.join(',') : [detected, ...current].join(',');
+                        }
+                        // If end_date is set but less than 14 days from new start, reset it
+                        if (prev.end_date && newStart) {
+                          const startMs = new Date(newStart).getTime();
+                          const endMs = new Date(prev.end_date).getTime();
+                          const diffDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
+                          if (diffDays < 14) {
+                            return { ...prev, start_date: newStart, end_date: '', day_of_week: updatedDayOfWeek };
+                          }
+                        }
+                        return { ...prev, start_date: newStart, day_of_week: updatedDayOfWeek };
+                      });
+                    }}
                     required={formData.duration_type === 'long_term'}
-                    className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                    min={new Date().toISOString().split('T')[0]}
+                    className={inputClass}
                   />
+                  {fieldErrors.start_date && (
+                    <p className="text-red-500 text-sm mt-1">{fieldErrors.start_date}</p>
+                  )}
                 </div>
                 <div>
-                  <label className="block text-white font-semibold mb-2">End Date *</label>
+                  <label className={labelClass}>End Date *</label>
                   <input
                     type="date"
                     name="end_date"
                     value={formData.end_date}
                     onChange={handleInputChange}
                     required={formData.duration_type === 'long_term'}
-                    min={formData.start_date}
-                    className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                    min={formData.start_date ? (() => {
+                      const d = new Date(formData.start_date);
+                      d.setDate(d.getDate() + 14);
+                      return d.toISOString().split('T')[0];
+                    })() : undefined}
+                    className={inputClass}
                   />
+                  {fieldErrors.end_date && (
+                    <p className="text-red-500 text-sm mt-1">{fieldErrors.end_date}</p>
+                  )}
+                  <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
+                    Long-term jobs must be at least 14 days from the start date.
+                  </p>
+                  {formData.start_date && formData.end_date && (() => {
+                    const diffDays = Math.round((new Date(formData.end_date).getTime() - new Date(formData.start_date).getTime()) / (1000 * 60 * 60 * 24));
+                    return diffDays < 14 ? (
+                      <p className="text-red-500 text-xs mt-1 font-medium">
+                        End date must be at least 14 days after the start date ({diffDays} days selected).
+                      </p>
+                    ) : null;
+                  })()}
                 </div>
               </div>
             )}
@@ -412,130 +1553,111 @@ export default function CreateJobPage() {
 
           {/* Payment Schedule Card - Only for Long Term Jobs */}
           {formData.duration_type === 'long_term' && (
-            <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 border border-white/20 space-y-4">
-              <h2 className="text-xl font-bold text-white mb-2">💰 Payment Schedule</h2>
-              <p className="text-white/60 text-sm mb-4">Set up how and when you'll pay your housekeeper</p>
+            <div className={cardClass}>
+              <h2 className="text-xl font-bold text-[#4B244A] dark:text-white mb-2">Payment Schedule</h2>
+              <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mb-4 font-medium">Set up how and when you'll pay your housekeeper</p>
               
-              <div>
-                <label className="block text-white font-semibold mb-2">Payment Frequency *</label>
-                <select
-                  name="payment_frequency"
-                  value={formData.payment_frequency}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                >
-                  <option value="weekly">Weekly - Every week</option>
-                  <option value="biweekly">Bi-weekly - Every 2 weeks</option>
-                  <option value="monthly">Monthly - Once a month</option>
-                  <option value="custom">Custom - Specific dates</option>
-                </select>
-              </div>
-
-              {/* Payment Explanation Box */}
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4 mb-4">
-                <p className="text-blue-200 text-sm font-semibold mb-2">💡 How Payment Works (Per Person)</p>
-                <p className="text-blue-200/80 text-xs">
-                  The budget you set is <strong>PER HOUSEKEEPER</strong>. If you need {formData.people_needed} housekeeper(s) 
-                  and set ₱{formData.payment_amount || '0'} per payment, each housekeeper receives ₱{formData.payment_amount || '0'} on each payment date.
-                </p>
-                {parseInt(formData.people_needed) > 1 && formData.payment_amount && (
-                  <p className="text-yellow-300 text-xs mt-2">
-                    <strong>Total per payment date:</strong> ₱{parseInt(formData.payment_amount) * parseInt(formData.people_needed)} 
-                    ({formData.people_needed} workers × ₱{formData.payment_amount})
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <label className="block text-white font-semibold mb-2">Payment Amount per Person per Schedule (₱) *</label>
-                <input
-                  type="number"
-                  name="payment_amount"
-                  value={formData.payment_amount}
-                  onChange={handleInputChange}
-                  required={formData.duration_type === 'long_term'}
-                  min="100"
-                  step="50"
-                  placeholder="e.g., 2500 per person per payment"
-                  className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                />
-                <p className="text-white/50 text-xs mt-1">
-                  Amount each housekeeper receives on each payment date
-                </p>
-              </div>
-
-              {formData.payment_frequency === 'monthly' && (
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-white font-semibold mb-2">Payment Dates (Day of Month)</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.payment_dates.includes('15')}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setFormData({...formData, payment_dates: [...formData.payment_dates, '15'].sort()});
-                          } else {
-                            setFormData({...formData, payment_dates: formData.payment_dates.filter(d => d !== '15')});
-                          }
-                        }}
-                        className="w-5 h-5 rounded"
-                      />
-                      <label className="text-white">15th of month</label>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={formData.payment_dates.includes('30')}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setFormData({...formData, payment_dates: [...formData.payment_dates, '30'].sort()});
-                          } else {
-                            setFormData({...formData, payment_dates: formData.payment_dates.filter(d => d !== '30')});
-                          }
-                        }}
-                        className="w-5 h-5 rounded"
-                      />
-                      <label className="text-white">30th/End of month</label>
-                    </div>
+                  <label className={labelClass}>Payment Frequency *</label>
+                  <select
+                    name="payment_frequency"
+                    value={formData.payment_frequency}
+                    onChange={handleInputChange}
+                    className={inputClass}
+                  >
+                    <option value="biweekly" className={optionClass}>Bi-weekly - Every 2 weeks</option>
+                    <option value="monthly" className={optionClass}>Monthly - Once a month</option>
+                  </select>
+                </div>
+
+                {/* Payment Explanation Box */}
+                <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4 mb-4">
+                  <p className="text-blue-800 dark:text-blue-200 text-sm font-bold mb-2">How Payment Works (Per Person)</p>
+                  <p className="text-blue-700 dark:text-blue-200/80 text-xs font-medium">
+                    The budget (₱{formData.budget || '0'}) is the <strong>total amount PER HOUSEKEEPER</strong> for the entire contract duration. 
+                    It will be split into {formData.payment_frequency === 'biweekly' ? 'bi-weekly (every 14 days)' : 'monthly (every 30 days)'} installments.
+                  </p>
+                  {parseInt(formData.people_needed) > 1 && formData.budget && (
+                    <p className="text-orange-600 dark:text-yellow-300 text-xs mt-2 font-bold">
+                      <strong>Grand total for all workers:</strong> ₱{(parseFloat(formData.budget) * parseInt(formData.people_needed)).toLocaleString()} 
+                      ({formData.people_needed} workers × ₱{parseFloat(formData.budget).toLocaleString()})
+                    </p>
+                  )}
+                </div>
+
+                {formData.payment_frequency === 'biweekly' && (
+                  <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4">
+                    <p className="text-blue-800 dark:text-blue-200 text-sm">
+                      <strong>Payment Schedule:</strong> Payments will be calculated automatically based on your start and end dates.
+                      You'll pay every 14 days.
+                    </p>
                   </div>
-                  <p className="text-white/50 text-xs mt-2">
-                    Select when you'll pay during the month. You can choose both dates for twice-monthly payments.
+                )}
+
+                {/* Payment Breakdown */}
+                {formData.start_date && formData.end_date && formData.budget && (() => {
+                  const totalDays = Math.round((new Date(formData.end_date).getTime() - new Date(formData.start_date).getTime()) / (1000 * 60 * 60 * 24));
+                  const totalBudget = parseFloat(formData.budget) || 0;
+                  const dailyRate = totalBudget / totalDays;
+                  const cycleDays = formData.payment_frequency === 'biweekly' ? 14 : 30;
+                  const fullCycles = Math.floor(totalDays / cycleDays);
+                  const extraDays = totalDays % cycleDays;
+                  const perCycleAmount = Math.round(dailyRate * cycleDays * 100) / 100;
+                  const extraDaysPay = Math.round(dailyRate * extraDays * 100) / 100;
+                  const peopleNeeded = parseInt(formData.people_needed) || 1;
+
+                  return (
+                    <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-xl p-4 space-y-2">
+                      <p className="text-green-800 dark:text-green-200 text-sm font-bold">Payment Breakdown (Per Person)</p>
+                      <div className="text-green-700 dark:text-green-200/80 text-xs space-y-1 font-medium">
+                        <p>Total duration: <strong>{totalDays} days</strong></p>
+                        <p>Daily rate: ₱{totalBudget.toLocaleString()} ÷ {totalDays} days = <strong>₱{dailyRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/day</strong></p>
+                        <p>{formData.payment_frequency === 'biweekly' ? 'Bi-weekly' : 'Monthly'} installment ({cycleDays} days): <strong>₱{perCycleAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> × {fullCycles} = ₱{(perCycleAmount * fullCycles).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        {extraDays > 0 ? (
+                          <>
+                            <p>Remaining days: <strong>{extraDays} day{extraDays > 1 ? 's' : ''}</strong> → ₱{dailyRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} × {extraDays} = <strong>₱{extraDaysPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
+                          </>
+                        ) : (
+                          <p>Duration fits perfectly into {fullCycles} full {formData.payment_frequency === 'biweekly' ? 'bi-weekly' : 'monthly'} cycle{fullCycles > 1 ? 's' : ''} — no extra days.</p>
+                        )}
+                        <hr className="border-green-300 dark:border-green-500/30 my-2" />
+                        <p className="text-sm">
+                          Total per person: <strong>₱{totalBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                        </p>
+                        {peopleNeeded > 1 && (
+                          <p className="text-sm text-orange-600 dark:text-yellow-300 font-bold">
+                            Grand total ({peopleNeeded} workers): <strong>₱{(totalBudget * peopleNeeded).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div>
+                  <label className={labelClass}>Preferred Payment Method</label>
+                  <select
+                    name="payment_method_preference"
+                    value={formData.payment_method_preference}
+                    onChange={handleInputChange}
+                    className={inputClass}
+                  >
+                    <option value="gcash" className={optionClass}>GCash</option>
+                    <option value="maya" className={optionClass}>Maya (PayMaya)</option>
+                    <option value="bank_transfer" className={optionClass}>Bank Transfer</option>
+                    <option value="cash" className={optionClass}>Cash</option>
+                  </select>
+                  <p className="text-[#4B244A]/60 dark:text-white/50 text-xs mt-1 font-medium">
+                    Housekeepers will see your preferred payment method
                   </p>
                 </div>
-              )}
 
-              {(formData.payment_frequency === 'weekly' || formData.payment_frequency === 'biweekly') && (
-                <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
-                  <p className="text-blue-200 text-sm">
-                    <strong>📅 Payment Schedule:</strong> Payments will be calculated automatically based on your start and end dates.
-                    {formData.payment_frequency === 'weekly' ? ' You\'ll pay every 7 days.' : ' You\'ll pay every 14 days.'}
+                <div className="bg-yellow-100 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-xl p-4">
+                  <p className="text-yellow-800 dark:text-yellow-200 text-sm">
+                    <strong>Important:</strong> You'll need to upload proof of payment (receipt/screenshot) when marking payments as sent. Housekeepers can confirm receipt or report issues.
                   </p>
                 </div>
-              )}
-
-              <div>
-                <label className="block text-white font-semibold mb-2">Preferred Payment Method</label>
-                <select
-                  name="payment_method_preference"
-                  value={formData.payment_method_preference}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 bg-white/20 backdrop-blur-sm border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
-                >
-                  <option value="gcash">GCash</option>
-                  <option value="maya">Maya (PayMaya)</option>
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="cash">Cash</option>
-                </select>
-                <p className="text-white/50 text-xs mt-1">
-                  Housekeepers will see your preferred payment method
-                </p>
-              </div>
-
-              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-xl p-4">
-                <p className="text-yellow-200 text-sm">
-                  <strong>⚠️ Important:</strong> You'll need to upload proof of payment (receipt/screenshot) when marking payments as sent. Housekeepers can confirm receipt or report issues.
-                </p>
               </div>
             </div>
           )}
@@ -545,16 +1667,16 @@ export default function CreateJobPage() {
             <button
               type="button"
               onClick={() => navigate('/jobs')}
-              className="flex-1 px-6 py-4 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-all"
+              className="flex-1 px-6 py-4 bg-black/20! text-white! font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/10"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-6 py-4 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-6 py-4 bg-[#EA526F]! text-white! font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Posting...' : '📮 Post Job'}
+              {loading ? 'Posting...' : 'Post Job'}
             </button>
           </div>
         </form>

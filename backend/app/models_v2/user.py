@@ -1,5 +1,5 @@
 """User model - Clean version"""
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum as SQLEnum
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Date, Enum as SQLEnum
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db import Base
@@ -9,10 +9,25 @@ class UserStatus(str, enum.Enum):
     PENDING = "pending"
     ACTIVE = "active"
     SUSPENDED = "suspended"
+    
+    def __str__(self):
+        return self.value
 
 class UserRole(str, enum.Enum):
     OWNER = "owner"
     HOUSEKEEPER = "housekeeper"
+    
+    def __str__(self):
+        return self.value
+
+class Gender(str, enum.Enum):
+    MALE = "male"
+    FEMALE = "female"
+    OTHER = "other"
+    PREFER_NOT_TO_SAY = "prefer_not_to_say"
+    
+    def __str__(self):
+        return self.value
 
 class User(Base):
     __tablename__ = "users"
@@ -27,16 +42,33 @@ class User(Base):
     middle_name = Column(String, nullable=True)
     last_name = Column(String, nullable=False)
     suffix = Column(String, nullable=True)
+    gender = Column(SQLEnum(Gender, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=True)
+    birthday = Column(Date, nullable=True)
+    relationship_status = Column(String, nullable=True)
     
     # Role and status
     is_owner = Column(Boolean, default=True, nullable=False)
     is_housekeeper = Column(Boolean, default=False, nullable=False)
-    active_role = Column(SQLEnum(UserRole), default=UserRole.OWNER, nullable=False)
-    status = Column(SQLEnum(UserStatus), default=UserStatus.PENDING, nullable=False)
+    active_role = Column(SQLEnum(UserRole, native_enum=False, values_callable=lambda x: [e.value for e in x]), default=UserRole.OWNER, nullable=False)
+    status = Column(SQLEnum(UserStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), default=UserStatus.ACTIVE, nullable=False)
+    
+    # Profile
+    profile_picture = Column(String, nullable=True)
+    
+    # Verification flags
+    email_verified = Column(Boolean, default=False, nullable=True)
+    phone_verified = Column(Boolean, default=False, nullable=True)
     
     # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Restriction fields
+    is_restricted = Column(Boolean, default=False, nullable=False)
+    restriction_reason = Column(String, nullable=True)
+    restriction_start = Column(DateTime(timezone=True), nullable=True)
+    restriction_end = Column(DateTime(timezone=True), nullable=True)
+    restricted_by_admin_id = Column(Integer, nullable=True)
     
     # Relationships - only essential ones
     address = relationship("Address", back_populates="user", uselist=False)

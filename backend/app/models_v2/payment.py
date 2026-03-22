@@ -10,6 +10,9 @@ class PaymentFrequency(str, enum.Enum):
     WEEKLY = "weekly"
     BIWEEKLY = "biweekly"
     MONTHLY = "monthly"
+    
+    def __str__(self):
+        return self.value
 
 class PaymentStatus(str, enum.Enum):
     PENDING = "pending"
@@ -17,6 +20,9 @@ class PaymentStatus(str, enum.Enum):
     CONFIRMED = "confirmed"
     DISPUTED = "disputed"
     OVERDUE = "overdue"
+    
+    def __str__(self):
+        return self.value
 
 class PaymentSchedule(Base):
     """Payment schedule configuration for long-term jobs"""
@@ -30,7 +36,16 @@ class PaymentSchedule(Base):
     # Individual payment due date and amount
     due_date = Column(String, nullable=False)  # YYYY-MM-DD
     amount = Column(Numeric, nullable=False)
-    status = Column(SQLEnum(PaymentStatus), nullable=False, default=PaymentStatus.PENDING)
+    status = Column(
+        SQLEnum(
+            PaymentStatus,
+            name="payment_status",
+            native_enum=True,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        nullable=False,
+        default=PaymentStatus.PENDING,
+    )
     
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
@@ -49,19 +64,13 @@ class PaymentTransaction(Base):
     amount_paid = Column(Numeric, nullable=False)
     payment_method = Column(String, nullable=True)  # GCash, PayMaya, etc
     reference_number = Column(String, nullable=True)
-    proof_url = Column(String, nullable=True)  # Screenshot/proof of payment
+    payment_proof_url = Column(String, nullable=True)  # Screenshot/proof of payment
     
     # Status tracking
-    status = Column(SQLEnum(PaymentStatus), nullable=False, default=PaymentStatus.PENDING)
-    sent_at = Column(DateTime(timezone=True), nullable=True)
+    paid_at = Column(DateTime(timezone=True), server_default=func.now())
+    confirmed_by_worker = Column(Boolean, default=False)
     confirmed_at = Column(DateTime(timezone=True), nullable=True)
-    
-    # Dispute handling
-    dispute_reason = Column(Text, nullable=True)
-    dispute_resolved = Column(Boolean, default=False)
-    
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    notes = Column(Text, nullable=True)
     
     # Relationships
     schedule = relationship("PaymentSchedule", back_populates="transaction")

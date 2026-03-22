@@ -1,5 +1,5 @@
 """Direct Hire model for booking workers directly"""
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Numeric, JSON, Enum as SQLEnum, Date
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Text, Numeric, JSON, Enum as SQLEnum, Date, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.db import Base
@@ -12,9 +12,13 @@ class DirectHireStatus(str, enum.Enum):
     IN_PROGRESS = "in_progress"   # Work is being done
     PENDING_COMPLETION = "pending_completion"  # Worker submitted completion
     COMPLETED = "completed"       # Owner approved, ready for payment
-    PAID = "paid"                 # Payment confirmed
+    PAYMENT_PENDING = "payment_pending"  # Employer submitted payment, awaiting worker confirmation
+    PAID = "paid"                 # Payment confirmed by worker
     CANCELLED = "cancelled"       # Cancelled by either party
     REJECTED = "rejected"         # Worker rejected the hire
+    
+    def __str__(self):
+        return self.value
 
 
 class DirectHire(Base):
@@ -30,10 +34,33 @@ class DirectHire(Base):
     
     # Pricing
     total_amount = Column(Numeric(10, 2), nullable=False)
+    platform_fee_percentage = Column(Numeric(5, 2), nullable=False, default=7.00)
+    platform_fee_amount = Column(Numeric(10, 2), nullable=False, default=0)
+    platform_fee_status = Column(String(20), nullable=False, default="pending")  # pending, paid, failed, cancelled
+    platform_fee_checkout_id = Column(String, nullable=True)
+    platform_fee_reference = Column(String, nullable=True)
+    platform_fee_paid_at = Column(DateTime(timezone=True), nullable=True)
     
     # Scheduling
     scheduled_date = Column(Date, nullable=False)
     scheduled_time = Column(String(10), nullable=True)  # e.g., "09:00"
+
+    # Multi-day scheduling
+    num_days = Column(Integer, default=1, nullable=True)  # Number of working days
+    daily_start_time = Column(String(10), nullable=True)  # e.g. "08:00"
+    daily_end_time = Column(String(10), nullable=True)  # e.g. "15:00"
+    end_date = Column(Date, nullable=True)  # computed as scheduled_date + num_days - 1
+    
+    # Recurring schedule (for regular/repeating bookings)
+    is_recurring = Column(Boolean, default=False, nullable=False)
+    day_of_week = Column(String(100), nullable=True)  # e.g., "saturday" or "tuesday,saturday"
+    start_time = Column(String(10), nullable=True)  # e.g., "09:00"
+    end_time = Column(String(10), nullable=True)  # e.g., "11:00"
+    frequency = Column(String(20), nullable=True)  # "weekly", "biweekly", "monthly"
+    recurring_status = Column(String(20), nullable=True, default="active")  # "active", "cancelled", "paused"
+    recurring_cancelled_at = Column(DateTime(timezone=True), nullable=True)
+    recurring_cancellation_reason = Column(Text, nullable=True)
+    cancelled_by = Column(String(20), nullable=True)  # "employer" or "worker"
     
     # Location (can be different from employer's address)
     address_street = Column(String, nullable=True)
@@ -46,7 +73,7 @@ class DirectHire(Base):
     special_instructions = Column(Text, nullable=True)
     
     # Status
-    status = Column(SQLEnum(DirectHireStatus), nullable=False, default=DirectHireStatus.PENDING)
+    status = Column(SQLEnum(DirectHireStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=DirectHireStatus.PENDING)
     
     # Completion tracking
     completion_proof_url = Column(String, nullable=True)

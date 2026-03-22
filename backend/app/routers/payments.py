@@ -1,15 +1,140 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta
+from decimal import Decimal
+from datetime import timezone
+import json
+import os
+from urllib.parse import urlparse
+from datetime import date
 from app.db import get_db
 from app.models_v2.payment import PaymentSchedule, PaymentTransaction, PaymentStatus, PaymentFrequency
 from app.models_v2.user import User
 from app.routers.auth import get_current_user
 from app.services.notification_service import notify_payment_sent, notify_payment_received
+from app.services.maya_service import create_checkout, retrieve_checkout, normalize_checkout_status, maya_is_configured
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/jobs", tags=["payments"])
+
+
+def _resolve_frontend_base_url(request: Request) -> str:
+    origin = (request.headers.get("origin") or "").strip()
+    if origin.startswith("http://") or origin.startswith("https://"):
+        return origin.rstrip("/")
+
+    referer = (request.headers.get("referer") or "").strip()
+    if referer:
+        parsed = urlparse(referer)
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+    return os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+
+
+def _normalize_media_url(url: Optional[str]) -> Optional[str]:
+    if not url:
+        return url
+    first_http = url.find("http")
+    if first_http == -1:
+        return url
+    second_http = url.find("http", first_http + 4)
+    return url[second_http:] if second_http != -1 else url
+
+
+def _coerce_to_datetime(value) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime.combine(value, datetime.min.time())
+    if isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return None
+
+        try:
+            return datetime.fromisoformat(raw.replace('Z', '+00:00'))
+        except ValueError:
+            pass
+
+        try:
+            return datetime.strptime(raw[:10], '%Y-%m-%d')
+        except ValueError:
+            return None
+
+    return None
+
+
+def _as_comparable_naive(dt: datetime) -> datetime:
+    if dt.tzinfo is not None and dt.utcoffset() is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
+
+
+def _ensure_job_date_reached(job, *, action: str) -> None:
+    raw_start = getattr(job, "start_date", None)
+    if not raw_start:
+        return
+
+    try:
+        start_date = datetime.fromisoformat(str(raw_start)).date()
+    except ValueError:
+        return
+
+    today_utc = datetime.now(timezone.utc).date()
+    if today_utc < start_date:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot {action} before the scheduled date ({start_date.isoformat()}).",
+        )
+
+
+def _parse_recurring_days(day_of_week: Optional[str]) -> List[int]:
+    day_map = {
+        "monday": 0,
+        "tuesday": 1,
+        "wednesday": 2,
+        "thursday": 3,
+        "friday": 4,
+        "saturday": 5,
+        "sunday": 6,
+    }
+    if not day_of_week:
+        return []
+    parsed = []
+    for item in day_of_week.split(","):
+        key = item.strip().lower()
+        if key in day_map:
+            parsed.append(day_map[key])
+    return sorted(set(parsed))
+
+
+def _next_recurring_service_date(*, current_date: date, day_of_week: Optional[str], frequency: Optional[str]) -> Optional[date]:
+    days = _parse_recurring_days(day_of_week)
+    if not days:
+        return current_date + timedelta(weeks=1)
+
+    current_weekday = current_date.weekday()
+
+    # Prefer next selected day in the same cycle (e.g., Monday -> Wednesday)
+    for day in days:
+        if day > current_weekday:
+            return current_date + timedelta(days=(day - current_weekday))
+
+    freq = (frequency or "weekly").lower()
+    if freq == "biweekly":
+        cycle_weeks = 2
+    elif freq == "monthly":
+        cycle_weeks = 4
+    else:
+        cycle_weeks = 1
+
+    start_of_week = current_date - timedelta(days=current_weekday)
+    next_cycle_start = start_of_week + timedelta(weeks=cycle_weeks)
+    return next_cycle_start + timedelta(days=days[0])
 
 
 # Pydantic schemas
@@ -33,13 +158,21 @@ class PaymentTransactionResponse(BaseModel):
 
 
 class MarkAsSentRequest(BaseModel):
-    payment_proof_url: str
+    payment_proof_url: Optional[str] = None
     payment_method: str
-    reference_number: str
+    reference_number: Optional[str] = None
 
 
 class ReportIssueRequest(BaseModel):
     dispute_reason: str
+
+
+class LongTermDigitalPaymentInitiateRequest(BaseModel):
+    payment_method: str = "maya"
+
+
+class LongTermDigitalPaymentVerifyRequest(BaseModel):
+    checkout_id: str
 
 
 # Helper function to generate payment schedules and transactions
@@ -162,6 +295,8 @@ async def get_payments_for_owner(
     if not contracts:
         return []
     
+    contract_by_id = {contract.contract_id: contract for contract in contracts}
+
     # Get all payment schedules for all contracts
     all_schedules = []
     for contract in contracts:
@@ -186,10 +321,19 @@ async def get_payments_for_owner(
     # Format response - return schedules as payment entries
     result = []
     for s in all_schedules:
-        # Get associated transaction if any
+        # Get latest associated transaction if any
         transaction = db.query(PaymentTransaction).filter(
             PaymentTransaction.schedule_id == s.schedule_id
+        ).order_by(
+            PaymentTransaction.transaction_id.desc()
         ).first()
+
+        contract = contract_by_id.get(s.contract_id)
+        payment_proof_url = None
+        if transaction and transaction.payment_proof_url:
+            payment_proof_url = transaction.payment_proof_url
+        elif contract and contract.payment_proof_url:
+            payment_proof_url = contract.payment_proof_url
         
         result.append(PaymentTransactionResponse(
             transaction_id=transaction.transaction_id if transaction else s.schedule_id,  # Use schedule_id as fallback
@@ -197,12 +341,12 @@ async def get_payments_for_owner(
             due_date=s.due_date if isinstance(s.due_date, str) else s.due_date.strftime('%Y-%m-%d'),
             amount=float(s.amount) if s.amount else 0,
             status=s.status.value if hasattr(s.status, 'value') else str(s.status),
-            payment_proof_url=transaction.proof_url if transaction else None,
+            payment_proof_url=_normalize_media_url(payment_proof_url),
             payment_method=transaction.payment_method if transaction else None,
             reference_number=transaction.reference_number if transaction else None,
-            sent_at=transaction.sent_at.isoformat() if transaction and transaction.sent_at else None,
+            sent_at=transaction.paid_at.isoformat() if transaction and transaction.paid_at else None,
             confirmed_at=transaction.confirmed_at.isoformat() if transaction and transaction.confirmed_at else None,
-            dispute_reason=transaction.dispute_reason if transaction else None,
+            dispute_reason=transaction.notes if transaction and transaction.notes and 'DISPUTE:' in transaction.notes else None,
             worker_id=s.worker_id,
             worker_name=s.worker_name or "Worker"
         ))
@@ -234,16 +378,19 @@ async def get_my_payments(
     if not worker:
         raise HTTPException(status_code=403, detail="Worker profile not found")
     
-    # Get the contract for THIS worker on this job
-    contract = db.query(Contract).filter(
+    # Get ALL contracts for THIS worker on this job (can have legacy duplicates)
+    contracts = db.query(Contract).filter(
         Contract.post_id == job_id,
         Contract.worker_id == worker.worker_id
-    ).first()
-    if not contract:
+    ).all()
+    if not contracts:
         return []
     
-    # Get payment schedules for this contract
-    schedules = db.query(PaymentSchedule).filter(PaymentSchedule.contract_id == contract.contract_id).all()
+    contract_ids = [c.contract_id for c in contracts]
+    contract_by_id = {c.contract_id: c for c in contracts}
+
+    # Get payment schedules across all matching contracts
+    schedules = db.query(PaymentSchedule).filter(PaymentSchedule.contract_id.in_(contract_ids)).all()
     if not schedules:
         return []
     
@@ -255,18 +402,21 @@ async def get_my_payments(
     schedule_ids = [s.schedule_id for s in schedules]
     transactions = db.query(PaymentTransaction).filter(
         PaymentTransaction.schedule_id.in_(schedule_ids)
+    ).order_by(
+        PaymentTransaction.transaction_id.desc()
     ).all()
     
-    # Create a map of schedule_id -> transaction
-    transaction_map = {t.schedule_id: t for t in transactions}
+    # Create a map of schedule_id -> latest transaction
+    transaction_map = {}
+    for transaction in transactions:
+        if transaction.schedule_id not in transaction_map:
+            transaction_map[transaction.schedule_id] = transaction
     
-    # Check for overdue payments
+    # Mark overdue payments based on schedule status
     today = datetime.now().date()
     for schedule in schedules:
         due_date = datetime.strptime(schedule.due_date, '%Y-%m-%d').date() if isinstance(schedule.due_date, str) else schedule.due_date
-        transaction = transaction_map.get(schedule.schedule_id)
-        if transaction and transaction.status == PaymentStatus.PENDING and due_date < today:
-            transaction.status = PaymentStatus.OVERDUE
+        if schedule.status == PaymentStatus.PENDING and due_date < today:
             schedule.status = PaymentStatus.OVERDUE
     db.commit()
     
@@ -277,18 +427,24 @@ async def get_my_payments(
         transaction = transaction_map.get(schedule.schedule_id)
         due_date_str = schedule.due_date if isinstance(schedule.due_date, str) else schedule.due_date.strftime('%Y-%m-%d')
         
+        schedule_contract = contract_by_id.get(schedule.contract_id)
+
         result.append(PaymentTransactionResponse(
             transaction_id=transaction.transaction_id if transaction else schedule.schedule_id,
             schedule_id=schedule.schedule_id,
             due_date=due_date_str,
             amount=float(schedule.amount) if schedule.amount else 0,
             status=schedule.status.value if hasattr(schedule.status, 'value') else str(schedule.status),
-            payment_proof_url=transaction.proof_url if transaction else None,
+            payment_proof_url=_normalize_media_url(
+                transaction.payment_proof_url
+                if transaction and transaction.payment_proof_url
+                else (schedule_contract.payment_proof_url if schedule_contract else None)
+            ),
             payment_method=transaction.payment_method if transaction else None,
             reference_number=transaction.reference_number if transaction else None,
-            sent_at=transaction.sent_at.isoformat() if transaction and transaction.sent_at else None,
+            sent_at=transaction.paid_at.isoformat() if transaction and transaction.paid_at else None,
             confirmed_at=transaction.confirmed_at.isoformat() if transaction and transaction.confirmed_at else None,
-            dispute_reason=transaction.dispute_reason if transaction else None,
+            dispute_reason=transaction.notes if transaction and transaction.notes and 'DISPUTE:' in transaction.notes else None,
             worker_id=worker.worker_id,
             worker_name=f"{current_user.first_name} {current_user.last_name}"
         ))
@@ -337,26 +493,24 @@ async def mark_payment_as_sent(
     ).first()
     
     if not transaction:
-        # Create a new transaction
+        # Create a new transaction (similar to short-term payment pattern)
         transaction = PaymentTransaction(
             schedule_id=schedule_id,
             amount_paid=schedule.amount,
-            status=PaymentStatus.SENT,
-            proof_url=data.payment_proof_url,
+            payment_proof_url=data.payment_proof_url,
             payment_method=data.payment_method,
             reference_number=data.reference_number,
-            sent_at=datetime.now()
+            paid_at=datetime.now()
         )
         db.add(transaction)
     else:
         # Update existing transaction
-        transaction.status = PaymentStatus.SENT
-        transaction.proof_url = data.payment_proof_url
+        transaction.payment_proof_url = data.payment_proof_url
         transaction.payment_method = data.payment_method
         transaction.reference_number = data.reference_number
-        transaction.sent_at = datetime.now()
+        transaction.paid_at = datetime.now()
     
-    # Also update the schedule status
+    # Update the schedule status (this is where status is tracked)
     schedule.status = PaymentStatus.SENT
     
     db.commit()
@@ -377,6 +531,179 @@ async def mark_payment_as_sent(
     return {"message": "Payment marked as sent successfully"}
 
 
+@router.post("/{job_id}/payments/{schedule_id}/initiate-payment")
+async def initiate_long_term_digital_payment(
+    job_id: int,
+    schedule_id: int,
+    request: Request,
+    payload: LongTermDigitalPaymentInitiateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from app.routers.jobs import ForumPost
+    from app.models_v2.worker_employer import Employer
+    from app.models_v2.contract import Contract
+
+    if payload.payment_method.lower() != "maya":
+        raise HTTPException(status_code=400, detail="Only maya is supported for digital long-term payout.")
+
+    job = db.query(ForumPost).filter(ForumPost.post_id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    employer = db.query(Employer).filter(Employer.employer_id == job.employer_id).first()
+    if not employer or employer.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    schedule = db.query(PaymentSchedule).filter(PaymentSchedule.schedule_id == schedule_id).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Payment schedule not found")
+
+    contract = db.query(Contract).filter(Contract.contract_id == schedule.contract_id).first()
+    if not contract or contract.post_id != job_id:
+        raise HTTPException(status_code=404, detail="Payment schedule not found for this job")
+
+    if schedule.status == PaymentStatus.CONFIRMED:
+        raise HTTPException(status_code=400, detail="This payment is already confirmed")
+
+    try:
+        amount = Decimal(str(schedule.amount or 0)).quantize(Decimal("0.01"))
+    except Exception:
+        amount = Decimal("0.00")
+
+    if amount <= 0:
+        raise HTTPException(status_code=400, detail="Invalid payout amount")
+
+    if not maya_is_configured():
+        raise HTTPException(status_code=500, detail="Maya is not configured. Please set MAYA_PUBLIC_KEY and MAYA_SECRET_KEY.")
+
+    frontend_base_url = _resolve_frontend_base_url(request)
+    success_url = f"{frontend_base_url}/jobs?maya_long_payment_result=success&post_id={job_id}&schedule_id={schedule_id}"
+    failure_url = f"{frontend_base_url}/jobs?maya_long_payment_result=failure&post_id={job_id}&schedule_id={schedule_id}"
+    cancel_url = f"{frontend_base_url}/jobs?maya_long_payment_result=cancel&post_id={job_id}&schedule_id={schedule_id}"
+
+    reference_number = f"LONG-PAY-{job_id}-{schedule_id}-{int(datetime.now(timezone.utc).timestamp())}"
+
+    try:
+        checkout = await create_checkout(
+            amount=amount,
+            reference_number=reference_number,
+            success_url=success_url,
+            failure_url=failure_url,
+            cancel_url=cancel_url,
+            buyer_first_name=current_user.first_name,
+            buyer_last_name=current_user.last_name,
+            buyer_email=current_user.email,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    checkout_id = checkout.get("checkoutId")
+    redirect_url = checkout.get("redirectUrl")
+    if not checkout_id or not redirect_url:
+        raise HTTPException(status_code=502, detail="Maya checkout did not return checkoutId/redirectUrl.")
+
+    return {
+        "job_id": job_id,
+        "schedule_id": schedule_id,
+        "checkout_id": checkout_id,
+        "redirect_url": redirect_url,
+        "reference_number": reference_number,
+        "amount": float(amount),
+    }
+
+
+@router.post("/{job_id}/payments/{schedule_id}/verify")
+async def verify_long_term_digital_payment(
+    job_id: int,
+    schedule_id: int,
+    payload: LongTermDigitalPaymentVerifyRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from app.routers.jobs import ForumPost
+    from app.models_v2.worker_employer import Employer, Worker
+    from app.models_v2.contract import Contract
+
+    job = db.query(ForumPost).filter(ForumPost.post_id == job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    employer = db.query(Employer).filter(Employer.employer_id == job.employer_id).first()
+    if not employer or employer.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    schedule = db.query(PaymentSchedule).filter(PaymentSchedule.schedule_id == schedule_id).first()
+    if not schedule:
+        raise HTTPException(status_code=404, detail="Payment schedule not found")
+
+    contract = db.query(Contract).filter(Contract.contract_id == schedule.contract_id).first()
+    if not contract or contract.post_id != job_id:
+        raise HTTPException(status_code=404, detail="Payment schedule not found for this job")
+
+    existing_tx = db.query(PaymentTransaction).filter(
+        PaymentTransaction.schedule_id == schedule_id,
+        PaymentTransaction.reference_number == payload.checkout_id,
+    ).first()
+    if existing_tx and schedule.status in [PaymentStatus.SENT, PaymentStatus.CONFIRMED]:
+        return {
+            "message": "Payment already submitted and awaiting worker confirmation.",
+            "job_id": job_id,
+            "schedule_id": schedule_id,
+            "status": "payment_pending",
+            "already_processed": True,
+        }
+
+    try:
+        checkout = await retrieve_checkout(payload.checkout_id)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    payment_status = normalize_checkout_status(checkout)
+    if payment_status != "paid":
+        raise HTTPException(status_code=400, detail=f"Checkout is not paid yet (status: {payment_status}).")
+
+    transaction = db.query(PaymentTransaction).filter(PaymentTransaction.schedule_id == schedule_id).first()
+    if not transaction:
+        transaction = PaymentTransaction(
+            schedule_id=schedule_id,
+            amount_paid=schedule.amount,
+            payment_proof_url=None,
+            payment_method="maya",
+            reference_number=payload.checkout_id,
+            paid_at=datetime.now()
+        )
+        db.add(transaction)
+    else:
+        transaction.payment_proof_url = transaction.payment_proof_url
+        transaction.payment_method = "maya"
+        transaction.reference_number = payload.checkout_id
+        transaction.paid_at = datetime.now()
+
+    if schedule.status != PaymentStatus.CONFIRMED:
+        schedule.status = PaymentStatus.SENT
+
+    db.commit()
+
+    if schedule.worker_id:
+        worker = db.query(Worker).filter(Worker.worker_id == schedule.worker_id).first()
+        if worker:
+            notify_payment_sent(
+                db=db,
+                worker_user_id=worker.user_id,
+                job_title=job.title,
+                amount=float(schedule.amount) if schedule.amount else 0,
+                post_id=job_id
+            )
+
+    return {
+        "message": "Payment submitted successfully. Waiting for housekeeper confirmation.",
+        "job_id": job_id,
+        "schedule_id": schedule_id,
+        "status": "payment_pending",
+    }
+
+
 @router.put("/{job_id}/payments/{identifier}/confirm")
 async def confirm_payment_received(
     job_id: int,
@@ -390,12 +717,14 @@ async def confirm_payment_received(
     When all payments for a long-term job are confirmed, the job automatically completes.
     """
     from app.routers.jobs import ForumPost, ForumPostStatus
-    from app.models_v2.contract import Contract
+    from app.models_v2.contract import Contract, ContractStatus
     
     # Verify job exists
     job = db.query(ForumPost).filter(ForumPost.post_id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+
+    _ensure_job_date_reached(job, action="confirm payment")
     
     # Try to find by transaction_id first, then by schedule_id
     transaction = db.query(PaymentTransaction).filter(
@@ -420,20 +749,136 @@ async def confirm_payment_received(
     
     if not schedule:
         raise HTTPException(status_code=404, detail="Payment schedule not found")
+
+    # Ensure payment belongs to this job
+    schedule_contract = db.query(Contract).filter(Contract.contract_id == schedule.contract_id).first()
+    if not schedule_contract or schedule_contract.post_id != job_id:
+        raise HTTPException(status_code=404, detail="Payment schedule not found for this job")
     
     if not transaction:
         raise HTTPException(status_code=404, detail="Payment has not been sent yet")
     
-    if transaction.status == PaymentStatus.CONFIRMED:
+    # Check schedule status (status is tracked on schedule, not transaction)
+    if schedule.status == PaymentStatus.CONFIRMED:
         return {"message": "Payment already confirmed", "job_completed": False}
     
-    if transaction.status != PaymentStatus.SENT:
+    if schedule.status != PaymentStatus.SENT:
         raise HTTPException(status_code=400, detail="Payment has not been marked as sent")
     
-    # Update transaction and schedule status
-    transaction.status = PaymentStatus.CONFIRMED
+    # Update transaction confirmation and schedule status
     transaction.confirmed_at = datetime.now()
+    transaction.confirmed_by_worker = True
     schedule.status = PaymentStatus.CONFIRMED
+    
+    # For short-term jobs, mark contract as paid when worker confirms
+    contract = db.query(Contract).filter(Contract.contract_id == schedule.contract_id).first()
+    if contract and not job.is_longterm:
+        contract.paid_at = datetime.now()
+    
+    # Check if this is a recurring service and create next payment schedule
+    is_recurring = job.is_recurring and getattr(job, 'recurring_status', 'active') == 'active'
+    
+    if is_recurring:
+        # Get the contract to access payment schedule data
+        from app.models_v2.contract import Contract
+        contract = db.query(Contract).filter(Contract.contract_id == schedule.contract_id).first()
+        
+        if contract:
+            # Get job details to find payment amount and frequency
+            job_details = {}
+            if job.content and job.content.startswith('{'):
+                try:
+                    job_details = json.loads(job.content)
+                except:
+                    pass
+            
+            payment_schedule_data = job_details.get('payment_schedule', {})
+            payment_amount = float(payment_schedule_data.get('payment_amount', job_details.get('budget', 0)))
+            
+            # Use recurring frequency if available, otherwise use payment schedule frequency
+            recurring_frequency = job.frequency or payment_schedule_data.get('frequency', 'weekly')
+            
+            # Calculate next payment due date based on frequency
+            current_due_date = _coerce_to_datetime(schedule.due_date)
+            if current_due_date is None:
+                raise HTTPException(status_code=400, detail="Invalid payment due date format")
+            
+            next_due_date = current_due_date
+            
+            if recurring_frequency == 'weekly':
+                next_due_date = current_due_date + timedelta(weeks=1)
+            elif recurring_frequency == 'biweekly':
+                next_due_date = current_due_date + timedelta(weeks=2)
+            elif recurring_frequency == 'monthly':
+                # Add one month
+                if current_due_date.month == 12:
+                    next_due_date = current_due_date.replace(year=current_due_date.year + 1, month=1)
+                else:
+                    next_due_date = current_due_date.replace(month=current_due_date.month + 1)
+            else:
+                # Default to weekly
+                next_due_date = current_due_date + timedelta(weeks=1)
+            
+            # Check if we should create next payment (check end_date if exists)
+            should_create_next = True
+            if job.end_date:
+                end_date = _coerce_to_datetime(job.end_date)
+                if end_date and _as_comparable_naive(next_due_date) > _as_comparable_naive(end_date):
+                    should_create_next = False
+            
+            # Check if next payment schedule already exists
+            existing_next = db.query(PaymentSchedule).filter(
+                PaymentSchedule.contract_id == schedule.contract_id,
+                PaymentSchedule.due_date == next_due_date.strftime('%Y-%m-%d'),
+                PaymentSchedule.status != PaymentStatus.CONFIRMED
+            ).first()
+            
+            if should_create_next and not existing_next:
+                # Create next payment schedule for recurring service
+                next_schedule = PaymentSchedule(
+                    contract_id=schedule.contract_id,
+                    worker_id=schedule.worker_id,
+                    worker_name=schedule.worker_name,
+                    due_date=next_due_date.strftime('%Y-%m-%d'),
+                    amount=payment_amount,
+                    status=PaymentStatus.PENDING
+                )
+                db.add(next_schedule)
+                print(f"DEBUG: Created next payment schedule for recurring service - due: {next_due_date.strftime('%Y-%m-%d')}")
+
+            # Re-arm recurring short-term cycle after successful payment confirmation
+            # so the next occurrence can continue instead of staying completed.
+            if not job.is_longterm:
+                contract.status = ContractStatus.ACTIVE
+                contract.paid_at = None
+                contract.completion_proof_url = None
+                contract.completion_notes = None
+                contract.completed_at = None
+
+                anchor_dt = _coerce_to_datetime(job.start_date) or current_due_date
+                anchor_date = anchor_dt.date() if anchor_dt else datetime.now().date()
+                next_service_date = _next_recurring_service_date(
+                    current_date=anchor_date,
+                    day_of_week=getattr(job, 'day_of_week', None),
+                    frequency=getattr(job, 'frequency', None),
+                )
+                if next_service_date:
+                    job.start_date = next_service_date
+                    num_days = getattr(job, 'num_days', 1) or 1
+                    if num_days > 1:
+                        job.end_date = next_service_date + timedelta(days=num_days - 1)
+                    else:
+                        job.end_date = next_service_date
+
+                job.status = ForumPostStatus.ONGOING
+                job.completed_at = None
+
+                # For weekly recurring posted jobs, require owner's next weekly
+                # posting fee immediately after a cycle is settled.
+                if (getattr(job, 'frequency', None) or '').lower() == 'weekly':
+                    job.post_fee_status = 'pending_owner_weekly'
+                    job.post_fee_checkout_id = None
+                    job.post_fee_reference = None
     
     db.commit()
     
@@ -450,10 +895,13 @@ async def confirm_payment_received(
             post_id=job_id
         )
     
-    # Check if job should auto-complete (long-term jobs only)
-    # Condition: ALL payments for ALL workers are confirmed
-    if job.is_longterm:
-        # Check if all payment schedules are confirmed
+    # Check if job should auto-complete
+    # For recurring services, don't auto-complete - they continue until cancelled
+    if is_recurring:
+        # Recurring jobs continue indefinitely
+        return {"message": "Payment confirmed successfully", "job_completed": False}
+    elif job.is_longterm:
+        # Long-term non-recurring: Check if all payment schedules are confirmed
         all_schedules = db.query(PaymentSchedule).join(Contract).filter(
             Contract.post_id == job_id
         ).all()
@@ -476,6 +924,34 @@ async def confirm_payment_received(
                 "message": "Payment confirmed! Job has been completed.",
                 "job_completed": True
             }
+    else:
+        # Short-term job: complete only when all payable workers are BOTH
+        # paid and work-approved (contract status COMPLETED).
+        from app.models_v2.contract import ContractStatus
+        payable_contracts = db.query(Contract).filter(
+            Contract.post_id == job_id,
+            Contract.status.in_([
+                ContractStatus.ACTIVE,
+                ContractStatus.PENDING_COMPLETION,
+                ContractStatus.COMPLETED,
+            ]),
+        ).all()
+        all_paid = bool(payable_contracts) and all(c.paid_at is not None for c in payable_contracts)
+        all_work_approved = bool(payable_contracts) and all(c.status == ContractStatus.COMPLETED for c in payable_contracts)
+        
+        if all_paid and all_work_approved:
+            job.status = ForumPostStatus.COMPLETED
+            job.completed_at = datetime.now()
+            
+            db.commit()
+            
+            return {
+                "message": "Payment confirmed! Job has been completed.",
+                "job_completed": True
+            }
+    
+    # Commit the payment confirmation changes
+    db.commit()
     
     return {"message": "Payment confirmed successfully", "job_completed": False}
 
@@ -504,9 +980,15 @@ async def report_payment_issue(
     if not transaction:
         raise HTTPException(status_code=404, detail="Transaction not found")
     
-    # Update transaction
-    transaction.status = PaymentStatus.DISPUTED
-    transaction.dispute_reason = data.dispute_reason
+    # Get the schedule to update its status
+    schedule = db.query(PaymentSchedule).filter(
+        PaymentSchedule.schedule_id == transaction.schedule_id
+    ).first()
+    
+    # Update schedule status and add note to transaction
+    if schedule:
+        schedule.status = PaymentStatus.DISPUTED
+    transaction.notes = f"DISPUTE: {data.dispute_reason}"
     
     db.commit()
     

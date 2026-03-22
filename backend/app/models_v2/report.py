@@ -10,10 +10,14 @@ class ReportType(str, enum.Enum):
     UNPAID_JOB = "unpaid_job"  # Housekeeper reports owner didn't pay
     NON_COMPLETION = "non_completion"  # Owner reports housekeeper didn't complete job
     POOR_QUALITY = "poor_quality"  # Owner reports poor quality work
+    BACK_JOB_REQUEST = "back_job_request"  # Owner requests free rework after completion
     NO_SHOW = "no_show"  # Owner reports housekeeper didn't show up
     HARASSMENT = "harassment"  # Either party reports harassment
     SCAM = "scam"  # Either party reports scam attempt
     OTHER = "other"
+    
+    def __str__(self):
+        return self.value
 
 
 class ReportStatus(str, enum.Enum):
@@ -22,6 +26,9 @@ class ReportStatus(str, enum.Enum):
     RESOLVED = "resolved"  # Issue resolved
     DISMISSED = "dismissed"  # Report dismissed (invalid)
     ESCALATED = "escalated"  # Escalated to higher authority
+    
+    def __str__(self):
+        return self.value
 
 
 class Report(Base):
@@ -41,15 +48,16 @@ class Report(Base):
     post_id = Column(Integer, ForeignKey("forumposts.post_id"), nullable=True)
     
     # Report details
-    report_type = Column(SQLEnum(ReportType), nullable=False)
+    report_type = Column(SQLEnum(ReportType, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False)
     title = Column(String, nullable=False)
+    reason = Column(Text, nullable=False)
     description = Column(Text, nullable=False)
     
     # Evidence/proof
     evidence_urls = Column(Text, nullable=True)  # JSON array of image URLs
     
     # Status tracking
-    status = Column(SQLEnum(ReportStatus), nullable=False, default=ReportStatus.PENDING)
+    status = Column(SQLEnum(ReportStatus, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False, default=ReportStatus.PENDING)
     
     # Admin handling
     admin_id = Column(Integer, ForeignKey("users.id"), nullable=True)

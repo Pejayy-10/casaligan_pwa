@@ -87,7 +87,6 @@ pip install -r requirements.txt
 
 # Run the backend server
 python -m uvicorn app.main:app --reload --port 8000
-```
 
 Backend will run at: **http://localhost:8000**
 

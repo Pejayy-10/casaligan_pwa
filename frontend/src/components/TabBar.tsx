@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom';
 import { useState, useEffect } from 'react';
+import { Bell } from 'lucide-react';
 import api from '../services/api';
 
 interface TabBarProps {
@@ -8,6 +9,7 @@ interface TabBarProps {
 
 export default function TabBar({ role }: TabBarProps) {
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -19,13 +21,35 @@ export default function TabBar({ role }: TabBarProps) {
       }
     };
 
+    const fetchUnreadNotifications = async () => {
+      try {
+        const response = await api.get('/notifications/count');
+        setUnreadNotifications(response.data.unread_count || 0);
+      } catch (error) {
+        console.error('Failed to fetch unread notifications:', error);
+      }
+    };
+
+    // Listen for notification updates from other components (e.g. NotificationsPage)
+    const handleNotificationsUpdated = () => {
+      fetchUnreadNotifications();
+    };
+    window.addEventListener('notifications-updated', handleNotificationsUpdated);
+
     // Fetch initially
     fetchUnreadCount();
+    fetchUnreadNotifications();
 
     // Poll every 30 seconds
-    const interval = setInterval(fetchUnreadCount, 30000);
+    const interval = setInterval(() => {
+      fetchUnreadCount();
+      fetchUnreadNotifications();
+    }, 30000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('notifications-updated', handleNotificationsUpdated);
+    };
   }, []);
 
   return (
@@ -84,6 +108,26 @@ export default function TabBar({ role }: TabBarProps) {
               )}
             </div>
             <span className="text-xs font-medium">Messages</span>
+          </NavLink>
+
+          {/* Notifications Tab */}
+          <NavLink
+            to="/notifications"
+            className={({ isActive }) =>
+              `flex flex-col items-center justify-center flex-1 h-full transition-all relative ${
+                isActive ? 'text-[#EA526F]' : 'text-white/70 hover:text-white'
+              }`
+            }
+          >
+            <div className="relative">
+              <Bell className="w-6 h-6 mb-1" />
+              {unreadNotifications > 0 && (
+                <span className="absolute -top-1 -right-2 bg-[#EA526F] text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </span>
+              )}
+            </div>
+            <span className="text-xs font-medium">Notifications</span>
           </NavLink>
 
           {/* Profile Tab */}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CreditCard } from 'lucide-react';
 
 interface PaymentModalProps {
   amount: number;
@@ -83,10 +84,10 @@ export default function PaymentModal({ amount, jobTitle, onClose, onSuccess }: P
       <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl">
         {/* Header */}
         <div className="sticky top-0 bg-white/10 backdrop-blur-xl border-b border-white/20 p-6 flex items-center justify-between">
-          <h2 className="text-2xl font-bold text-white">💳 Payment</h2>
+          <h2 className="text-2xl font-bold text-white">Payment</h2>
           <button 
             onClick={onClose}
-            className="text-white/70 hover:text-white transition-colors text-3xl leading-none"
+            className="p-2 hover:bg-white/20 rounded-lg transition-colors text-white/70 hover:text-white"
           >
             ×
           </button>
@@ -172,8 +173,8 @@ export default function PaymentModal({ amount, jobTitle, onClose, onSuccess }: P
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-[#EA526F] rounded-lg flex items-center justify-center text-white font-bold text-2xl">
-                    💵
+                  <div className="w-12 h-12 bg-[#EA526F] rounded-lg flex items-center justify-center text-white font-bold text-xl">
+                    C
                   </div>
                   <div className="text-left flex-1">
                     <p className="text-white font-semibold">Cash</p>

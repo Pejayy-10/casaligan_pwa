@@ -81,7 +81,7 @@ def get_notifications(
     return [
         NotificationResponse(
             notification_id=n.notification_id,
-            type=n.type.value,
+            type=n.type.value if isinstance(n.type, NotificationType) else str(n.type),
             title=n.title,
             message=n.message,
             reference_type=n.reference_type,

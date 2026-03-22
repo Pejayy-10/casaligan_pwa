@@ -1,4 +1,11 @@
 import { useState, useRef } from 'react';
+import { API_BASE_URL } from '../config';
+import { CheckCircle, ClipboardList, Camera, Clock, Upload, FileText, AlertTriangle } from 'lucide-react';
+
+const resolveUploadUrl = (url: string) => {
+  if (!url) return '';
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
+};
 
 interface Props {
   jobId: number;
@@ -46,7 +53,7 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
       formData.append('file', file);
       formData.append('category', 'completion');
 
-      const response = await fetch('http://127.0.0.1:8000/upload/image', {
+      const response = await fetch(`${API_BASE_URL}/upload/image`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -56,7 +63,7 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
 
       if (response.ok) {
         const data = await response.json();
-        setProofUrl(`http://127.0.0.1:8000${data.url}`);
+        setProofUrl(resolveUploadUrl(data.url));
       } else {
         const error = await response.json();
         alert(error.detail || 'Failed to upload image');
@@ -76,7 +83,7 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
       setSubmitting(true);
       const token = localStorage.getItem('access_token');
       
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/submit-completion`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/submit-completion`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -103,34 +110,34 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="p-6 border-b border-white/10">
+        <div className="p-6 border-b border-gray-200 dark:border-white/10 sticky top-0 bg-white dark:bg-slate-900/95 backdrop-blur z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white">✅ Submit Job Completion</h2>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">Submit Job Completion</h2>
             <button
               onClick={onClose}
-              className="text-white/60 hover:text-white transition-colors"
+              className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white"
             >
-              ✕
+              ×
             </button>
           </div>
-          <p className="text-white/60 text-sm mt-1">{jobTitle}</p>
+          <p className="text-[#4B244A]/70 dark:text-white/70 text-sm mt-1 font-medium">{jobTitle}</p>
         </div>
 
         {/* Content */}
         <div className="p-6 space-y-4">
-          <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-            <p className="text-blue-300 text-sm">
-              📋 Submit proof of job completion. Once submitted, the owner will review and approve your work.
+          <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-lg p-4">
+            <p className="text-blue-800 dark:text-blue-200 text-sm font-medium">
+              <ClipboardList className="inline w-4 h-4 mr-1" /> Submit proof of job completion. Once submitted, the owner will review and approve your work.
             </p>
           </div>
 
           {/* File Upload */}
           <div>
-            <label className="block text-white/80 text-sm font-semibold mb-2">
-              📷 Upload Proof Photo
+            <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm font-bold mb-2">
+              <Camera className="inline w-4 h-4 mr-1" /> Upload Proof Photo
             </label>
             <input
               type="file"
@@ -142,19 +149,19 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="w-full py-4 border-2 border-dashed border-white/30 rounded-lg text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all flex items-center justify-center gap-2"
+              className="w-full py-4 border-2 border-dashed border-gray-300 dark:border-white/30 rounded-lg text-[#4B244A]/70 dark:text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all flex items-center justify-center gap-2 font-medium bg-white/50 dark:bg-white/5"
             >
               {uploading ? (
                 <>
-                  <span className="animate-spin">⏳</span> Uploading...
+                  <span className="animate-spin"><Clock className="inline w-4 h-4 mr-1" /></span> Uploading...
                 </>
               ) : (
                 <>
-                  📤 Click to select image from device
+                  <Upload className="inline w-4 h-4 mr-1" /> Click to select image from device
                 </>
               )}
             </button>
-            <p className="text-white/50 text-xs mt-1">
+            <p className="text-[#4B244A]/50 dark:text-white/50 text-xs mt-1 font-medium">
               Supports: JPEG, PNG, GIF, WebP (max 10MB)
             </p>
           </div>
@@ -162,14 +169,14 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
           {/* Preview */}
           {previewImage && (
             <div>
-              <label className="block text-white/80 text-sm font-semibold mb-2">
-                Preview {proofUrl && '✅'}
+              <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm font-bold mb-2">
+                Preview {proofUrl && <CheckCircle className="inline w-4 h-4 mr-1" />}
               </label>
-              <div className="relative">
+              <div className="relative group">
                 <img
                   src={previewImage}
                   alt="Completion proof"
-                  className="w-full h-48 object-cover rounded-lg border border-white/20"
+                  className="w-full h-48 object-cover rounded-lg border border-gray-200 dark:border-white/20"
                 />
                 <button
                   onClick={() => {
@@ -177,7 +184,7 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
                     setProofUrl('');
                     if (fileInputRef.current) fileInputRef.current.value = '';
                   }}
-                  className="absolute top-2 right-2 bg-red-500 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-600"
+                  className="absolute top-2 right-2 bg-red-500 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-600 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   ✕
                 </button>
@@ -187,33 +194,33 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
 
           {/* Notes */}
           <div>
-            <label className="block text-white/80 text-sm font-semibold mb-2">
-              📝 Completion Notes
+            <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm font-bold mb-2">
+              <FileText className="inline w-4 h-4 mr-1" /> Completion Notes
             </label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Describe the work completed, any notes for the owner..."
               rows={4}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#EA526F] resize-none"
+              className="w-full px-4 py-3 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#EA526F] resize-none transition-all"
             />
           </div>
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-white/10 flex gap-3">
+        <div className="p-6 border-t border-gray-200 dark:border-white/10 flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-all"
+            className="flex-1 py-3 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/10"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={submitting || uploading}
-            className="flex-1 py-3 bg-green-500 text-white font-semibold rounded-xl hover:bg-green-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 py-3 bg-green-500 text-white font-bold rounded-xl hover:bg-green-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md"
           >
-            {submitting ? 'Submitting...' : '✅ Submit Completion'}
+            {submitting ? 'Submitting...' : <><CheckCircle className="inline w-4 h-4 mr-1" /> Submit Completion</>}
           </button>
         </div>
       </div>

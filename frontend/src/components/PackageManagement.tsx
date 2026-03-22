@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
+import { Plus, Edit2, Clock, Package, AlertTriangle, Loader2 } from 'lucide-react';
 
 interface Package {
   package_id: number;
@@ -7,7 +9,17 @@ interface Package {
   description: string | null;
   price: number;
   duration_hours: number;
+  num_days: number;
   services: string[];
+  is_active: boolean;
+  category_ids: number[];
+  category_names: string[];
+}
+
+interface Category {
+  category_id: number;
+  name: string;
+  description: string | null;
   is_active: boolean;
 }
 
@@ -18,6 +30,7 @@ interface Props {
 
 export default function PackageManagement({ onClose, embedded = false }: Props) {
   const [packages, setPackages] = useState<Package[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingPackage, setEditingPackage] = useState<Package | null>(null);
@@ -27,18 +40,39 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
   const [durationHours, setDurationHours] = useState('2');
+  const [numDays, setNumDays] = useState('1');
   const [services, setServices] = useState('');
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [customCategoryName, setCustomCategoryName] = useState('');
+  const [customCategoryDescription, setCustomCategoryDescription] = useState('');
+  const [addingCategory, setAddingCategory] = useState(false);
 
   useEffect(() => {
     loadPackages();
+    loadCategories();
   }, []);
+
+  const loadCategories = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/categories/my-categories?active_only=true`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setCategories(data);
+      }
+    } catch (error) {
+      console.error('Failed to load categories:', error);
+    }
+  };
 
   const loadPackages = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('access_token');
-      const response = await fetch('http://127.0.0.1:8000/packages/my-packages', {
+      const response = await fetch(`${API_BASE_URL}/packages/my-packages`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       
@@ -58,7 +92,9 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     setDescription('');
     setPrice('');
     setDurationHours('2');
+    setNumDays('1');
     setServices('');
+    setSelectedCategoryIds([]);
     setEditingPackage(null);
     setShowForm(false);
   };
@@ -69,13 +105,15 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     setDescription(pkg.description || '');
     setPrice(pkg.price.toString());
     setDurationHours(pkg.duration_hours.toString());
+    setNumDays((pkg.num_days || 1).toString());
     setServices(pkg.services?.join(', ') || '');
+    setSelectedCategoryIds(pkg.category_ids || []);
     setShowForm(true);
   };
 
   const handleSubmit = async () => {
-    if (!name.trim() || !price) {
-      alert('Please fill in package name and price');
+    if (!name.trim() || !price || selectedCategoryIds.length === 0) {
+      alert('Please fill in package name, price, and at least one category');
       return;
     }
 
@@ -90,12 +128,14 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
         description: description.trim() || null,
         price: parseFloat(price),
         duration_hours: parseInt(durationHours),
-        services: servicesArray
+        num_days: parseInt(numDays),
+        services: servicesArray,
+        category_ids: selectedCategoryIds
       };
 
       const url = editingPackage 
-        ? `http://127.0.0.1:8000/packages/${editingPackage.package_id}`
-        : 'http://127.0.0.1:8000/packages/';
+        ? `${API_BASE_URL}/packages/${editingPackage.package_id}`
+        : `${API_BASE_URL}/packages/`;
       
       const method = editingPackage ? 'PUT' : 'POST';
 
@@ -109,7 +149,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
       });
 
       if (response.ok) {
-        alert(editingPackage ? '✓ Package updated!' : '✓ Package created!');
+        alert(editingPackage ? 'Package updated!' : 'Package created!');
         resetForm();
         loadPackages();
       } else {
@@ -124,12 +164,61 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     }
   };
 
+  const handleAddCustomCategory = async () => {
+    if (!customCategoryName.trim()) {
+      alert('Please enter a category name');
+      return;
+    }
+
+    try {
+      setAddingCategory(true);
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/categories/custom`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          name: customCategoryName.trim(),
+          description: customCategoryDescription.trim() || null
+        })
+      });
+
+      if (response.ok) {
+        const newCategory: Category = await response.json();
+        setCategories((prev) => {
+          if (prev.some((c) => c.category_id === newCategory.category_id)) {
+            return prev;
+          }
+          return [...prev, newCategory].sort((a, b) => a.name.localeCompare(b.name));
+        });
+        setSelectedCategoryIds((prev) =>
+          prev.includes(newCategory.category_id) ? prev : [...prev, newCategory.category_id]
+        );
+        setCustomCategoryName('');
+        setCustomCategoryDescription('');
+      } else {
+        const error = await response.json();
+        alert(error.detail || 'Failed to create category');
+      }
+    } catch (error) {
+      console.error('Failed to create custom category:', error);
+      alert('Failed to create category');
+    } finally {
+      setAddingCategory(false);
+    }
+  };
+
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+
   const handleDelete = async (packageId: number) => {
     if (!confirm('Are you sure you want to delete this package?')) return;
 
     try {
+      setActionLoading(`delete-${packageId}`);
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://127.0.0.1:8000/packages/${packageId}`, {
+      const response = await fetch(`${API_BASE_URL}/packages/${packageId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
@@ -142,13 +231,16 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     } catch (error) {
       console.error('Delete error:', error);
       alert('Failed to delete package');
+    } finally {
+      setActionLoading(null);
     }
   };
 
   const handleToggleActive = async (pkg: Package) => {
     try {
+      setActionLoading(`toggle-${pkg.package_id}`);
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://127.0.0.1:8000/packages/${pkg.package_id}`, {
+      const response = await fetch(`${API_BASE_URL}/packages/${pkg.package_id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -162,92 +254,164 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
       }
     } catch (error) {
       console.error('Toggle error:', error);
+    } finally {
+      setActionLoading(null);
     }
   };
+
+  // Shared styles
+  const inputClass = "w-full px-4 py-3 bg-white/50 dark:bg-white/10 backdrop-blur-sm border border-gray-200 dark:border-white/20 rounded-xl text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F] transition-all";
+  const labelClass = "block text-[#4B244A] dark:text-white font-bold mb-2";
+  const optionClass = "text-gray-900 dark:text-gray-900"; // Ensures dropdown items are visible
 
   // Package form JSX
   const packageForm = (
     <div className="space-y-4">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-white">
-          {editingPackage ? '✏️ Edit Package' : '➕ New Package'}
-        </h3>
-        <button onClick={resetForm} className="text-white/60 hover:text-white text-sm">
-          Cancel
-        </button>
-      </div>
 
       <div>
-        <label className="block text-white font-semibold mb-2">Package Name *</label>
+        <label className={labelClass}>Package Name *</label>
         <input
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g., Basic Cleaning, Deep Clean, Weekly Service"
-          className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+          className={inputClass}
         />
       </div>
 
       <div>
-        <label className="block text-white font-semibold mb-2">Description</label>
+        <label className={labelClass}>Categories * (Select at least one)</label>
+        <div className="mb-3 p-3 bg-white/40 dark:bg-slate-800/40 rounded-lg border border-gray-200 dark:border-white/10 space-y-2">
+          <p className="text-[#4B244A]/70 dark:text-white/70 text-xs font-medium">Add custom category</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <input
+              type="text"
+              value={customCategoryName}
+              onChange={(e) => setCustomCategoryName(e.target.value)}
+              placeholder="Category name"
+              className={`${inputClass} py-2! text-sm`}
+            />
+            <input
+              type="text"
+              value={customCategoryDescription}
+              onChange={(e) => setCustomCategoryDescription(e.target.value)}
+              placeholder="Description (optional)"
+              className={`${inputClass} py-2! text-sm`}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={handleAddCustomCategory}
+            disabled={addingCategory}
+            className="px-3 py-2 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d64460] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {addingCategory ? 'Adding...' : 'Add Category'}
+          </button>
+        </div>
+        <div className="space-y-2 max-h-48 overflow-y-auto p-3 bg-white/50 dark:bg-slate-800/50 rounded-lg border border-gray-200 dark:border-white/10">
+          {categories.map((cat) => (
+            <label 
+              key={cat.category_id} 
+              className="flex items-center gap-2 cursor-pointer hover:bg-white/80 dark:hover:bg-slate-700/50 p-2 rounded transition-colors"
+            >
+              <input
+                type="checkbox"
+                checked={selectedCategoryIds.includes(cat.category_id)}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setSelectedCategoryIds([...selectedCategoryIds, cat.category_id]);
+                  } else {
+                    setSelectedCategoryIds(selectedCategoryIds.filter(id => id !== cat.category_id));
+                  }
+                }}
+                className="w-4 h-4 text-[#EA526F] bg-white dark:bg-slate-700 border-gray-300 dark:border-white/20 rounded focus:ring-[#EA526F] focus:ring-2"
+              />
+              <span className="text-[#4B244A] dark:text-white text-sm">{cat.name}</span>
+            </label>
+          ))}
+        </div>
+        {categories.length === 0 && (
+          <p className="text-yellow-600 dark:text-yellow-300 text-xs mt-1 flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> No categories available. Contact admin to add categories.</p>
+        )}
+        {selectedCategoryIds.length === 0 && (
+          <p className="text-red-500 dark:text-red-400 text-xs mt-1">Please select at least one category</p>
+        )}
+      </div>
+
+      <div>
+        <label className={labelClass}>Description</label>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="Describe what's included in this package..."
           rows={3}
-          className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+          className={`${inputClass} resize-none`}
         />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="block text-white font-semibold mb-2">Price (₱) *</label>
+          <label className={labelClass}>Price (₱) *</label>
           <input
             type="number"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             placeholder="500"
             min="0"
-            className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+            className={inputClass}
           />
         </div>
 
         <div>
-          <label className="block text-white font-semibold mb-2">Duration (hours)</label>
+          <label className={labelClass}>Duration (hrs/day)</label>
           <select
             value={durationHours}
             onChange={(e) => setDurationHours(e.target.value)}
-            className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+            className={inputClass}
           >
-            <option value="1">1 hour</option>
-            <option value="2">2 hours</option>
-            <option value="3">3 hours</option>
-            <option value="4">4 hours</option>
-            <option value="5">5 hours</option>
-            <option value="6">6 hours</option>
-            <option value="8">8 hours (full day)</option>
+            <option value="1" className={optionClass}>1 hour</option>
+            <option value="2" className={optionClass}>2 hours</option>
+            <option value="3" className={optionClass}>3 hours</option>
+            <option value="4" className={optionClass}>4 hours</option>
+            <option value="5" className={optionClass}>5 hours</option>
+            <option value="6" className={optionClass}>6 hours</option>
+            <option value="8" className={optionClass}>8 hours (full day)</option>
           </select>
         </div>
       </div>
 
       <div>
-        <label className="block text-white font-semibold mb-2">Services Included</label>
+        <label className={labelClass}>Number of Days</label>
+        <input
+          type="number"
+          value={numDays}
+          onChange={(e) => setNumDays(Math.max(1, parseInt(e.target.value) || 1).toString())}
+          min="1"
+          max="30"
+          className={inputClass}
+        />
+        <p className="text-[#4B244A]/50 dark:text-white/50 text-xs mt-1">How many days this package will take to complete</p>
+      </div>
+
+      <div>
+        <label className={labelClass}>Services Included</label>
         <input
           type="text"
           value={services}
           onChange={(e) => setServices(e.target.value)}
           placeholder="Sweeping, Mopping, Bathroom cleaning (comma separated)"
-          className="w-full px-4 py-3 bg-white/20 border border-white/30 rounded-xl text-white placeholder-white/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+          className={inputClass}
         />
-        <p className="text-white/50 text-xs mt-1">Separate services with commas</p>
+        <p className="text-[#4B244A]/50 dark:text-white/50 text-xs mt-1">Separate services with commas</p>
       </div>
 
       <button
         onClick={handleSubmit}
         disabled={submitting}
-        className="w-full py-4 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all disabled:opacity-50"
+        className="w-full py-4 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
       >
-        {submitting ? '⏳ Saving...' : editingPackage ? '✓ Update Package' : '✓ Create Package'}
+        {submitting ? <Clock className="inline w-4 h-4 mr-1 animate-spin" /> : null}
+        {submitting ? 'Saving...' : editingPackage ? 'Update Package' : 'Create Package'}
       </button>
     </div>
   );
@@ -257,9 +421,9 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     <div className="space-y-4">
       <button
         onClick={() => setShowForm(true)}
-        className="w-full py-4 border-2 border-dashed border-white/30 rounded-xl text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all"
+        className="w-full py-4 border-2 border-dashed border-gray-300 dark:border-white/30 rounded-xl text-[#4B244A]/70 dark:text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all font-medium bg-white/50 dark:bg-white/5"
       >
-        ➕ Add New Package
+        <Plus className="inline w-4 h-4 mr-1" /> Add New Package
       </button>
 
       {loading ? (
@@ -267,38 +431,45 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
           <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EA526F]"></div>
         </div>
       ) : packages.length === 0 ? (
-        <div className="text-center py-8 bg-white/10 rounded-xl">
-          <div className="text-4xl mb-2">📦</div>
-          <p className="text-white/70">No packages yet</p>
-          <p className="text-white/50 text-sm">Create your first package to get direct bookings!</p>
+        <div className="text-center py-8 bg-white/50 dark:bg-white/10 rounded-xl border border-gray-200 dark:border-white/10">
+          <div className="mb-2 opacity-50"><Package className="w-16 h-16 text-[#4B244A]/60 dark:text-white/60 mx-auto" /></div>
+          <p className="text-[#4B244A]/70 dark:text-white/70 font-medium">No packages yet</p>
+          <p className="text-[#4B244A]/50 dark:text-white/50 text-sm">Create your first package to get direct bookings!</p>
         </div>
       ) : (
         packages.map((pkg) => (
           <div
             key={pkg.package_id}
-            className={`bg-white/10 rounded-xl p-4 border transition-all ${
-              pkg.is_active ? 'border-white/20' : 'border-white/10 opacity-60'
+            className={`bg-white/50 dark:bg-white/10 rounded-xl p-4 border transition-all ${
+              pkg.is_active ? 'border-gray-200 dark:border-white/20' : 'border-gray-100 dark:border-white/10 opacity-60'
             }`}
           >
             <div className="flex items-start justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-lg font-bold text-white">{pkg.name}</h4>
+                  <h4 className="text-lg font-bold text-[#4B244A] dark:text-white">{pkg.name}</h4>
                   {!pkg.is_active && (
-                    <span className="px-2 py-0.5 bg-gray-500/30 text-gray-300 text-xs rounded-full">
+                    <span className="px-2 py-0.5 bg-gray-200 text-gray-600 dark:bg-gray-500/30 dark:text-gray-300 text-xs rounded-full font-bold">
                       Inactive
                     </span>
                   )}
                 </div>
-                {pkg.description && (
-                  <p className="text-white/70 text-sm mt-1">{pkg.description}</p>
-                )}
-                <div className="flex items-center gap-4 mt-2 text-sm text-white/60">
-                  <span>⏱ {pkg.duration_hours}h</span>
-                  {pkg.services && pkg.services.length > 0 && (
-                    <span>📋 {pkg.services.length} services</span>
-                  )}
+              {pkg.category_names && pkg.category_names.length > 0 && (
+                <div className="mt-1 flex flex-wrap gap-1">
+                  {pkg.category_names.map((catName, idx) => (
+                    <span 
+                      key={idx}
+                      className="px-2 py-0.5 bg-[#EA526F]/10 dark:bg-[#EA526F]/30 text-[#EA526F] dark:text-pink-300 text-xs font-bold rounded-full border border-[#EA526F]/20 dark:border-[#EA526F]/40"
+                    >
+                      {catName}
+                    </span>
+                  ))}
                 </div>
+              )}
+              <div className="mt-1 flex items-center gap-3 text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">
+                <span>⏱ {pkg.duration_hours} hrs/day</span>
+                <span>📆 {pkg.num_days || 1} day{(pkg.num_days || 1) > 1 ? 's' : ''}</span>
+              </div>
               </div>
               
               <div className="text-right">
@@ -308,24 +479,28 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
                 <div className="flex items-center gap-2 mt-2">
                   <button
                     onClick={() => handleEdit(pkg)}
-                    className="px-3 py-1 bg-white/20 text-white text-sm rounded-lg hover:bg-white/30"
+                    className="px-3 py-1 bg-white/80 dark:bg-white/20 text-[#4B244A] dark:text-white text-sm font-bold rounded-lg hover:bg-white dark:hover:bg-white/30 transition-colors shadow-sm"
                   >
                     Edit
                   </button>
                   <button
                     onClick={() => handleToggleActive(pkg)}
-                    className={`px-3 py-1 text-sm rounded-lg ${
+                    disabled={actionLoading === `toggle-${pkg.package_id}`}
+                    className={`px-3 py-1 text-sm font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1 ${
                       pkg.is_active 
-                        ? 'bg-yellow-500/20 text-yellow-300 hover:bg-yellow-500/30'
-                        : 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
+                        ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-300 dark:hover:bg-yellow-500/30'
+                        : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-500/20 dark:text-green-300 dark:hover:bg-green-500/30'
                     }`}
                   >
+                    {actionLoading === `toggle-${pkg.package_id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                     {pkg.is_active ? 'Deactivate' : 'Activate'}
                   </button>
                   <button
                     onClick={() => handleDelete(pkg.package_id)}
-                    className="px-3 py-1 bg-red-500/20 text-red-300 text-sm rounded-lg hover:bg-red-500/30"
+                    disabled={actionLoading === `delete-${pkg.package_id}`}
+                    className="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-500/20 dark:text-red-300 text-sm font-bold rounded-lg dark:hover:bg-red-500/30 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1"
                   >
+                    {actionLoading === `delete-${pkg.package_id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                     Delete
                   </button>
                 </div>
@@ -347,15 +522,34 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
 
   // Modal mode
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="sticky top-0 bg-gradient-to-br from-[#4B244A] to-[#6B3468] p-6 border-b border-white/20 z-10">
+        <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-6 border-b border-gray-200 dark:border-white/10 z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white">📦 My Service Packages</h2>
-            {onClose && <button onClick={onClose} className="text-white/60 hover:text-white">✕</button>}
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">
+              {showForm ? (
+                editingPackage ? (
+                  <><Edit2 className="inline w-5 h-5 mr-2" /> Edit Package</>
+                ) : (
+                  <><Plus className="inline w-5 h-5 mr-2" /> New Package</>
+                )
+              ) : (
+                <><Package className="inline w-5 h-5 mr-2" /> My Service Packages</>
+              )}
+            </h2>
+
+            <button
+              onClick={showForm ? resetForm : (onClose ?? (() => {}))}
+              aria-label={showForm ? 'Cancel' : 'Close'}
+              className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60"
+            >
+              ×
+            </button>
           </div>
-          <p className="text-white/60 text-sm mt-1">Create packages that house owners can book directly</p>
+          <p className="text-[#4B244A]/60 dark:text-white/60 text-sm mt-1 font-medium">
+            {showForm ? (editingPackage ? 'Edit package details' : 'Fill in the package details') : 'Create packages that house owners can book directly'}
+          </p>
         </div>
 
         {/* Content */}

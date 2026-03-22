@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, X, Check, CheckCheck } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Bell, X, Check, CheckCheck, AlertTriangle } from 'lucide-react';
+import JobEditResponseModal from './JobEditResponseModal';
+import { API_BASE_URL } from '../config';
 
 interface Notification {
   notification_id: number;
@@ -17,19 +20,74 @@ interface NotificationBellProps {
   onNavigate?: (referenceType: string, referenceId: number) => void;
 }
 
+// Owner-specific notification types
+const OWNER_ONLY_NOTIFICATIONS = [
+  'job_application',
+  'job_edited',
+  'completion_submitted',
+  'direct_hire_request',
+  'applicant_withdrawn_due_to_conflict',
+  'hire_canceled_worker_accepted_conflict',
+];
+
+// Worker/Housekeeper-specific notification types
+const HOUSEKEEPER_ONLY_NOTIFICATIONS = [
+  'application_accepted',
+  'application_rejected',
+  'job_started',
+  'completion_approved',
+  'payment_sent',
+  'payment_received',
+  'payment_review',
+  'payment_due',
+  'payment_overdue',
+  'direct_hire_rejected',
+  'direct_hire_started',
+  'direct_hire_completed',
+  'direct_hire_approved',
+  'direct_hire_paid',
+  'contract_extension_proposed',
+  'contract_extension_accepted',
+  'contract_extension_rejected',
+  'application_withdrawn_due_to_conflict',
+  'direct_hire_rejected_due_to_conflict',
+];
+
+// Notifications that appear in both roles
+const SHARED_NOTIFICATIONS = ['system', 'reminder'];
+
+function isNotificationVisibleForRole(notificationType: string, role: 'owner' | 'housekeeper'): boolean {
+  if (SHARED_NOTIFICATIONS.includes(notificationType)) {
+    return true;
+  }
+  
+  if (role === 'owner') {
+    return OWNER_ONLY_NOTIFICATIONS.includes(notificationType);
+  } else {
+    return HOUSEKEEPER_ONLY_NOTIFICATIONS.includes(notificationType);
+  }
+}
+
 export default function NotificationBell({ onNavigate }: NotificationBellProps) {
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, right: 0 });
+  const [showJobEditModal, setShowJobEditModal] = useState<{ jobId: number; jobTitle: string; message: string } | null>(null);
+  const [userRole, setUserRole] = useState<'owner' | 'housekeeper'>('owner');
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-
   // Get token fresh each time to ensure we have the latest
   const getToken = () => localStorage.getItem('access_token');
+
+  // Get current user role
+  const getCurrentRole = () => {
+    const role = localStorage.getItem('user_role') as 'owner' | 'housekeeper' | null;
+    return role || 'owner';
+  };
 
   // Fetch notifications
   const fetchNotifications = async () => {
@@ -38,13 +96,27 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     if (!token) return;
     
     try {
-      const response = await fetch(`${API_BASE}/notifications/`, {
+      const response = await fetch(`${API_BASE_URL}/notifications/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
+      console.log('fetchNotifications response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
-        setNotifications(data);
+        console.log('fetchNotifications data:', data);
+        console.log('Number of notifications:', data.length);
+        
+        // Filter notifications based on current user role
+        const currentRole = getCurrentRole();
+        const filteredNotifications = data.filter((notif: Notification) =>
+          isNotificationVisibleForRole(notif.type, currentRole)
+        );
+        
+        setNotifications(filteredNotifications);
+      } else {
+        const errorText = await response.text();
+        console.error('fetchNotifications error:', response.status, errorText);
       }
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -58,14 +130,20 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     if (!token) return;
     
     try {
-      const response = await fetch(`${API_BASE}/notifications/count`, {
+      const response = await fetch(`${API_BASE_URL}/notifications/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       console.log('fetchUnreadCount response:', response.status);
       
       if (response.ok) {
         const data = await response.json();
-        setUnreadCount(data.unread_count);
+        // Filter notifications by role and count unread ones
+        const currentRole = getCurrentRole();
+        const filteredNotifications = data.filter((notif: Notification) =>
+          isNotificationVisibleForRole(notif.type, currentRole)
+        );
+        const unreadCount = filteredNotifications.filter((notif: Notification) => !notif.is_read).length;
+        setUnreadCount(unreadCount);
       }
     } catch (error) {
       console.error('Error fetching unread count:', error);
@@ -78,7 +156,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     if (!token) return;
     
     try {
-      await fetch(`${API_BASE}/notifications/${notificationId}/read`, {
+      await fetch(`${API_BASE_URL}/notifications/${notificationId}/read`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -87,6 +165,8 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
         prev.map(n => n.notification_id === notificationId ? { ...n, is_read: true } : n)
       );
       setUnreadCount(prev => Math.max(0, prev - 1));
+      // Notify other components (e.g. TabBar) to refresh their unread count
+      window.dispatchEvent(new Event('notifications-updated'));
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -99,13 +179,15 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     
     setLoading(true);
     try {
-      await fetch(`${API_BASE}/notifications/read-all`, {
+      await fetch(`${API_BASE_URL}/notifications/read-all`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       });
       
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       setUnreadCount(0);
+      // Notify other components (e.g. TabBar) to refresh their unread count
+      window.dispatchEvent(new Event('notifications-updated'));
     } catch (error) {
       console.error('Error marking all as read:', error);
     }
@@ -119,7 +201,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     if (!token) return;
     
     try {
-      await fetch(`${API_BASE}/notifications/${notificationId}`, {
+      await fetch(`${API_BASE_URL}/notifications/${notificationId}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -129,6 +211,8 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
         setUnreadCount(prev => Math.max(0, prev - 1));
       }
       setNotifications(prev => prev.filter(n => n.notification_id !== notificationId));
+      // Notify other components (e.g. TabBar) to refresh their unread count
+      window.dispatchEvent(new Event('notifications-updated'));
     } catch (error) {
       console.error('Error deleting notification:', error);
     }
@@ -138,6 +222,24 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
   const handleNotificationClick = (notification: Notification) => {
     if (!notification.is_read) {
       markAsRead(notification.notification_id);
+    }
+    
+    // Special handling for payment_review notifications - redirect to my-jobs > completed page
+    if (notification.type === 'payment_review') {
+      navigate('/jobs?view=my-jobs&tab=completed');
+      setIsOpen(false);
+      return;
+    }
+    
+    // Special handling for job_edited notifications
+    if (notification.type === 'job_edited' && notification.reference_type === 'job' && notification.reference_id) {
+      setShowJobEditModal({
+        jobId: notification.reference_id,
+        jobTitle: notification.title.replace(' ⚠️', '').replace('Job Post Updated', '').replace('AlertTriangle', '').trim() || 'Job',
+        message: notification.message
+      });
+      setIsOpen(false);
+      return;
     }
     
     if (onNavigate && notification.reference_type && notification.reference_id) {
@@ -168,8 +270,28 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
   // Fetch on mount and poll every 30 seconds
   useEffect(() => {
     console.log('NotificationBell mounted, fetching...');
+    // Set initial role
+    const initialRole = getCurrentRole();
+    setUserRole(initialRole);
+    
     fetchUnreadCount();
     fetchNotifications();
+
+    // Listen for notification updates from other components (e.g. NotificationsPage)
+    const handleNotificationsUpdated = () => {
+      fetchUnreadCount();
+      fetchNotifications();
+    };
+    window.addEventListener('notifications-updated', handleNotificationsUpdated);
+    
+    // Listen for role changes
+    const handleRoleChanged = () => {
+      const newRole = getCurrentRole();
+      setUserRole(newRole);
+      fetchUnreadCount();
+      fetchNotifications();
+    };
+    window.addEventListener('role-changed', handleRoleChanged);
     
     const interval = setInterval(() => {
       fetchUnreadCount();
@@ -178,7 +300,11 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
       }
     }, 30000);
     
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('notifications-updated', handleNotificationsUpdated);
+      window.removeEventListener('role-changed', handleRoleChanged);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -206,6 +332,9 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
 
   // Get icon color based on notification type
   const getTypeColor = (type: string) => {
+    if (type === 'job_edited') {
+      return 'text-yellow-600 dark:text-yellow-400';
+    }
     if (type.includes('ACCEPTED') || type.includes('APPROVED') || type.includes('CONFIRMED')) {
       return 'text-green-500';
     }
@@ -230,11 +359,11 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
     setIsOpen(!isOpen);
   };
 
-  // Dropdown content to be rendered in portal
+   // Dropdown content to be rendered in portal
   const dropdownContent = isOpen ? (
     <div 
       ref={dropdownRef}
-      className="fixed w-80 sm:w-96 bg-white rounded-lg shadow-2xl border border-gray-200 max-h-[80vh] flex flex-col"
+      className="fixed w-80 sm:w-96 bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-white/10 max-h-[80vh] flex flex-col backdrop-blur-xl transition-all"
       style={{ 
         top: dropdownPosition.top, 
         right: dropdownPosition.right,
@@ -242,13 +371,13 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
       }}
     >
       {/* Header */}
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-gray-50 rounded-t-lg">
-        <h3 className="font-semibold text-gray-800">Notifications</h3>
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-white/10 flex items-center justify-between bg-gray-50 dark:bg-white/5 rounded-t-2xl">
+        <h3 className="font-bold text-[#4B244A] dark:text-white">Notifications</h3>
         {unreadCount > 0 && (
           <button
             onClick={markAllAsRead}
             disabled={loading}
-            className="text-sm text-blue-600 hover:text-blue-800 flex items-center gap-1"
+            className="text-sm text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center gap-1 font-semibold"
           >
             <CheckCheck size={16} />
             Mark all read
@@ -259,7 +388,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
       {/* Notification List */}
       <div className="overflow-y-auto flex-1">
         {notifications.length === 0 ? (
-          <div className="px-4 py-8 text-center text-gray-500">
+          <div className="px-4 py-12 text-center text-gray-500 dark:text-white/50">
             <Bell size={40} className="mx-auto mb-2 opacity-30" />
             <p>No notifications yet</p>
           </div>
@@ -268,29 +397,29 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
             <div
               key={notification.notification_id}
               onClick={() => handleNotificationClick(notification)}
-              className={`px-4 py-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors ${
-                !notification.is_read ? 'bg-blue-50' : ''
+              className={`px-4 py-3 border-b border-gray-100 dark:border-white/5 hover:bg-gray-50 dark:hover:bg-white/5 cursor-pointer transition-colors ${
+                !notification.is_read ? 'bg-blue-50 dark:bg-blue-500/10' : ''
               }`}
             >
               <div className="flex items-start gap-3">
                 {/* Indicator dot */}
                 <div className="mt-1.5">
                   {!notification.is_read ? (
-                    <div className="w-2 h-2 bg-blue-500 rounded-full" />
+                    <div className="w-2.5 h-2.5 bg-blue-500 rounded-full" />
                   ) : (
-                    <div className="w-2 h-2 bg-gray-300 rounded-full" />
+                    <div className="w-2.5 h-2.5 bg-gray-300 dark:bg-white/20 rounded-full" />
                   )}
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <p className={`font-medium text-sm ${getTypeColor(notification.type)}`}>
+                  <p className={`font-bold text-sm ${getTypeColor(notification.type)}`}>
                     {notification.title}
                   </p>
-                  <p className="text-sm text-gray-600 mt-0.5 line-clamp-2">
+                  <p className="text-sm text-gray-600 dark:text-white/70 mt-0.5 line-clamp-2">
                     {notification.message}
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">
+                  <p className="text-xs text-gray-400 dark:text-white/40 mt-1 font-medium">
                     {timeAgo(notification.created_at)}
                   </p>
                 </div>
@@ -303,7 +432,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
                         e.stopPropagation();
                         markAsRead(notification.notification_id);
                       }}
-                      className="p-1 text-gray-400 hover:text-green-600 rounded"
+                      className="p-1.5 text-gray-400 dark:text-white/40 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-500/10 rounded-lg transition-colors"
                       title="Mark as read"
                     >
                       <Check size={16} />
@@ -311,7 +440,7 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
                   )}
                   <button
                     onClick={(e) => deleteNotification(notification.notification_id, e)}
-                    className="p-1 text-gray-400 hover:text-red-600 rounded"
+                    className="p-1.5 text-gray-400 dark:text-white/40 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg transition-colors"
                     title="Delete"
                   >
                     <X size={16} />
@@ -325,8 +454,8 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
 
       {/* Footer */}
       {notifications.length > 0 && (
-        <div className="px-4 py-2 border-t border-gray-200 bg-gray-50 rounded-b-lg">
-          <p className="text-xs text-gray-500 text-center">
+        <div className="px-4 py-2 border-t border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 rounded-b-2xl">
+          <p className="text-xs text-gray-500 dark:text-white/50 text-center font-medium">
             Showing {notifications.length} notification{notifications.length !== 1 ? 's' : ''}
           </p>
         </div>
@@ -340,12 +469,12 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
       <button
         ref={buttonRef}
         onClick={handleToggle}
-        className="relative p-2 text-white hover:text-white/80 hover:bg-white/10 rounded-full transition-colors"
+        className="relative p-2 text-[#4B244A] dark:text-white hover:bg-[#4B244A]/10 dark:hover:bg-white/10 rounded-full transition-colors"
         aria-label="Notifications"
       >
         <Bell size={24} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-5 h-5 flex items-center justify-center px-1">
+          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full min-w-5 h-5 flex items-center justify-center px-1 shadow-sm border border-white dark:border-slate-900">
             {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
@@ -353,6 +482,21 @@ export default function NotificationBell({ onNavigate }: NotificationBellProps) 
 
       {/* Dropdown rendered via Portal to escape z-index stacking context */}
       {createPortal(dropdownContent, document.body)}
+
+      {/* Job Edit Response Modal */}
+      {showJobEditModal && (
+        <JobEditResponseModal
+          jobId={showJobEditModal.jobId}
+          jobTitle={showJobEditModal.jobTitle}
+          message={showJobEditModal.message}
+          onClose={() => setShowJobEditModal(null)}
+          onResponse={(response) => {
+            // Refresh notifications after response
+            fetchNotifications();
+            fetchUnreadCount();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -11,6 +11,8 @@ interface Message {
   sent_at: string;
   read_at: string | null;
   is_mine: boolean;
+  failed?: boolean;
+  failure_reason?: string;
 }
 
 interface ChatModalProps {
@@ -39,6 +41,8 @@ const ChatModal: React.FC<ChatModalProps> = ({
   const [sending, setSending] = useState(false);
   const [canSend, setCanSend] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [securityNotice, setSecurityNotice] = useState<string | null>(null);
+  const [securityBlockedUntil, setSecurityBlockedUntil] = useState<string | null>(null);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -153,11 +157,48 @@ const ChatModal: React.FC<ChatModalProps> = ({
         message_type: 'text',
       });
       
+      setSecurityNotice(null);
       setMessages(prev => [...prev, response.data]);
       lastMessageTimeRef.current = response.data.sent_at;
-    } catch (err) {
+    } catch (err: unknown) {
       console.error('Failed to send message:', err);
-      setNewMessage(messageContent); // Restore message on error
+
+      const errorData = (err as { response?: { data?: { detail?: Record<string, unknown> | string } } })?.response?.data;
+      const detail = errorData?.detail;
+      const detailObj = typeof detail === 'object' && detail !== null ? detail as Record<string, unknown> : null;
+      const code = typeof detailObj?.code === 'string' ? detailObj.code : null;
+
+      if (code === 'MESSAGE_POLICY_VIOLATION' || code === 'MESSAGE_POLICY_BLOCKED') {
+        const securityMessage =
+          (typeof detailObj?.security_message === 'string' && detailObj.security_message) ||
+          'Casaligan Security: Message not sent due to policy violation.';
+        const warning = typeof detailObj?.warning === 'string' ? ` ${detailObj.warning}` : '';
+        setSecurityNotice(`${securityMessage}${warning}`);
+
+        const blockedUntil = typeof detailObj?.blocked_until === 'string' ? detailObj.blocked_until : null;
+        setSecurityBlockedUntil(blockedUntil);
+
+        setMessages(prev => [
+          ...prev,
+          {
+            message_id: -Date.now(),
+            conversation_id: conversationId,
+            sender_id: -1,
+            sender_name: 'You',
+            content: messageContent,
+            message_type: 'text',
+            sent_at: new Date().toISOString(),
+            read_at: null,
+            is_mine: true,
+            failed: true,
+            failure_reason: securityMessage,
+          }
+        ]);
+
+        setNewMessage(messageContent);
+      } else {
+        setNewMessage(messageContent); // Restore message on generic error
+      }
     } finally {
       setSending(false);
     }
@@ -203,28 +244,33 @@ const ChatModal: React.FC<ChatModalProps> = ({
   });
 
   if (!isOpen) return null;
+  const isSecurityBlocked = !!securityBlockedUntil && new Date(securityBlockedUntil) > new Date();
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+      <div className="absolute inset-0 bg-black/50 dark:bg-black/70 backdrop-blur-sm" onClick={onClose} />
       
       {/* Chat Modal - Fixed height container */}
-      <div className="relative bg-white rounded-2xl w-full max-w-lg flex flex-col shadow-2xl overflow-hidden" style={{ height: 'min(85vh, 600px)' }}>
+      <div className="relative bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg flex flex-col shadow-2xl overflow-hidden border border-gray-200 dark:border-white/10" style={{ height: 'min(85dvh, 600px)' }}>
         {/* Header - Fixed at top */}
-        <div className="bg-gradient-to-r from-[#4B244A] to-[#6B3468] px-4 py-3 flex items-center justify-between flex-shrink-0">
+        <div
+          className="bg-gradient-to-r from-[#4B244A] to-[#6B3468] dark:from-[#2a1429] dark:to-[#4a2448] px-4 pb-3 flex items-center justify-between flex-shrink-0"
+          style={{ paddingTop: 'env(safe-area-inset-top, 12px)' }}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white font-bold">
+            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm">
               {otherParticipantName[0]?.toUpperCase() || '?'}
             </div>
             <div>
-              <h3 className="text-white font-semibold">{otherParticipantName}</h3>
-              {title && <p className="text-white/70 text-xs">{title}</p>}
+              <h3 className="text-white font-bold">{otherParticipantName}</h3>
+              {title && <p className="text-white/70 text-xs font-medium">{title}</p>}
             </div>
           </div>
           <button
             onClick={onClose}
-            className="text-white/80 hover:text-white p-2 rounded-full hover:bg-white/10"
+            className="text-white/80 hover:text-white p-2 rounded-full hover:bg-white/10 transition-colors"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -233,19 +279,19 @@ const ChatModal: React.FC<ChatModalProps> = ({
         </div>
         
         {/* Messages Area - Scrollable, takes remaining space */}
-        <div className="flex-1 overflow-y-auto p-4 bg-gray-50 min-h-0">
+        <div className="flex-1 overflow-y-auto p-4 bg-[#F8F9FA] dark:bg-slate-950/80 min-h-0">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <div className="w-8 h-8 border-4 border-[#EA526F] border-t-transparent rounded-full animate-spin" />
             </div>
           ) : error ? (
-            <div className="flex items-center justify-center h-full text-red-500">
+            <div className="flex items-center justify-center h-full text-red-500 font-medium">
               {error}
             </div>
           ) : messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400">
-              <div className="text-4xl mb-2">💬</div>
-              <p>No messages yet</p>
+            <div className="flex flex-col items-center justify-center h-full text-gray-400 dark:text-gray-500">
+              <div className="text-4xl mb-2 opacity-50">💬</div>
+              <p className="font-medium">No messages yet</p>
               <p className="text-sm">Start the conversation!</p>
             </div>
           ) : (
@@ -254,7 +300,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
                 <div key={groupIdx}>
                   {/* Date separator */}
                   <div className="flex items-center justify-center my-4">
-                    <span className="px-3 py-1 bg-gray-200 text-gray-500 text-xs rounded-full">
+                    <span className="px-3 py-1 bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-white/50 text-xs font-bold rounded-full">
                       {group.date}
                     </span>
                   </div>
@@ -266,25 +312,32 @@ const ChatModal: React.FC<ChatModalProps> = ({
                       className={`flex ${msg.is_mine ? 'justify-end' : 'justify-start'} mb-2`}
                     >
                       {msg.message_type === 'system' ? (
-                        <div className="text-center text-gray-400 text-xs py-2 w-full">
+                        <div className="text-center text-gray-400 dark:text-gray-500 text-xs py-2 w-full italic">
                           {msg.content}
                         </div>
                       ) : (
                         <div
-                          className={`max-w-[75%] px-4 py-2 rounded-2xl ${
-                            msg.is_mine
+                          className={`max-w-[75%] px-4 py-2 rounded-2xl shadow-sm ${
+                            msg.failed
+                              ? 'bg-gray-300/70 dark:bg-white/10 text-gray-700 dark:text-white/80 rounded-br-md border border-dashed border-gray-400 dark:border-white/20'
+                              : msg.is_mine
                               ? 'bg-[#EA526F] text-white rounded-br-md'
-                              : 'bg-white text-gray-800 rounded-bl-md shadow-sm'
+                              : 'bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 rounded-bl-md border border-gray-100 dark:border-white/5'
                           }`}
                         >
                           {!msg.is_mine && (
-                            <p className="text-xs text-gray-500 mb-1">{msg.sender_name}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1 font-medium">{msg.sender_name}</p>
                           )}
                           <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
-                          <p className={`text-xs mt-1 ${msg.is_mine ? 'text-white/70' : 'text-gray-400'}`}>
+                          <p className={`text-xs mt-1 ${msg.is_mine ? 'text-white/70' : 'text-gray-400 dark:text-gray-500'}`}>
                             {formatTime(msg.sent_at)}
                             {msg.is_mine && msg.read_at && ' ✓✓'}
                           </p>
+                          {msg.failed && (
+                            <p className="text-xs mt-1 text-gray-600 dark:text-white/60 font-semibold">
+                              Not sent • Casaligan Security
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -297,10 +350,19 @@ const ChatModal: React.FC<ChatModalProps> = ({
         </div>
         
         {/* Input Area - Fixed at bottom */}
-        <div className="p-3 bg-white border-t border-gray-200 flex-shrink-0">
+        <div className="p-3 bg-white dark:bg-slate-900 border-t border-gray-200 dark:border-white/10 flex-shrink-0">
+          {securityNotice && (
+            <div className="mb-2 px-3 py-2 rounded-lg bg-yellow-100 dark:bg-yellow-500/10 border border-yellow-300 dark:border-yellow-500/30 text-yellow-800 dark:text-yellow-300 text-xs font-semibold">
+              {securityNotice}
+            </div>
+          )}
           {!canSend ? (
-            <div className="text-center text-gray-500 text-sm py-2">
+            <div className="text-center text-gray-500 dark:text-gray-400 text-sm py-2 font-medium">
               This conversation is read-only
+            </div>
+          ) : isSecurityBlocked ? (
+            <div className="text-center text-red-600 dark:text-red-400 text-sm py-2 font-medium">
+              Casaligan Security: Chat is temporarily blocked due to repeated policy violations.
             </div>
           ) : (
             <div className="flex items-center gap-2">
@@ -311,13 +373,13 @@ const ChatModal: React.FC<ChatModalProps> = ({
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="Type a message..."
-                className="flex-1 px-4 py-2 bg-gray-100 rounded-full focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+                className="flex-1 px-4 py-2 bg-gray-100 dark:bg-white/10 text-gray-900 dark:text-white rounded-full focus:outline-none focus:ring-2 focus:ring-[#EA526F] placeholder-gray-400 dark:placeholder-white/30 border border-transparent focus:border-transparent transition-all"
                 disabled={sending}
               />
               <button
                 onClick={handleSend}
                 disabled={!newMessage.trim() || sending}
-                className="p-2 bg-[#EA526F] text-white rounded-full hover:bg-[#d64460] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+                className="p-2 bg-[#EA526F] text-white rounded-full hover:bg-[#d64460] disabled:bg-gray-300 dark:disabled:bg-white/10 disabled:cursor-not-allowed transition-all shadow-md active:scale-95"
               >
                 {sending ? (
                   <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />

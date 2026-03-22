@@ -1,19 +1,26 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import SplashPage from './pages/SplashPage';
 import LoginPage from './pages/LoginPage';
 import RegisterStep1Page from './pages/RegisterStep1Page';
 import RegisterStep2AddressPage from './pages/RegisterStep2AddressPage';
 import RegisterStep3DocumentsPage from './pages/RegisterStep3DocumentsPage';
+import EmailVerificationPage from './pages/EmailVerificationPage';
 import DashboardPage from './pages/DashboardPage';
 import JobsPage from './pages/JobsPage';
 import MessagesPage from './pages/MessagesPage';
 import ChatPage from './pages/ChatPage';
+import NotificationsPage from './pages/NotificationsPage';
 import ProfilePage from './pages/ProfilePage';
 import ApplyHousekeeperPage from './pages/ApplyHousekeeperPage';
 import CreateJobPage from './pages/CreateJobPage';
 import BrowseWorkersPage from './pages/BrowseWorkersPage';
 import WorkerProfilePage from './pages/WorkerProfilePage';
+import RecurringServicesPage from './pages/RecurringServicesPage';
+import DirectHiresPage from './pages/DirectHiresPage';
 import ProtectedRoute from './components/ProtectedRoute';
+import RestrictionModal from './components/RestrictionModal';
+import { PaymentProvider } from './context/PaymentContext';
 
 const router = createBrowserRouter([
   {
@@ -41,6 +48,14 @@ const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <RegisterStep3DocumentsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/verify-email',
+    element: (
+      <ProtectedRoute>
+        <EmailVerificationPage />
       </ProtectedRoute>
     ),
   },
@@ -85,6 +100,14 @@ const router = createBrowserRouter([
     ),
   },
   {
+    path: '/notifications',
+    element: (
+      <ProtectedRoute>
+        <NotificationsPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
     path: '/profile',
     element: (
       <ProtectedRoute>
@@ -124,10 +147,52 @@ const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+  {
+    path: '/recurring-services',
+    element: (
+      <ProtectedRoute>
+        <RecurringServicesPage />
+      </ProtectedRoute>
+    ),
+  },
+  {
+    path: '/direct-hires',
+    element: (
+      <ProtectedRoute>
+        <DirectHiresPage />
+      </ProtectedRoute>
+    ),
+  },
 ]);
 
 function App() {
-  return <RouterProvider router={router} />;
+  const [restrictionMessage, setRestrictionMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Listen for account restriction events
+    const handleRestriction = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      setRestrictionMessage(customEvent.detail?.message || 'Your account has been restricted.');
+    };
+
+    window.addEventListener('account-restricted', handleRestriction);
+
+    return () => {
+      window.removeEventListener('account-restricted', handleRestriction);
+    };
+  }, []);
+
+  return (
+    <PaymentProvider>
+      <RouterProvider router={router} />
+      {restrictionMessage && (
+        <RestrictionModal
+          message={restrictionMessage}
+          onClose={() => setRestrictionMessage(null)}
+        />
+      )}
+    </PaymentProvider>
+  );
 }
 
 export default App;

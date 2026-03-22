@@ -245,3 +245,142 @@ def notify_direct_hire_paid(db: Session, worker_user_id: int, employer_name: str
         reference_type="direct_hire",
         reference_id=hire_id
     )
+
+
+# Flow 3: Contract Extension Notifications
+
+def notify_contract_extension_proposed(db: Session, worker_user_id: int, employer_name: str, job_title: str, new_end_date: str, post_id: int):
+    """Notify worker when employer proposes a contract extension"""
+    return notify_user(
+        db=db,
+        user_id=worker_user_id,
+        notification_type=NotificationType.CONTRACT_EXTENSION_PROPOSED,
+        title="Contract Extension Proposed 📋",
+        message=f"{employer_name} wants to extend your contract for '{job_title}' until {new_end_date}. Please review and respond.",
+        reference_type="job",
+        reference_id=post_id
+    )
+
+
+def notify_contract_extension_accepted(db: Session, employer_user_id: int, worker_name: str, job_title: str, post_id: int):
+    """Notify employer when worker accepts the contract extension"""
+    return notify_user(
+        db=db,
+        user_id=employer_user_id,
+        notification_type=NotificationType.CONTRACT_EXTENSION_ACCEPTED,
+        title="Extension Accepted! ✅",
+        message=f"{worker_name} accepted the contract extension for '{job_title}'.",
+        reference_type="job",
+        reference_id=post_id
+    )
+
+
+def notify_contract_extension_rejected(db: Session, employer_user_id: int, worker_name: str, job_title: str, post_id: int):
+    """Notify employer when worker rejects the contract extension"""
+    return notify_user(
+        db=db,
+        user_id=employer_user_id,
+        notification_type=NotificationType.CONTRACT_EXTENSION_REJECTED,
+        title="Extension Declined ❌",
+        message=f"{worker_name} declined the contract extension for '{job_title}'.",
+        reference_type="job",
+        reference_id=post_id
+    )
+
+
+# Flow 4: Schedule Conflict Notifications
+
+def notify_application_withdrawn_due_to_conflict(
+    db: Session,
+    worker_user_id: int,
+    withdrawn_job_titles: str,
+    accepted_job_title: str
+):
+    """Notify housekeeper that their applications were withdrawn due to schedule conflict"""
+    return notify_user(
+        db=db,
+        user_id=worker_user_id,
+        notification_type=NotificationType.APPLICATION_WITHDRAWN_DUE_TO_CONFLICT,
+        title="Application Withdrawn - Schedule Conflict",
+        message=f"Your applications for {withdrawn_job_titles} have been withdrawn because you accepted '{accepted_job_title}' which conflicts with the schedule.",
+        reference_type="conflict_withdrawal",
+        reference_id=None
+    )
+
+
+def notify_applicant_withdrawn_due_to_conflict(
+    db: Session,
+    employer_user_id: int,
+    worker_name: str,
+    job_title: str,
+    accepted_job_title: str,
+    job_id: int
+):
+    """Notify owner that an applicant withdrew due to schedule conflict"""
+    return notify_user(
+        db=db,
+        user_id=employer_user_id,
+        notification_type=NotificationType.APPLICANT_WITHDRAWN_DUE_TO_CONFLICT,
+        title="Applicant Withdrawn - Schedule Conflict",
+        message=f"{worker_name} has withdrawn their application for '{job_title}' because they accepted another job ('{accepted_job_title}') that conflicts with the schedule.",
+        reference_type="job",
+        reference_id=job_id
+    )
+
+
+def notify_direct_hire_rejected_due_to_conflict(
+    db: Session,
+    employer_user_id: int,
+    worker_name: str,
+    conflicting_job_title: str
+):
+    """Notify owner that a direct hire was rejected due to schedule conflict"""
+    return notify_user(
+        db=db,
+        user_id=employer_user_id,
+        notification_type=NotificationType.DIRECT_HIRE_REJECTED_DUE_TO_CONFLICT,
+        title="Hire Request Rejected - Schedule Conflict",
+        message=f"{worker_name} cannot accept your hire request because they have a conflicting job: '{conflicting_job_title}'.",
+        reference_type="direct_hire",
+        reference_id=None
+    )
+
+
+def notify_hire_canceled_worker_accepted_conflict(
+    db: Session,
+    employer_user_id: int,
+    worker_name: str,
+    accepted_job_title: str
+):
+    """Notify owner that an accepted hire was canceled because worker accepted conflicting job"""
+    return notify_user(
+        db=db,
+        user_id=employer_user_id,
+        notification_type=NotificationType.HIRE_CANCELED_WORKER_ACCEPTED_CONFLICT,
+        title="Hire Canceled - Worker Accepted Conflict",
+        message=f"{worker_name} has canceled their hire because they accepted another job ('{accepted_job_title}') that conflicts with the scheduled date.",
+        reference_type="direct_hire",
+        reference_id=None
+    )
+
+
+# Flow 5: Housekeeper Referral Notifications
+
+def notify_housekeeper_referral(
+    db: Session,
+    target_owner_user_id: int,
+    referrer_name: str,
+    worker_name: str,
+    worker_id: int
+):
+    """Notify a homeowner that another homeowner referred a housekeeper to them"""
+    return notify_user(
+        db=db,
+        user_id=target_owner_user_id,
+        notification_type=NotificationType.HOUSEKEEPER_REFERRAL,
+        title="Housekeeper Referred to You! 🤝",
+        message=f"{referrer_name} referred housekeeper {worker_name} to you.",
+        reference_type="worker_referral",
+        reference_id=worker_id
+    )
+

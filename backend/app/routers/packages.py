@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from pydantic import BaseModel
+import json
 from app.db import get_db
 from app.models_v2.user import User
 from app.models_v2.worker_employer import Worker
@@ -12,6 +13,25 @@ from app.security import get_current_user
 router = APIRouter(prefix="/packages", tags=["packages"])
 
 
+def normalize_services(services) -> list:
+    """Normalize package services to always return a list of strings.
+    Handles cases where services is stored as a plain string, a JSON string,
+    a list, or None."""
+    if not services:
+        return []
+    if isinstance(services, list):
+        return [str(s).strip() for s in services if str(s).strip()]
+    if isinstance(services, str):
+        try:
+            parsed = json.loads(services)
+            if isinstance(parsed, list):
+                return [str(s).strip() for s in parsed if str(s).strip()]
+        except (json.JSONDecodeError, ValueError):
+            pass
+        return [s.strip() for s in services.split(',') if s.strip()]
+    return []
+
+
 # ============== SCHEMAS ==============
 
 class PackageCreate(BaseModel):
@@ -19,7 +39,9 @@ class PackageCreate(BaseModel):
     description: Optional[str] = None
     price: float
     duration_hours: int = 2
+    num_days: int = 1
     services: List[str] = []
+    category_ids: List[int] = []  # Multiple categories (at least one required)
 
 
 class PackageUpdate(BaseModel):
@@ -27,8 +49,10 @@ class PackageUpdate(BaseModel):
     description: Optional[str] = None
     price: Optional[float] = None
     duration_hours: Optional[int] = None
+    num_days: Optional[int] = None
     services: Optional[List[str]] = None
     is_active: Optional[bool] = None
+    category_ids: Optional[List[int]] = None
 
 
 class PackageResponse(BaseModel):
@@ -38,8 +62,11 @@ class PackageResponse(BaseModel):
     description: Optional[str]
     price: float
     duration_hours: int
+    num_days: int = 1
     services: List[str]
     is_active: bool
+    category_ids: List[int] = []
+    category_names: List[str] = []
 
     class Config:
         from_attributes = True
@@ -67,19 +94,48 @@ def create_package(
     db: Session = Depends(get_db)
 ):
     """Create a new service package (housekeeper only)"""
+    from app.models_v2.category import PackageCategory
+    
     worker = get_worker_for_user(current_user.id, db)
+    
+    # Validate at least one category
+    if not package_data.category_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one category is required"
+        )
+    
+    # Verify all categories exist
+    categories = db.query(PackageCategory).filter(
+        PackageCategory.category_id.in_(package_data.category_ids)
+    ).all()
+    
+    if len(categories) != len(package_data.category_ids):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="One or more categories not found"
+        )
     
     package = WorkerPackage(
         worker_id=worker.worker_id,
-        name=package_data.name,
+        title=package_data.name,  # Use name as title
+        name=package_data.name,   # Also set name for mobile compatibility
         description=package_data.description,
         price=package_data.price,
         duration_hours=package_data.duration_hours,
+        num_days=package_data.num_days,
         services=package_data.services,
+        category_id=package_data.category_ids[0] if package_data.category_ids else None,  # Keep first for backward compatibility
+        status='active',  # Auto-activate for now
         is_active=True
     )
     
     db.add(package)
+    db.flush()  # Get package_id before adding categories
+    
+    # Add categories to junction table
+    package.categories = categories
+    
     db.commit()
     db.refresh(package)
     
@@ -90,8 +146,11 @@ def create_package(
         description=package.description,
         price=float(package.price),
         duration_hours=package.duration_hours,
-        services=package.services or [],
-        is_active=package.is_active
+        num_days=package.num_days or 1,
+        services=normalize_services(package.services),
+        is_active=package.is_active,
+        category_ids=[c.category_id for c in package.categories],
+        category_names=[c.name for c in package.categories]
     )
 
 
@@ -115,8 +174,11 @@ def get_my_packages(
             description=p.description,
             price=float(p.price),
             duration_hours=p.duration_hours,
-            services=p.services or [],
-            is_active=p.is_active
+            num_days=p.num_days or 1,
+            services=normalize_services(p.services),
+            is_active=p.is_active,
+            category_ids=[c.category_id for c in p.categories] if p.categories else [],
+            category_names=[c.name for c in p.categories] if p.categories else []
         )
         for p in packages
     ]
@@ -130,6 +192,8 @@ def update_package(
     db: Session = Depends(get_db)
 ):
     """Update a package (owner only)"""
+    from app.models_v2.category import PackageCategory
+    
     worker = get_worker_for_user(current_user.id, db)
     
     package = db.query(WorkerPackage).filter(
@@ -143,15 +207,40 @@ def update_package(
             detail="Package not found"
         )
     
+    # Update categories if provided
+    if package_data.category_ids is not None:
+        if not package_data.category_ids:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="At least one category is required"
+            )
+        
+        # Verify all categories exist
+        categories = db.query(PackageCategory).filter(
+            PackageCategory.category_id.in_(package_data.category_ids)
+        ).all()
+        
+        if len(categories) != len(package_data.category_ids):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="One or more categories not found"
+            )
+        
+        package.categories = categories
+        package.category_id = package_data.category_ids[0]  # Keep first for backward compatibility
+    
     # Update fields
     if package_data.name is not None:
         package.name = package_data.name
+        package.title = package_data.name  # Keep title in sync
     if package_data.description is not None:
         package.description = package_data.description
     if package_data.price is not None:
         package.price = package_data.price
     if package_data.duration_hours is not None:
         package.duration_hours = package_data.duration_hours
+    if package_data.num_days is not None:
+        package.num_days = package_data.num_days
     if package_data.services is not None:
         package.services = package_data.services
     if package_data.is_active is not None:
@@ -167,8 +256,11 @@ def update_package(
         description=package.description,
         price=float(package.price),
         duration_hours=package.duration_hours,
-        services=package.services or [],
-        is_active=package.is_active
+        num_days=package.num_days or 1,
+        services=normalize_services(package.services),
+        is_active=package.is_active,
+        category_ids=[c.category_id for c in package.categories] if package.categories else [],
+        category_names=[c.name for c in package.categories] if package.categories else []
     )
 
 
@@ -219,7 +311,8 @@ def get_worker_packages(
             description=p.description,
             price=float(p.price),
             duration_hours=p.duration_hours,
-            services=p.services or [],
+            num_days=p.num_days or 1,
+            services=normalize_services(p.services),
             is_active=p.is_active
         )
         for p in packages

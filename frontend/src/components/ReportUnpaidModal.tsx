@@ -1,4 +1,11 @@
 import { useState, useRef } from 'react';
+import { API_BASE_URL } from '../config';
+import { AlertTriangle, Calendar, FileText, Camera, Upload, Clock } from 'lucide-react';
+
+const resolveUploadUrl = (url: string) => {
+  if (!url) return '';
+  return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
+};
 
 interface Props {
   jobId: number;
@@ -40,7 +47,7 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
         formData.append('file', file);
         formData.append('category', 'evidence');
 
-        const response = await fetch('http://127.0.0.1:8000/upload/image', {
+        const response = await fetch(`${API_BASE_URL}/upload/image`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}` },
           body: formData
@@ -48,7 +55,7 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
 
         if (response.ok) {
           const data = await response.json();
-          setEvidenceUrls(prev => [...prev, `http://127.0.0.1:8000${data.url}`]);
+          setEvidenceUrls(prev => [...prev, resolveUploadUrl(data.url)]);
         }
       } catch (error) {
         console.error('Upload error:', error);
@@ -74,7 +81,7 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
       setSubmitting(true);
       const token = localStorage.getItem('access_token');
       
-      const response = await fetch(`http://127.0.0.1:8000/jobs/${jobId}/report-unpaid`, {
+      const response = await fetch(`${API_BASE_URL}/jobs/${jobId}/report-unpaid`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -102,35 +109,35 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
-        <div className="p-6 border-b border-white/10">
+        <div className="p-6 border-b border-gray-200 dark:border-white/10 sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-white">⚠️ Report Unpaid Job</h2>
+            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">Report Unpaid Job</h2>
             <button
               onClick={onClose}
-              className="text-white/60 hover:text-white transition-colors"
+              className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60 hover:text-[#4B244A] dark:hover:text-white"
             >
-              ✕
+              ×
             </button>
           </div>
-          <p className="text-white/60 text-sm mt-1">{jobTitle}</p>
+          <p className="text-[#4B244A]/70 dark:text-white/60 text-sm mt-1 font-medium">{jobTitle}</p>
         </div>
 
         {/* Content */}
         <div className="p-6 space-y-4">
-          <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-4">
-            <p className="text-red-300 text-sm">
-              📢 You have <strong>{pendingPayments}</strong> pending payment(s) for this job. 
+          <div className="bg-red-100 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg p-4">
+            <p className="text-red-700 dark:text-red-300 text-sm font-medium">
+              You have <strong>{pendingPayments}</strong> pending payment(s) for this job. 
               If the owner hasn't paid as agreed, you can report the issue here.
             </p>
           </div>
 
           {/* Days Overdue */}
           <div>
-            <label className="block text-white/80 text-sm font-semibold mb-2">
-              📅 How many days overdue? (Optional)
+            <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm font-bold mb-2">
+              How many days overdue? (Optional)
             </label>
             <input
               type="number"
@@ -138,28 +145,28 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
               value={daysOverdue || ''}
               onChange={(e) => setDaysOverdue(e.target.value ? parseInt(e.target.value) : undefined)}
               placeholder="e.g., 7"
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#EA526F]"
+              className="w-full px-4 py-3 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#EA526F] transition-all"
             />
           </div>
 
           {/* Reason */}
           <div>
-            <label className="block text-white/80 text-sm font-semibold mb-2">
-              📝 Reason for Report <span className="text-red-400">*</span>
+            <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm font-bold mb-2">
+              Reason for Report <span className="text-red-500 dark:text-red-400">*</span>
             </label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Describe the payment issue..."
               rows={4}
-              className="w-full px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#EA526F] resize-none"
+              className="w-full px-4 py-3 bg-white/50 dark:bg-white/10 border border-gray-200 dark:border-white/20 rounded-lg text-[#4B244A] dark:text-white placeholder-gray-400 dark:placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#EA526F] resize-none transition-all"
             />
           </div>
 
           {/* Evidence Upload */}
           <div>
-            <label className="block text-white/80 text-sm font-semibold mb-2">
-              📷 Upload Evidence (Optional)
+            <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm font-bold mb-2">
+              Upload Evidence (Optional)
             </label>
             <input
               type="file"
@@ -172,18 +179,18 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="w-full py-3 border-2 border-dashed border-white/30 rounded-lg text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all flex items-center justify-center gap-2"
+              className="w-full py-3 border-2 border-dashed border-gray-300 dark:border-white/30 rounded-lg text-[#4B244A]/70 dark:text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all flex items-center justify-center gap-2 bg-white/50 dark:bg-white/5 font-medium"
             >
-              {uploading ? '⏳ Uploading...' : '📤 Add evidence photos'}
+              {uploading ? 'Uploading...' : 'Add evidence photos'}
             </button>
             {previewImages.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
                 {previewImages.map((img, index) => (
-                  <div key={index} className="relative">
-                    <img src={img} alt={`Evidence ${index + 1}`} className="w-16 h-16 object-cover rounded-lg" />
+                  <div key={index} className="relative group">
+                    <img src={img} alt={`Evidence ${index + 1}`} className="w-16 h-16 object-cover rounded-lg border border-gray-200 dark:border-white/20" />
                     <button
                       onClick={() => removeEvidence(index)}
-                      className="absolute -top-1 -right-1 bg-red-500 text-white w-5 h-5 rounded-full text-xs"
+                      className="absolute -top-1 -right-1 bg-red-500 text-white w-5 h-5 rounded-full flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
                     >
                       ✕
                     </button>
@@ -195,7 +202,7 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
 
           {/* Quick Reasons */}
           <div>
-            <label className="block text-white/80 text-sm font-semibold mb-2">
+            <label className="block text-[#4B244A]/80 dark:text-white/80 text-sm font-bold mb-2">
               Quick Select
             </label>
             <div className="flex flex-wrap gap-2">
@@ -208,10 +215,10 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
                 <button
                   key={quickReason}
                   onClick={() => setReason(quickReason)}
-                  className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all shadow-sm ${
                     reason === quickReason
                       ? 'bg-red-500 text-white'
-                      : 'bg-white/10 text-white/70 hover:bg-white/20'
+                      : 'bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/70 hover:bg-white/80 dark:hover:bg-white/20 border border-gray-200 dark:border-white/10'
                   }`}
                 >
                   {quickReason}
@@ -222,19 +229,19 @@ export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, on
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-white/10 flex gap-3">
+        <div className="p-6 border-t border-gray-200 dark:border-white/10 flex gap-3">
           <button
             onClick={onClose}
-            className="flex-1 py-3 bg-white/10 text-white font-semibold rounded-xl hover:bg-white/20 transition-all"
+            className="flex-1 py-3 bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white font-bold rounded-xl hover:bg-white/80 dark:hover:bg-white/20 transition-all border border-gray-200 dark:border-white/10"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={submitting || uploading || !reason.trim()}
-            className="flex-1 py-3 bg-red-500 text-white font-semibold rounded-xl hover:bg-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex-1 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-red-500/30"
           >
-            {submitting ? 'Submitting...' : '⚠️ Submit Report'}
+            {submitting ? 'Submitting...' : 'Submit Report'}
           </button>
         </div>
       </div>

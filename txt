@@ -1,0 +1,411 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.addresses (
+  address_id integer NOT NULL DEFAULT nextval('addresses_address_id_seq'::regclass),
+  province_id integer,
+  city_id integer,
+  barangay_id integer,
+  street character varying,
+  CONSTRAINT addresses_pkey PRIMARY KEY (address_id),
+  CONSTRAINT addresses_province_id_fkey FOREIGN KEY (province_id) REFERENCES public.provinces(province_id),
+  CONSTRAINT addresses_city_id_fkey FOREIGN KEY (city_id) REFERENCES public.cities(city_id),
+  CONSTRAINT addresses_barangay_id_fkey FOREIGN KEY (barangay_id) REFERENCES public.barangays(barangay_id)
+);
+CREATE TABLE public.admins (
+  admin_id integer NOT NULL DEFAULT nextval('admins_admin_id_seq'::regclass),
+  user_id integer NOT NULL UNIQUE,
+  admin_actions character varying,
+  CONSTRAINT admins_pkey PRIMARY KEY (admin_id),
+  CONSTRAINT admins_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.barangays (
+  barangay_id integer NOT NULL DEFAULT nextval('barangays_barangay_id_seq'::regclass),
+  city_id integer,
+  name character varying NOT NULL,
+  CONSTRAINT barangays_pkey PRIMARY KEY (barangay_id),
+  CONSTRAINT barangays_city_id_fkey FOREIGN KEY (city_id) REFERENCES public.cities(city_id)
+);
+CREATE TABLE public.bookings (
+  booking_id integer NOT NULL DEFAULT nextval('bookings_booking_id_seq'::regclass),
+  schedule_id integer NOT NULL UNIQUE,
+  status USER-DEFINED NOT NULL,
+  booking_date timestamp without time zone DEFAULT now(),
+  notes text,
+  CONSTRAINT bookings_pkey PRIMARY KEY (booking_id),
+  CONSTRAINT bookings_schedule_id_fkey FOREIGN KEY (schedule_id) REFERENCES public.schedules(schedule_id)
+);
+CREATE TABLE public.certifications (
+  certification_id integer NOT NULL DEFAULT nextval('certifications_certification_id_seq'::regclass),
+  name character varying NOT NULL UNIQUE,
+  CONSTRAINT certifications_pkey PRIMARY KEY (certification_id)
+);
+CREATE TABLE public.cities (
+  city_id integer NOT NULL DEFAULT nextval('cities_city_id_seq'::regclass),
+  province_id integer,
+  name character varying NOT NULL,
+  CONSTRAINT cities_pkey PRIMARY KEY (city_id),
+  CONSTRAINT cities_province_id_fkey FOREIGN KEY (province_id) REFERENCES public.provinces(province_id)
+);
+CREATE TABLE public.contracts (
+  contract_id integer NOT NULL DEFAULT nextval('contracts_contract_id_seq'::regclass),
+  booking_id integer NOT NULL UNIQUE,
+  terms text,
+  CONSTRAINT contracts_pkey PRIMARY KEY (contract_id),
+  CONSTRAINT contracts_booking_id_fkey FOREIGN KEY (booking_id) REFERENCES public.bookings(booking_id)
+);
+CREATE TABLE public.conversation_participants (
+  conversation_id integer NOT NULL,
+  user_id integer NOT NULL,
+  joined_at timestamp without time zone DEFAULT now(),
+  role USER-DEFINED,
+  CONSTRAINT conversation_participants_pkey PRIMARY KEY (conversation_id, user_id),
+  CONSTRAINT conversation_participants_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(conversation_id),
+  CONSTRAINT conversation_participants_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.conversations (
+  conversation_id integer NOT NULL DEFAULT nextval('conversations_conversation_id_seq'::regclass),
+  created_at timestamp without time zone DEFAULT now(),
+  last_message_at timestamp without time zone,
+  last_message text,
+  topic character varying,
+  status USER-DEFINED NOT NULL DEFAULT 'active'::convo_status,
+  deleted_at timestamp without time zone,
+  restricted_at timestamp without time zone,
+  restricted_by_admin_id integer,
+  restriction_reason text,
+  CONSTRAINT conversations_pkey PRIMARY KEY (conversation_id),
+  CONSTRAINT conversations_restricted_by_admin_id_fkey FOREIGN KEY (restricted_by_admin_id) REFERENCES public.admins(admin_id)
+);
+CREATE TABLE public.employer_languages (
+  employer_id integer NOT NULL,
+  language_id integer NOT NULL,
+  CONSTRAINT employer_languages_pkey PRIMARY KEY (employer_id, language_id),
+  CONSTRAINT employer_languages_employer_id_fkey FOREIGN KEY (employer_id) REFERENCES public.employers(employer_id),
+  CONSTRAINT employer_languages_language_id_fkey FOREIGN KEY (language_id) REFERENCES public.languages(language_id)
+);
+CREATE TABLE public.employers (
+  employer_id integer NOT NULL DEFAULT nextval('employers_employer_id_seq'::regclass),
+  user_id integer NOT NULL UNIQUE,
+  household_size integer,
+  number_of_children integer,
+  residence_type character varying,
+  preferences text,
+  bio text,
+  religion_id integer,
+  CONSTRAINT employers_pkey PRIMARY KEY (employer_id),
+  CONSTRAINT employers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id),
+  CONSTRAINT employers_religion_id_fkey FOREIGN KEY (religion_id) REFERENCES public.religions(religion_id)
+);
+CREATE TABLE public.favorites_workers (
+  employer_id integer NOT NULL,
+  worker_id integer NOT NULL,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT favorites_workers_pkey PRIMARY KEY (employer_id, worker_id),
+  CONSTRAINT favorites_workers_employer_id_fkey FOREIGN KEY (employer_id) REFERENCES public.employers(employer_id),
+  CONSTRAINT favorites_workers_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id)
+);
+CREATE TABLE public.forumposts (
+  post_id integer NOT NULL DEFAULT nextval('forumposts_post_id_seq'::regclass),
+  employer_id integer NOT NULL,
+  title character varying NOT NULL,
+  description text,
+  category character varying,
+  created_at timestamp without time zone DEFAULT now(),
+  status USER-DEFINED NOT NULL DEFAULT 'open'::forumpost_status,
+  deleted_at timestamp without time zone,
+  CONSTRAINT forumposts_pkey PRIMARY KEY (post_id),
+  CONSTRAINT forumposts_employer_id_fkey FOREIGN KEY (employer_id) REFERENCES public.employers(employer_id)
+);
+CREATE TABLE public.forumreplies (
+  replies_id integer NOT NULL DEFAULT nextval('forumreplies_replies_id_seq'::regclass),
+  post_id integer NOT NULL,
+  user_id integer NOT NULL,
+  content text NOT NULL,
+  created_at timestamp without time zone DEFAULT now(),
+  deleted_at timestamp without time zone,
+  CONSTRAINT forumreplies_pkey PRIMARY KEY (replies_id),
+  CONSTRAINT forumreplies_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forumposts(post_id),
+  CONSTRAINT forumreplies_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.interestcheck (
+  interest_id integer NOT NULL DEFAULT nextval('interestcheck_interest_id_seq'::regclass),
+  post_id integer NOT NULL,
+  worker_id integer NOT NULL,
+  status USER-DEFINED NOT NULL DEFAULT 'pending'::interest_status,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT interestcheck_pkey PRIMARY KEY (interest_id),
+  CONSTRAINT interestcheck_post_id_fkey FOREIGN KEY (post_id) REFERENCES public.forumposts(post_id),
+  CONSTRAINT interestcheck_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id)
+);
+CREATE TABLE public.languages (
+  language_id integer NOT NULL DEFAULT nextval('languages_language_id_seq'::regclass),
+  name character varying NOT NULL UNIQUE,
+  CONSTRAINT languages_pkey PRIMARY KEY (language_id)
+);
+CREATE TABLE public.matching_records (
+  match_id integer NOT NULL DEFAULT nextval('matching_records_match_id_seq'::regclass),
+  employer_id integer NOT NULL,
+  worker_id integer NOT NULL,
+  package_id integer,
+  match_score numeric,
+  match_date timestamp without time zone DEFAULT now(),
+  status character varying NOT NULL DEFAULT 'successful'::character varying CHECK (status::text = ANY (ARRAY['successful'::character varying, 'failed'::character varying]::text[])),
+  notes text,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT matching_records_pkey PRIMARY KEY (match_id),
+  CONSTRAINT matching_records_employer_id_fkey FOREIGN KEY (employer_id) REFERENCES public.employers(employer_id),
+  CONSTRAINT matching_records_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id),
+  CONSTRAINT matching_records_package_id_fkey FOREIGN KEY (package_id) REFERENCES public.packages(package_id)
+);
+CREATE TABLE public.message_attachments (
+  attachment_id integer NOT NULL DEFAULT nextval('message_attachments_attachment_id_seq'::regclass),
+  message_id integer NOT NULL,
+  file_path character varying NOT NULL,
+  mime_type character varying,
+  uploaded_at timestamp without time zone DEFAULT now(),
+  deleted_at timestamp without time zone,
+  CONSTRAINT message_attachments_pkey PRIMARY KEY (attachment_id),
+  CONSTRAINT message_attachments_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.messages(message_id)
+);
+CREATE TABLE public.messages (
+  message_id integer NOT NULL DEFAULT nextval('messages_message_id_seq'::regclass),
+  conversation_id integer NOT NULL,
+  sender_user_id integer NOT NULL,
+  content text,
+  sent_at timestamp without time zone DEFAULT now(),
+  edited_at timestamp without time zone,
+  status USER-DEFINED NOT NULL DEFAULT 'sent'::message_status,
+  deleted_at timestamp without time zone,
+  CONSTRAINT messages_pkey PRIMARY KEY (message_id),
+  CONSTRAINT messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.conversations(conversation_id),
+  CONSTRAINT messages_sender_user_id_fkey FOREIGN KEY (sender_user_id) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.notifications (
+  notification_id integer NOT NULL DEFAULT nextval('notifications_notification_id_seq'::regclass),
+  user_id integer NOT NULL,
+  type USER-DEFINED NOT NULL,
+  entity_type character varying,
+  entity_id integer,
+  content character varying,
+  is_read boolean NOT NULL DEFAULT false,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT notifications_pkey PRIMARY KEY (notification_id),
+  CONSTRAINT notifications_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.packages (
+  package_id integer NOT NULL DEFAULT nextval('packages_package_id_seq'::regclass),
+  worker_id integer NOT NULL,
+  title character varying NOT NULL,
+  description text,
+  price numeric NOT NULL,
+  availability USER-DEFINED NOT NULL,
+  status USER-DEFINED NOT NULL DEFAULT 'pending'::package_status,
+  created_at timestamp without time zone DEFAULT now(),
+  deleted_at timestamp without time zone,
+  CONSTRAINT packages_pkey PRIMARY KEY (package_id),
+  CONSTRAINT packages_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id)
+);
+CREATE TABLE public.payment_methods (
+  method_id integer NOT NULL DEFAULT nextval('payment_methods_method_id_seq'::regclass),
+  provider_name character varying NOT NULL,
+  details text,
+  CONSTRAINT payment_methods_pkey PRIMARY KEY (method_id)
+);
+CREATE TABLE public.payments (
+  payment_id integer NOT NULL DEFAULT nextval('payments_payment_id_seq'::regclass),
+  contract_id integer NOT NULL,
+  method_id integer,
+  amount numeric NOT NULL,
+  status USER-DEFINED NOT NULL,
+  payment_date timestamp without time zone DEFAULT now(),
+  CONSTRAINT payments_pkey PRIMARY KEY (payment_id),
+  CONSTRAINT payments_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(contract_id),
+  CONSTRAINT payments_method_id_fkey FOREIGN KEY (method_id) REFERENCES public.payment_methods(method_id)
+);
+CREATE TABLE public.provinces (
+  province_id integer NOT NULL DEFAULT nextval('provinces_province_id_seq'::regclass),
+  name character varying NOT NULL,
+  CONSTRAINT provinces_pkey PRIMARY KEY (province_id)
+);
+CREATE TABLE public.refunds (
+  refund_id integer NOT NULL DEFAULT nextval('refunds_refund_id_seq'::regclass),
+  contract_id integer NOT NULL,
+  method_id integer NOT NULL,
+  amount numeric NOT NULL,
+  reason text,
+  status USER-DEFINED NOT NULL,
+  requested_at timestamp without time zone DEFAULT now(),
+  processed_at timestamp without time zone,
+  CONSTRAINT refunds_pkey PRIMARY KEY (refund_id),
+  CONSTRAINT refunds_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(contract_id),
+  CONSTRAINT refunds_method_id_fkey FOREIGN KEY (method_id) REFERENCES public.payment_methods(method_id)
+);
+CREATE TABLE public.religions (
+  religion_id integer NOT NULL DEFAULT nextval('religions_religion_id_seq'::regclass),
+  name character varying NOT NULL UNIQUE,
+  CONSTRAINT religions_pkey PRIMARY KEY (religion_id)
+);
+CREATE TABLE public.reports (
+  report_id integer NOT NULL DEFAULT nextval('reports_report_id_seq'::regclass),
+  reporter_user_id integer NOT NULL,
+  reported_user_id integer NOT NULL,
+  reason text NOT NULL,
+  description text,
+  status character varying NOT NULL DEFAULT 'pending'::character varying,
+  created_at timestamp without time zone DEFAULT now(),
+  resolved_at timestamp without time zone,
+  resolved_by_admin_id integer,
+  admin_notes text,
+  CONSTRAINT reports_pkey PRIMARY KEY (report_id),
+  CONSTRAINT reports_reporter_user_id_fkey FOREIGN KEY (reporter_user_id) REFERENCES public.users(user_id),
+  CONSTRAINT reports_reported_user_id_fkey FOREIGN KEY (reported_user_id) REFERENCES public.users(user_id),
+  CONSTRAINT reports_resolved_by_admin_id_fkey FOREIGN KEY (resolved_by_admin_id) REFERENCES public.admins(admin_id)
+);
+CREATE TABLE public.reviews (
+  review_id integer NOT NULL DEFAULT nextval('reviews_review_id_seq'::regclass),
+  contract_id integer UNIQUE,
+  rating integer NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment text,
+  created_at timestamp without time zone DEFAULT now(),
+  deleted_at timestamp without time zone,
+  reviewer_user_id integer,
+  target_user_id integer,
+  is_hidden boolean DEFAULT false,
+  hidden_at timestamp without time zone,
+  hidden_by_admin_id integer,
+  warned_at timestamp without time zone,
+  warned_by_admin_id integer,
+  restricted_at timestamp without time zone,
+  restricted_by_admin_id integer,
+  CONSTRAINT reviews_pkey PRIMARY KEY (review_id),
+  CONSTRAINT reviews_contract_id_fkey FOREIGN KEY (contract_id) REFERENCES public.contracts(contract_id),
+  CONSTRAINT reviews_reviewer_user_id_fkey FOREIGN KEY (reviewer_user_id) REFERENCES public.users(user_id),
+  CONSTRAINT reviews_target_user_id_fkey FOREIGN KEY (target_user_id) REFERENCES public.users(user_id),
+  CONSTRAINT reviews_hidden_by_admin_id_fkey FOREIGN KEY (hidden_by_admin_id) REFERENCES public.admins(admin_id),
+  CONSTRAINT reviews_warned_by_admin_id_fkey FOREIGN KEY (warned_by_admin_id) REFERENCES public.admins(admin_id),
+  CONSTRAINT reviews_restricted_by_admin_id_fkey FOREIGN KEY (restricted_by_admin_id) REFERENCES public.admins(admin_id)
+);
+CREATE TABLE public.schedules (
+  schedule_id integer NOT NULL DEFAULT nextval('schedules_schedule_id_seq'::regclass),
+  package_id integer NOT NULL,
+  employer_id integer NOT NULL,
+  available_date date NOT NULL,
+  start_time time without time zone NOT NULL,
+  end_time time without time zone NOT NULL,
+  status USER-DEFINED NOT NULL DEFAULT 'available'::schedule_status,
+  CONSTRAINT schedules_pkey PRIMARY KEY (schedule_id),
+  CONSTRAINT schedules_package_id_fkey FOREIGN KEY (package_id) REFERENCES public.packages(package_id),
+  CONSTRAINT schedules_employer_id_fkey FOREIGN KEY (employer_id) REFERENCES public.employers(employer_id)
+);
+CREATE TABLE public.search_logs (
+  search_id integer NOT NULL DEFAULT nextval('search_logs_search_id_seq'::regclass),
+  user_id integer,
+  query_text character varying,
+  filters_json text,
+  results_count integer,
+  searched_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT search_logs_pkey PRIMARY KEY (search_id),
+  CONSTRAINT search_logs_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id)
+);
+CREATE TABLE public.skills (
+  skill_id integer NOT NULL DEFAULT nextval('skills_skill_id_seq'::regclass),
+  name character varying NOT NULL UNIQUE,
+  CONSTRAINT skills_pkey PRIMARY KEY (skill_id)
+);
+CREATE TABLE public.users (
+  user_id integer NOT NULL DEFAULT nextval('users_user_id_seq'::regclass),
+  name character varying NOT NULL,
+  email character varying NOT NULL UNIQUE,
+  password character varying NOT NULL,
+  role USER-DEFINED NOT NULL,
+  address_id integer,
+  gender USER-DEFINED,
+  age integer,
+  birthday date,
+  created_at timestamp without time zone DEFAULT now(),
+  phone_number character varying UNIQUE,
+  profile_picture character varying,
+  id_picture character varying,
+  status USER-DEFINED NOT NULL DEFAULT 'active'::user_status,
+  deleted_at timestamp without time zone,
+  password_hash text,
+  restriction_reason text,
+  restricted_at timestamp without time zone,
+  restricted_by_admin_id integer,
+  CONSTRAINT users_pkey PRIMARY KEY (user_id),
+  CONSTRAINT users_address_id_fkey FOREIGN KEY (address_id) REFERENCES public.addresses(address_id),
+  CONSTRAINT users_restricted_by_admin_id_fkey FOREIGN KEY (restricted_by_admin_id) REFERENCES public.admins(admin_id)
+);
+CREATE TABLE public.verification_logs (
+  log_id integer NOT NULL DEFAULT nextval('verification_logs_log_id_seq'::regclass),
+  verification_id integer NOT NULL,
+  admin_id integer,
+  old_status USER-DEFINED,
+  new_status USER-DEFINED NOT NULL,
+  reason text,
+  changed_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT verification_logs_pkey PRIMARY KEY (log_id),
+  CONSTRAINT verification_logs_verification_id_fkey FOREIGN KEY (verification_id) REFERENCES public.verifications(verification_id),
+  CONSTRAINT verification_logs_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.admins(admin_id)
+);
+CREATE TABLE public.verifications (
+  verification_id integer NOT NULL DEFAULT nextval('verifications_verification_id_seq'::regclass),
+  worker_id integer NOT NULL,
+  admin_id integer,
+  document_type character varying NOT NULL,
+  document_number character varying,
+  file_path character varying,
+  status USER-DEFINED NOT NULL DEFAULT 'pending'::verification_status,
+  submitted_at timestamp without time zone DEFAULT now(),
+  reviewed_at timestamp without time zone,
+  CONSTRAINT verifications_pkey PRIMARY KEY (verification_id),
+  CONSTRAINT verifications_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id),
+  CONSTRAINT verifications_admin_id_fkey FOREIGN KEY (admin_id) REFERENCES public.admins(admin_id)
+);
+CREATE TABLE public.worker_certifications (
+  worker_id integer NOT NULL,
+  certification_id integer NOT NULL,
+  CONSTRAINT worker_certifications_pkey PRIMARY KEY (worker_id, certification_id),
+  CONSTRAINT worker_certifications_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id),
+  CONSTRAINT worker_certifications_certification_id_fkey FOREIGN KEY (certification_id) REFERENCES public.certifications(certification_id)
+);
+CREATE TABLE public.worker_languages (
+  worker_id integer NOT NULL,
+  language_id integer NOT NULL,
+  CONSTRAINT worker_languages_pkey PRIMARY KEY (worker_id, language_id),
+  CONSTRAINT worker_languages_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id),
+  CONSTRAINT worker_languages_language_id_fkey FOREIGN KEY (language_id) REFERENCES public.languages(language_id)
+);
+CREATE TABLE public.worker_location_preferences (
+  worker_id integer NOT NULL,
+  max_distance_km numeric,
+  only_nearby boolean NOT NULL DEFAULT false,
+  created_at timestamp without time zone DEFAULT now(),
+  CONSTRAINT worker_location_preferences_pkey PRIMARY KEY (worker_id),
+  CONSTRAINT worker_location_preferences_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id)
+);
+CREATE TABLE public.worker_preferred_cities (
+  worker_id integer NOT NULL,
+  city_id integer NOT NULL,
+  CONSTRAINT worker_preferred_cities_pkey PRIMARY KEY (worker_id, city_id),
+  CONSTRAINT worker_preferred_cities_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id),
+  CONSTRAINT worker_preferred_cities_city_id_fkey FOREIGN KEY (city_id) REFERENCES public.cities(city_id)
+);
+CREATE TABLE public.worker_skills (
+  worker_id integer NOT NULL,
+  skill_id integer NOT NULL,
+  CONSTRAINT worker_skills_pkey PRIMARY KEY (worker_id, skill_id),
+  CONSTRAINT worker_skills_worker_id_fkey FOREIGN KEY (worker_id) REFERENCES public.workers(worker_id),
+  CONSTRAINT worker_skills_skill_id_fkey FOREIGN KEY (skill_id) REFERENCES public.skills(skill_id)
+);
+CREATE TABLE public.workers (
+  worker_id integer NOT NULL DEFAULT nextval('workers_worker_id_seq'::regclass),
+  user_id integer NOT NULL UNIQUE,
+  years_experience integer,
+  bio text,
+  religion_id integer,
+  CONSTRAINT workers_pkey PRIMARY KEY (worker_id),
+  CONSTRAINT workers_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(user_id),
+  CONSTRAINT workers_religion_id_fkey FOREIGN KEY (religion_id) REFERENCES public.religions(religion_id)
+);

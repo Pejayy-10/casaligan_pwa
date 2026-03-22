@@ -13,12 +13,15 @@ class AddressBase(BaseModel):
     street_address: Optional[str] = None
     subdivision: Optional[str] = None
     zip_code: Optional[str] = None
+    # GPS coordinates for location-based services
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 class AddressCreate(AddressBase):
     pass
 
 class AddressResponse(AddressBase):
-    id: int
+    address_id: int
     user_id: int
     
     model_config = ConfigDict(from_attributes=True)

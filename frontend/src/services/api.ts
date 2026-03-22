@@ -26,6 +26,36 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Check if user is restricted (403 error with restriction header or detail)
+    if (error.response?.status === 403) {
+      const accountStatus = error.response.headers['x-account-status'];
+      const errorDetail = error.response.data?.detail || '';
+      
+      // Check if this is a restriction error
+      if (accountStatus === 'restricted' || errorDetail.includes('restricted') || errorDetail.includes('Restriction')) {
+        // Extract the message from the error
+        let message = 'Your account has been restricted. Please contact support for assistance.';
+        
+        // Try to extract a more specific message from the error detail
+        if (errorDetail) {
+          message = errorDetail;
+        }
+        
+        // Dispatch custom event for restriction
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('account-restricted', { 
+            detail: { message } 
+          }));
+          
+          // Clear token and user data immediately
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('user');
+        }
+        
+        return Promise.reject(error);
+      }
+    }
+    
     if (error.response?.status === 401) {
       // Unauthorized - clear token and redirect to login
       localStorage.removeItem('access_token');

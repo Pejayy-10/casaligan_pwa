@@ -17,6 +17,8 @@ export const authService = {
     // Store token and user in localStorage (auto-login after registration)
     localStorage.setItem('access_token', access_token);
     localStorage.setItem('user', JSON.stringify(user));
+    // Store the active role for easy access
+    localStorage.setItem('user_role', user.active_role || 'owner');
     
     return response.data;
   },
@@ -28,12 +30,42 @@ export const authService = {
     // Store token and user in localStorage
     localStorage.setItem('access_token', access_token);
     localStorage.setItem('user', JSON.stringify(user));
+    // Store the active role for easy access
+    localStorage.setItem('user_role', user.active_role || 'owner');
     
     return response.data;
   },
 
   async getCurrentUser(): Promise<UserProfile> {
     const response = await apiClient.get<UserProfile>('/auth/me');
+    
+    // Update user in localStorage to keep it fresh
+    const userData = response.data;
+    localStorage.setItem('user', JSON.stringify(userData));
+    // Update the active role
+    localStorage.setItem('user_role', userData.active_role || 'owner');
+    
+    return userData;
+  },
+
+  async checkRestrictionStatus(): Promise<void> {
+    try {
+      // Try to get current user - this will trigger 403 if restricted
+      await this.getCurrentUser();
+    } catch (error: any) {
+      // Error is already handled by the API interceptor
+      // which shows popup and logs out the user
+      throw error;
+    }
+  },
+
+  async getOnboardingStatus(): Promise<{
+    needs_address: boolean;
+    needs_registration_document: boolean;
+    needs_email_verification: boolean;
+    onboarding_required: boolean;
+  }> {
+    const response = await apiClient.get('/auth/onboarding-status');
     return response.data;
   },
 
@@ -75,9 +107,52 @@ export const authService = {
     return userStr ? JSON.parse(userStr) : null;
   },
 
-  async applyHousekeeper(notes?: string): Promise<{ message: string }> {
-    const body = notes ? { notes } : {};
-    const response = await apiClient.post<{ message: string }>('/auth/apply-housekeeper', body);
+  async applyHousekeeper(data: {
+    bio?: string;
+    years_experience?: number;
+    skills?: string[];
+    availability?: string;
+    nbi_document_id?: number;
+    secondary_document_id?: number;
+    notes?: string;
+  }): Promise<{ id: number; status: string; is_housekeeper: boolean }> {
+    const response = await apiClient.post('/auth/apply-housekeeper', data);
+    // If approved, update localStorage
+    if (response.data.is_housekeeper) {
+      const userStr = localStorage.getItem('user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        user.is_housekeeper = true;
+        localStorage.setItem('user', JSON.stringify(user));
+      }
+    }
+    return response.data;
+  },
+
+  async forgotPassword(email: string): Promise<{ message: string; dev_otp?: string }> {
+    const response = await apiClient.post('/auth/forgot-password', { email });
+    return response.data;
+  },
+
+  async resetPassword(email: string, otp: string, new_password: string): Promise<{ message: string }> {
+    const response = await apiClient.post('/auth/reset-password', { email, otp, new_password });
+    return response.data;
+  },
+
+  async sendPhoneOTP(): Promise<{ message: string; dev_otp?: string }> {
+    const response = await apiClient.post('/auth/send-phone-otp');
+    return response.data;
+  },
+
+  async verifyPhoneOTP(otp: string): Promise<{ message: string; phone_verified: boolean }> {
+    const response = await apiClient.post('/auth/verify-phone-otp', { otp });
+    // Update localStorage
+    const userStr = localStorage.getItem('user');
+    if (userStr) {
+      const user = JSON.parse(userStr);
+      user.phone_verified = true;
+      localStorage.setItem('user', JSON.stringify(user));
+    }
     return response.data;
   },
 
@@ -91,5 +166,21 @@ export const authService = {
   } | null> {
     const response = await apiClient.get('/auth/application-status');
     return response.data;
+  },
+
+  async updateProfile(data: { first_name?: string; middle_name?: string; last_name?: string; suffix?: string; profile_picture?: string; email?: string; phone_number?: string; bio?: string; relationship_status?: 'single' | 'married' | 'in_a_relationship' | 'widowed' | 'separated' | 'prefer_not_to_say' }): Promise<UserProfile> {
+    const response = await apiClient.put<UserProfile>('/auth/profile', data);
+    const updatedUser = response.data;
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    return updatedUser;
+  },
+
+  async uploadProfilePicture(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<{ url: string }>('/upload/image?category=profile', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data.url;
   },
 };

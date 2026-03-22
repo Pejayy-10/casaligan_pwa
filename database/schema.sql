@@ -62,7 +62,7 @@ END $$;
 
 -- Interest/application status enum
 DO $$ BEGIN
-    CREATE TYPE interest_status AS ENUM ('pending', 'accepted', 'rejected');
+    CREATE TYPE interest_status AS ENUM ('pending', 'accepted', 'rejected', 'cancelled');
 EXCEPTION
     WHEN duplicate_object THEN null;
 END $$;
@@ -95,10 +95,13 @@ END $$;
 DO $$ BEGIN
     CREATE TYPE notification_type AS ENUM (
         'job_application', 'application_accepted', 'application_rejected',
-        'job_started', 'completion_submitted', 'completion_approved',
-        'payment_sent', 'payment_received', 'payment_due', 'payment_overdue',
+        'job_started', 'job_edited', 'completion_submitted', 'completion_approved',
+        'payment_sent', 'payment_received', 'payment_review', 'payment_due', 'payment_overdue',
         'direct_hire_request', 'direct_hire_accepted', 'direct_hire_rejected',
         'direct_hire_started', 'direct_hire_completed', 'direct_hire_approved', 'direct_hire_paid',
+        'contract_extension_proposed', 'contract_extension_accepted', 'contract_extension_rejected',
+        'application_withdrawn_due_to_conflict', 'applicant_withdrawn_due_to_conflict',
+        'direct_hire_rejected_due_to_conflict', 'hire_canceled_worker_accepted_conflict',
         'system', 'reminder'
     );
 EXCEPTION
@@ -151,6 +154,7 @@ CREATE TABLE IF NOT EXISTS users (
     middle_name VARCHAR,
     last_name VARCHAR NOT NULL,
     suffix VARCHAR,
+    relationship_status VARCHAR(30),
     is_owner BOOLEAN NOT NULL DEFAULT TRUE,
     is_housekeeper BOOLEAN NOT NULL DEFAULT FALSE,
     active_role user_role NOT NULL DEFAULT 'owner',
@@ -275,10 +279,15 @@ CREATE TABLE IF NOT EXISTS interestcheck (
     post_id INTEGER NOT NULL REFERENCES forumposts(post_id) ON DELETE CASCADE,
     worker_id INTEGER NOT NULL REFERENCES workers(worker_id) ON DELETE CASCADE,
     status interest_status NOT NULL DEFAULT 'pending',
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    edit_response VARCHAR,
+    edit_notified_at TIMESTAMP WITH TIME ZONE,
+    edit_responded_at TIMESTAMP WITH TIME ZONE,
+    withdrawn_due_to_conflict BOOLEAN NOT NULL DEFAULT false
 );
 CREATE INDEX IF NOT EXISTS idx_interestcheck_post ON interestcheck(post_id);
 CREATE INDEX IF NOT EXISTS idx_interestcheck_worker ON interestcheck(worker_id);
+CREATE INDEX IF NOT EXISTS idx_interestcheck_withdrawn_due_to_conflict ON interestcheck(worker_id, withdrawn_due_to_conflict);
 
 
 -- Contracts table

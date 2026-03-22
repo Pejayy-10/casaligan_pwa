@@ -12,10 +12,12 @@ class NotificationType(str, enum.Enum):
     APPLICATION_ACCEPTED = "application_accepted" # Your application was accepted
     APPLICATION_REJECTED = "application_rejected" # Your application was rejected
     JOB_STARTED = "job_started"                   # Worker started the job
+    JOB_EDITED = "job_edited"                     # Job was edited after application
     COMPLETION_SUBMITTED = "completion_submitted" # Worker submitted completion proof
     COMPLETION_APPROVED = "completion_approved"   # Owner approved your completion
     PAYMENT_SENT = "payment_sent"                 # Owner sent payment
     PAYMENT_RECEIVED = "payment_received"         # Worker confirmed payment
+    PAYMENT_REVIEW = "payment_review"             # Payment needs review/confirmation
     PAYMENT_DUE = "payment_due"                   # Payment is due (long-term)
     PAYMENT_OVERDUE = "payment_overdue"           # Payment is overdue
     
@@ -28,9 +30,31 @@ class NotificationType(str, enum.Enum):
     DIRECT_HIRE_APPROVED = "direct_hire_approved"     # Owner approved completion
     DIRECT_HIRE_PAID = "direct_hire_paid"             # Payment confirmed
     
+    # Contract Extension related
+    CONTRACT_EXTENSION_PROPOSED = "contract_extension_proposed"  # Owner proposed extension
+    CONTRACT_EXTENSION_ACCEPTED = "contract_extension_accepted"  # Worker accepted extension
+    CONTRACT_EXTENSION_REJECTED = "contract_extension_rejected"  # Worker rejected extension
+    
+    # Schedule Conflict related
+    APPLICATION_WITHDRAWN_DUE_TO_CONFLICT = "application_withdrawn_due_to_conflict"  # Your application was withdrawn due to schedule conflict
+    APPLICANT_WITHDRAWN_DUE_TO_CONFLICT = "applicant_withdrawn_due_to_conflict"      # Applicant withdrew due to schedule conflict
+    DIRECT_HIRE_REJECTED_DUE_TO_CONFLICT = "direct_hire_rejected_due_to_conflict"    # Direct hire request rejected due to conflict
+    HIRE_CANCELED_WORKER_ACCEPTED_CONFLICT = "hire_canceled_worker_accepted_conflict" # Hire request canceled, worker accepted conflicting job
+    
+    # Daily completion related (multi-day jobs)
+    DAILY_COMPLETION_SUBMITTED = "daily_completion_submitted"   # Housekeeper confirmed day's work done
+    DAILY_COMPLETION_CONFIRMED = "daily_completion_confirmed"   # Owner confirmed day's work done
+    DAILY_ALL_CONFIRMED = "daily_all_confirmed"                 # Both parties confirmed – day complete
+    
+    # Referral related
+    HOUSEKEEPER_REFERRAL = "housekeeper_referral" # Homeowner referred a housekeeper to you
+    
     # General
     SYSTEM = "system"                             # System notification
     REMINDER = "reminder"                         # General reminder
+    
+    def __str__(self):
+        return self.value
 
 
 class Notification(Base):
@@ -41,7 +65,7 @@ class Notification(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     
     # Notification content
-    type = Column(SQLEnum(NotificationType), nullable=False)
+    type = Column(SQLEnum(NotificationType, native_enum=False, values_callable=lambda x: [e.value for e in x]), nullable=False)
     title = Column(String(255), nullable=False)
     message = Column(Text, nullable=False)
     

@@ -1,10 +1,15 @@
 """Direct Hire router - Booking workers directly with packages"""
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Header
 from sqlalchemy.orm import Session
 from sqlalchemy.sql import func
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from pydantic import BaseModel
-from datetime import date
+from datetime import date, timedelta, datetime, timezone
+import math
+import os
+from decimal import Decimal
+from urllib.parse import urlparse
+import logging
 from app.db import get_db
 from app.models_v2.user import User
 from app.models_v2.worker_employer import Worker, Employer
@@ -12,7 +17,10 @@ from app.models_v2.package import WorkerPackage
 from app.models_v2.direct_hire import DirectHire, DirectHireStatus
 from app.models_v2.address import Address
 from app.models_v2.conversation import Conversation
+from app.models_v2.notification import Notification, NotificationType
 from app.security import get_current_user
+
+logger = logging.getLogger(__name__)
 from app.services.notification_service import (
     notify_direct_hire_request,
     notify_direct_hire_accepted,
@@ -21,11 +29,230 @@ from app.services.notification_service import (
     notify_direct_hire_approved,
     notify_direct_hire_paid
 )
+from app.services.maya_service import (
+    create_checkout,
+    retrieve_checkout,
+    normalize_checkout_status,
+    maya_is_configured,
+    verify_webhook_signature,
+)
+from app.utils.platform_fees import get_direct_hire_fee_percentage
 
 router = APIRouter(prefix="/direct-hire", tags=["direct-hire"])
 
 
+# ============== HELPER FUNCTIONS ==============
+
+def _resolve_frontend_base_url(request: Request) -> str:
+    origin = (request.headers.get("origin") or "").strip()
+    if origin.startswith("http://") or origin.startswith("https://"):
+        return origin.rstrip("/")
+
+    referer = (request.headers.get("referer") or "").strip()
+    if referer:
+        parsed = urlparse(referer)
+        if parsed.scheme in {"http", "https"} and parsed.netloc:
+            return f"{parsed.scheme}://{parsed.netloc}".rstrip("/")
+
+    return os.getenv("FRONTEND_BASE_URL", "http://localhost:5173").rstrip("/")
+
+def normalize_services(services) -> list:
+    """Normalize package services to always return a list of strings.
+    Handles cases where services is stored as a plain string, a JSON string,
+    a list, or None."""
+    import json
+    if not services:
+        return []
+    if isinstance(services, list):
+        return [str(s).strip() for s in services if str(s).strip()]
+    if isinstance(services, str):
+        # Try parsing as JSON array first
+        try:
+            parsed = json.loads(services)
+            if isinstance(parsed, list):
+                return [str(s).strip() for s in parsed if str(s).strip()]
+        except (json.JSONDecodeError, ValueError):
+            pass
+        # Fall back to comma-separated string
+        return [s.strip() for s in services.split(',') if s.strip()]
+    return []
+
+def calculate_distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """
+    Calculate the great circle distance between two points on Earth using Haversine formula.
+    Returns distance in kilometers.
+    """
+    # Earth's radius in kilometers
+    R = 6371.0
+    
+    # Convert latitude and longitude from degrees to radians
+    lat1_rad = math.radians(lat1)
+    lon1_rad = math.radians(lon1)
+    lat2_rad = math.radians(lat2)
+    lon2_rad = math.radians(lon2)
+    
+    # Haversine formula
+    dlat = lat2_rad - lat1_rad
+    dlon = lon2_rad - lon1_rad
+    
+    a = math.sin(dlat / 2)**2 + math.cos(lat1_rad) * math.cos(lat2_rad) * math.sin(dlon / 2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    
+    distance = R * c
+    return round(distance, 2)
+
+
+def _parse_recurring_days(day_of_week: Optional[str]) -> List[int]:
+    day_map = {
+        "monday": 0,
+        "tuesday": 1,
+        "wednesday": 2,
+        "thursday": 3,
+        "friday": 4,
+        "saturday": 5,
+        "sunday": 6,
+    }
+    if not day_of_week:
+        return []
+    parsed = []
+    for item in day_of_week.split(","):
+        key = item.strip().lower()
+        if key in day_map:
+            parsed.append(day_map[key])
+    return sorted(set(parsed))
+
+
+def _next_recurring_date(hire: DirectHire) -> Optional[date]:
+    if not hire.scheduled_date:
+        return None
+
+    days = _parse_recurring_days(getattr(hire, "day_of_week", None))
+    if not days:
+        return None
+
+    frequency = (getattr(hire, "frequency", None) or "weekly").lower()
+    current_date = hire.scheduled_date
+    current_weekday = current_date.weekday()
+
+    # 1) Same-cycle next day (e.g., Monday -> Wednesday)
+    for day in days:
+        if day > current_weekday:
+            return current_date + timedelta(days=(day - current_weekday))
+
+    # 2) Roll to next cycle's first selected day
+    if frequency == "biweekly":
+        cycle_weeks = 2
+    elif frequency == "monthly":
+        cycle_weeks = 4
+    else:
+        cycle_weeks = 1
+
+    start_of_week = current_date - timedelta(days=current_weekday)
+    next_cycle_start = start_of_week + timedelta(weeks=cycle_weeks)
+    return next_cycle_start + timedelta(days=days[0])
+
+
+def _should_reset_fee_for_next_cycle(*, current_date: date, next_date: date, frequency: str) -> bool:
+    freq = (frequency or "weekly").lower()
+    if freq == "weekly":
+        return current_date.isocalendar()[:2] != next_date.isocalendar()[:2]
+    if freq == "biweekly":
+        return (next_date - current_date).days > 7
+    if freq == "monthly":
+        return (current_date.year, current_date.month) != (next_date.year, next_date.month)
+    return True
+
+
+def _is_short_term_weekly_recurring(hire: DirectHire) -> bool:
+    return bool(getattr(hire, "is_recurring", False)) and ((getattr(hire, "frequency", None) or "").lower() == "weekly")
+
+
+def _ensure_hire_date_reached(hire: DirectHire, *, action: str) -> None:
+    scheduled = getattr(hire, "scheduled_date", None)
+    if not scheduled:
+        return
+
+    today_utc = datetime.now(timezone.utc).date()
+    if today_utc < scheduled:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot {action} before the scheduled date ({scheduled.isoformat()}).",
+        )
+
+
+def _rollover_recurring_after_paid(*, hire: DirectHire, db: Session) -> Optional[DirectHire]:
+    """
+    After a recurring cycle is paid, archive current cycle and create next active occurrence.
+    """
+    if not getattr(hire, "is_recurring", False):
+        return None
+    if (getattr(hire, "recurring_status", None) or "active") != "active":
+        return None
+
+    next_date = _next_recurring_date(hire)
+    if not next_date:
+        return None
+
+    frequency = (getattr(hire, "frequency", None) or "weekly").lower()
+    reset_fee_for_next = _should_reset_fee_for_next_cycle(
+        current_date=hire.scheduled_date,
+        next_date=next_date,
+        frequency=frequency,
+    )
+
+    num_days = getattr(hire, "num_days", 1) or 1
+    next_end_date = next_date + timedelta(days=num_days - 1) if num_days > 1 else None
+
+    # Archive current cycle so recurring screens only show the active future cycle
+    hire.is_recurring = False
+    hire.recurring_status = None
+
+    next_platform_fee_status = "pending_owner_weekly" if (reset_fee_for_next and _is_short_term_weekly_recurring(hire)) else ("pending" if reset_fee_for_next else "paid")
+
+    next_hire = DirectHire(
+        employer_id=hire.employer_id,
+        worker_id=hire.worker_id,
+        package_ids=hire.package_ids,
+        total_amount=hire.total_amount,
+        platform_fee_percentage=hire.platform_fee_percentage,
+        platform_fee_amount=hire.platform_fee_amount,
+        platform_fee_status=next_platform_fee_status,
+        platform_fee_checkout_id=None if reset_fee_for_next else hire.platform_fee_checkout_id,
+        platform_fee_reference=None if reset_fee_for_next else hire.platform_fee_reference,
+        platform_fee_paid_at=None if reset_fee_for_next else hire.platform_fee_paid_at,
+        scheduled_date=next_date,
+        scheduled_time=hire.scheduled_time,
+        num_days=num_days,
+        daily_start_time=hire.daily_start_time,
+        daily_end_time=hire.daily_end_time,
+        end_date=next_end_date,
+        is_recurring=True,
+        day_of_week=hire.day_of_week,
+        start_time=hire.start_time,
+        end_time=hire.end_time,
+        frequency=hire.frequency,
+        recurring_status="active",
+        address_street=hire.address_street,
+        address_barangay=hire.address_barangay,
+        address_city=hire.address_city,
+        address_province=hire.address_province,
+        address_region=hire.address_region,
+        special_instructions=hire.special_instructions,
+        status=DirectHireStatus.PENDING if reset_fee_for_next else DirectHireStatus.ACCEPTED,
+    )
+    db.add(next_hire)
+    return next_hire
+
+
 # ============== SCHEMAS ==============
+
+class RecurringScheduleData(BaseModel):
+    """Recurring schedule for regular/repeating bookings"""
+    is_recurring: bool = False
+    day_of_week: Optional[str] = None  # "monday", "tuesday", ..., "sunday"
+    start_time: Optional[str] = None  # "09:00" format
+    end_time: Optional[str] = None  # "11:00" format
+    frequency: Optional[str] = None  # "weekly", "biweekly", "monthly"
 
 class DirectHireCreate(BaseModel):
     worker_id: int
@@ -39,6 +266,11 @@ class DirectHireCreate(BaseModel):
     address_region: Optional[str] = None
     special_instructions: Optional[str] = None
     use_my_address: bool = True  # If true, use employer's saved address
+    recurring_schedule: Optional[RecurringScheduleData] = None  # For recurring bookings
+    # Multi-day scheduling
+    num_days: int = 1  # Number of working days (1 = single day)
+    daily_start_time: Optional[str] = None  # "08:00" format
+    daily_end_time: Optional[str] = None  # "15:00" format
 
 
 class DirectHireResponse(BaseModel):
@@ -51,6 +283,12 @@ class DirectHireResponse(BaseModel):
     package_ids: List[int]
     packages: List[dict]  # Package details
     total_amount: float
+    platform_fee_percentage: float
+    platform_fee_amount: float
+    platform_fee_status: str
+    platform_fee_checkout_id: Optional[str]
+    platform_fee_reference: Optional[str]
+    platform_fee_paid_at: Optional[str]
     scheduled_date: str
     scheduled_time: Optional[str]
     address_street: Optional[str]
@@ -60,6 +298,12 @@ class DirectHireResponse(BaseModel):
     address_region: Optional[str]
     special_instructions: Optional[str]
     status: str
+    # Multi-day fields
+    num_days: int = 1
+    daily_start_time: Optional[str] = None
+    daily_end_time: Optional[str] = None
+    end_date: Optional[str] = None
+    day_schedules: List[dict] = []  # Per-day status for multi-day jobs
     completion_proof_url: Optional[str]
     completion_notes: Optional[str]
     completed_at: Optional[str]
@@ -67,11 +311,22 @@ class DirectHireResponse(BaseModel):
     payment_proof_url: Optional[str]
     paid_at: Optional[str]
     created_at: str
+    is_recurring: bool = False
+    day_of_week: Optional[str] = None
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    frequency: Optional[str] = None
+    recurring_status: Optional[str] = None
+    recurring_cancelled_at: Optional[str] = None
+    recurring_cancellation_reason: Optional[str] = None
+    cancelled_by: Optional[str] = None
 
 
 class DirectHireStatusUpdate(BaseModel):
     status: str  # accepted, rejected, in_progress, etc.
 
+class CancelRecurringRequest(BaseModel):
+    reason: Optional[str] = None  # Reason for cancellation (dispute, other reasons, etc.)
 
 class CompletionSubmit(BaseModel):
     completion_proof_url: Optional[str] = None
@@ -82,6 +337,56 @@ class PaymentSubmit(BaseModel):
     payment_method: str
     payment_proof_url: Optional[str] = None
     reference_number: Optional[str] = None
+
+
+class DirectHireFeeInitiateResponse(BaseModel):
+    hire_id: int
+    checkout_id: str
+    redirect_url: str
+    platform_fee_amount: float
+
+
+class DirectHireFeeVerifyRequest(BaseModel):
+    checkout_id: str
+
+
+class DirectHireOwnerPaymentInitiateRequest(BaseModel):
+    payment_method: str
+
+
+class DirectHireOwnerPaymentInitiateResponse(BaseModel):
+    hire_id: int
+    checkout_id: str
+    redirect_url: str
+    amount: float
+
+
+class RecurringWeeklyFeeSubmit(BaseModel):
+    payment_method: Optional[str] = "cash"
+    reference_number: Optional[str] = None
+    payment_proof_url: Optional[str] = None
+
+
+class DirectHireReceiptResponse(BaseModel):
+    hire_id: int
+    status: str
+    employer_name: str
+    worker_name: str
+    scheduled_date: str
+    scheduled_time: Optional[str]
+    location: str
+    packages: List[dict]
+    total_amount: float
+    payment_method: Optional[str]
+    reference_number: Optional[str]
+    payment_proof_url: Optional[str]
+    paid_at: Optional[str]
+    completion_proof_url: Optional[str]
+    completion_notes: Optional[str]
+    completed_at: Optional[str]
+    platform_fee_amount: float
+    platform_fee_paid_at: Optional[str]
+    generated_at: str
 
 
 # ============== HELPER FUNCTIONS ==============
@@ -130,10 +435,28 @@ def hire_to_response(hire: DirectHire, db: Session) -> DirectHireResponse:
                 "name": p.name,
                 "price": float(p.price),
                 "duration_hours": p.duration_hours,
-                "services": p.services or []
+                "num_days": p.num_days or 1,
+                "services": normalize_services(p.services)
             }
             for p in pkg_records
         ]
+    
+    # Build per-day schedules if available
+    day_schedules_list = []
+    if hasattr(hire, 'day_schedules') and hire.day_schedules:
+        for ds in sorted(hire.day_schedules, key=lambda d: d.day_number):
+            owner_confirmed = any(c.role == "owner" for c in ds.completions) if ds.completions else False
+            hk_confirmed = any(c.role == "housekeeper" for c in ds.completions) if ds.completions else False
+            day_schedules_list.append({
+                "day_schedule_id": ds.day_schedule_id,
+                "day_number": ds.day_number,
+                "work_date": str(ds.work_date),
+                "start_time": ds.start_time,
+                "end_time": ds.end_time,
+                "status": ds.status,
+                "owner_confirmed": owner_confirmed,
+                "housekeeper_confirmed": hk_confirmed,
+            })
     
     return DirectHireResponse(
         hire_id=hire.hire_id,
@@ -145,6 +468,12 @@ def hire_to_response(hire: DirectHire, db: Session) -> DirectHireResponse:
         package_ids=package_ids,
         packages=packages,
         total_amount=float(hire.total_amount),
+        platform_fee_percentage=float(getattr(hire, 'platform_fee_percentage', 7.0) or 7.0),
+        platform_fee_amount=float(getattr(hire, 'platform_fee_amount', 0) or 0),
+        platform_fee_status=getattr(hire, 'platform_fee_status', 'pending') or 'pending',
+        platform_fee_checkout_id=getattr(hire, 'platform_fee_checkout_id', None),
+        platform_fee_reference=getattr(hire, 'platform_fee_reference', None),
+        platform_fee_paid_at=str(hire.platform_fee_paid_at) if getattr(hire, 'platform_fee_paid_at', None) else None,
         scheduled_date=str(hire.scheduled_date),
         scheduled_time=hire.scheduled_time,
         address_street=hire.address_street,
@@ -154,14 +483,131 @@ def hire_to_response(hire: DirectHire, db: Session) -> DirectHireResponse:
         address_region=hire.address_region,
         special_instructions=hire.special_instructions,
         status=hire.status.value,
+        num_days=getattr(hire, 'num_days', 1) or 1,
+        daily_start_time=getattr(hire, 'daily_start_time', None),
+        daily_end_time=getattr(hire, 'daily_end_time', None),
+        end_date=str(hire.end_date) if getattr(hire, 'end_date', None) else None,
+        day_schedules=day_schedules_list,
         completion_proof_url=hire.completion_proof_url,
         completion_notes=hire.completion_notes,
         completed_at=str(hire.completed_at) if hire.completed_at else None,
         payment_method=hire.payment_method,
         payment_proof_url=hire.payment_proof_url,
         paid_at=str(hire.paid_at) if hire.paid_at else None,
-        created_at=str(hire.created_at)
+        created_at=str(hire.created_at),
+        is_recurring=hire.is_recurring if hasattr(hire, 'is_recurring') else False,
+        day_of_week=hire.day_of_week if hasattr(hire, 'day_of_week') else None,
+        start_time=hire.start_time if hasattr(hire, 'start_time') else None,
+        end_time=hire.end_time if hasattr(hire, 'end_time') else None,
+        frequency=hire.frequency if hasattr(hire, 'frequency') else None,
+        recurring_status=getattr(hire, 'recurring_status', None),
+        recurring_cancelled_at=str(hire.recurring_cancelled_at) if hasattr(hire, 'recurring_cancelled_at') and hire.recurring_cancelled_at else None,
+        recurring_cancellation_reason=getattr(hire, 'recurring_cancellation_reason', None),
+        cancelled_by=getattr(hire, 'cancelled_by', None)
     )
+
+
+# ============== WORKER AVAILABILITY TOGGLE ==============
+
+@router.post("/toggle-availability")
+def toggle_worker_availability(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Toggle the worker's availability for direct hire (housekeeper only).
+    When is_available=False, employers cannot create new direct hire requests for this worker.
+    """
+    worker = get_worker_for_user(current_user.id, db)
+    # Toggle the flag
+    current_value = getattr(worker, 'is_available', True)
+    if current_value is None:
+        current_value = True
+    worker.is_available = not current_value
+    db.commit()
+    db.refresh(worker)
+    return {
+        "is_available": worker.is_available,
+        "message": "You are now available for direct hire." if worker.is_available else "You are now set to inactive. Employers cannot directly hire you until you re-activate."
+    }
+
+
+# ============== CONFLICT CHECK ENDPOINT ==============
+
+@router.get("/check-conflicts/{worker_id}", response_model=Dict[str, Any])
+def check_recurring_conflicts(
+    worker_id: int,
+    scheduled_date: str,
+    days_of_week: str,  # comma-separated, e.g. "tuesday,saturday"
+    start_time: str,
+    end_time: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Check if adding a recurring booking on specific days conflicts with existing jobs.
+    Returns list of conflicting days with job details.
+    
+    Query params:
+      - scheduled_date: YYYY-MM-DD (used to determine the starting day, for reference)
+      - days_of_week: comma-separated lowercase day names (e.g. "tuesday,saturday")
+      - start_time: HH:MM (e.g. "09:00")
+      - end_time: HH:MM (e.g. "11:00")
+    """
+    from datetime import datetime as dt
+    from app.services.schedule_conflict_service import detect_schedule_conflicts, get_days_set
+    
+    # Get the employer's ID
+    employer = get_employer_for_user(current_user.id, db)
+    if not employer:
+        raise HTTPException(status_code=400, detail="User is not an employer")
+    
+    # Parse input
+    try:
+        sched_date = dt.strptime(scheduled_date, "%Y-%m-%d").date()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid scheduled_date format (use YYYY-MM-DD)")
+    
+    # Check conflicts
+    try:
+        conflicts = detect_schedule_conflicts(
+            db=db,
+            worker_id=worker_id,
+            new_job_start_date=sched_date,
+            new_job_end_date=sched_date,
+            new_job_employer_id=employer.employer_id,
+            new_job_is_recurring=True,
+            new_job_recurring_day=days_of_week,  # Pass the comma-separated string
+            new_job_type='direct_hire',
+            new_job_daily_start_time=start_time,
+            new_job_daily_end_time=end_time,
+        )
+    except Exception as e:
+        logger.error(f"Conflict check error: {e}")
+        raise HTTPException(status_code=500, detail=f"Conflict check failed: {str(e)}")
+    
+    # Extract conflicting days from the conflicts
+    conflicting_days = set()
+    for conflict in conflicts:
+        if conflict.get('recurring_day'):
+            # The conflict's recurring_day is also comma-separated now
+            conflicting_days.update(get_days_set(conflict['recurring_day']))
+        elif conflict.get('start_date'):
+            # One-time job conflict — extract the day of week
+            conflicting_days.add(conflict['start_date'].strftime('%A').lower())
+    
+    return {
+        "has_conflicts": len(conflicts) > 0,
+        "conflicting_days": sorted(list(conflicting_days)),
+        "conflicts": [
+            {
+                "job_title": c.get('title'),
+                "type": c.get('type'),
+                "recurring_day": c.get('recurring_day'),
+                "reason": c.get('reason')
+            }
+            for c in conflicts
+        ]
+    }
 
 
 # ============== EMPLOYER ENDPOINTS ==============
@@ -183,6 +629,30 @@ def create_direct_hire(
             detail="Worker not found"
         )
     
+    # Check if worker is available for direct hire
+    worker_is_available = getattr(worker, 'is_available', True)
+    if worker_is_available is None:
+        worker_is_available = True
+    if not worker_is_available:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This housekeeper is currently inactive and not accepting direct hire requests."
+        )
+    
+    # Check if the scheduled date is blocked
+    from app.models_v2.availability import WorkerBlockedDate
+    blocked_date = db.query(WorkerBlockedDate).filter(
+        WorkerBlockedDate.worker_id == hire_data.worker_id,
+        WorkerBlockedDate.blocked_date == hire_data.scheduled_date
+    ).first()
+    
+    if blocked_date:
+        reason_msg = f" ({blocked_date.reason})" if blocked_date.reason else ""
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"This worker is not available on {hire_data.scheduled_date}. The date is blocked{reason_msg}."
+        )
+    
     # Validate packages exist and belong to worker
     packages = db.query(WorkerPackage).filter(
         WorkerPackage.package_id.in_(hire_data.package_ids),
@@ -198,6 +668,8 @@ def create_direct_hire(
     
     # Calculate total amount
     total_amount = sum(float(p.price) for p in packages)
+    platform_fee_percentage = get_direct_hire_fee_percentage(db)
+    platform_fee_amount = (Decimal(str(total_amount)) * platform_fee_percentage / Decimal("100")).quantize(Decimal("0.01"))
     
     # Get address
     address_street = hire_data.address_street
@@ -215,12 +687,82 @@ def create_direct_hire(
             address_province = user_address.province_name
             address_region = user_address.region_name
     
+    # Handle recurring schedule
+    is_recurring = False
+    day_of_week = None
+    start_time = None
+    end_time = None
+    frequency = None
+    recurring_status = None
+    
+    if hire_data.recurring_schedule and hire_data.recurring_schedule.is_recurring:
+        is_recurring = True
+        day_of_week = hire_data.recurring_schedule.day_of_week
+        start_time = hire_data.recurring_schedule.start_time
+        end_time = hire_data.recurring_schedule.end_time
+        frequency = hire_data.recurring_schedule.frequency
+        recurring_status = "active"
+
+    initial_platform_fee_status = "pending"
+    if is_recurring and (frequency or "").lower() == "weekly":
+        initial_platform_fee_status = "pending_owner_weekly"
+    
     # Create the hire
+    # Derive num_days and daily hours from the selected packages (set by the housekeeper)
+    max_pkg_num_days = max((p.num_days or 1) for p in packages)
+    max_pkg_duration_hours = max((p.duration_hours or 2) for p in packages)
+    hire_num_days = max_pkg_num_days
+    # If the owner provided start/end times, use them; otherwise compute from package duration
+    hire_daily_start = hire_data.daily_start_time or "08:00"
+    # Compute end time from package duration if not provided
+    if hire_data.daily_end_time:
+        hire_daily_end = hire_data.daily_end_time
+    else:
+        start_hour = int(hire_daily_start.split(":")[0])
+        end_hour = min(start_hour + max_pkg_duration_hours, 23)
+        hire_daily_end = f"{end_hour:02d}:00"
+    # Compute end_date for multi-day hires
+    hire_end_date = None
+    if hire_num_days > 1:
+        hire_end_date = hire_data.scheduled_date + timedelta(days=hire_num_days - 1)
+
+    # ========== PRE-CREATION CONFLICT CHECK ==========
+    # Warn the employer if the worker already has a conflicting committed job
+    from app.services.schedule_conflict_service import detect_schedule_conflicts as _dsc
+    try:
+        _conflicts = _dsc(
+            db=db,
+            worker_id=hire_data.worker_id,
+            new_job_start_date=hire_data.scheduled_date,
+            new_job_end_date=hire_end_date or hire_data.scheduled_date,
+            new_job_employer_id=employer.employer_id,
+            new_job_is_recurring=is_recurring,
+            new_job_recurring_day=day_of_week,
+            new_job_type='direct_hire',
+            new_job_daily_start_time=hire_daily_start or (start_time if is_recurring else None),
+            new_job_daily_end_time=hire_daily_end or (end_time if is_recurring else None),
+        )
+        if _conflicts:
+            conflict_titles = ", ".join([c['title'] for c in _conflicts])
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"This worker already has a conflicting schedule: {conflict_titles}. "
+                       f"The hire request cannot be created because the time overlaps with an existing job."
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Non-fatal: allow creation if conflict check fails unexpectedly
+        print(f"Warning: Pre-creation conflict check error: {e}")
+
     hire = DirectHire(
         employer_id=employer.employer_id,
         worker_id=hire_data.worker_id,
         package_ids=hire_data.package_ids,
         total_amount=total_amount,
+        platform_fee_percentage=platform_fee_percentage,
+        platform_fee_amount=platform_fee_amount,
+        platform_fee_status=initial_platform_fee_status,
         scheduled_date=hire_data.scheduled_date,
         scheduled_time=hire_data.scheduled_time,
         address_street=address_street,
@@ -229,7 +771,17 @@ def create_direct_hire(
         address_province=address_province,
         address_region=address_region,
         special_instructions=hire_data.special_instructions,
-        status=DirectHireStatus.PENDING
+        status=DirectHireStatus.PENDING,
+        is_recurring=is_recurring,
+        day_of_week=day_of_week,
+        start_time=start_time,
+        end_time=end_time,
+        frequency=frequency,
+        recurring_status=recurring_status,
+        num_days=hire_num_days,
+        daily_start_time=hire_daily_start,
+        daily_end_time=hire_daily_end,
+        end_date=hire_end_date,
     )
     
     db.add(hire)
@@ -287,6 +839,8 @@ def approve_completion(
     
     if not hire:
         raise HTTPException(status_code=404, detail="Booking not found")
+
+    _ensure_hire_date_reached(hire, action="approve completion")
     
     if hire.status != DirectHireStatus.PENDING_COMPLETION:
         raise HTTPException(status_code=400, detail="Work completion not submitted yet")
@@ -316,6 +870,9 @@ def submit_payment(
     db: Session = Depends(get_db)
 ):
     """Submit payment for a completed direct hire"""
+    print(f"Payment submission for hire {hire_id}")
+    print(f"Payment data: {payment_data}")
+    
     employer = get_employer_for_user(current_user.id, db)
     
     hire = db.query(DirectHire).filter(
@@ -325,6 +882,10 @@ def submit_payment(
     
     if not hire:
         raise HTTPException(status_code=404, detail="Booking not found")
+
+    _ensure_hire_date_reached(hire, action="submit payment")
+    
+    print(f"Current hire status: {hire.status}")
     
     if hire.status != DirectHireStatus.COMPLETED:
         raise HTTPException(status_code=400, detail="Work must be completed before payment")
@@ -333,23 +894,207 @@ def submit_payment(
     if payment_data.payment_method != 'cash' and not payment_data.reference_number:
         raise HTTPException(status_code=400, detail="Reference number required for non-cash payments")
     
-    hire.payment_method = payment_data.payment_method
-    hire.payment_proof_url = payment_data.payment_proof_url
-    hire.reference_number = payment_data.reference_number
-    hire.paid_at = func.now()
-    hire.status = DirectHireStatus.PAID
+    try:
+        hire.payment_method = payment_data.payment_method
+        hire.payment_proof_url = payment_data.payment_proof_url
+        hire.reference_number = payment_data.reference_number
+        hire.paid_at = func.now()
+        hire.status = DirectHireStatus.PAYMENT_PENDING  # Changed to PAYMENT_PENDING for worker review
+        
+        db.commit()
+        db.refresh(hire)
+        
+        # Send notification to worker about payment submission (for review)
+        worker = db.query(Worker).filter(Worker.worker_id == hire.worker_id).first()
+        if worker:
+            employer_name = f"{current_user.first_name} {current_user.last_name}"
+            # Notification to review payment
+            notification = Notification(
+                user_id=worker.user_id,
+                title="Payment Received - Please Review",
+                message=f"{employer_name} has submitted payment of ₱{float(hire.total_amount):,.2f} for Direct Hire #{hire.hire_id}. Please review and confirm.",
+                type=NotificationType.PAYMENT_SENT,  # Using existing enum value temporarily
+                reference_type="direct_hire",
+                reference_id=hire.hire_id
+            )
+            db.add(notification)
+            db.commit()
+        
+        return hire_to_response(hire, db)
+    except Exception as e:
+        db.rollback()
+        print(f"Payment submission error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to process payment: {str(e)}")
+
+
+@router.post("/{hire_id}/owner-payment/initiate", response_model=DirectHireOwnerPaymentInitiateResponse)
+async def initiate_owner_payment_checkout(
+    hire_id: int,
+    request: Request,
+    payload: DirectHireOwnerPaymentInitiateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    employer = get_employer_for_user(current_user.id, db)
+
+    hire = db.query(DirectHire).filter(
+        DirectHire.hire_id == hire_id,
+        DirectHire.employer_id == employer.employer_id,
+    ).first()
+
+    if not hire:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    if hire.status != DirectHireStatus.COMPLETED:
+        raise HTTPException(status_code=400, detail="Work must be completed before payment")
+
+    selected_method = (payload.payment_method or "").strip().lower()
+    if selected_method not in {"maya", "gcash", "bank_transfer"}:
+        raise HTTPException(status_code=400, detail="Invalid digital payment method")
+
+    if not maya_is_configured():
+        raise HTTPException(status_code=500, detail="Maya sandbox is not configured on backend")
+
+    frontend_base_url = _resolve_frontend_base_url(request)
+    success_url = f"{frontend_base_url}/direct-hires?maya_owner_result=success&hire_id={hire.hire_id}"
+    failure_url = f"{frontend_base_url}/direct-hires?maya_owner_result=failure&hire_id={hire.hire_id}"
+    cancel_url = f"{frontend_base_url}/direct-hires?maya_owner_result=cancel&hire_id={hire.hire_id}"
+
+    reference_number = f"DHP-{hire.hire_id}-{int(datetime.utcnow().timestamp())}"
+
+    try:
+        checkout = await create_checkout(
+            amount=Decimal(str(hire.total_amount)),
+            reference_number=reference_number,
+            success_url=success_url,
+            failure_url=failure_url,
+            cancel_url=cancel_url,
+            buyer_first_name=current_user.first_name,
+            buyer_last_name=current_user.last_name,
+            buyer_email=current_user.email,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Unable to create Maya checkout: {exc}") from exc
+
+    checkout_id = checkout.get("checkoutId") or checkout.get("id")
+    redirect_url = checkout.get("redirectUrl")
+    if not checkout_id or not redirect_url:
+        raise HTTPException(status_code=502, detail="Invalid Maya checkout response")
+
+    hire.payment_method = selected_method
+    hire.reference_number = reference_number
+    db.commit()
+
+    return DirectHireOwnerPaymentInitiateResponse(
+        hire_id=hire.hire_id,
+        checkout_id=str(checkout_id),
+        redirect_url=str(redirect_url),
+        amount=float(hire.total_amount),
+    )
+
+
+@router.post("/{hire_id}/owner-payment/verify")
+async def verify_owner_payment_checkout(
+    hire_id: int,
+    payload: DirectHireFeeVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    employer = get_employer_for_user(current_user.id, db)
+
+    hire = db.query(DirectHire).filter(
+        DirectHire.hire_id == hire_id,
+        DirectHire.employer_id == employer.employer_id,
+    ).first()
+
+    if not hire:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    if hire.status not in {DirectHireStatus.COMPLETED, DirectHireStatus.PAYMENT_PENDING}:
+        raise HTTPException(status_code=400, detail="Hire cannot be verified in current state")
+
+    try:
+        checkout = await retrieve_checkout(payload.checkout_id)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Unable to verify Maya checkout: {exc}") from exc
+
+    payment_status = normalize_checkout_status(checkout)
+
+    if payment_status == "paid":
+        hire.reference_number = checkout.get("requestReferenceNumber") or hire.reference_number
+        hire.paid_at = func.now()
+        hire.status = DirectHireStatus.PAID
+        if not hire.payment_method:
+            hire.payment_method = "maya"
+
+        _rollover_recurring_after_paid(hire=hire, db=db)
+        db.commit()
+        db.refresh(hire)
+
+        worker = db.query(Worker).filter(Worker.worker_id == hire.worker_id).first()
+        if worker:
+            employer_name = f"{current_user.first_name} {current_user.last_name}"
+            notify_direct_hire_paid(
+                db=db,
+                worker_user_id=worker.user_id,
+                employer_name=employer_name,
+                amount=float(hire.total_amount),
+                hire_id=hire.hire_id,
+            )
+
+        return {
+            "message": "Payment verified and marked as paid.",
+            "status": "paid",
+        }
+
+    if payment_status in {"failed", "cancelled"}:
+        return {
+            "message": "Payment was not completed.",
+            "status": "completed",
+        }
+
+    return {
+        "message": "Payment is still pending.",
+        "status": "completed",
+    }
+
+
+@router.post("/{hire_id}/confirm-payment", response_model=DirectHireResponse)
+def confirm_payment(
+    hire_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Worker confirms receipt of payment"""
+    worker = get_worker_for_user(current_user.id, db)
     
+    hire = db.query(DirectHire).filter(
+        DirectHire.hire_id == hire_id,
+        DirectHire.worker_id == worker.worker_id
+    ).first()
+    
+    if not hire:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    _ensure_hire_date_reached(hire, action="confirm payment")
+    
+    if hire.status != DirectHireStatus.PAYMENT_PENDING:
+        raise HTTPException(status_code=400, detail="No payment pending confirmation")
+    
+    # Confirm payment
+    hire.status = DirectHireStatus.PAID
+    _rollover_recurring_after_paid(hire=hire, db=db)
     db.commit()
     db.refresh(hire)
     
-    # Send notification to worker about payment
-    worker = db.query(Worker).filter(Worker.worker_id == hire.worker_id).first()
-    if worker:
-        employer_name = f"{current_user.first_name} {current_user.last_name}"
+    # Send notification to employer about payment confirmation
+    employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
+    if employer:
+        worker_name = f"{current_user.first_name} {current_user.last_name}"
         notify_direct_hire_paid(
             db=db,
-            worker_user_id=worker.user_id,
-            employer_name=employer_name,
+            worker_user_id=employer.user_id,
+            employer_name=worker_name,
             amount=float(hire.total_amount),
             hire_id=hire.hire_id
         )
@@ -378,6 +1123,13 @@ def cancel_booking(
         raise HTTPException(status_code=400, detail="Cannot cancel a booking that is already in progress or completed")
     
     hire.status = DirectHireStatus.CANCELLED
+
+    if hire.is_recurring:
+        hire.recurring_status = "cancelled"
+        hire.recurring_cancelled_at = datetime.now()
+        if not hire.recurring_cancellation_reason:
+            hire.recurring_cancellation_reason = "Cancelled from direct hire"
+        hire.cancelled_by = "employer"
     db.commit()
     
     return {"message": "Booking cancelled"}
@@ -408,6 +1160,409 @@ def get_my_direct_jobs(
     return [hire_to_response(h, db) for h in hires]
 
 
+@router.get("/{hire_id}/receipt", response_model=DirectHireReceiptResponse)
+def get_direct_hire_receipt(
+    hire_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    hire = db.query(DirectHire).filter(DirectHire.hire_id == hire_id).first()
+    if not hire:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
+    worker = db.query(Worker).filter(Worker.worker_id == hire.worker_id).first()
+
+    employer_user = db.query(User).filter(User.id == employer.user_id).first() if employer else None
+    worker_user = db.query(User).filter(User.id == worker.user_id).first() if worker else None
+
+    is_owner = bool(employer_user and employer_user.id == current_user.id)
+    is_housekeeper = bool(worker_user and worker_user.id == current_user.id)
+    if not is_owner and not is_housekeeper:
+        raise HTTPException(status_code=403, detail="You can only view receipts for your own direct hires")
+
+    package_ids = hire.package_ids or []
+    packages = []
+    if package_ids:
+        pkg_records = db.query(WorkerPackage).filter(WorkerPackage.package_id.in_(package_ids)).all()
+        packages = [
+            {
+                "package_id": p.package_id,
+                "name": p.name,
+                "price": float(p.price),
+                "duration_hours": p.duration_hours,
+                "num_days": p.num_days or 1,
+                "services": normalize_services(p.services),
+            }
+            for p in pkg_records
+        ]
+
+    location_parts = [
+        hire.address_street,
+        hire.address_barangay,
+        hire.address_city,
+        hire.address_province,
+        hire.address_region,
+    ]
+    location = ", ".join([part for part in location_parts if part])
+
+    employer_name = f"{employer_user.first_name} {employer_user.last_name}" if employer_user else "Employer"
+    worker_name = f"{worker_user.first_name} {worker_user.last_name}" if worker_user else "Housekeeper"
+
+    return DirectHireReceiptResponse(
+        hire_id=hire.hire_id,
+        status=hire.status.value if hasattr(hire.status, "value") else str(hire.status),
+        employer_name=employer_name,
+        worker_name=worker_name,
+        scheduled_date=str(hire.scheduled_date),
+        scheduled_time=hire.scheduled_time,
+        location=location,
+        packages=packages,
+        total_amount=float(hire.total_amount or 0),
+        payment_method=hire.payment_method,
+        reference_number=getattr(hire, "reference_number", None),
+        payment_proof_url=hire.payment_proof_url,
+        paid_at=(hire.paid_at.isoformat() if hire.paid_at else None),
+        completion_proof_url=hire.completion_proof_url,
+        completion_notes=hire.completion_notes,
+        completed_at=(hire.completed_at.isoformat() if hire.completed_at else None),
+        platform_fee_amount=float(getattr(hire, "platform_fee_amount", 0) or 0),
+        platform_fee_paid_at=(hire.platform_fee_paid_at.isoformat() if getattr(hire, "platform_fee_paid_at", None) else None),
+        generated_at=datetime.utcnow().isoformat(),
+    )
+
+
+def _accept_hire_after_fee(
+    *,
+    hire: DirectHire,
+    worker: Worker,
+    current_user: User,
+    db: Session,
+) -> None:
+    from app.services.schedule_conflict_service import (
+        detect_schedule_conflicts,
+        withdraw_conflicting_applications,
+        notify_withdrawal_to_housekeeper,
+        notify_withdrawal_to_employers,
+    )
+    from app.services.notification_service import notify_direct_hire_rejected_due_to_conflict
+
+    is_recurring = hire.is_recurring
+    recurring_day = hire.day_of_week if is_recurring else None
+    hire_num_days = getattr(hire, 'num_days', 1) or 1
+    hire_end_date = getattr(hire, 'end_date', None)
+    if hire_num_days > 1 and not hire_end_date and hire.scheduled_date:
+        hire_end_date = hire.scheduled_date + timedelta(days=hire_num_days - 1)
+    if not hire_end_date:
+        hire_end_date = hire.scheduled_date
+
+    hire_daily_start = getattr(hire, 'daily_start_time', None) or (hire.start_time if is_recurring else None)
+    hire_daily_end = getattr(hire, 'daily_end_time', None) or (hire.end_time if is_recurring else None)
+
+    conflicts = detect_schedule_conflicts(
+        db=db,
+        worker_id=worker.worker_id,
+        new_job_start_date=hire.scheduled_date,
+        new_job_end_date=hire_end_date,
+        new_job_employer_id=hire.employer_id,
+        new_job_is_recurring=is_recurring,
+        new_job_recurring_day=recurring_day,
+        new_job_type='direct_hire',
+        new_job_daily_start_time=hire_daily_start,
+        new_job_daily_end_time=hire_daily_end,
+    )
+
+    if conflicts:
+        hire.status = DirectHireStatus.REJECTED
+        db.commit()
+
+        employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
+        if employer:
+            conflict_titles = ", ".join([c['title'] for c in conflicts])
+            notify_direct_hire_rejected_due_to_conflict(
+                db=db,
+                employer_user_id=employer.user_id,
+                worker_name=f"{current_user.first_name} {current_user.last_name}",
+                conflicting_job_title=conflict_titles,
+            )
+
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot accept this hire. You have a conflicting job scheduled: {', '.join([c['title'] for c in conflicts])}",
+        )
+
+    hire.status = DirectHireStatus.ACCEPTED
+    db.commit()
+
+    try:
+        employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
+        employer_name = f"{employer.user.first_name} {employer.user.last_name}" if employer and employer.user else "Employer"
+        worker_name = f"{current_user.first_name} {current_user.last_name}"
+
+        withdrawn = withdraw_conflicting_applications(
+            db=db,
+            worker_id=worker.worker_id,
+            newly_accepted_job_type='direct_hire',
+            newly_accepted_job_id=hire.hire_id,
+            newly_accepted_start_date=hire.scheduled_date,
+            newly_accepted_end_date=hire_end_date,
+            newly_accepted_employer_id=hire.employer_id,
+            newly_accepted_is_recurring=is_recurring,
+            newly_accepted_recurring_day=recurring_day,
+            newly_accepted_daily_start_time=hire_daily_start,
+            newly_accepted_daily_end_time=hire_daily_end,
+        )
+
+        if withdrawn:
+            accepted_job_title = f"Direct Hire #{hire.hire_id} from {employer_name}"
+            notify_withdrawal_to_housekeeper(
+                db=db,
+                worker_user_id=current_user.id,
+                newly_accepted_job_title=accepted_job_title,
+                withdrawn_applications=withdrawn,
+            )
+            notify_withdrawal_to_employers(
+                db=db,
+                withdrawn_applications=withdrawn,
+                worker_name=worker_name,
+                accepted_job_title=accepted_job_title,
+            )
+    except Exception as e:
+        print(f"Warning: Conflict withdrawal error: {e}")
+
+    employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
+    if employer:
+        worker_name = f"{current_user.first_name} {current_user.last_name}"
+        notify_direct_hire_accepted(
+            db=db,
+            employer_user_id=employer.user_id,
+            worker_name=worker_name,
+            hire_id=hire.hire_id,
+        )
+
+        existing_conv = db.query(Conversation).filter(Conversation.hire_id == hire.hire_id).first()
+        if not existing_conv:
+            conversation = Conversation(
+                hire_id=hire.hire_id,
+                participant_ids=[employer.user_id, current_user.id],
+                status='active',
+            )
+            db.add(conversation)
+            db.commit()
+
+
+@router.post("/{hire_id}/accept/initiate-payment", response_model=DirectHireFeeInitiateResponse)
+async def initiate_acceptance_fee_payment(
+    hire_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    worker = get_worker_for_user(current_user.id, db)
+
+    hire = db.query(DirectHire).filter(
+        DirectHire.hire_id == hire_id,
+        DirectHire.worker_id == worker.worker_id,
+    ).first()
+
+    if not hire:
+        raise HTTPException(status_code=404, detail="Hire request not found")
+
+    if hire.status != DirectHireStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Can only pay fee for pending requests")
+
+    if _is_short_term_weekly_recurring(hire):
+        raise HTTPException(
+            status_code=400,
+            detail="Weekly recurring posting fee must be paid by the house owner",
+        )
+
+    if not maya_is_configured():
+        raise HTTPException(status_code=500, detail="Maya sandbox is not configured on backend")
+
+    fee_amount = Decimal(str(getattr(hire, 'platform_fee_amount', 0) or 0))
+    if fee_amount <= 0:
+        platform_fee_percentage = get_direct_hire_fee_percentage(db)
+        fee_amount = (Decimal(str(hire.total_amount)) * platform_fee_percentage / Decimal("100")).quantize(Decimal("0.01"))
+        hire.platform_fee_amount = fee_amount
+        hire.platform_fee_percentage = platform_fee_percentage
+        db.commit()
+        db.refresh(hire)
+
+    frontend_base_url = _resolve_frontend_base_url(request)
+    success_url = f"{frontend_base_url}/direct-hires?maya_result=success&hire_id={hire.hire_id}"
+    failure_url = f"{frontend_base_url}/direct-hires?maya_result=failure&hire_id={hire.hire_id}"
+    cancel_url = f"{frontend_base_url}/direct-hires?maya_result=cancel&hire_id={hire.hire_id}"
+
+    reference_number = f"DHF-{hire.hire_id}-{int(datetime.utcnow().timestamp())}"
+    try:
+        checkout = await create_checkout(
+            amount=fee_amount,
+            reference_number=reference_number,
+            success_url=success_url,
+            failure_url=failure_url,
+            cancel_url=cancel_url,
+            buyer_first_name=current_user.first_name,
+            buyer_last_name=current_user.last_name,
+            buyer_email=current_user.email,
+        )
+    except Exception as exc:
+        message = str(exc)
+        if "K007" in message or "Invalid key scope" in message or "(401)" in message:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Maya sandbox keys are valid format but missing Checkout scope. "
+                    "Generate sandbox Checkout API keys in Maya Manager and update MAYA_SECRET_KEY/MAYA_PUBLIC_KEY."
+                ),
+            ) from exc
+        raise HTTPException(status_code=502, detail=f"Unable to create Maya checkout: {exc}") from exc
+
+    checkout_id = checkout.get("checkoutId") or checkout.get("id")
+    redirect_url = checkout.get("redirectUrl")
+    if not checkout_id or not redirect_url:
+        raise HTTPException(status_code=502, detail="Invalid Maya checkout response")
+
+    hire.platform_fee_checkout_id = str(checkout_id)
+    hire.platform_fee_reference = reference_number
+    hire.platform_fee_status = "pending"
+    db.commit()
+
+    return DirectHireFeeInitiateResponse(
+        hire_id=hire.hire_id,
+        checkout_id=str(checkout_id),
+        redirect_url=str(redirect_url),
+        platform_fee_amount=float(fee_amount),
+    )
+
+
+@router.post("/{hire_id}/accept/verify")
+async def verify_acceptance_fee_payment(
+    hire_id: int,
+    payload: DirectHireFeeVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    worker = get_worker_for_user(current_user.id, db)
+
+    hire = db.query(DirectHire).filter(
+        DirectHire.hire_id == hire_id,
+        DirectHire.worker_id == worker.worker_id,
+    ).first()
+
+    if not hire:
+        raise HTTPException(status_code=404, detail="Hire request not found")
+
+    if hire.status != DirectHireStatus.PENDING and hire.status != DirectHireStatus.ACCEPTED:
+        raise HTTPException(status_code=400, detail="Hire cannot be verified in current state")
+
+    if _is_short_term_weekly_recurring(hire):
+        raise HTTPException(
+            status_code=400,
+            detail="Weekly recurring posting fee must be paid by the house owner",
+        )
+
+    try:
+        checkout = await retrieve_checkout(payload.checkout_id)
+    except Exception as exc:
+        message = str(exc)
+        if "K007" in message or "Invalid key scope" in message or "(401)" in message:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Maya sandbox keys are valid format but missing Checkout scope. "
+                    "Generate sandbox Checkout API keys in Maya Manager and update MAYA_SECRET_KEY/MAYA_PUBLIC_KEY."
+                ),
+            ) from exc
+        raise HTTPException(status_code=502, detail=f"Unable to verify Maya checkout: {exc}") from exc
+    payment_status = normalize_checkout_status(checkout)
+
+    hire.platform_fee_checkout_id = payload.checkout_id
+    hire.platform_fee_reference = checkout.get("requestReferenceNumber") or hire.platform_fee_reference
+
+    if payment_status == "paid":
+        hire.platform_fee_status = "paid"
+        hire.platform_fee_paid_at = func.now()
+        db.commit()
+        db.refresh(hire)
+
+        if hire.status == DirectHireStatus.PENDING:
+            _accept_hire_after_fee(hire=hire, worker=worker, current_user=current_user, db=db)
+        return {
+            "message": "Platform fee paid and hire accepted.",
+            "status": "accepted",
+            "platform_fee_status": "paid",
+        }
+
+    if payment_status in {"failed", "cancelled"}:
+        hire.platform_fee_status = payment_status
+        db.commit()
+        return {
+            "message": "Payment was not completed.",
+            "status": "pending",
+            "platform_fee_status": payment_status,
+        }
+
+    hire.platform_fee_status = "pending"
+    db.commit()
+    return {
+        "message": "Payment is still pending.",
+        "status": "pending",
+        "platform_fee_status": "pending",
+    }
+
+
+@router.post("/maya/webhook")
+async def maya_webhook_direct_hire(
+    request: Request,
+    x_paymaya_signature: Optional[str] = Header(default=None, alias="x-paymaya-signature"),
+    db: Session = Depends(get_db),
+):
+    raw_body = await request.body()
+
+    signature = x_paymaya_signature or request.headers.get("x-paymaya-signature") or request.headers.get("paymaya-signature")
+    if not verify_webhook_signature(raw_body, signature):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid webhook payload")
+
+    checkout_id = (
+        payload.get("checkoutId")
+        or payload.get("id")
+        or payload.get("checkout_id")
+        or payload.get("data", {}).get("id")
+        or payload.get("data", {}).get("checkoutId")
+    )
+    reference_number = payload.get("requestReferenceNumber") or payload.get("referenceNumber") or payload.get("data", {}).get("requestReferenceNumber")
+
+    hire = None
+    if checkout_id:
+        hire = db.query(DirectHire).filter(DirectHire.platform_fee_checkout_id == str(checkout_id)).first()
+    if not hire and reference_number:
+        hire = db.query(DirectHire).filter(DirectHire.platform_fee_reference == str(reference_number)).first()
+
+    if not hire:
+        return {"ok": True, "message": "No matching direct hire for webhook"}
+
+    payment_status = normalize_checkout_status(payload)
+    hire.platform_fee_checkout_id = str(checkout_id or hire.platform_fee_checkout_id or "") or hire.platform_fee_checkout_id
+    hire.platform_fee_reference = str(reference_number or hire.platform_fee_reference or "") or hire.platform_fee_reference
+
+    if payment_status == "paid":
+        hire.platform_fee_status = "paid"
+        hire.platform_fee_paid_at = func.now()
+    elif payment_status in {"failed", "cancelled"}:
+        hire.platform_fee_status = payment_status
+    else:
+        hire.platform_fee_status = "pending"
+
+    db.commit()
+    return {"ok": True, "platform_fee_status": hire.platform_fee_status}
+
+
 @router.post("/{hire_id}/accept")
 def accept_hire(
     hire_id: int,
@@ -427,36 +1582,22 @@ def accept_hire(
     
     if hire.status != DirectHireStatus.PENDING:
         raise HTTPException(status_code=400, detail="Can only accept pending requests")
-    
-    hire.status = DirectHireStatus.ACCEPTED
-    db.commit()
-    
-    # Send notification to employer that worker accepted
-    employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
-    if employer:
-        worker_name = f"{current_user.first_name} {current_user.last_name}"
-        notify_direct_hire_accepted(
-            db=db,
-            employer_user_id=employer.user_id,
-            worker_name=worker_name,
-            hire_id=hire.hire_id
-        )
-        
-        # Auto-create conversation for both parties
-        # Check if conversation already exists for this hire
-        existing_conv = db.query(Conversation).filter(
-            Conversation.hire_id == hire.hire_id
-        ).first()
-        
-        if not existing_conv:
-            # Create conversation with both employer and worker as participants
-            conversation = Conversation(
-                hire_id=hire.hire_id,
-                participant_ids=[employer.user_id, current_user.id],
-                status='active'
+
+    platform_fee_status = (getattr(hire, 'platform_fee_status', 'pending') or 'pending').lower()
+    if _is_short_term_weekly_recurring(hire):
+        if platform_fee_status != "paid":
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="House owner must pay the weekly posting fee before this recurring hire can be accepted",
             )
-            db.add(conversation)
-            db.commit()
+    else:
+        if platform_fee_status != "paid":
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Platform fee must be paid before accepting this hire",
+            )
+
+    _accept_hire_after_fee(hire=hire, worker=worker, current_user=current_user, db=db)
     
     return {"message": "Hire request accepted", "status": "accepted"}
 
@@ -482,6 +1623,13 @@ def reject_hire(
         raise HTTPException(status_code=400, detail="Can only reject pending requests")
     
     hire.status = DirectHireStatus.REJECTED
+
+    if hire.is_recurring:
+        hire.recurring_status = "cancelled"
+        hire.recurring_cancelled_at = datetime.now()
+        if not hire.recurring_cancellation_reason:
+            hire.recurring_cancellation_reason = "Rejected from direct hire"
+        hire.cancelled_by = "worker"
     db.commit()
     
     # Send notification to employer that worker rejected
@@ -514,9 +1662,18 @@ def start_work(
     
     if not hire:
         raise HTTPException(status_code=404, detail="Hire not found")
+
+    _ensure_hire_date_reached(hire, action="start work")
     
     if hire.status != DirectHireStatus.ACCEPTED:
         raise HTTPException(status_code=400, detail="Hire must be accepted first")
+
+    platform_fee_status = (getattr(hire, 'platform_fee_status', 'pending') or 'pending').lower()
+    if platform_fee_status != "paid":
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Platform fee payment is required before starting work",
+        )
     
     hire.status = DirectHireStatus.IN_PROGRESS
     db.commit()
@@ -541,6 +1698,8 @@ def submit_completion(
     
     if not hire:
         raise HTTPException(status_code=404, detail="Hire not found")
+
+    _ensure_hire_date_reached(hire, action="submit completion")
     
     if hire.status != DirectHireStatus.IN_PROGRESS:
         raise HTTPException(status_code=400, detail="Work must be in progress to submit completion")
@@ -581,12 +1740,15 @@ def confirm_payment_received(
     
     if not hire:
         raise HTTPException(status_code=404, detail="Hire not found")
+
+    _ensure_hire_date_reached(hire, action="confirm payment")
     
     # For direct hires, employer marks as paid after completion
     # Worker can confirm if needed
     if hire.status == DirectHireStatus.COMPLETED:
         hire.paid_at = func.now()
         hire.status = DirectHireStatus.PAID
+        _rollover_recurring_after_paid(hire=hire, db=db)
         db.commit()
         return {"message": "Payment confirmed", "status": "paid"}
     
@@ -598,23 +1760,49 @@ def confirm_payment_received(
 @router.get("/workers", response_model=List[dict])
 def browse_workers(
     city: Optional[str] = None,
+    name: Optional[str] = None,
     min_rating: Optional[float] = None,
-    sort_by: Optional[str] = None,  # "rating", "jobs_completed"
+    sort_by: Optional[str] = None,  # "rating", "jobs_completed", "location"
+    employer_city: Optional[str] = None,
+    employer_province: Optional[str] = None,
+    employer_barangay: Optional[str] = None,
+    # GPS coordinates for location-based search
+    employer_latitude: Optional[float] = None,
+    employer_longitude: Optional[float] = None,
+    max_distance_km: Optional[float] = None,  # Optional: filter by max distance
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Browse available workers with their packages"""
-    from app.models_v2.application import HousekeeperApplication, ApplicationStatus
+    """Browse available workers with their packages
+    
+    Location-based search supports two modes:
+    1. GPS-based (when employer_latitude and employer_longitude are provided):
+       - Calculates actual distance using Haversine formula
+       - Sorts by distance in kilometers
+       - Optionally filters by max_distance_km
+    2. Address-based (when employer_city/province/barangay are provided):
+       - Same barangay first (highest priority)
+       - Same city second
+       - Same province third
+       - Others last
+    
+    GPS-based search takes priority over address-based search.
+    """
     from app.models_v2.rating import Rating
     from sqlalchemy import func
+    from sqlalchemy.orm import joinedload
     
-    # Get all approved housekeepers
+    # Get all active registered housekeepers.
+    # Do not hard-require a housekeeper_applications row because some valid
+    # worker accounts were created/approved through legacy flows.
+    # Only return workers who have set themselves as available (is_available=True).
+    # Inactive workers are hidden from browse/search entirely.
     query = db.query(Worker).join(
         User, Worker.user_id == User.id
-    ).join(
-        HousekeeperApplication, HousekeeperApplication.user_id == User.id
     ).filter(
-        HousekeeperApplication.status == ApplicationStatus.APPROVED,
-        User.is_housekeeper == True
+        User.is_housekeeper == True,
+        User.id != current_user.id,  # Exclude current user from browse results
+        Worker.is_available == True   # Only show workers who are active/available
     )
     
     workers = query.all()
@@ -627,10 +1815,19 @@ def browse_workers(
         # Filter by city if specified
         if city and address and address.city_name and address.city_name.lower() != city.lower():
             continue
+
+        # Filter by name if specified (first name, last name, or full name)
+        if name:
+            full_name = f"{user.first_name or ''} {user.last_name or ''}".strip().lower()
+            name_lower = name.strip().lower()
+            if name_lower not in full_name and \
+               name_lower not in (user.first_name or '').lower() and \
+               name_lower not in (user.last_name or '').lower():
+                continue
         
         # Get rating summary for this worker
-        ratings = db.query(Rating).filter(Rating.rated_user_id == user.id).all()
-        avg_rating = round(sum(r.stars for r in ratings) / len(ratings), 1) if ratings else 0.0
+        ratings = db.query(Rating).filter(Rating.target_user_id == user.id).all()
+        avg_rating = round(sum(r.rating for r in ratings) / len(ratings), 1) if ratings else 0.0
         total_ratings = len(ratings)
         
         # Filter by minimum rating if specified
@@ -638,10 +1835,78 @@ def browse_workers(
             continue
         
         # Get active packages
-        packages = db.query(WorkerPackage).filter(
+        packages = db.query(WorkerPackage).options(
+            joinedload(WorkerPackage.categories)
+        ).filter(
             WorkerPackage.worker_id == worker.worker_id,
             WorkerPackage.is_active == True
         ).all()
+        
+        # Calculate proximity/distance
+        proximity_score = 999  # Default: far away
+        proximity_label = None
+        distance_km = None
+        
+        # GPS-based distance calculation (takes priority)
+        if employer_latitude is not None and employer_longitude is not None:
+            if address and address.latitude is not None and address.longitude is not None:
+                distance_km = calculate_distance_km(
+                    employer_latitude,
+                    employer_longitude,
+                    address.latitude,
+                    address.longitude
+                )
+                
+                # Filter by max distance if specified
+                if max_distance_km is not None and distance_km > max_distance_km:
+                    continue
+                
+                # Use distance as proximity score (lower is closer)
+                proximity_score = distance_km
+                proximity_label = "gps_distance"
+            else:
+                # Worker doesn't have GPS coordinates - still include them but with lower priority
+                # They'll be sorted after workers with GPS coordinates
+                proximity_score = 9999  # Very high score so they appear last
+                proximity_label = "no_gps_coordinates"
+        
+        # Address-based proximity calculation (fallback or when GPS not available)
+        if proximity_label is None and address and address.city_name:
+            # Check barangay first (most specific)
+            if employer_barangay and address.barangay_name:
+                employer_barangay_lower = employer_barangay.lower()
+                worker_barangay_lower = address.barangay_name.lower()
+                
+                if employer_barangay_lower == worker_barangay_lower:
+                    proximity_score = 0  # Same barangay - highest priority
+                    proximity_label = "same_barangay"
+            
+            # Check city if not same barangay
+            if proximity_label is None and employer_city:
+                employer_city_lower = employer_city.lower()
+                worker_city_lower = address.city_name.lower()
+                
+                if employer_city_lower == worker_city_lower:
+                    proximity_score = 1  # Same city - second priority
+                    proximity_label = "same_city"
+            
+            # Check province if not same city
+            if proximity_label is None and employer_province and address.province_name:
+                employer_province_lower = employer_province.lower()
+                worker_province_lower = address.province_name.lower()
+                
+                if employer_province_lower == worker_province_lower:
+                    proximity_score = 2  # Same province - third priority
+                    proximity_label = "same_province"
+                else:
+                    proximity_score = 3  # Different province
+                    proximity_label = "different_province"
+            elif proximity_label is None:
+                proximity_score = 3  # Different city, no province info
+                proximity_label = "different_city"
+        elif not address:
+            proximity_score = 4  # No address info
+            proximity_label = "no_address"
         
         result.append({
             "worker_id": worker.worker_id,
@@ -650,15 +1915,22 @@ def browse_workers(
             "last_name": user.last_name,
             "city": address.city_name if address else None,
             "barangay": address.barangay_name if address else None,
+            "province": address.province_name if address else None,
             "package_count": len(packages),
             "average_rating": avg_rating,
             "total_ratings": total_ratings,
+            "proximity_score": proximity_score,
+            "proximity_label": proximity_label,
+            "distance_km": distance_km,  # Distance in kilometers (only for GPS-based search)
+            "is_available": getattr(worker, 'is_available', True) if getattr(worker, 'is_available', True) is not None else True,
             "packages": [
                 {
                     "package_id": p.package_id,
                     "name": p.name,
                     "price": float(p.price),
-                    "duration_hours": p.duration_hours
+                    "duration_hours": p.duration_hours,
+                    "category_ids": [cat.category_id for cat in p.categories],
+                    "category_names": [cat.name for cat in p.categories]
                 }
                 for p in packages
             ]
@@ -669,8 +1941,131 @@ def browse_workers(
         result.sort(key=lambda x: x["average_rating"], reverse=True)
     elif sort_by == "jobs_completed":
         result.sort(key=lambda x: x["total_ratings"], reverse=True)
+    elif employer_latitude is not None and employer_longitude is not None:
+        # GPS-based sorting: sort by distance (lower = closer)
+        # Workers with GPS coordinates first, then those without
+        # Secondary sort: rating (higher = better)
+        result.sort(key=lambda x: (
+            x["proximity_score"] if x["distance_km"] is not None else 99999,  # Workers without GPS go to end
+            -x["average_rating"]
+        ))
+    elif employer_city:  # Address-based sorting if employer location is provided
+        # Primary sort: proximity (lower score = closer)
+        # Secondary sort: rating (higher = better)
+        result.sort(key=lambda x: (x["proximity_score"], -x["average_rating"]))
+    elif sort_by == "location" and employer_city:
+        result.sort(key=lambda x: (x["proximity_score"], -x["average_rating"]))
     
     return result
+
+
+@router.post("/{hire_id}/cancel-recurring", response_model=DirectHireResponse)
+def cancel_recurring_hire(
+    hire_id: int,
+    cancel_data: CancelRecurringRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Cancel/stop a recurring direct hire booking (employer or worker)"""
+    from datetime import datetime
+    
+    # Get the hire
+    hire = db.query(DirectHire).filter(DirectHire.hire_id == hire_id).first()
+    if not hire:
+        raise HTTPException(status_code=404, detail="Hire not found")
+    
+    # Check if it's a recurring hire
+    if not hire.is_recurring:
+        raise HTTPException(
+            status_code=400, 
+            detail="This is not a recurring booking"
+        )
+    
+    # Check if already cancelled
+    if hasattr(hire, 'recurring_status') and hire.recurring_status == "cancelled":
+        raise HTTPException(
+            status_code=400,
+            detail="This recurring booking is already cancelled"
+        )
+    
+    # Verify user has permission (must be employer or worker)
+    employer = db.query(Employer).filter(Employer.employer_id == hire.employer_id).first()
+    worker = db.query(Worker).filter(Worker.worker_id == hire.worker_id).first()
+    
+    is_employer = employer and employer.user_id == current_user.id
+    is_worker = worker and worker.user_id == current_user.id
+    
+    if not (is_employer or is_worker):
+        raise HTTPException(
+            status_code=403,
+            detail="You don't have permission to cancel this booking"
+        )
+    
+    # Determine who cancelled
+    cancelled_by_role = "employer" if is_employer else "worker"
+    
+    # Update recurring status
+    hire.recurring_status = "cancelled"
+    hire.recurring_cancelled_at = datetime.now()
+    hire.recurring_cancellation_reason = cancel_data.reason
+    hire.cancelled_by = cancelled_by_role
+    
+    db.commit()
+    db.refresh(hire)
+    
+    # Send notification to the other party
+    if is_employer:
+        # Notify worker
+        worker_user = db.query(User).filter(User.id == worker.user_id).first()
+        if worker_user:
+            from app.services.notification_service import notify_direct_hire_rejected
+            employer_name = f"{current_user.first_name} {current_user.last_name}"
+            # We can create a new notification or use existing one
+            # For now, just update the hire
+    else:
+        # Notify employer
+        employer_user = db.query(User).filter(User.id == employer.user_id).first()
+        if employer_user:
+            worker_name = f"{current_user.first_name} {current_user.last_name}"
+            # Notify employer that worker cancelled recurring service
+    
+    return hire_to_response(hire, db)
+
+
+@router.post("/{hire_id}/weekly-fee/mark-paid", response_model=DirectHireResponse)
+def mark_weekly_recurring_fee_paid(
+    hire_id: int,
+    payload: RecurringWeeklyFeeSubmit,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    employer = get_employer_for_user(current_user.id, db)
+
+    hire = db.query(DirectHire).filter(
+        DirectHire.hire_id == hire_id,
+        DirectHire.employer_id == employer.employer_id,
+    ).first()
+
+    if not hire:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    if not _is_short_term_weekly_recurring(hire):
+        raise HTTPException(status_code=400, detail="This endpoint is only for weekly recurring direct hires")
+
+    if hire.status != DirectHireStatus.PENDING:
+        raise HTTPException(status_code=400, detail="Weekly posting fee can only be paid while hire is pending")
+
+    hire.platform_fee_status = "paid"
+    hire.platform_fee_paid_at = func.now()
+    hire.platform_fee_reference = payload.reference_number or hire.platform_fee_reference
+    if payload.payment_method:
+        hire.payment_method = payload.payment_method
+    if payload.payment_proof_url:
+        hire.payment_proof_url = payload.payment_proof_url
+
+    db.commit()
+    db.refresh(hire)
+    return hire_to_response(hire, db)
 
 
 @router.get("/worker/{worker_id}/profile")
@@ -680,9 +2075,17 @@ def get_worker_profile(
 ):
     """Get detailed worker profile with packages and ratings"""
     from app.models_v2.rating import Rating
+    from app.models_v2.portfolio import PortfolioPhoto
     
     worker = db.query(Worker).filter(Worker.worker_id == worker_id).first()
     if not worker:
+        raise HTTPException(status_code=404, detail="Worker not found")
+    
+    # Block access to inactive worker profiles
+    worker_available = getattr(worker, 'is_available', True)
+    if worker_available is None:
+        worker_available = True
+    if not worker_available:
         raise HTTPException(status_code=404, detail="Worker not found")
     
     user = db.query(User).filter(User.id == worker.user_id).first()
@@ -701,23 +2104,23 @@ def get_worker_profile(
     ).count()
     
     # Get rating summary
-    ratings = db.query(Rating).filter(Rating.rated_user_id == user.id).all()
-    avg_rating = round(sum(r.stars for r in ratings) / len(ratings), 1) if ratings else 0.0
+    ratings = db.query(Rating).filter(Rating.target_user_id == user.id).all()
+    avg_rating = round(sum(r.rating for r in ratings) / len(ratings), 1) if ratings else 0.0
     total_ratings = len(ratings)
     
     # Calculate rating breakdown
     rating_breakdown = {5: 0, 4: 0, 3: 0, 2: 0, 1: 0}
     for r in ratings:
-        rating_breakdown[r.stars] += 1
+        rating_breakdown[r.rating] += 1
     
     # Get recent reviews (last 5)
     recent_reviews = []
     for r in sorted(ratings, key=lambda x: x.created_at, reverse=True)[:5]:
-        rater = db.query(User).filter(User.id == r.rater_id).first()
+        rater = db.query(User).filter(User.id == r.reviewer_user_id).first()
         recent_reviews.append({
-            "rating_id": r.rating_id,
-            "stars": r.stars,
-            "review": r.review,
+            "rating_id": r.review_id,
+            "stars": r.rating,
+            "review": r.comment,
             "rater_name": f"{rater.first_name} {rater.last_name[0]}." if rater else "Anonymous",
             "created_at": r.created_at.isoformat() if r.created_at else None
         })
@@ -727,13 +2130,22 @@ def get_worker_profile(
     if user.phone_number:
         phone_masked = "****" + user.phone_number[-4:] if len(user.phone_number) >= 4 else "****"
     
+    # Get portfolio photos
+    portfolio_photos = db.query(PortfolioPhoto).filter(
+        PortfolioPhoto.worker_id == worker_id
+    ).order_by(PortfolioPhoto.created_at.desc()).all()
+
     return {
         "worker_id": worker.worker_id,
         "user_id": user.id,
         "first_name": user.first_name,
         "last_name": user.last_name,
+        "bio": worker.bio,
+        "profile_picture": user.profile_picture,
         "phone_masked": phone_masked,
         "email_masked": user.email.split('@')[0][:3] + "***@" + user.email.split('@')[1] if '@' in user.email else None,
+        "gender": user.gender.value if user.gender else None,
+        "relationship_status": user.relationship_status,
         "city": address.city_name if address else None,
         "barangay": address.barangay_name if address else None,
         "province": address.province_name if address else None,
@@ -745,6 +2157,7 @@ def get_worker_profile(
         "total_ratings": total_ratings,
         "rating_breakdown": rating_breakdown,
         "recent_reviews": recent_reviews,
+        "is_available": getattr(worker, 'is_available', True) if getattr(worker, 'is_available', True) is not None else True,
         "packages": [
             {
                 "package_id": p.package_id,
@@ -752,8 +2165,20 @@ def get_worker_profile(
                 "description": p.description,
                 "price": float(p.price),
                 "duration_hours": p.duration_hours,
-                "services": p.services or []
+                "num_days": p.num_days or 1,
+                "services": normalize_services(p.services),
+                "category_names": [cat.name for cat in p.categories] if p.categories else []
             }
             for p in packages
+        ],
+        "portfolio_photos": [
+            {
+                "id": photo.id,
+                "image_url": photo.image_url,
+                "caption": photo.caption,
+                "category": photo.category,
+                "created_at": photo.created_at.isoformat() if photo.created_at else None
+            }
+            for photo in portfolio_photos
         ]
     }
