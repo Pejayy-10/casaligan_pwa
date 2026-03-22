@@ -1570,13 +1570,13 @@ function HousekeeperJobsContent({
               </div>
             )}
             <div className="flex items-start justify-between mb-3 gap-2">
-              <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white">{job.title}</h3>
+              <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white min-w-0 break-words">{job.title}</h3>
               <span className="px-4 py-2 bg-[#359126/10 dark:bg-[#359126]/20 !text-[#359126] dark:text-[#359126] rounded-full text-md font-bold whitespace-nowrap">
                 ₱{job.budget}
               </span>
             </div>
           
-            <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 text-sm sm:text-base">{job.description}</p>
+            <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 text-sm sm:text-base break-words whitespace-normal">{job.description}</p>
           
             {/* Display multiple categories */}
             {job.category_names && job.category_names.length > 0 && (
@@ -1614,8 +1614,8 @@ function HousekeeperJobsContent({
           
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="text-xs sm:text-sm text-[#4B244A]/60 dark:text-white/60 space-y-1 font-medium">
-                <p><MapPin className="inline w-4 h-4 mr-1" /> {job.employer_address}</p>
-                <p><Users className="inline w-4 h-4 mr-1" /> {job.employer_name}</p>
+                <p className="break-words"><MapPin className="inline w-4 h-4 mr-1" /> {job.employer_address}</p>
+                <p className="break-words"><Users className="inline w-4 h-4 mr-1" /> {job.employer_name}</p>
               </div>
               <button 
                 onClick={() => onSelectJob(job)}

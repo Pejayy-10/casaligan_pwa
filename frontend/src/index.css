@@ -52,9 +52,40 @@
 /* ===============================
    BASE
 ================================ */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
+  margin: 0;
   background-color: var(--bg-color);
   color: var(--base-text); /* ✅ default text */
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+span {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.flex > * {
+  min-width: 0;
 }
 
 /* ===============================
@@ -144,7 +175,8 @@ a:hover svg {
   }
 }
 
-
+/* ===============================
+   FOCUS STATES
 ================================ */
 button:focus-visible,
 a:focus-visible {
