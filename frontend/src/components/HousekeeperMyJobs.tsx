@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import ContractExtensionResponseModal, { type PendingExtension } from './ContractExtensionResponseModal';
 import HousekeeperSummaryModal from './HousekeeperSummaryModal';
 import DailyCompletionModal from './DailyCompletionModal';
+import { useConfirmDialog } from './useConfirmDialog';
 
 interface AcceptedJob {
   post_id: number;
@@ -87,6 +88,7 @@ interface Props {
 
 export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, onReportUnpaid, onShowPayments, onReportEmployer, reportedUsers, initialStatusFilter }: Props) {
   const navigate = useNavigate();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [jobs, setJobs] = useState<AcceptedJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed'>(initialStatusFilter || 'all');
@@ -440,8 +442,13 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                       )}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         <button
-                          onClick={() => {
-                            if (window.confirm('Continue with this edited job?')) {
+                          onClick={async () => {
+                            const shouldContinue = await confirm({
+                              title: 'Continue Application',
+                              message: 'Continue with this edited job?',
+                              confirmLabel: 'Continue'
+                            });
+                            if (shouldContinue) {
                               respondToEdit(job, 'accept');
                             }
                           }}
@@ -450,8 +457,14 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                           ✓ Continue Application
                         </button>
                         <button
-                          onClick={() => {
-                            if (window.confirm('Withdraw your application for this edited job?')) {
+                          onClick={async () => {
+                            const shouldWithdraw = await confirm({
+                              title: 'Withdraw Application',
+                              message: 'Withdraw your application for this edited job?',
+                              confirmLabel: 'Withdraw',
+                              tone: 'danger'
+                            });
+                            if (shouldWithdraw) {
                               respondToEdit(job, 'reject');
                             }
                           }}
@@ -499,7 +512,12 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                     </button>
                     <button
                       onClick={async () => {
-                        if (window.confirm('Confirm that you have received the payment?')) {
+                        const shouldConfirm = await confirm({
+                          title: 'Confirm Payment',
+                          message: 'Confirm that you have received the payment?',
+                          confirmLabel: 'Yes, Confirm'
+                        });
+                        if (shouldConfirm) {
                           try {
                             const token = localStorage.getItem('access_token');
                             // Get the transaction_id from the payment schedule with 'sent' status
@@ -742,6 +760,8 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
           onDayConfirmed={() => loadMyJobs()}
         />
       )}
+
+      {confirmDialog}
     </div>
   );
 }

@@ -1038,6 +1038,10 @@ function OwnerJobsContent({
     error: string | null;
     submitting: boolean;
   } | null>(null);
+  const [repostModal, setRepostModal] = useState<{
+    postId: number;
+    title: string;
+  } | null>(null);
   const ITEMS_PER_PAGE = 5;
   const [currentPage, setCurrentPage] = useState(1);
   const totalPages = Math.ceil(jobs.length / ITEMS_PER_PAGE);
@@ -1086,8 +1090,6 @@ function OwnerJobsContent({
   };
 
   const handleRepost = async (postId: number) => {
-    if (!confirm('Repost this job with the same details?')) return;
-
     try {
       setActionLoading(`repost-${postId}`);
       const token = localStorage.getItem('access_token');
@@ -1111,6 +1113,10 @@ function OwnerJobsContent({
     } finally {
       setActionLoading(null);
     }
+  };
+
+  const requestRepost = (postId: number, title: string) => {
+    setRepostModal({ postId, title });
   };
 
   if (jobs.length === 0) {
@@ -1415,7 +1421,7 @@ function OwnerJobsContent({
              {/* Repost button for finished jobs */}
              {(job.status === 'completed' || job.status === 'cancelled') && (
                <button
-                 onClick={() => handleRepost(job.post_id)}
+                 onClick={() => requestRepost(job.post_id, job.title)}
                  disabled={actionLoading === `repost-${job.post_id}`}
                  className="mt-2 w-full py-2 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-1"
                >
@@ -1508,6 +1514,43 @@ function OwnerJobsContent({
                 className="py-2.5 rounded-lg bg-red-500 text-white font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {cancelModal.submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Cancelling...</> : 'Confirm Cancel'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {repostModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 shadow-2xl overflow-hidden">
+            <div className="h-1.5 bg-gradient-to-r from-[#EA526F] via-[#E7467B] to-[#4B244A]" />
+            <div className="p-5">
+              <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Repost Job</h3>
+              <p className="mt-2 text-sm text-[#4B244A]/75 dark:text-white/75">
+                Repost "{repostModal.title}" with the same details?
+              </p>
+            </div>
+            <div className="px-5 pb-5 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setRepostModal(null)}
+                disabled={actionLoading === `repost-${repostModal.postId}`}
+                className="py-2.5 rounded-lg bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white font-semibold hover:bg-gray-200 dark:hover:bg-white/20 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const selectedPostId = repostModal.postId;
+                  setRepostModal(null);
+                  await handleRepost(selectedPostId);
+                }}
+                disabled={actionLoading === `repost-${repostModal.postId}`}
+                className="py-2.5 rounded-lg bg-[#EA526F] text-white font-semibold hover:bg-[#d4486a] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {actionLoading === `repost-${repostModal.postId}` ? <><Loader2 className="w-4 h-4 animate-spin" /> Reposting...</> : 'Yes, Repost'}
               </button>
             </div>
           </div>

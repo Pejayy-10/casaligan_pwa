@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import { Plus, Edit2, Clock, Package, AlertTriangle, Loader2 } from 'lucide-react';
+import { useConfirmDialog } from './useConfirmDialog';
 
 interface Package {
   package_id: number;
@@ -29,6 +30,7 @@ interface Props {
 }
 
 export default function PackageManagement({ onClose, embedded = false }: Props) {
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [packages, setPackages] = useState<Package[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -213,7 +215,13 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   const handleDelete = async (packageId: number) => {
-    if (!confirm('Are you sure you want to delete this package?')) return;
+    const shouldDelete = await confirm({
+      title: 'Delete Package',
+      message: 'Are you sure you want to delete this package?',
+      confirmLabel: 'Delete',
+      tone: 'danger'
+    });
+    if (!shouldDelete) return;
 
     try {
       setActionLoading(`delete-${packageId}`);
@@ -517,13 +525,14 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
 
   // Embedded mode - no modal wrapper
   if (embedded) {
-    return <>{content}</>;
+    return <>{content}{confirmDialog}</>;
   }
 
   // Modal mode
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
+    <>
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
         <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-6 border-b border-gray-200 dark:border-white/10 z-10">
           <div className="flex items-center justify-between">
@@ -556,7 +565,9 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
         <div className="p-6">
           {content}
         </div>
+        </div>
       </div>
-    </div>
+      {confirmDialog}
+    </>
   );
 }

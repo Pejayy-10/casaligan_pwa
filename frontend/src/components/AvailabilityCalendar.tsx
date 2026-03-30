@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import apiClient from '../services/api';
 import { Calendar, Edit2 } from 'lucide-react';
+import { useConfirmDialog } from './useConfirmDialog';
 
 interface BlockedDate {
   blocked_date_id: number;
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export default function AvailabilityCalendar({ onClose }: Props) {
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedDate, setSelectedDate] = useState<string>('');
@@ -64,7 +66,13 @@ export default function AvailabilityCalendar({ onClose }: Props) {
   };
 
   const handleUnblockDate = async (blockedDateId: number) => {
-    if (!confirm('Are you sure you want to unblock this date?')) return;
+    const shouldUnblock = await confirm({
+      title: 'Unblock Date',
+      message: 'Are you sure you want to unblock this date?',
+      confirmLabel: 'Unblock',
+      tone: 'danger'
+    });
+    if (!shouldUnblock) return;
 
     try {
       await apiClient.delete(`/availability/blocked-dates/${blockedDateId}`);
@@ -91,13 +99,19 @@ export default function AvailabilityCalendar({ onClose }: Props) {
     return blockedDates.find(bd => bd.blocked_date === dateStr);
   };
 
-  const handleDateClick = (date: Date) => {
+  const handleDateClick = async (date: Date) => {
     if (isDatePast(date)) return;
     
     if (isDateBlocked(date)) {
       const blockedInfo = getBlockedDateInfo(date);
       if (blockedInfo) {
-        if (confirm(`This date is blocked${blockedInfo.reason ? ` (${blockedInfo.reason})` : ''}. Unblock it?`)) {
+        const shouldUnblock = await confirm({
+          title: 'Date Blocked',
+          message: `This date is blocked${blockedInfo.reason ? ` (${blockedInfo.reason})` : ''}. Unblock it?`,
+          confirmLabel: 'Unblock',
+          tone: 'danger'
+        });
+        if (shouldUnblock) {
           handleUnblockDate(blockedInfo.blocked_date_id);
         }
       }
@@ -362,6 +376,8 @@ export default function AvailabilityCalendar({ onClose }: Props) {
           </div>
         </div>
       )}
+
+      {confirmDialog}
     </div>
   );
 }

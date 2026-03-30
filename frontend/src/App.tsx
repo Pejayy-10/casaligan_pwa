@@ -20,6 +20,7 @@ import RecurringServicesPage from './pages/RecurringServicesPage';
 import DirectHiresPage from './pages/DirectHiresPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import RestrictionModal from './components/RestrictionModal';
+import GlobalAlertNotice from './components/GlobalAlertNotice';
 import { PaymentProvider } from './context/PaymentContext';
 
 const router = createBrowserRouter([
@@ -185,6 +186,7 @@ function App() {
   return (
     <PaymentProvider>
       <RouterProvider router={router} />
+      <GlobalAlertNotice />
       {restrictionMessage && (
         <RestrictionModal
           message={restrictionMessage}

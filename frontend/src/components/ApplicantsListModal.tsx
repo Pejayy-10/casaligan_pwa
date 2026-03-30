@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { Users, Mail, Phone, User, CheckCircle, Inbox, PartyPopper, Clock } from 'lucide-react';
+import { useConfirmDialog } from './useConfirmDialog';
 
 interface Applicant {
   interest_id: number;
@@ -25,6 +26,7 @@ interface ApplicantsListModalProps {
 
 export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onClose, onJobStarted }: ApplicantsListModalProps) {
   const navigate = useNavigate();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedWorkers, setSelectedWorkers] = useState<Set<number>>(new Set());
@@ -353,13 +355,19 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
                         
                         {/* Reject Button - disabled if pending edit response */}
                         <button
-                          onClick={(e) => {
+                          onClick={async (e) => {
                             e.stopPropagation();
                             if (hasPendingEdit) {
                               alert('Cannot reject an applicant with a pending job edit response. Please wait for their response.');
                               return;
                             }
-                            if (confirm(`Reject ${applicant.worker_name}?`)) {
+                            const shouldReject = await confirm({
+                              title: 'Reject Applicant',
+                              message: `Reject ${applicant.worker_name}?`,
+                              confirmLabel: 'Reject',
+                              tone: 'danger'
+                            });
+                            if (shouldReject) {
                               handleReject(applicant.interest_id);
                             }
                           }}
@@ -422,6 +430,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
           </div>
         )}
       </div>
+      {confirmDialog}
     </div>
   );
 }

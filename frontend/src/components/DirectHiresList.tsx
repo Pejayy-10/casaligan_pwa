@@ -8,6 +8,7 @@ import ReferHousekeeperModal from './ReferHousekeeperModal';
 import DirectHireReceiptModal from './DirectHireReceiptModal';
 import apiClient from '../services/api';
 import { usePayment } from '../context/PaymentContext';
+import { useConfirmDialog } from './useConfirmDialog';
 
 const resolveUploadUrl = (url: string) => {
   if (!url) return '';
@@ -87,6 +88,7 @@ interface Props {
 export default function DirectHiresList({ role, onClose }: Props) {
   const navigate = useNavigate();
   const { initiatePayment } = usePayment();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [hires, setHires] = useState<DirectHire[]>([]);
   const [loading, setLoading] = useState(true);
   const [verifyingFee, setVerifyingFee] = useState(false);
@@ -810,7 +812,12 @@ export default function DirectHiresList({ role, onClose }: Props) {
             <div className="flex gap-2">
               <button
                 onClick={async () => {
-                  if (window.confirm('Confirm that you have received the payment?')) {
+                  const shouldConfirm = await confirm({
+                    title: 'Confirm Payment',
+                    message: 'Confirm that you have received the payment?',
+                    confirmLabel: 'Yes, Confirm'
+                  });
+                  if (shouldConfirm) {
                     try {
                       setProcessing(true);
                       const token = localStorage.getItem('access_token');
@@ -1266,6 +1273,8 @@ export default function DirectHiresList({ role, onClose }: Props) {
           onClose={() => setShowReceiptHireId(null)}
         />
       )}
+
+      {confirmDialog}
     </div>
   );
 }

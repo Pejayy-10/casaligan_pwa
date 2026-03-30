@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Calendar, DollarSign, FileText, X, Check, XCircle, AlertCircle, User } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import { useConfirmDialog } from './useConfirmDialog';
 
 export interface PendingExtension {
   extension_id: number;
@@ -29,6 +30,7 @@ export default function ContractExtensionResponseModal({
   extension,
   onSuccess
 }: ContractExtensionResponseModalProps) {
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -36,7 +38,13 @@ export default function ContractExtensionResponseModal({
 
   const handleRespond = async (accepted: boolean) => {
     const action = accepted ? 'accept' : 'decline';
-    if (!confirm(`Are you sure you want to ${action} this contract extension?`)) return;
+    const shouldProceed = await confirm({
+      title: accepted ? 'Accept Extension' : 'Decline Extension',
+      message: `Are you sure you want to ${action} this contract extension?`,
+      confirmLabel: accepted ? 'Accept' : 'Decline',
+      tone: accepted ? 'default' : 'danger'
+    });
+    if (!shouldProceed) return;
 
     setLoading(true);
     setError('');
@@ -194,6 +202,7 @@ export default function ContractExtensionResponseModal({
           </div>
         </div>
       </div>
+      {confirmDialog}
     </div>
   );
 }
