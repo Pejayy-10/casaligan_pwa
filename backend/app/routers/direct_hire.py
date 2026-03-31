@@ -2125,10 +2125,15 @@ def get_worker_profile(
             "created_at": r.created_at.isoformat() if r.created_at else None
         })
     
-    # Mask phone number for privacy (show last 4 digits)
-    phone_masked = None
-    if user.phone_number:
-        phone_masked = "****" + user.phone_number[-4:] if len(user.phone_number) >= 4 else "****"
+    # Full phone number for display on the public profile
+    phone_display = user.phone_number if user.phone_number else None
+
+    # Alternate phone — only show when verified
+    alt_phone_display = None
+    alt_phone_raw = getattr(worker, 'alt_phone_number', None)
+    alt_phone_verified = getattr(worker, 'alt_phone_verified', False)
+    if alt_phone_raw and alt_phone_verified:
+        alt_phone_display = alt_phone_raw
     
     # Get portfolio photos
     portfolio_photos = db.query(PortfolioPhoto).filter(
@@ -2142,8 +2147,9 @@ def get_worker_profile(
         "last_name": user.last_name,
         "bio": worker.bio,
         "profile_picture": user.profile_picture,
-        "phone_masked": phone_masked,
-        "email_masked": user.email.split('@')[0][:3] + "***@" + user.email.split('@')[1] if '@' in user.email else None,
+        "phone_masked": phone_display,
+        "alt_phone_masked": alt_phone_display,
+        "email_masked": user.email if user.email else None,
         "gender": user.gender.value if user.gender else None,
         "relationship_status": user.relationship_status,
         "city": address.city_name if address else None,

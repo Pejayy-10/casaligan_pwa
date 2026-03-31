@@ -82,6 +82,23 @@ export default function ProfilePage() {
   const [otpSuccess, setOtpSuccess] = useState(false);
   const otpInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // Pending phone change — holds the new number while waiting for OTP
+  const [pendingPhone, setPendingPhone] = useState<string>('');
+
+  // Alternate phone number state (housekeeper-only)
+  const [showAltPhoneModal, setShowAltPhoneModal] = useState(false);
+  const [editAltPhone, setEditAltPhone] = useState('');
+  const [altPhoneOtpDigits, setAltPhoneOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
+  const [altPhoneOtpError, setAltPhoneOtpError] = useState('');
+  const [altPhoneOtpLoading, setAltPhoneOtpLoading] = useState(false);
+  const [altPhoneOtpSending, setAltPhoneOtpSending] = useState(false);
+  const [altPhoneOtpResendCooldown, setAltPhoneOtpResendCooldown] = useState(0);
+  const [altPhoneOtpDevCode, setAltPhoneOtpDevCode] = useState('');
+  const [altPhoneOtpSuccess, setAltPhoneOtpSuccess] = useState(false);
+  const [altPhoneStep, setAltPhoneStep] = useState<'input' | 'otp'>('input');
+  const [removingAltPhone, setRemovingAltPhone] = useState(false);
+  const altPhoneOtpRefs = useRef<(HTMLInputElement | null)[]>([]);
+
   const openEditProfile = () => {
     if (!user) return;
     setEditFirstName(user.first_name);
@@ -165,7 +182,7 @@ export default function ProfilePage() {
       return;
     }
 
-    // Validate phone if changed
+    // Validate phone if changed (but do NOT save it yet — OTP must be verified first)
     const phoneRaw = editPhone.replace(/\D/g, '').trim();
     const fullPhone = `+63${phoneRaw}`;
     const phoneChanged = fullPhone !== user.phone_number;
@@ -184,26 +201,25 @@ export default function ProfilePage() {
         pictureUrl = await authService.uploadProfilePicture(selectedFile);
       }
 
-      const updates: { first_name?: string; middle_name?: string; last_name?: string; suffix?: string; profile_picture?: string; email?: string; phone_number?: string; bio?: string; relationship_status?: User['relationship_status'] } = {};
+      // Build update payload — phone_number intentionally excluded here;
+      // it is saved only after OTP verification via the dedicated flow.
+      const updates: { first_name?: string; middle_name?: string; last_name?: string; suffix?: string; profile_picture?: string; email?: string; bio?: string; relationship_status?: User['relationship_status'] } = {};
       if (editFirstName.trim() !== user.first_name) updates.first_name = editFirstName.trim();
       if (editMiddleName.trim() !== (user.middle_name || '')) updates.middle_name = editMiddleName.trim();
       if (editLastName.trim() !== user.last_name) updates.last_name = editLastName.trim();
       if (editSuffix.trim() !== (user.suffix || '')) updates.suffix = editSuffix.trim();
       if (pictureUrl !== user.profile_picture) updates.profile_picture = pictureUrl;
       if (emailChanged) updates.email = emailLower;
-      if (phoneChanged) updates.phone_number = fullPhone;
       if (user.is_housekeeper && user.active_role === 'housekeeper' && editBio.trim() !== (user.bio || '').trim()) updates.bio = editBio.trim();
       if ((editRelationshipStatus || '') !== (user.relationship_status || '')) {
         updates.relationship_status = editRelationshipStatus || undefined;
       }
 
-      if (Object.keys(updates).length === 0) {
-        setShowEditProfile(false);
-        return;
+      if (Object.keys(updates).length > 0) {
+        const updatedUser = await authService.updateProfile(updates);
+        setUser(updatedUser as User);
       }
 
-      const updatedUser = await authService.updateProfile(updates);
-      setUser(updatedUser as User);
       setShowEditProfile(false);
 
       // If email was changed, prompt email OTP verification
@@ -217,16 +233,19 @@ export default function ProfilePage() {
           sendEmailOtp();
         }, 300);
       }
-      // If phone was changed, prompt phone OTP verification
+
+      // If phone was changed, initiate the OTP-first phone change flow
       if (phoneChanged) {
+        const delay = emailChanged ? 600 : 300;
         setTimeout(() => {
           setOtpDigits(['', '', '', '', '', '']);
           setOtpError('');
           setOtpSuccess(false);
           setOtpDevCode('');
+          setPendingPhone(fullPhone);
           setShowPhoneOtp(true);
-          sendPhoneOtp();
-        }, emailChanged ? 600 : 300);
+          sendPhoneChangeOtp(fullPhone);
+        }, delay);
       }
     } catch (err: any) {
       const detail = err?.response?.data?.detail;
@@ -243,6 +262,13 @@ export default function ProfilePage() {
     const timer = setTimeout(() => setOtpResendCooldown((c) => c - 1), 1000);
     return () => clearTimeout(timer);
   }, [otpResendCooldown]);
+
+  // Countdown timer for alt-phone OTP resend
+  useEffect(() => {
+    if (altPhoneOtpResendCooldown <= 0) return;
+    const timer = setTimeout(() => setAltPhoneOtpResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [altPhoneOtpResendCooldown]);
 
   const sendEmailOtp = async () => {
     setOtpSending(true);
@@ -268,6 +294,36 @@ export default function ProfilePage() {
     }
   };
 
+  /**
+   * Sends OTP to the NEW phone number without saving it.
+   * Must be called before showing the phone OTP modal.
+   */
+  const sendPhoneChangeOtp = async (newPhone: string) => {
+    setOtpSending(true);
+    setOtpError('');
+    setOtpDevCode('');
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE_URL}/auth/send-phone-change-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ new_phone: newPhone }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setOtpError(data.detail || 'Failed to send verification code.');
+      } else {
+        setOtpResendCooldown(60);
+        if (data.dev_otp) setOtpDevCode(data.dev_otp);
+      }
+    } catch {
+      setOtpError('Could not connect to the server.');
+    } finally {
+      setOtpSending(false);
+    }
+  };
+
+  /** Legacy: send OTP to the current (already-saved) phone number for re-verification. */
   const sendPhoneOtp = async () => {
     setOtpSending(true);
     setOtpError('');
@@ -289,6 +345,146 @@ export default function ProfilePage() {
       setOtpError('Could not connect to the server.');
     } finally {
       setOtpSending(false);
+    }
+  };
+
+  // ─── Alternate Phone handlers ──────────────────────────────────────────────
+
+  const sendAltPhoneOtp = async (newPhone: string) => {
+    setAltPhoneOtpSending(true);
+    setAltPhoneOtpError('');
+    setAltPhoneOtpDevCode('');
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE_URL}/auth/send-alt-phone-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ new_phone: newPhone }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setAltPhoneOtpError(data.detail || 'Failed to send verification code.');
+      } else {
+        setAltPhoneOtpResendCooldown(60);
+        if (data.dev_otp) setAltPhoneOtpDevCode(data.dev_otp);
+        setAltPhoneStep('otp');
+      }
+    } catch {
+      setAltPhoneOtpError('Could not connect to the server.');
+    } finally {
+      setAltPhoneOtpSending(false);
+    }
+  };
+
+  const handleSendAltPhoneOtp = async () => {
+    const raw = editAltPhone.replace(/\D/g, '').trim();
+    if (raw.length !== 10) {
+      setAltPhoneOtpError('Enter 10 digits after +63 (e.g. 912 345 6789)');
+      return;
+    }
+    await sendAltPhoneOtp(`+63${raw}`);
+  };
+
+  const handleAltPhoneOtpDigitChange = (idx: number, val: string) => {
+    const digit = val.replace(/\D/g, '').slice(-1);
+    const next = [...altPhoneOtpDigits];
+    next[idx] = digit;
+    setAltPhoneOtpDigits(next);
+    setAltPhoneOtpError('');
+    if (digit && idx < 5) altPhoneOtpRefs.current[idx + 1]?.focus();
+  };
+
+  const handleAltPhoneOtpKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace') {
+      if (altPhoneOtpDigits[idx]) {
+        const next = [...altPhoneOtpDigits];
+        next[idx] = '';
+        setAltPhoneOtpDigits(next);
+      } else if (idx > 0) {
+        altPhoneOtpRefs.current[idx - 1]?.focus();
+      }
+    } else if (e.key === 'ArrowLeft' && idx > 0) {
+      altPhoneOtpRefs.current[idx - 1]?.focus();
+    } else if (e.key === 'ArrowRight' && idx < 5) {
+      altPhoneOtpRefs.current[idx + 1]?.focus();
+    }
+  };
+
+  const handleAltPhoneOtpPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!text) return;
+    const next = [...altPhoneOtpDigits];
+    for (let i = 0; i < 6; i++) next[i] = text[i] || '';
+    setAltPhoneOtpDigits(next);
+    altPhoneOtpRefs.current[Math.min(text.length, 5)]?.focus();
+  };
+
+  const handleVerifyAltPhoneOtp = async () => {
+    const otp = altPhoneOtpDigits.join('');
+    if (otp.length < 6) { setAltPhoneOtpError('Please enter the complete 6-digit code.'); return; }
+    setAltPhoneOtpLoading(true);
+    setAltPhoneOtpError('');
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE_URL}/auth/verify-alt-phone-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ otp }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          const u = JSON.parse(userStr);
+          u.alt_phone_number = data.alt_phone_number;
+          u.alt_phone_verified = true;
+          localStorage.setItem('user', JSON.stringify(u));
+          setUser(u);
+        }
+        setAltPhoneOtpSuccess(true);
+        setTimeout(() => {
+          setShowAltPhoneModal(false);
+          setAltPhoneOtpSuccess(false);
+          setAltPhoneStep('input');
+          setEditAltPhone('');
+          setAltPhoneOtpDigits(['', '', '', '', '', '']);
+        }, 1500);
+      } else {
+        setAltPhoneOtpError(data.detail || 'Verification failed.');
+        setAltPhoneOtpDigits(['', '', '', '', '', '']);
+        altPhoneOtpRefs.current[0]?.focus();
+      }
+    } catch {
+      setAltPhoneOtpError('Could not connect to the server.');
+    } finally {
+      setAltPhoneOtpLoading(false);
+    }
+  };
+
+  const handleRemoveAltPhone = async () => {
+    if (!confirm('Remove your alternate phone number?')) return;
+    setRemovingAltPhone(true);
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE_URL}/auth/alt-phone`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const userStr = localStorage.getItem('user');
+        if (userStr) {
+          const u = JSON.parse(userStr);
+          u.alt_phone_number = null;
+          u.alt_phone_verified = false;
+          localStorage.setItem('user', JSON.stringify(u));
+          setUser(u);
+        }
+      }
+    } catch {
+      // ignore
+    } finally {
+      setRemovingAltPhone(false);
     }
   };
 
@@ -373,20 +569,33 @@ export default function ProfilePage() {
     setOtpError('');
     try {
       const token = localStorage.getItem('access_token');
-      const res = await fetch(`${API_BASE_URL}/auth/verify-phone-otp`, {
+
+      // Use the phone-change endpoint when we have a pending new number;
+      // this endpoint saves the new number only after successful verification.
+      const endpoint = pendingPhone
+        ? `${API_BASE_URL}/auth/verify-phone-change-otp`
+        : `${API_BASE_URL}/auth/verify-phone-otp`;
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ otp }),
       });
       const data = await res.json();
       if (res.ok) {
+        // Update local user with new phone number and verified status
         const userStr = localStorage.getItem('user');
         if (userStr) {
           const u = JSON.parse(userStr);
           u.phone_verified = true;
+          if (data.phone_number) {
+            // New phone was saved by the backend — reflect it locally
+            u.phone_number = data.phone_number;
+          }
           localStorage.setItem('user', JSON.stringify(u));
           setUser(u);
         }
+        setPendingPhone('');
         setOtpSuccess(true);
         setTimeout(() => { setShowPhoneOtp(false); setOtpSuccess(false); }, 1500);
       } else {
@@ -712,6 +921,25 @@ export default function ProfilePage() {
                             <CheckCircle className="w-3.5 h-3.5 text-green-500 ml-1" />
                           )}
                         </p>
+                        {/* Alternate phone — housekeeper only */}
+                        {user.is_housekeeper && user.alt_phone_number && (
+                          <p className="flex items-center justify-center sm:justify-start gap-1.5">
+                            <Phone className="w-4 h-4 opacity-60" />
+                            {user.alt_phone_number}
+                            {user.alt_phone_verified === true && (
+                              <CheckCircle className="w-3.5 h-3.5 text-green-500 ml-1" />
+                            )}
+                            <span className="text-[10px] opacity-60">(alt)</span>
+                            <button
+                              onClick={handleRemoveAltPhone}
+                              disabled={removingAltPhone}
+                              className="ml-1 inline-flex items-center gap-0.5 text-[10px] text-red-500 hover:text-red-600 font-semibold disabled:opacity-50"
+                            >
+                              {removingAltPhone ? <Loader2 className="w-3 h-3 animate-spin" /> : <X className="w-3 h-3" />}
+                              Remove
+                            </button>
+                          </p>
+                        )}
                         {user.birthday && (
                           <p className="flex items-center justify-center sm:justify-start gap-1.5">
                             <Cake className="w-4 h-4" />
@@ -1162,6 +1390,43 @@ export default function ProfilePage() {
                 )}
               </div>
 
+              {/* Alternate Phone — housekeeper only, inside edit modal */}
+              {user.is_housekeeper && (
+                <div className="p-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-bold text-[#4B244A]/70 dark:text-white/60 uppercase tracking-wide">
+                        Alternate Number <span className="text-[10px] normal-case font-normal opacity-70">(optional)</span>
+                      </p>
+                      {user.alt_phone_number ? (
+                        <p className="text-sm font-semibold text-[#4B244A] dark:text-white flex items-center gap-1 mt-0.5">
+                          {user.alt_phone_number}
+                          {user.alt_phone_verified && <CheckCircle className="w-3.5 h-3.5 text-green-500" />}
+                        </p>
+                      ) : (
+                        <p className="text-xs text-[#4B244A]/50 dark:text-white/40 mt-0.5">No alternate number set</p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditAltPhone(user.alt_phone_number?.startsWith('+63') ? user.alt_phone_number.slice(3) : '');
+                        setAltPhoneStep('input');
+                        setAltPhoneOtpDigits(['', '', '', '', '', '']);
+                        setAltPhoneOtpError('');
+                        setAltPhoneOtpDevCode('');
+                        setAltPhoneOtpSuccess(false);
+                        setShowAltPhoneModal(true);
+                      }}
+                      className="text-xs text-[#EA526F] hover:text-[#d4486a] font-semibold flex items-center gap-1"
+                    >
+                      <Phone className="w-3 h-3" />
+                      {user.alt_phone_number ? 'Change' : '+ Add'}
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Error */}
               {editError && (
                 <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm flex items-start gap-2">
@@ -1200,6 +1465,157 @@ export default function ProfilePage() {
       )}
 
       {/* Package Onboarding Modal */}
+
+      {/* ─── Alternate Phone Modal ─── */}
+      {showAltPhoneModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-sm w-full border border-gray-200 dark:border-white/20 shadow-2xl">
+            <div className="p-6 border-b border-gray-200 dark:border-white/10 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-[#4B244A] dark:text-white flex items-center gap-2">
+                <Phone className="w-5 h-5 text-[#EA526F]" />
+                {altPhoneStep === 'input' ? 'Alternate Contact Number' : 'Verify Alternate Number'}
+              </h3>
+              <button
+                onClick={() => { setShowAltPhoneModal(false); setAltPhoneStep('input'); }}
+                className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-5">
+              {altPhoneOtpSuccess ? (
+                <div className="text-center py-4">
+                  <div className="w-16 h-16 bg-green-100 dark:bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <CheckCircle className="w-8 h-8 text-green-500" />
+                  </div>
+                  <p className="text-lg font-bold text-[#4B244A] dark:text-white">Alternate Number Saved!</p>
+                </div>
+              ) : altPhoneStep === 'input' ? (
+                <>
+                  <p className="text-sm text-[#4B244A]/70 dark:text-white/60 text-center">
+                    Add a backup number so employers can reach you if your primary number is unavailable.
+                  </p>
+
+                  {/* Show existing alt number as read-only reference */}
+                  {user?.alt_phone_number && (
+                    <div className="p-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl">
+                      <p className="text-xs text-[#4B244A]/50 dark:text-white/40 font-medium uppercase tracking-wide">Current</p>
+                      <p className="text-sm font-bold text-[#4B244A] dark:text-white flex items-center gap-1 mt-0.5">
+                        {user.alt_phone_number}
+                        {user.alt_phone_verified && <CheckCircle className="w-3.5 h-3.5 text-green-500" />}
+                      </p>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-sm font-bold text-[#4B244A] dark:text-white mb-2">
+                      {user?.alt_phone_number ? 'New Alternate Number' : 'Alternate Number'}
+                    </label>
+                    <div className="flex">
+                      <span className="inline-flex items-center px-3 py-3 rounded-l-xl border border-r-0 border-gray-200 dark:border-white/10 bg-gray-100 dark:bg-white/10 text-[#4B244A] dark:text-white text-sm font-medium">
+                        +63
+                      </span>
+                      <input
+                        type="tel"
+                        value={formatPhilippinePhone(editAltPhone)}
+                        onChange={(e) => setEditAltPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        className="flex-1 px-4 py-3 rounded-r-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]/50 focus:border-[#EA526F] transition-all text-sm"
+                        placeholder="912 345 6789"
+                        inputMode="numeric"
+                      />
+                    </div>
+                  </div>
+
+                  {altPhoneOtpError && (
+                    <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm text-center">
+                      {altPhoneOtpError}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleSendAltPhoneOtp}
+                    disabled={altPhoneOtpSending || editAltPhone.replace(/\D/g, '').length !== 10}
+                    className="w-full py-3 bg-[#EA526F] hover:bg-[#d4486a] text-white font-bold rounded-xl shadow-lg shadow-[#EA526F]/20 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {altPhoneOtpSending
+                      ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending Code…</>
+                      : <><ArrowRight className="w-4 h-4" /> Send Verification Code</>}
+                  </button>
+                </>
+              ) : (
+                /* OTP step */
+                <>
+                  <p className="text-sm text-[#4B244A]/70 dark:text-white/60 text-center">
+                    We sent a 6-digit code to <strong className="text-[#4B244A] dark:text-white">+63{editAltPhone.replace(/\D/g, '')}</strong>
+                  </p>
+
+                  {altPhoneOtpDevCode && (
+                    <div className="p-3 bg-yellow-50 dark:bg-yellow-500/10 border border-yellow-200 dark:border-yellow-500/30 rounded-xl text-center">
+                      <p className="text-xs text-yellow-700 dark:text-yellow-300 font-medium">
+                        ⚙️ Dev mode — Your code: <strong>{altPhoneOtpDevCode}</strong>
+                      </p>
+                    </div>
+                  )}
+
+                  {altPhoneOtpError && (
+                    <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl text-red-600 dark:text-red-400 text-sm text-center">
+                      {altPhoneOtpError}
+                    </div>
+                  )}
+
+                  <div className="flex justify-center gap-2.5" onPaste={handleAltPhoneOtpPaste}>
+                    {altPhoneOtpDigits.map((d, idx) => (
+                      <input
+                        key={idx}
+                        ref={(el) => { altPhoneOtpRefs.current[idx] = el; }}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={d}
+                        onChange={(e) => handleAltPhoneOtpDigitChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleAltPhoneOtpKeyDown(idx, e)}
+                        className={`w-11 h-14 text-center text-xl font-bold rounded-xl border-2 outline-none transition-all bg-white/50 dark:bg-white/10 text-[#4B244A] dark:text-white ${
+                          d ? 'border-[#EA526F] ring-2 ring-[#EA526F]/30' : 'border-gray-300 dark:border-white/20 focus:border-[#EA526F] focus:ring-2 focus:ring-[#EA526F]/20'
+                        }`}
+                        disabled={altPhoneOtpLoading}
+                      />
+                    ))}
+                  </div>
+
+                  <button
+                    onClick={handleVerifyAltPhoneOtp}
+                    disabled={!altPhoneOtpDigits.every(d => d !== '') || altPhoneOtpLoading}
+                    className="w-full py-3 bg-[#EA526F] hover:bg-[#d4486a] text-white font-bold rounded-xl shadow-lg shadow-[#EA526F]/20 transition-all text-sm flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {altPhoneOtpLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying…</> : <>Verify <ArrowRight className="w-4 h-4" /></>}
+                  </button>
+
+                  <div className="text-center space-y-2">
+                    {altPhoneOtpResendCooldown > 0 ? (
+                      <p className="text-sm text-[#4B244A]/50 dark:text-white/40">Resend in <span className="font-semibold text-[#EA526F]">{altPhoneOtpResendCooldown}s</span></p>
+                    ) : (
+                      <button
+                        onClick={() => sendAltPhoneOtp(`+63${editAltPhone.replace(/\D/g, '')}`)}
+                        disabled={altPhoneOtpSending}
+                        className="text-sm text-[#EA526F] font-semibold hover:underline disabled:opacity-50 flex items-center gap-1 mx-auto"
+                      >
+                        {altPhoneOtpSending ? <><RefreshCw className="w-3 h-3 animate-spin" /> Sending…</> : 'Resend code'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setAltPhoneStep('input'); setAltPhoneOtpDigits(['', '', '', '', '', '']); setAltPhoneOtpError(''); }}
+                      className="text-sm text-[#4B244A]/50 dark:text-white/40 hover:underline block mx-auto"
+                    >
+                      ← Change number
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Email OTP Verification Modal ─── */}
       {showEmailOtp && (
@@ -1309,7 +1725,7 @@ export default function ProfilePage() {
               ) : (
                 <>
                   <p className="text-sm text-[#4B244A]/70 dark:text-white/60 text-center">
-                    We sent a 6-digit code to <strong className="text-[#4B244A] dark:text-white">{user?.phone_number}</strong>
+                    We sent a 6-digit code to <strong className="text-[#4B244A] dark:text-white">{pendingPhone || user?.phone_number}</strong>
                   </p>
 
                   {otpDevCode && (
@@ -1357,7 +1773,7 @@ export default function ProfilePage() {
                     {otpResendCooldown > 0 ? (
                       <p className="text-sm text-[#4B244A]/50 dark:text-white/40">Resend in <span className="font-semibold text-[#EA526F]">{otpResendCooldown}s</span></p>
                     ) : (
-                      <button onClick={sendPhoneOtp} disabled={otpSending} className="text-sm text-[#EA526F] font-semibold hover:underline disabled:opacity-50 flex items-center gap-1 mx-auto">
+                      <button onClick={() => pendingPhone ? sendPhoneChangeOtp(pendingPhone) : sendPhoneOtp()} disabled={otpSending} className="text-sm text-[#EA526F] font-semibold hover:underline disabled:opacity-50 flex items-center gap-1 mx-auto">
                         {otpSending ? <><RefreshCw className="w-3 h-3 animate-spin" /> Sending…</> : 'Resend code'}
                       </button>
                     )}

@@ -42,6 +42,7 @@ interface WorkerProfile {
   bio?: string | null;
   profile_picture?: string | null;
   phone_masked: string | null;
+  alt_phone_masked: string | null;
   email_masked: string | null;
   gender?: 'male' | 'female' | 'other' | 'prefer_not_to_say' | null;
   relationship_status?: 'single' | 'married' | 'in_a_relationship' | 'widowed' | 'separated' | 'prefer_not_to_say' | null;
@@ -497,7 +498,7 @@ export default function WorkerProfilePage() {
             </div>
           </div>
 
-          {/* Contact Info (masked for privacy) */}
+          {/* Contact Info */}
           <div className="bg-white/40 dark:bg-white/5 rounded-xl p-4 space-y-2 border border-white/40 dark:border-white/10">
             <h4 className="text-[#4B244A] dark:text-white font-bold text-sm mb-2">📋 Profile Info</h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm font-medium">
@@ -505,6 +506,12 @@ export default function WorkerProfilePage() {
                 <div className="flex items-center gap-2 text-[#4B244A]/70 dark:text-white/70">
                   <Phone className="w-4 h-4" />
                   <span>{profile.phone_masked}</span>
+                </div>
+              )}
+              {profile.alt_phone_masked && (
+                <div className="flex items-center gap-2 text-[#4B244A]/70 dark:text-white/70">
+                  <Phone className="w-4 h-4 opacity-60" />
+                  <span>{profile.alt_phone_masked} <span className="text-xs opacity-60">(alt)</span></span>
                 </div>
               )}
               {profile.email_masked && (
@@ -526,9 +533,6 @@ export default function WorkerProfilePage() {
                 </div>
               )}
             </div>
-            <p className="text-[#4B244A]/50 dark:text-white/50 text-xs mt-2 italic font-medium">
-              Full contact details will be shared after booking confirmation
-            </p>
           </div>
 
           {profile.bio && (

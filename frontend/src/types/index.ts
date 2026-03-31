@@ -28,6 +28,8 @@ export interface User {
   address?: Address;
   documents?: UserDocument[];
   is_available?: boolean; // For housekeepers: controls direct hire availability
+  alt_phone_number?: string | null;   // Housekeeper alternate contact number
+  alt_phone_verified?: boolean | null;
 }
 
 export interface Address {

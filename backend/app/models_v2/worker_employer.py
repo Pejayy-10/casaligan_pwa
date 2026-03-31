@@ -17,6 +17,10 @@ class Worker(Base):
     
     # Availability toggle - worker can set this to False to go "Inactive" for direct hire
     is_available = Column(Boolean, default=True, nullable=False, server_default='true')
+
+    # Alternate contact number (housekeeper-only, OTP-verified)
+    alt_phone_number = Column(String(20), nullable=True)
+    alt_phone_verified = Column(Boolean, default=False, nullable=False, server_default='false')
     
     # Relationships
     user = relationship("User", back_populates="worker")

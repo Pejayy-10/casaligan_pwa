@@ -152,6 +152,8 @@ class UserResponse(UserBase):
 class UserProfileResponse(UserResponse):
     address: Optional["AddressResponse"] = None
     is_available: Optional[bool] = True  # For housekeepers: direct hire availability toggle
+    alt_phone_number: Optional[str] = None   # Housekeeper alternate contact number
+    alt_phone_verified: Optional[bool] = False
     
     model_config = ConfigDict(from_attributes=True, use_enum_values=True)
 

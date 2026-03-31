@@ -107,6 +107,16 @@ FROM_EMAIL    = os.getenv("FROM_EMAIL", "startapp.casaligan@gmail.com")
 # In-memory store: { user_id: { "otp": "123456", "expires_at": datetime } }
 _phone_otp_store: dict = {}
 
+# ─── Phone Change OTP Store ───────────────────────────────────────────────────
+# Keyed by user_id: { "otp": "123456", "new_phone": "+63...", "expires_at": datetime }
+# Holds the pending new phone number until OTP is verified.
+_phone_change_store: dict = {}
+
+# ─── Alt-Phone OTP Store ──────────────────────────────────────────────────────
+# Keyed by user_id: { "otp": "123456", "new_phone": "+63...", "expires_at": datetime }
+# Holds the pending alternate phone number until OTP is verified.
+_alt_phone_change_store: dict = {}
+
 # Android SMS Gateway (sms-gate.app) — free, uses your own phone's SIM
 # Local: set SMS_GATEWAY_URL to http://192.168.x.x:8080/api/v1
 # Cloud relay: set to https://api.sms-gate.app/3rdparty/v1
@@ -642,6 +652,9 @@ def get_current_user_profile(
     if is_available is None:
         is_available = True
     setattr(current_user, "is_available", is_available)
+    # Expose alternate phone fields (housekeeper-only)
+    setattr(current_user, "alt_phone_number", getattr(worker, "alt_phone_number", None) if worker else None)
+    setattr(current_user, "alt_phone_verified", getattr(worker, "alt_phone_verified", False) if worker else False)
     return current_user
 
 
@@ -680,21 +693,10 @@ def update_profile(
     elif "email" in data:
         data.pop("email")  # Same email, skip
 
-    # Check if phone number is being changed
-    new_phone = data.get("phone_number")
-    if new_phone and new_phone != current_user.phone_number:
-        # Check if new phone is already taken by another user
-        existing = db.query(User).filter(User.phone_number == new_phone, User.id != current_user.id).first()
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="This phone number is already registered to another account."
-            )
-        current_user.phone_number = new_phone
-        current_user.phone_verified = False
-        data.pop("phone_number")  # Already handled
-    elif "phone_number" in data:
-        data.pop("phone_number")  # Same phone, skip
+    # Phone number changes must go through the dedicated OTP flow
+    # (POST /auth/send-phone-change-otp → POST /auth/verify-phone-change-otp).
+    # Silently ignore any phone_number field submitted here.
+    data.pop("phone_number", None)
 
     bio_value = data.pop("bio", None) if "bio" in data else None
 
@@ -719,6 +721,8 @@ def update_profile(
     db.refresh(current_user)
     worker = db.query(Worker).filter(Worker.user_id == current_user.id).first()
     setattr(current_user, "bio", worker.bio if worker else None)
+    setattr(current_user, "alt_phone_number", getattr(worker, "alt_phone_number", None) if worker else None)
+    setattr(current_user, "alt_phone_verified", getattr(worker, "alt_phone_verified", False) if worker else False)
     return current_user
 
 
@@ -1107,6 +1111,345 @@ def verify_phone_otp(
 
     del _phone_otp_store[current_user.id]
     return {"message": "Phone verified successfully.", "phone_verified": True}
+
+
+# ─── Phone Number Change (OTP-gated) ─────────────────────────────────────────
+
+class PhoneChangeRequest(BaseModel):
+    new_phone: str  # E.164 format, e.g. "+639123456789"
+
+
+@router.post("/send-phone-change-otp")
+def send_phone_change_otp(
+    body: PhoneChangeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Step 1 of phone-number change.
+
+    Validates the new phone number, sends an OTP to it, and temporarily stores
+    the pending number in memory.  The phone in the DB is NOT changed yet.
+    """
+    db.refresh(current_user)
+    new_phone = body.new_phone.strip()
+
+    # Basic format validation
+    if not re.match(r'^\+63\d{10}$', new_phone):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Phone number must be in +63XXXXXXXXXX format (10 digits after +63)."
+        )
+
+    # No change
+    if new_phone == current_user.phone_number:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This is already your current phone number."
+        )
+
+    # Check uniqueness — must not be held by a *different* user
+    existing = (
+        db.query(User)
+        .filter(User.phone_number == new_phone, User.id != current_user.id)
+        .first()
+    )
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This phone number is already registered to another account."
+        )
+
+    otp = "".join([str(secrets.randbelow(10)) for _ in range(6)])
+    expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXPIRY_MINUTES)
+    _phone_change_store[current_user.id] = {
+        "otp": otp,
+        "new_phone": new_phone,
+        "expires_at": expires_at,
+    }
+
+    sms_sent = _send_phone_otp_sms(
+        phone_number=new_phone,
+        otp=otp,
+        first_name=current_user.first_name,
+    )
+
+    response: dict = {"message": f"OTP sent to {new_phone}"}
+    if not sms_sent:
+        response["dev_otp"] = otp
+        response["message"] = "SMS not configured — use dev_otp for testing."
+    return response
+
+
+@router.post("/verify-phone-change-otp")
+def verify_phone_change_otp(
+    body: PhoneOTPVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Step 2 of phone-number change.
+
+    Verifies the OTP and, on success:
+    • Writes the new phone number to the DB (old number is simply overwritten
+      and is therefore free for any account to use again).
+    • Marks phone_verified = True.
+    """
+    db.refresh(current_user)
+
+    entry = _phone_change_store.get(current_user.id)
+    if not entry:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No pending phone change found. Please request a new verification code."
+        )
+
+    if datetime.utcnow() > entry["expires_at"]:
+        del _phone_change_store[current_user.id]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification code has expired. Please request a new one."
+        )
+
+    if body.otp.strip() != entry["otp"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect verification code. Please try again."
+        )
+
+    new_phone = entry["new_phone"]
+
+    # Double-check uniqueness at commit time
+    existing = (
+        db.query(User)
+        .filter(User.phone_number == new_phone, User.id != current_user.id)
+        .first()
+    )
+    if existing:
+        del _phone_change_store[current_user.id]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This phone number was just registered by another account. Please choose a different number."
+        )
+
+    # Persist: old number is released, new number saved, phone marked verified
+    try:
+        from sqlalchemy import text
+        db.execute(
+            text("UPDATE users SET phone_number = :phone, phone_verified = TRUE WHERE id = :uid"),
+            {"phone": new_phone, "uid": current_user.id}
+        )
+        db.commit()
+    except Exception as e:
+        logger.error(f"Failed to update phone for user {current_user.id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update phone number. Please try again."
+        )
+
+    del _phone_change_store[current_user.id]
+    db.refresh(current_user)
+
+    return {
+        "message": "Phone number updated and verified successfully.",
+        "phone_number": new_phone,
+        "phone_verified": True,
+    }
+
+
+# ─── Alternate Phone Number (Housekeeper-only, OTP-gated) ────────────────────
+
+class AltPhoneRequest(BaseModel):
+    new_phone: str  # E.164 format, e.g. "+639123456789"
+
+
+@router.post("/send-alt-phone-otp")
+def send_alt_phone_otp(
+    body: AltPhoneRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Step 1 of alternate-phone setup/change (housekeeper only).
+
+    Validates the number, sends an OTP to it, and temporarily stores the
+    pending number.  Nothing is written to the DB yet.
+    """
+    from app.models_v2.worker_employer import Worker as WorkerModel
+    db.refresh(current_user)
+
+    if not current_user.is_housekeeper:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only housekeepers can add an alternate contact number."
+        )
+
+    new_phone = body.new_phone.strip()
+
+    # Format validation
+    if not re.match(r'^\+63\d{10}$', new_phone):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Phone number must be in +63XXXXXXXXXX format (10 digits after +63)."
+        )
+
+    # Must differ from the primary number
+    if new_phone == current_user.phone_number:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Alternate number must be different from your primary phone number."
+        )
+
+    # Must not be the primary phone of any other user
+    conflict_user = (
+        db.query(User)
+        .filter(User.phone_number == new_phone, User.id != current_user.id)
+        .first()
+    )
+    if conflict_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This number is already registered as a primary phone on another account."
+        )
+
+    # Must not already be the alt number of another housekeeper
+    conflict_worker = (
+        db.query(WorkerModel)
+        .filter(
+            WorkerModel.alt_phone_number == new_phone,
+            WorkerModel.user_id != current_user.id,
+        )
+        .first()
+    )
+    if conflict_worker:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This number is already registered as an alternate phone on another account."
+        )
+
+    otp = "".join([str(secrets.randbelow(10)) for _ in range(6)])
+    expires_at = datetime.utcnow() + timedelta(minutes=OTP_EXPIRY_MINUTES)
+    _alt_phone_change_store[current_user.id] = {
+        "otp": otp,
+        "new_phone": new_phone,
+        "expires_at": expires_at,
+    }
+
+    sms_sent = _send_phone_otp_sms(
+        phone_number=new_phone,
+        otp=otp,
+        first_name=current_user.first_name,
+    )
+
+    response: dict = {"message": f"OTP sent to {new_phone}"}
+    if not sms_sent:
+        response["dev_otp"] = otp
+        response["message"] = "SMS not configured — use dev_otp for testing."
+    return response
+
+
+@router.post("/verify-alt-phone-otp")
+def verify_alt_phone_otp(
+    body: PhoneOTPVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Step 2 of alternate-phone setup/change.
+
+    Verifies the OTP and, on success, saves the new alternate number to the
+    workers table with alt_phone_verified = TRUE.
+    The old alternate number (if any) is released automatically.
+    """
+    from app.models_v2.worker_employer import Worker as WorkerModel
+    db.refresh(current_user)
+
+    if not current_user.is_housekeeper:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only housekeepers can add an alternate contact number."
+        )
+
+    entry = _alt_phone_change_store.get(current_user.id)
+    if not entry:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No pending alternate-phone change found. Please request a new verification code."
+        )
+
+    if datetime.utcnow() > entry["expires_at"]:
+        del _alt_phone_change_store[current_user.id]
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Verification code has expired. Please request a new one."
+        )
+
+    if body.otp.strip() != entry["otp"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Incorrect verification code. Please try again."
+        )
+
+    new_phone = entry["new_phone"]
+
+    # Persist to workers table (create row if it doesn't exist yet)
+    worker = db.query(WorkerModel).filter(WorkerModel.user_id == current_user.id).first()
+    if not worker:
+        worker = WorkerModel(user_id=current_user.id)
+        db.add(worker)
+
+    worker.alt_phone_number = new_phone
+    worker.alt_phone_verified = True
+
+    try:
+        db.commit()
+        db.refresh(worker)
+    except Exception as e:
+        logger.error(f"Failed to save alt phone for user {current_user.id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to save alternate phone number. Please try again."
+        )
+
+    del _alt_phone_change_store[current_user.id]
+
+    return {
+        "message": "Alternate phone number saved and verified successfully.",
+        "alt_phone_number": new_phone,
+        "alt_phone_verified": True,
+    }
+
+
+@router.delete("/alt-phone")
+def remove_alt_phone(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Remove the housekeeper's alternate phone number.
+    The number is immediately freed for use by any other account.
+    """
+    from app.models_v2.worker_employer import Worker as WorkerModel
+    db.refresh(current_user)
+
+    if not current_user.is_housekeeper:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only housekeepers can manage an alternate contact number."
+        )
+
+    worker = db.query(WorkerModel).filter(WorkerModel.user_id == current_user.id).first()
+    if not worker or not worker.alt_phone_number:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No alternate phone number found."
+        )
+
+    worker.alt_phone_number = None
+    worker.alt_phone_verified = False
+    db.commit()
+
+    return {"message": "Alternate phone number removed successfully."}
 
 
 # ─── Forgot / Reset Password ─────────────────────────────────────────────────
