@@ -168,7 +168,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
 
   const handleAddCustomCategory = async () => {
     if (!customCategoryName.trim()) {
-      alert('Please enter a category name');
+      alert('Please fill the field');
       return;
     }
 
