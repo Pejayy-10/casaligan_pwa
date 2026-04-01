@@ -384,3 +384,63 @@ def notify_housekeeper_referral(
         reference_id=worker_id
     )
 
+
+# Flow 6: Mutual Cancellation Notifications (Long-term contracts)
+
+def notify_cancel_request_received(
+    db: Session,
+    recipient_user_id: int,
+    requester_name: str,
+    job_title: str,
+    reason: str,
+    post_id: int
+):
+    """Notify the other party that a cancellation request was submitted for a long-term job"""
+    return notify_user(
+        db=db,
+        user_id=recipient_user_id,
+        notification_type=NotificationType.CANCEL_REQUEST_RECEIVED,
+        title="Cancellation Request Received 🔔",
+        message=f"{requester_name} has requested to end the long-term contract for '{job_title}'. Reason: {reason}. Please approve or reject.",
+        reference_type="job",
+        reference_id=post_id
+    )
+
+
+def notify_cancel_request_approved(
+    db: Session,
+    requester_user_id: int,
+    approver_name: str,
+    job_title: str,
+    post_id: int
+):
+    """Notify the requester that the other party approved the cancellation"""
+    return notify_user(
+        db=db,
+        user_id=requester_user_id,
+        notification_type=NotificationType.CANCEL_REQUEST_APPROVED,
+        title="Contract Cancelled ✅",
+        message=f"{approver_name} approved your cancellation request for '{job_title}'. The contract has been ended.",
+        reference_type="job",
+        reference_id=post_id
+    )
+
+
+def notify_cancel_request_rejected(
+    db: Session,
+    requester_user_id: int,
+    rejector_name: str,
+    job_title: str,
+    reject_reason: str,
+    post_id: int
+):
+    """Notify the requester that the other party rejected the cancellation"""
+    return notify_user(
+        db=db,
+        user_id=requester_user_id,
+        notification_type=NotificationType.CANCEL_REQUEST_REJECTED,
+        title="Cancellation Request Rejected ❌",
+        message=f"{rejector_name} rejected your cancellation request for '{job_title}'. Reason: {reject_reason}. The contract continues.",
+        reference_type="job",
+        reference_id=post_id
+    )

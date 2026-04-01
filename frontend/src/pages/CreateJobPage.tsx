@@ -87,7 +87,9 @@ export default function CreateJobPage() {
     // Multi-day schedule fields
     num_days: '1',
     daily_start_time: '',
-    daily_end_time: ''
+    daily_end_time: '',
+    // Accommodation
+    accommodation_type: 'stay_out'
   });
   
   const [selectedCategories, setSelectedCategories] = useState<number[]>([]);
@@ -494,18 +496,11 @@ export default function CreateJobPage() {
     }
 
     if (formData.duration_type === 'long_term') {
-      if (!formData.start_date || !formData.end_date) {
-        if (!formData.start_date) errors.start_date = 'Start date is required.';
-        if (!formData.end_date) errors.end_date = 'End date is required.';
+      if (!formData.start_date) {
+        errors.start_date = 'Start date is required.';
       }
       if (formData.start_date && formData.start_date < todayStr) {
         errors.start_date = 'Start date cannot be in the past.';
-      }
-      if (formData.start_date && formData.end_date && formData.end_date < formData.start_date) {
-        errors.end_date = 'End date cannot be earlier than start date.';
-      }
-      if (formData.start_date && formData.end_date && formData.end_date === formData.start_date) {
-        errors.end_date = 'Long-term jobs should span at least 2 days.';
       }
     }
 
@@ -575,17 +570,6 @@ export default function CreateJobPage() {
         return;
       }
     }
-
-    // Validate long-term end date is at least 14 days from start date
-    if (formData.duration_type === 'long_term' && formData.start_date && formData.end_date) {
-      const startMs = new Date(formData.start_date).getTime();
-      const endMs = new Date(formData.end_date).getTime();
-      const diffDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
-      if (diffDays < 14) {
-        setFieldErrors({ end_date: 'Long-term jobs must have an end date at least 14 days after the start date.' });
-        return;
-      }
-    }
     
     setLoading(true);
 
@@ -610,7 +594,8 @@ export default function CreateJobPage() {
         image_urls: images,
         duration_type: formData.duration_type,
         location: formattedLocation || null,
-        category_ids: selectedCategories
+        category_ids: selectedCategories,
+        accommodation_type: formData.accommodation_type,
       };
       
       // For short-term jobs, use job_date as both start and end date
@@ -618,22 +603,15 @@ export default function CreateJobPage() {
         jobData.start_date = formData.job_date || null;
         jobData.end_date = formData.job_date || null;
       } else {
+        // Long-term: only start_date; no end_date — runs until owner cancels the contract
         jobData.start_date = formData.start_date || null;
-        jobData.end_date = formData.end_date || null;
+        jobData.end_date = null;
       }
       
       // Add payment schedule for long-term jobs
       if (formData.duration_type === 'long_term') {
-        // Budget is total per person for the entire contract
-        // Compute per-cycle installment from daily rate
-        const totalBudget = parseFloat(formData.budget);
-        let perCycleAmount = totalBudget;
-        if (formData.start_date && formData.end_date) {
-          const totalDays = Math.round((new Date(formData.end_date).getTime() - new Date(formData.start_date).getTime()) / (1000 * 60 * 60 * 24));
-          const cycleDays = formData.payment_frequency === 'biweekly' ? 14 : 30;
-          const dailyRate = totalBudget / totalDays;
-          perCycleAmount = Math.round(dailyRate * cycleDays * 100) / 100;
-        }
+        // No end date for open-ended contracts — payment_amount is the fixed per-cycle amount
+        const perCycleAmount = parseFloat(formData.payment_amount) || parseFloat(formData.budget) || 0;
         jobData.payment_schedule = {
           frequency: formData.payment_frequency,
           payment_amount: perCycleAmount,
@@ -876,6 +854,67 @@ export default function CreateJobPage() {
                     <option value="spring_cleaning" className={optionClass}>Spring Cleaning</option>
                     <option value="maintenance" className={optionClass}>Regular Maintenance</option>
                   </select>
+                </div>
+
+                {/* Accommodation Type */}
+                <div className="md:col-span-2">
+                  <label className={labelClass}>Housekeeper Accommodation *</label>
+                  <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mb-3">
+                    Specify whether the housekeeper will live in your home or commute daily.
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Stay Out */}
+                    <label
+                      className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all
+                        ${formData.accommodation_type === 'stay_out'
+                          ? 'border-[#EA526F] bg-[#EA526F]/10 dark:bg-[#EA526F]/20'
+                          : 'border-gray-200 dark:border-white/20 bg-white/50 dark:bg-white/5 hover:border-[#EA526F]/50'
+                        }`}
+                    >
+                      <input
+                        type="radio"
+                        name="accommodation_type"
+                        value="stay_out"
+                        checked={formData.accommodation_type === 'stay_out'}
+                        onChange={handleInputChange}
+                        className="mt-0.5 w-4 h-4 text-[#EA526F] border-gray-300 focus:ring-[#EA526F]"
+                      />
+                      <div>
+                        <p className={`font-bold text-sm ${formData.accommodation_type === 'stay_out' ? 'text-[#EA526F]' : 'text-[#4B244A] dark:text-white'}`}>
+                          Stay Out
+                        </p>
+                        <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
+                          Housekeeper commutes and does not live at the property.
+                        </p>
+                      </div>
+                    </label>
+
+                    {/* Stay In */}
+                    <label
+                      className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all
+                        ${formData.accommodation_type === 'stay_in'
+                          ? 'border-[#EA526F] bg-[#EA526F]/10 dark:bg-[#EA526F]/20'
+                          : 'border-gray-200 dark:border-white/20 bg-white/50 dark:bg-white/5 hover:border-[#EA526F]/50'
+                        }`}
+                    >
+                      <input
+                        type="radio"
+                        name="accommodation_type"
+                        value="stay_in"
+                        checked={formData.accommodation_type === 'stay_in'}
+                        onChange={handleInputChange}
+                        className="mt-0.5 w-4 h-4 text-[#EA526F] border-gray-300 focus:ring-[#EA526F]"
+                      />
+                      <div>
+                        <p className={`font-bold text-sm ${formData.accommodation_type === 'stay_in' ? 'text-[#EA526F]' : 'text-[#4B244A] dark:text-white'}`}>
+                          Stay In
+                        </p>
+                        <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
+                          Housekeeper lives at the property and is provided accommodation.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
                 </div>
 
                 <div className="md:col-span-2 p-4 sm:p-5 bg-linear-to-br from-white/70 to-blue-50 dark:from-slate-900/70 dark:to-blue-500/10 border border-blue-200/70 dark:border-blue-500/30 rounded-2xl shadow-sm">
@@ -1182,7 +1221,7 @@ export default function CreateJobPage() {
                 className={inputClass}
               >
                 <option value="short_term" className={optionClass}>Short Term (1–13 days)</option>
-                <option value="long_term" className={optionClass}>Long Term (14+ days)</option>
+                <option value="long_term" className={optionClass}>Long Term (open-ended, until cancelled)</option>
               </select>
             </div>
 
@@ -1478,7 +1517,7 @@ export default function CreateJobPage() {
             )}
 
             {formData.duration_type === 'long_term' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div className="mt-4 space-y-3">
                 <div>
                   <label className={labelClass}>Start Date *</label>
                   <input
@@ -1497,17 +1536,9 @@ export default function CreateJobPage() {
                           const current = prev.day_of_week ? prev.day_of_week.split(',').map(d => d.trim()).filter(Boolean) : [];
                           updatedDayOfWeek = current.includes(detected) ? current.join(',') : [detected, ...current].join(',');
                         }
-                        // If end_date is set but less than 14 days from new start, reset it
-                        if (prev.end_date && newStart) {
-                          const startMs = new Date(newStart).getTime();
-                          const endMs = new Date(prev.end_date).getTime();
-                          const diffDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
-                          if (diffDays < 14) {
-                            return { ...prev, start_date: newStart, end_date: '', day_of_week: updatedDayOfWeek };
-                          }
-                        }
                         return { ...prev, start_date: newStart, day_of_week: updatedDayOfWeek };
                       });
+                      if (fieldErrors.start_date) setFieldErrors(prev => { const n = { ...prev }; delete n.start_date; return n; });
                     }}
                     required={formData.duration_type === 'long_term'}
                     min={new Date().toISOString().split('T')[0]}
@@ -1516,36 +1547,15 @@ export default function CreateJobPage() {
                   {fieldErrors.start_date && (
                     <p className="text-red-500 text-sm mt-1">{fieldErrors.start_date}</p>
                   )}
-                </div>
-                <div>
-                  <label className={labelClass}>End Date *</label>
-                  <input
-                    type="date"
-                    name="end_date"
-                    value={formData.end_date}
-                    onChange={handleInputChange}
-                    required={formData.duration_type === 'long_term'}
-                    min={formData.start_date ? (() => {
-                      const d = new Date(formData.start_date);
-                      d.setDate(d.getDate() + 14);
-                      return d.toISOString().split('T')[0];
-                    })() : undefined}
-                    className={inputClass}
-                  />
-                  {fieldErrors.end_date && (
-                    <p className="text-red-500 text-sm mt-1">{fieldErrors.end_date}</p>
-                  )}
                   <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
-                    Long-term jobs must be at least 14 days from the start date.
+                    When should the housekeeper start?
                   </p>
-                  {formData.start_date && formData.end_date && (() => {
-                    const diffDays = Math.round((new Date(formData.end_date).getTime() - new Date(formData.start_date).getTime()) / (1000 * 60 * 60 * 24));
-                    return diffDays < 14 ? (
-                      <p className="text-red-500 text-xs mt-1 font-medium">
-                        End date must be at least 14 days after the start date ({diffDays} days selected).
-                      </p>
-                    ) : null;
-                  })()}
+                </div>
+                <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 rounded-xl p-4">
+                  <p className="text-amber-800 dark:text-amber-200 text-sm font-bold mb-1">📋 Open-ended Contract</p>
+                  <p className="text-amber-700 dark:text-amber-200/80 text-xs font-medium">
+                    Long-term jobs have no end date. The contract continues until you (the owner) choose to cancel it. Payment is made on your chosen schedule for as long as the contract is active.
+                  </p>
                 </div>
               </div>
             )}
@@ -1566,74 +1576,45 @@ export default function CreateJobPage() {
                     onChange={handleInputChange}
                     className={inputClass}
                   >
-                    <option value="biweekly" className={optionClass}>Bi-weekly - Every 2 weeks</option>
-                    <option value="monthly" className={optionClass}>Monthly - Once a month</option>
+                    <option value="biweekly" className={optionClass}>Bi-weekly — Every 2 weeks</option>
+                    <option value="monthly" className={optionClass}>Monthly — Once a month</option>
                   </select>
                 </div>
 
-                {/* Payment Explanation Box */}
-                <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4 mb-4">
-                  <p className="text-blue-800 dark:text-blue-200 text-sm font-bold mb-2">How Payment Works (Per Person)</p>
-                  <p className="text-blue-700 dark:text-blue-200/80 text-xs font-medium">
-                    The budget (₱{formData.budget || '0'}) is the <strong>total amount PER HOUSEKEEPER</strong> for the entire contract duration. 
-                    It will be split into {formData.payment_frequency === 'biweekly' ? 'bi-weekly (every 14 days)' : 'monthly (every 30 days)'} installments.
+                <div>
+                  <label className={labelClass}>
+                    Salary per {formData.payment_frequency === 'biweekly' ? 'bi-weekly cycle (₱)' : 'month (₱)'} *
+                  </label>
+                  <input
+                    type="number"
+                    name="payment_amount"
+                    value={formData.payment_amount}
+                    onChange={handleInputChange}
+                    required={formData.duration_type === 'long_term'}
+                    min="100"
+                    step="50"
+                    placeholder={formData.payment_frequency === 'biweekly' ? 'e.g. 3500' : 'e.g. 7000'}
+                    className={inputClass}
+                  />
+                  <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
+                    This is the fixed amount you will pay per housekeeper every {formData.payment_frequency === 'biweekly' ? '2 weeks' : 'month'}.
                   </p>
-                  {parseInt(formData.people_needed) > 1 && formData.budget && (
+                </div>
+
+                {/* Payment Explanation Box */}
+                <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4">
+                  <p className="text-blue-800 dark:text-blue-200 text-sm font-bold mb-2">How Payment Works</p>
+                  <p className="text-blue-700 dark:text-blue-200/80 text-xs font-medium">
+                    Since this is an open-ended contract, the <strong>Budget (₱{formData.budget || '0'})</strong> you entered is for reference. 
+                    The actual recurring payment is the salary you set above — paid {formData.payment_frequency === 'biweekly' ? 'every 14 days' : 'once a month'} per housekeeper until you cancel the contract.
+                  </p>
+                  {parseInt(formData.people_needed) > 1 && formData.payment_amount && (
                     <p className="text-orange-600 dark:text-yellow-300 text-xs mt-2 font-bold">
-                      <strong>Grand total for all workers:</strong> ₱{(parseFloat(formData.budget) * parseInt(formData.people_needed)).toLocaleString()} 
-                      ({formData.people_needed} workers × ₱{parseFloat(formData.budget).toLocaleString()})
+                      Total per cycle for all workers: ₱{(parseFloat(formData.payment_amount) * parseInt(formData.people_needed)).toLocaleString()}
+                      ({formData.people_needed} workers × ₱{parseFloat(formData.payment_amount).toLocaleString()})
                     </p>
                   )}
                 </div>
-
-                {formData.payment_frequency === 'biweekly' && (
-                  <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4">
-                    <p className="text-blue-800 dark:text-blue-200 text-sm">
-                      <strong>Payment Schedule:</strong> Payments will be calculated automatically based on your start and end dates.
-                      You'll pay every 14 days.
-                    </p>
-                  </div>
-                )}
-
-                {/* Payment Breakdown */}
-                {formData.start_date && formData.end_date && formData.budget && (() => {
-                  const totalDays = Math.round((new Date(formData.end_date).getTime() - new Date(formData.start_date).getTime()) / (1000 * 60 * 60 * 24));
-                  const totalBudget = parseFloat(formData.budget) || 0;
-                  const dailyRate = totalBudget / totalDays;
-                  const cycleDays = formData.payment_frequency === 'biweekly' ? 14 : 30;
-                  const fullCycles = Math.floor(totalDays / cycleDays);
-                  const extraDays = totalDays % cycleDays;
-                  const perCycleAmount = Math.round(dailyRate * cycleDays * 100) / 100;
-                  const extraDaysPay = Math.round(dailyRate * extraDays * 100) / 100;
-                  const peopleNeeded = parseInt(formData.people_needed) || 1;
-
-                  return (
-                    <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30 rounded-xl p-4 space-y-2">
-                      <p className="text-green-800 dark:text-green-200 text-sm font-bold">Payment Breakdown (Per Person)</p>
-                      <div className="text-green-700 dark:text-green-200/80 text-xs space-y-1 font-medium">
-                        <p>Total duration: <strong>{totalDays} days</strong></p>
-                        <p>Daily rate: ₱{totalBudget.toLocaleString()} ÷ {totalDays} days = <strong>₱{dailyRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/day</strong></p>
-                        <p>{formData.payment_frequency === 'biweekly' ? 'Bi-weekly' : 'Monthly'} installment ({cycleDays} days): <strong>₱{perCycleAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> × {fullCycles} = ₱{(perCycleAmount * fullCycles).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                        {extraDays > 0 ? (
-                          <>
-                            <p>Remaining days: <strong>{extraDays} day{extraDays > 1 ? 's' : ''}</strong> → ₱{dailyRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} × {extraDays} = <strong>₱{extraDaysPay.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></p>
-                          </>
-                        ) : (
-                          <p>Duration fits perfectly into {fullCycles} full {formData.payment_frequency === 'biweekly' ? 'bi-weekly' : 'monthly'} cycle{fullCycles > 1 ? 's' : ''} — no extra days.</p>
-                        )}
-                        <hr className="border-green-300 dark:border-green-500/30 my-2" />
-                        <p className="text-sm">
-                          Total per person: <strong>₱{totalBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-                        </p>
-                        {peopleNeeded > 1 && (
-                          <p className="text-sm text-orange-600 dark:text-yellow-300 font-bold">
-                            Grand total ({peopleNeeded} workers): <strong>₱{(totalBudget * peopleNeeded).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong>
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })()}
 
                 <div>
                   <label className={labelClass}>Preferred Payment Method</label>

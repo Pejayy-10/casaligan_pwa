@@ -19,6 +19,7 @@ class ForumPostStatus(str, enum.Enum):
     PENDING_COMPLETION = "pending_completion"  # Housekeeper submitted proof, waiting for owner approval
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    PENDING_CANCELLATION = "pending_cancellation"  # One party requested cancellation, waiting for other party's approval
     
     def __str__(self):
         return self.value
@@ -68,6 +69,14 @@ class ForumPost(Base):
     num_days = Column(Integer, default=1, nullable=True)  # Number of working days
     daily_start_time = Column(String(10), nullable=True)  # e.g. "08:00"
     daily_end_time = Column(String(10), nullable=True)  # e.g. "15:00"
+
+    # Accommodation type
+    accommodation_type = Column(String(20), nullable=True, default="stay_out")  # "stay_in" | "stay_out"
+
+    # Mutual cancellation approval (for long-term ongoing contracts)
+    cancel_requested_by = Column(String(20), nullable=True)   # "employer" | "worker"
+    cancel_request_reason = Column(Text, nullable=True)
+    cancel_requested_at = Column(DateTime(timezone=True), nullable=True)
 
     # Job completion fields
     completion_proof_url = Column(String, nullable=True)  # Photo/video proof of completion

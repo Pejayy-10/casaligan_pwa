@@ -32,7 +32,10 @@ from app.services.notification_service import (
     notify_completion_approved,
     notify_payment_sent,
     notify_payment_received,
-    notify_user
+    notify_user,
+    notify_cancel_request_received,
+    notify_cancel_request_approved,
+    notify_cancel_request_rejected,
 )
 from app.models_v2.notification import NotificationType
 from app.services.maya_service import (
@@ -876,6 +879,7 @@ def create_job_post(
         num_days=num_days,
         daily_start_time=daily_start_time,
         daily_end_time=daily_end_time,
+        accommodation_type=job_data.accommodation_type or "stay_out",
     )
     
     db.add(post)
@@ -985,10 +989,10 @@ def get_my_job_posts(
             # Frontend uses "closed"; model uses "cancelled".
             normalized_filter = 'cancelled' if status_filter.lower() == 'closed' else status_filter.lower()
             filter_status = ForumPostStatus(normalized_filter)
-            # When filtering by "ongoing", also include "pending_completion" jobs
+            # When filtering by "ongoing", also include "pending_completion" and "pending_cancellation" jobs
             if filter_status == ForumPostStatus.ONGOING:
                 query = query.filter(
-                    ForumPost.status.in_([ForumPostStatus.ONGOING, ForumPostStatus.PENDING_COMPLETION])
+                    ForumPost.status.in_([ForumPostStatus.ONGOING, ForumPostStatus.PENDING_COMPLETION, ForumPostStatus.PENDING_CANCELLATION])
                 )
             else:
                 query = query.filter(ForumPost.status == filter_status)
@@ -1269,6 +1273,16 @@ def get_my_accepted_jobs(
             elif interest_status == 'pending':
                 # Pending applications only show in 'all' or 'pending_application' filter
                 continue
+            elif status_filter.lower() == 'ongoing':
+                # Include ongoing, active, and pending_cancellation jobs in the ongoing filter
+                if contract:
+                    contract_status = contract.status.value if hasattr(contract.status, 'value') else str(contract.status)
+                    if contract_status.lower() not in ('ongoing', 'active', 'pending_cancellation'):
+                        if post_status_val.lower() not in ('ongoing', 'pending_cancellation'):
+                            continue
+                else:
+                    if post_status_val.lower() not in ('ongoing', 'pending_cancellation'):
+                        continue
             elif contract:
                 contract_status = contract.status.value if hasattr(contract.status, 'value') else str(contract.status)
                 if contract_status.lower() != status_filter.lower():
@@ -1422,6 +1436,10 @@ def get_my_accepted_jobs(
                 for ds in (post.day_schedules if hasattr(post, 'day_schedules') and post.day_schedules else [])
                 if ds.worker_id == worker_record.worker_id
             ] if post.num_days and post.num_days > 1 else [],
+            # Mutual cancellation fields
+            "cancel_requested_by": getattr(post, 'cancel_requested_by', None),
+            "cancel_request_reason": getattr(post, 'cancel_request_reason', None),
+            "cancel_requested_at": post.cancel_requested_at.isoformat() if getattr(post, 'cancel_requested_at', None) else None,
         })
 
     if has_status_updates:
@@ -1873,10 +1891,10 @@ def apply_to_job(
                 pass
 
         _num_days = getattr(post, 'num_days', 1) or 1
-        if _job_start and _num_days > 1 and (not _job_end or _job_end == _job_start):
+        _is_open_ended = post.is_longterm and not post.end_date
+        if _job_start and _num_days > 1 and (not _job_end or _job_end == _job_start) and not _is_open_ended:
             _job_end = _job_start + _td_apply(days=_num_days - 1)
-        if not _job_end:
-            _job_end = _job_start
+        # Keep _job_end as None for open-ended long-term jobs (handled by conflict service)
 
         _daily_start = getattr(post, 'daily_start_time', None) or post.start_time
         _daily_end = getattr(post, 'daily_end_time', None) or post.end_time
@@ -2564,11 +2582,14 @@ def start_job(
                         except Exception:
                             pass
 
-                    # Compute end date from num_days if not set
+                    # Compute end date from num_days if not set.
+                    # For open-ended long-term jobs keep job_end_date as None.
                     post_num_days = getattr(post, 'num_days', 1) or 1
-                    if job_start_date and post_num_days > 1 and (not job_end_date or job_end_date == job_start_date):
+                    post_is_open_ended = post.is_longterm and not post.end_date
+                    if job_start_date and post_num_days > 1 and (not job_end_date or job_end_date == job_start_date) and not post_is_open_ended:
                         from datetime import timedelta as _td
                         job_end_date = job_start_date + _td(days=post_num_days - 1)
+                    # job_end_date stays None for open-ended contracts
 
                     post_daily_start = getattr(post, 'daily_start_time', None) or post.start_time
                     post_daily_end = getattr(post, 'daily_end_time', None) or post.end_time
@@ -2880,11 +2901,12 @@ def update_job_status(
         )
     
     # Validate status transitions
-    current_status = post.status.value
+    current_status = post.status.value if hasattr(post.status, 'value') else str(post.status)
     allowed_transitions = {
         "open": ["cancelled"],  # Can cancel open jobs
         "ongoing": ["completed"],  # Can complete ongoing jobs
         "pending_completion": ["completed"],  # Can complete from pending
+        "pending_cancellation": [],  # Cannot bypass mutual cancellation flow
         "completed": [],  # Cannot transition from completed
         "cancelled": []  # Cannot transition from cancelled
     }
@@ -3090,6 +3112,35 @@ async def initiate_post_fee_payment(
         redirect_url=str(redirect_url),
         post_fee_amount=float(fee_amount),
     )
+
+
+@router.post("/{post_id}/post-fee/skip-for-testing")
+async def skip_post_fee_for_testing(
+    post_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """⚠️ TESTING ONLY — Marks the posting fee as paid without any real payment."""
+    if not current_user.is_owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only house owners can publish posts")
+
+    post = db.query(ForumPost).filter(
+        ForumPost.post_id == post_id,
+        ForumPost.deleted_at.is_(None)
+    ).first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job post not found")
+
+    employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+    if not employer or employer.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only publish your own posts")
+
+    post.post_fee_status = "paid"
+    post.post_fee_paid_at = func.now()
+    post.post_fee_reference = f"SKIP-TEST-{post.post_id}"
+    db.commit()
+
+    return {"message": "Post fee skipped for testing. Job is now published.", "status": "paid"}
 
 
 @router.post("/{post_id}/post-fee/verify")
@@ -4175,6 +4226,281 @@ def report_unpaid_job(
     }
 
 
+# ============================================================
+#  MUTUAL CANCELLATION ENDPOINTS  (long-term ongoing jobs)
+# ============================================================
+
+class CancelRequestBody(BaseModel):
+    reason: str
+
+
+class CancelRespondBody(BaseModel):
+    action: str   # "approve" | "reject"
+    reason: Optional[str] = None  # required when action == "reject"
+
+
+@router.post("/{post_id}/request-cancellation")
+def request_cancellation(
+    post_id: int,
+    body: CancelRequestBody,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Either the employer (owner) or the housekeeper (worker) can call this to request
+    that a long-term ongoing contract be cancelled.  The other party must then
+    approve or reject via /respond-cancellation.
+    """
+    reason = (body.reason or "").strip()
+    if not reason:
+        raise HTTPException(status_code=400, detail="A cancellation reason is required.")
+
+    post = db.query(ForumPost).filter(ForumPost.post_id == post_id, ForumPost.deleted_at.is_(None)).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    # Must be ongoing long-term
+    current_status = post.status.value if hasattr(post.status, 'value') else str(post.status)
+    if current_status != "ongoing":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cancellation requests can only be made for ongoing contracts (current status: {current_status})."
+        )
+    if not post.is_longterm:
+        raise HTTPException(status_code=400, detail="Mutual cancellation is only for long-term contracts.")
+
+    # Determine caller's role
+    employer = db.query(Employer).filter(Employer.user_id == current_user.id).first()
+    worker = db.query(Worker).filter(Worker.user_id == current_user.id).first()
+
+    if employer and post.employer_id == employer.employer_id:
+        requester_role = "employer"
+    elif worker:
+        # Check that this worker actually has an active contract on this job
+        active_contract = db.query(Contract).filter(
+            Contract.post_id == post_id,
+            Contract.worker_id == worker.worker_id,
+            Contract.status.in_([ContractStatus.ACTIVE, ContractStatus.PENDING])
+        ).first()
+        if not active_contract:
+            raise HTTPException(status_code=403, detail="You do not have an active contract for this job.")
+        requester_role = "worker"
+    else:
+        raise HTTPException(status_code=403, detail="You are not authorised to request cancellation for this job.")
+
+    # Already a pending cancellation?
+    if current_status == "pending_cancellation":
+        raise HTTPException(status_code=400, detail="A cancellation request is already pending for this job.")
+    if post.cancel_requested_by:
+        raise HTTPException(status_code=400, detail="A cancellation request is already pending for this job.")
+
+    # Record the request
+    post.status = ForumPostStatus.PENDING_CANCELLATION
+    post.cancel_requested_by = requester_role
+    post.cancel_request_reason = reason
+    post.cancel_requested_at = datetime.now(timezone.utc)
+
+    # Notify the OTHER party
+    employer_record = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+    employer_user = db.query(User).filter(User.id == employer_record.user_id).first() if employer_record else None
+
+    # Find the active worker(s) on this job
+    active_contracts = db.query(Contract).filter(
+        Contract.post_id == post_id,
+        Contract.status.in_([ContractStatus.ACTIVE, ContractStatus.PENDING])
+    ).all()
+
+    if requester_role == "employer":
+        requester_name = f"{current_user.first_name} {current_user.last_name}"
+        for contract in active_contracts:
+            w = db.query(Worker).filter(Worker.worker_id == contract.worker_id).first()
+            if w:
+                wu = db.query(User).filter(User.id == w.user_id).first()
+                if wu:
+                    notify_cancel_request_received(
+                        db=db,
+                        recipient_user_id=wu.id,
+                        requester_name=requester_name,
+                        job_title=post.title,
+                        reason=reason,
+                        post_id=post_id,
+                    )
+    else:
+        # worker requested — notify the employer
+        requester_name = f"{current_user.first_name} {current_user.last_name}"
+        if employer_user:
+            notify_cancel_request_received(
+                db=db,
+                recipient_user_id=employer_user.id,
+                requester_name=requester_name,
+                job_title=post.title,
+                reason=reason,
+                post_id=post_id,
+            )
+
+    db.commit()
+
+    return {
+        "message": "Cancellation request submitted. The other party must approve before the contract ends.",
+        "post_id": post_id,
+        "cancel_requested_by": requester_role,
+        "status": "pending_cancellation",
+    }
+
+
+@router.post("/{post_id}/respond-cancellation")
+def respond_to_cancellation(
+    post_id: int,
+    body: CancelRespondBody,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    The party that did NOT initiate the cancellation request approves or rejects it.
+    - approve → job status = cancelled, all active contracts cancelled.
+    - reject  → job status reverts to ongoing, request fields cleared.
+    """
+    action = (body.action or "").strip().lower()
+    if action not in ("approve", "reject"):
+        raise HTTPException(status_code=400, detail="action must be 'approve' or 'reject'.")
+    if action == "reject" and not (body.reason or "").strip():
+        raise HTTPException(status_code=400, detail="A reason is required when rejecting a cancellation request.")
+
+    post = db.query(ForumPost).filter(ForumPost.post_id == post_id, ForumPost.deleted_at.is_(None)).first()
+    if not post:
+        raise HTTPException(status_code=404, detail="Job not found.")
+
+    current_status = post.status.value if hasattr(post.status, 'value') else str(post.status)
+    if current_status != "pending_cancellation":
+        raise HTTPException(status_code=400, detail="There is no pending cancellation request for this job.")
+
+    if not post.cancel_requested_by:
+        raise HTTPException(status_code=400, detail="No cancellation request found.")
+
+    # Determine caller's role
+    employer = db.query(Employer).filter(Employer.user_id == current_user.id).first()
+    worker = db.query(Worker).filter(Worker.user_id == current_user.id).first()
+
+    if employer and post.employer_id == employer.employer_id:
+        caller_role = "employer"
+    elif worker:
+        active_contract = db.query(Contract).filter(
+            Contract.post_id == post_id,
+            Contract.worker_id == worker.worker_id,
+            Contract.status.in_([ContractStatus.ACTIVE, ContractStatus.PENDING])
+        ).first()
+        if not active_contract:
+            raise HTTPException(status_code=403, detail="You do not have an active contract for this job.")
+        caller_role = "worker"
+    else:
+        raise HTTPException(status_code=403, detail="You are not authorised to respond to this cancellation request.")
+
+    # The responder must be the OTHER party
+    if caller_role == post.cancel_requested_by:
+        raise HTTPException(
+            status_code=403,
+            detail="You cannot respond to your own cancellation request. Only the other party can approve or reject it."
+        )
+
+    # Locate employer user for notifications
+    employer_record = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+    employer_user = db.query(User).filter(User.id == employer_record.user_id).first() if employer_record else None
+
+    active_contracts = db.query(Contract).filter(
+        Contract.post_id == post_id,
+        Contract.status.in_([ContractStatus.ACTIVE, ContractStatus.PENDING])
+    ).all()
+
+    responder_name = f"{current_user.first_name} {current_user.last_name}"
+
+    if action == "approve":
+        # Save the requester role before clearing
+        requester_role_saved = post.cancel_requested_by
+
+        # Cancel the job and all active contracts
+        post.status = ForumPostStatus.CANCELLED
+        post.cancel_requested_by = None
+        post.cancel_request_reason = None
+        post.cancel_requested_at = None
+
+        for contract in active_contracts:
+            contract.status = ContractStatus.CANCELLED
+
+        # Notify the original requester
+        if requester_role_saved == "employer":
+            # Worker approved owner's request — notify employer
+            if employer_user:
+                notify_cancel_request_approved(
+                    db=db,
+                    requester_user_id=employer_user.id,
+                    approver_name=responder_name,
+                    job_title=post.title,
+                    post_id=post_id,
+                )
+        else:
+            # Owner approved worker's request — notify each worker
+            for contract in active_contracts:
+                w = db.query(Worker).filter(Worker.worker_id == contract.worker_id).first()
+                if w:
+                    wu = db.query(User).filter(User.id == w.user_id).first()
+                    if wu:
+                        notify_cancel_request_approved(
+                            db=db,
+                            requester_user_id=wu.id,
+                            approver_name=responder_name,
+                            job_title=post.title,
+                            post_id=post_id,
+                        )
+
+        db.commit()
+        return {
+            "message": "Cancellation approved. The contract has been ended.",
+            "post_id": post_id,
+            "status": "cancelled",
+        }
+
+    else:  # reject
+        reject_reason = (body.reason or "").strip()
+        # Revert to ongoing
+        post.status = ForumPostStatus.ONGOING
+        requester_role_saved = post.cancel_requested_by
+        post.cancel_requested_by = None
+        post.cancel_request_reason = None
+        post.cancel_requested_at = None
+
+        # Notify the original requester
+        if requester_role_saved == "employer":
+            if employer_user:
+                notify_cancel_request_rejected(
+                    db=db,
+                    requester_user_id=employer_user.id,
+                    rejector_name=responder_name,
+                    job_title=post.title,
+                    reject_reason=reject_reason,
+                    post_id=post_id,
+                )
+        else:
+            # Worker requested, owner (caller) rejected — notify workers
+            for contract in active_contracts:
+                w = db.query(Worker).filter(Worker.worker_id == contract.worker_id).first()
+                if w:
+                    wu = db.query(User).filter(User.id == w.user_id).first()
+                    if wu:
+                        notify_cancel_request_rejected(
+                            db=db,
+                            requester_user_id=wu.id,
+                            rejector_name=responder_name,
+                            job_title=post.title,
+                            reject_reason=reject_reason,
+                            post_id=post_id,
+                        )
+
+        db.commit()
+        return {
+            "message": "Cancellation request rejected. The contract continues.",
+            "post_id": post_id,
+            "status": "ongoing",
+        }
 class ReportNonPerformanceRequest(BaseModel):
     """Request body for reporting housekeeper non-performance"""
     worker_id: int

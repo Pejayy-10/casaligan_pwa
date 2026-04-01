@@ -71,6 +71,11 @@ export interface JobPost {
   start_time?: string | null;
   end_time?: string | null;
   frequency?: string | null;
+  accommodation_type?: string | null;
+  // Mutual cancellation fields
+  cancel_requested_by?: string | null;
+  cancel_request_reason?: string | null;
+  cancel_requested_at?: string | null;
 }
 
 interface JobDetailModalProps {
@@ -164,6 +169,15 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
             <span className="px-4 py-2 bg-white/60 dark:bg-white/10 text-[#4B244A] dark:text-white/90 rounded-lg text-sm font-semibold border border-gray-200 dark:border-white/5">
                {job.duration_type}
             </span>
+            {job.accommodation_type && (
+              <span className={`px-4 py-2 rounded-lg text-sm font-semibold border ${
+                job.accommodation_type === 'stay_in'
+                  ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300 border-amber-200 dark:border-amber-500/20'
+                  : 'bg-teal-50 text-teal-700 dark:bg-teal-500/10 dark:text-teal-300 border-teal-200 dark:border-teal-500/20'
+              }`}>
+                {job.accommodation_type === 'stay_in' ? '🏠 Stay In' : '🚶 Stay Out'}
+              </span>
+            )}
           </div>
 
           {/* Duration Details */}

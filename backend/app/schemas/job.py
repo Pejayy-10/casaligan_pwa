@@ -71,6 +71,7 @@ class JobPostCreate(BaseModel):
     payment_schedule: Optional[PaymentScheduleData] = None  # For long_term jobs
     recurring_schedule: Optional[RecurringScheduleData] = None  # For recurring jobs
     multi_day_schedule: Optional[MultiDayScheduleData] = None  # For multi-day jobs
+    accommodation_type: Optional[str] = "stay_out"  # "stay_in" | "stay_out"
 
     @model_validator(mode="after")
     def validate_dates_and_times(self):
@@ -84,11 +85,7 @@ class JobPostCreate(BaseModel):
         if self.end_date and self.end_date < self.start_date:
             raise ValueError("End date cannot be earlier than start date")
 
-        if self.duration_type == "long_term":
-            if not self.end_date:
-                raise ValueError("End date is required for long-term jobs")
-            if self.end_date == self.start_date:
-                raise ValueError("Long-term jobs must span at least 2 days")
+        # Long-term jobs have no required end date — they run until the owner cancels the contract.
 
         if self.recurring_schedule and self.recurring_schedule.is_recurring:
             if not self.recurring_schedule.day_of_week:
@@ -153,6 +150,14 @@ class JobPostResponse(BaseModel):
     # Multi-day schedule info
     multi_day_schedule: Optional[dict] = None  # { num_days, daily_start_time, daily_end_time }
     day_schedules: List[dict] = []  # per-day status for multi-day jobs
+    
+    # Accommodation
+    accommodation_type: Optional[str] = "stay_out"  # "stay_in" | "stay_out"
+    
+    # Mutual cancellation (for ongoing long-term jobs)
+    cancel_requested_by: Optional[str] = None   # "employer" | "worker"
+    cancel_request_reason: Optional[str] = None
+    cancel_requested_at: Optional[str] = None
     
     # Employer info
     employer_name: str
@@ -276,6 +281,10 @@ class JobPostResponse(BaseModel):
             cancelled_by=getattr(post, 'cancelled_by', None),
             multi_day_schedule=multi_day_schedule,
             day_schedules=day_schedules_list,
+            accommodation_type=getattr(post, 'accommodation_type', None) or custom_fields.get('accommodation_type', 'stay_out'),
+            cancel_requested_by=getattr(post, 'cancel_requested_by', None),
+            cancel_request_reason=getattr(post, 'cancel_request_reason', None),
+            cancel_requested_at=(post.cancel_requested_at.isoformat() if getattr(post, 'cancel_requested_at', None) else None),
             employer_name=f"{employer_user.first_name} {employer_user.last_name}",
             employer_address=f"{employer_user.address.city_name}, {employer_user.address.province_name}" if employer_user.address else None,
             total_applicants=applicants_count,

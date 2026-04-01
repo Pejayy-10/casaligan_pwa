@@ -261,6 +261,26 @@ export default function JobsPage() {
     }
   }, []);
 
+  const handleSkipPostFee = useCallback(async (postId: number) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/jobs/${postId}/post-fee/skip-for-testing`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        alert(result.detail || 'Failed to skip post fee');
+        return;
+      }
+      alert('✅ Post fee skipped! Job is now published.');
+      loadJobs();
+    } catch (error) {
+      console.error('Failed to skip post fee:', error);
+      alert('Failed to skip post fee');
+    }
+  }, [loadJobs]);
+
   useEffect(() => {
     if (!user) {
       navigate('/login');
@@ -629,6 +649,7 @@ export default function JobsPage() {
             navigate={navigate} 
             onViewApplicants={setShowApplicants}
             onPayPostFee={handlePayPostFee}
+            onSkipPostFee={handleSkipPostFee}
             onEditJob={setShowEditJob}
             onShowPaymentTracker={setShowPaymentTracker}
             onShowProgressTracker={setShowProgressTracker}
@@ -1002,6 +1023,7 @@ function OwnerJobsContent({
   navigate, 
   onViewApplicants,
   onPayPostFee,
+  onSkipPostFee,
   onShowPaymentTracker,
   onShowProgressTracker,
   onShowCompletionReview,
@@ -1018,6 +1040,7 @@ function OwnerJobsContent({
   navigate: (path: string) => void;
   onViewApplicants: (job: JobPost) => void;
   onPayPostFee: (job: JobPost) => void;
+  onSkipPostFee: (postId: number) => void;
   onShowPaymentTracker: (job: JobPost) => void;
   onShowProgressTracker: (job: JobPost) => void;
   onShowCompletionReview: (job: JobPost) => void;
@@ -1035,6 +1058,22 @@ function OwnerJobsContent({
     postId: number;
     title: string;
     reason: string;
+    error: string | null;
+    submitting: boolean;
+  } | null>(null);
+  const [requestCancelModal, setRequestCancelModal] = useState<{
+    postId: number;
+    title: string;
+    reason: string;
+    error: string | null;
+    submitting: boolean;
+  } | null>(null);
+  const [respondCancelModal, setRespondCancelModal] = useState<{
+    postId: number;
+    title: string;
+    requester: string;
+    requestReason: string;
+    rejectReason: string;
     error: string | null;
     submitting: boolean;
   } | null>(null);
@@ -1119,6 +1158,53 @@ function OwnerJobsContent({
     setRepostModal({ postId, title });
   };
 
+  const handleRequestCancellation = async (postId: number, reason: string): Promise<boolean> => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/jobs/${postId}/request-cancellation`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason }),
+      });
+      if (response.ok) {
+        alert('Cancellation request submitted. The housekeeper must approve before the contract ends.');
+        window.location.reload();
+        return true;
+      } else {
+        const err = await response.json();
+        alert(err.detail || 'Failed to submit cancellation request');
+        return false;
+      }
+    } catch {
+      alert('Failed to submit cancellation request');
+      return false;
+    }
+  };
+
+  const handleRespondCancellation = async (postId: number, action: 'approve' | 'reject', reason?: string): Promise<boolean> => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/jobs/${postId}/respond-cancellation`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, reason }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        alert(data.message || (action === 'approve' ? 'Contract cancelled.' : 'Cancellation request rejected.'));
+        window.location.reload();
+        return true;
+      } else {
+        const err = await response.json();
+        alert(err.detail || 'Failed to respond to cancellation request');
+        return false;
+      }
+    } catch {
+      alert('Failed to respond to cancellation request');
+      return false;
+    }
+  };
+
   if (jobs.length === 0) {
     return (
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl p-12 text-center flex items-center flex-col border border-white/50 dark:border-white/10 shadow-xl">
@@ -1181,11 +1267,15 @@ function OwnerJobsContent({
               showPostFeeGate ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
               job.status === 'open' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' : 
               job.status === 'ongoing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' :
+              job.status === 'pending_cancellation' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' :
               job.status === 'pending_completion' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300' :
               job.status === 'completed' ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300' : 
               'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300'
             }`}>
-              {showPostFeeGate ? 'UNPUBLISHED' : (job.status === 'pending_completion' ? 'PENDING APPROVAL' : job.status.toUpperCase())}
+              {showPostFeeGate ? 'UNPUBLISHED' : 
+               job.status === 'pending_completion' ? 'PENDING APPROVAL' : 
+               job.status === 'pending_cancellation' ? 'CANCEL PENDING' :
+               job.status.toUpperCase()}
             </span>
           </div>
           
@@ -1270,6 +1360,14 @@ function OwnerJobsContent({
                   : `Pay ${Number(job.post_fee_percentage ?? 7).toFixed(2).replace(/\.00$/, '')}% to Publish (Maya)`}
                </button>
              )}
+             {showPostFeeGate && (
+               <button
+                onClick={() => onSkipPostFee(job.post_id)}
+                className="w-full py-2 bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-300 transition-all border border-dashed border-gray-400"
+               >
+                ⚠️ Skip Payment (Testing Only)
+               </button>
+             )}
 
              {job.status === 'open' && !isPostFeePending && job.total_applicants > 0 && (
                 <button onClick={() => onViewApplicants(job)} className="w-full py-2 bg-[#4B244A] text-white text-sm font-bold rounded-lg hover:bg-[#361a35] transition-all">
@@ -1339,6 +1437,81 @@ function OwnerJobsContent({
                     <Calendar className="w-4 h-4" /> Extend Contract — {worker.name}
                   </button>
                 ))
+             )}
+
+             {/* ── Mutual Cancellation UI (long-term ongoing jobs) ── */}
+             {/* Case 1: No pending request — owner can request cancellation */}
+             {(job.status === 'ongoing') && job.duration_type === 'long_term' && !job.cancel_requested_by && (
+               <button
+                 onClick={() => setRequestCancelModal({
+                   postId: job.post_id,
+                   title: job.title,
+                   reason: '',
+                   error: null,
+                   submitting: false,
+                 })}
+                 className="w-full py-2 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-2 bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/20 dark:text-red-400 dark:hover:bg-red-900/30 border border-red-200 dark:border-red-500/30"
+               >
+                 <X className="w-4 h-4" /> Request Contract Cancellation
+               </button>
+             )}
+
+             {/* Case 2: Owner requested — waiting for housekeeper approval */}
+             {job.status === 'pending_cancellation' && job.cancel_requested_by === 'employer' && (
+               <div className="rounded-xl border-2 border-orange-300 dark:border-orange-500/40 bg-orange-50 dark:bg-orange-500/10 p-4 space-y-2">
+                 <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300 font-bold text-sm">
+                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                   Cancellation Request Sent — Awaiting Housekeeper Approval
+                 </div>
+                 {job.cancel_request_reason && (
+                   <p className="text-xs text-orange-700/80 dark:text-orange-200/70 italic">
+                     Your reason: "{job.cancel_request_reason}"
+                   </p>
+                 )}
+                 <p className="text-xs text-orange-700/70 dark:text-orange-200/60">
+                   The housekeeper must approve this request before the contract ends.
+                 </p>
+               </div>
+             )}
+
+             {/* Case 3: Housekeeper requested — owner must approve or reject */}
+             {job.status === 'pending_cancellation' && job.cancel_requested_by === 'worker' && (
+               <div className="rounded-xl border-2 border-red-300 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10 p-4 space-y-3">
+                 <div className="flex items-center gap-2 text-red-700 dark:text-red-300 font-bold text-sm">
+                   <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                   Housekeeper Requested Contract Cancellation
+                 </div>
+                 {job.cancel_request_reason && (
+                   <p className="text-xs text-red-700/80 dark:text-red-200/70 italic">
+                     Their reason: "{job.cancel_request_reason}"
+                   </p>
+                 )}
+                 <div className="grid grid-cols-2 gap-2">
+                   <button
+                     onClick={async () => {
+                       if (!confirm(`Approve cancellation of "${job.title}"? The contract will end immediately.`)) return;
+                       await handleRespondCancellation(job.post_id, 'approve');
+                     }}
+                     className="py-2 rounded-lg bg-red-500 text-white text-sm font-bold hover:bg-red-600 transition-colors flex items-center justify-center gap-1"
+                   >
+                     <Check className="w-4 h-4" /> Approve End
+                   </button>
+                   <button
+                     onClick={() => setRespondCancelModal({
+                       postId: job.post_id,
+                       title: job.title,
+                       requester: 'worker',
+                       requestReason: job.cancel_request_reason || '',
+                       rejectReason: '',
+                       error: null,
+                       submitting: false,
+                     })}
+                     className="py-2 rounded-lg bg-gray-200 text-gray-800 dark:bg-white/10 dark:text-white text-sm font-bold hover:bg-gray-300 dark:hover:bg-white/20 transition-colors flex items-center justify-center gap-1"
+                   >
+                     <X className="w-4 h-4" /> Reject
+                   </button>
+                 </div>
+               </div>
              )}
              
              {/* Edit/Cancel actions for open jobs */}
@@ -1551,6 +1724,122 @@ function OwnerJobsContent({
                 className="py-2.5 rounded-lg bg-[#EA526F] text-white font-semibold hover:bg-[#d4486a] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {actionLoading === `repost-${repostModal.postId}` ? <><Loader2 className="w-4 h-4 animate-spin" /> Reposting...</> : 'Yes, Repost'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Request Cancellation Modal (Owner initiates) ── */}
+      {requestCancelModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 shadow-2xl">
+            <div className="p-5 border-b border-gray-200 dark:border-white/10">
+              <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Request Contract Cancellation</h3>
+              <p className="mt-1 text-sm text-[#4B244A]/70 dark:text-white/70">
+                You are requesting to end the long-term contract for "<span className="font-semibold">{requestCancelModal.title}</span>".
+                The housekeeper must approve before the contract is cancelled.
+              </p>
+            </div>
+            <div className="p-5 space-y-3">
+              <label className="block text-sm font-semibold text-[#4B244A] dark:text-white">Reason for cancellation</label>
+              <textarea
+                value={requestCancelModal.reason}
+                onChange={(e) => setRequestCancelModal(prev => prev ? { ...prev, reason: e.target.value, error: null } : prev)}
+                rows={4}
+                maxLength={400}
+                placeholder="Explain why you want to end this contract..."
+                className="w-full rounded-xl border border-gray-300 dark:border-white/20 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-[#4B244A] dark:text-white outline-none focus:ring-2 focus:ring-[#EA526F]/40 focus:border-[#EA526F]"
+              />
+              <div className="flex items-center justify-between text-xs text-[#4B244A]/60 dark:text-white/60">
+                <span>{requestCancelModal.error ? <span className="text-red-600 dark:text-red-400">{requestCancelModal.error}</span> : 'Reason is required.'}</span>
+                <span>{requestCancelModal.reason.length}/400</span>
+              </div>
+            </div>
+            <div className="p-5 pt-0 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setRequestCancelModal(null)}
+                disabled={requestCancelModal.submitting}
+                className="py-2.5 rounded-lg bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white font-semibold hover:bg-gray-200 dark:hover:bg-white/20 transition-colors disabled:opacity-50"
+              >
+                Keep Contract
+              </button>
+              <button
+                type="button"
+                disabled={requestCancelModal.submitting}
+                onClick={async () => {
+                  const reason = requestCancelModal.reason.trim();
+                  if (!reason) {
+                    setRequestCancelModal(prev => prev ? { ...prev, error: 'Please enter a reason.' } : prev);
+                    return;
+                  }
+                  setRequestCancelModal(prev => prev ? { ...prev, submitting: true, error: null } : prev);
+                  const ok = await handleRequestCancellation(requestCancelModal.postId, reason);
+                  if (!ok) setRequestCancelModal(prev => prev ? { ...prev, submitting: false } : prev);
+                }}
+                className="py-2.5 rounded-lg bg-red-500 text-white font-semibold hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {requestCancelModal.submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Submitting...</> : 'Send Request'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Respond to Cancellation Modal (Owner rejects worker's request) ── */}
+      {respondCancelModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 backdrop-blur-sm">
+          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 shadow-2xl">
+            <div className="p-5 border-b border-gray-200 dark:border-white/10">
+              <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Reject Cancellation Request</h3>
+              <p className="mt-1 text-sm text-[#4B244A]/70 dark:text-white/70">
+                Provide a reason for rejecting the cancellation of "<span className="font-semibold">{respondCancelModal.title}</span>".
+                The contract will continue if you reject.
+              </p>
+              {respondCancelModal.requestReason && (
+                <p className="mt-2 text-xs text-[#4B244A]/60 dark:text-white/60 italic">Housekeeper's reason: "{respondCancelModal.requestReason}"</p>
+              )}
+            </div>
+            <div className="p-5 space-y-3">
+              <label className="block text-sm font-semibold text-[#4B244A] dark:text-white">Your reason for rejecting</label>
+              <textarea
+                value={respondCancelModal.rejectReason}
+                onChange={(e) => setRespondCancelModal(prev => prev ? { ...prev, rejectReason: e.target.value, error: null } : prev)}
+                rows={3}
+                maxLength={400}
+                placeholder="Explain why the contract should continue..."
+                className="w-full rounded-xl border border-gray-300 dark:border-white/20 bg-white dark:bg-slate-800 px-3 py-2 text-sm text-[#4B244A] dark:text-white outline-none focus:ring-2 focus:ring-[#EA526F]/40 focus:border-[#EA526F]"
+              />
+              {respondCancelModal.error && <p className="text-xs text-red-600 dark:text-red-400">{respondCancelModal.error}</p>}
+            </div>
+            <div className="p-5 pt-0 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setRespondCancelModal(null)}
+                disabled={respondCancelModal.submitting}
+                className="py-2.5 rounded-lg bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white font-semibold hover:bg-gray-200 dark:hover:bg-white/20 transition-colors disabled:opacity-50"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                disabled={respondCancelModal.submitting}
+                onClick={async () => {
+                  const reason = respondCancelModal.rejectReason.trim();
+                  if (!reason) {
+                    setRespondCancelModal(prev => prev ? { ...prev, error: 'Please enter a reason for rejecting.' } : prev);
+                    return;
+                  }
+                  setRespondCancelModal(prev => prev ? { ...prev, submitting: true, error: null } : prev);
+                  const ok = await handleRespondCancellation(respondCancelModal.postId, 'reject', reason);
+                  if (!ok) setRespondCancelModal(prev => prev ? { ...prev, submitting: false } : prev);
+                }}
+                className="py-2.5 rounded-lg bg-gray-700 text-white font-semibold hover:bg-gray-900 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {respondCancelModal.submitting ? <><Loader2 className="w-4 h-4 animate-spin" /> Rejecting...</> : 'Reject Request'}
               </button>
             </div>
           </div>

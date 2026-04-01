@@ -57,24 +57,35 @@ def parse_time_string(time_str: str) -> Optional[time]:
 
 def check_dates_overlap(
     start1: date,
-    end1: date,
+    end1: Optional[date],
     start2: date,
-    end2: date
+    end2: Optional[date],
 ) -> bool:
     """
     Check if two date ranges overlap.
+    A None end date means the range is open-ended (runs indefinitely).
     Returns True if they overlap or touch.
     """
-    if not all([start1, end1, start2, end2]):
+    if not start1 or not start2:
         return False
-    
-    # Ensure start <= end for both ranges
+
+    # Open-ended: if end is None the range extends infinitely into the future
+    # Two ranges overlap unless one finishes strictly before the other starts
+    if end1 is None and end2 is None:
+        return True  # both open-ended and both have started → always overlap
+    if end1 is None:
+        # [start1, ∞) overlaps [start2, end2] unless end2 < start1
+        return end2 >= start1
+    if end2 is None:
+        # [start2, ∞) overlaps [start1, end1] unless end1 < start2
+        return end1 >= start2
+
+    # Both bounded
     if start1 > end1:
         start1, end1 = end1, start1
     if start2 > end2:
         start2, end2 = end2, start2
-    
-    # Check for overlap: either start1 <= start2 < end1 or start2 <= start1 < end2
+
     return not (end1 < start2 or end2 < start1)
 
 
@@ -161,12 +172,15 @@ def get_housekeeper_jobs(
             # For job posts, use start_date
             job_start = parse_date_string(post.start_date)
             job_end = parse_date_string(post.end_date)
-            
-            # If multi-day, compute end date from start + num_days
+
+            # Open-ended long-term contract: end_date is None → keep it None (infinite)
+            is_open_ended = post.is_longterm and job_end is None
+
+            # If multi-day (short-term), compute end date from start + num_days
             num_days = getattr(post, 'num_days', 1) or 1
-            if job_start and num_days > 1 and not job_end:
+            if job_start and num_days > 1 and not job_end and not is_open_ended:
                 job_end = job_start + timedelta(days=num_days - 1)
-            elif not job_end:
+            elif not job_end and not is_open_ended:
                 job_end = job_start
             
             jobs.append({
@@ -174,7 +188,8 @@ def get_housekeeper_jobs(
                 'job_id': post.post_id,
                 'contract_id': contract.contract_id,
                 'start_date': job_start,
-                'end_date': job_end,
+                'end_date': job_end,  # None = open-ended
+                'is_open_ended': is_open_ended,
                 'daily_start_time': getattr(post, 'daily_start_time', None) or post.start_time,
                 'daily_end_time': getattr(post, 'daily_end_time', None) or post.end_time,
                 'num_days': num_days,
@@ -270,9 +285,11 @@ def detect_schedule_conflicts(
     )
     conflicts = []
     
-    # Normalize dates
+    # Normalize dates.
+    # new_job_end_date == None means the caller is checking an open-ended long-term job
+    # (no end date). Keep it as None so check_dates_overlap handles it correctly.
     new_start = new_job_start_date
-    new_end = new_job_end_date if new_job_end_date else new_job_start_date
+    new_end = new_job_end_date  # None = open-ended
     
     for existing_job in existing_jobs:
         # RULE: Same employer = no conflict (unless explicitly checking all)
@@ -307,35 +324,38 @@ def detect_schedule_conflicts(
                         is_conflict = True
                         conflict_reason = f"Conflicts with existing job on {existing_day_name} during overlapping hours"
 
-        # Case 2: Existing job is recurring, new is one-time
+        # Case 2: Existing job is recurring, new is one-time (possibly open-ended)
         elif existing_job['is_recurring'] and existing_job['recurring_day'] and new_start:
-            # Check if new job date range contains any of the existing recurring days
             existing_days = get_days_set(existing_job['recurring_day'])
-            check_end = new_end if new_end else new_start
+            # For open-ended new jobs: any of the 7 week-days that match the recurring
+            # schedule will appear within the first 7 days → just scan one week forward.
+            scan_end = new_end if new_end else (new_start + timedelta(days=6))
             current_date = new_start
-            while current_date <= check_end:
+            while current_date <= scan_end:
                 if current_date.strftime('%A').lower() in existing_days:
                     if check_times_overlap(
                         new_job_daily_start_time, new_job_daily_end_time,
                         existing_job.get('daily_start_time'), existing_job.get('daily_end_time')
                     ):
                         is_conflict = True
-                        conflict_reason = f"Conflicts with recurring job on {existing_job['recurring_day']} during overlapping hours"
+                        open_note = " (open-ended)" if new_end is None else ""
+                        conflict_reason = f"Conflicts with recurring job on {existing_job['recurring_day']}{open_note} during overlapping hours"
                         break
                 current_date += timedelta(days=1)
         
-        # Case 3: Both are one-time jobs
-        elif new_start and new_end and existing_job['start_date'] and existing_job['end_date']:
-            if check_dates_overlap(new_start, new_end, existing_job['start_date'], existing_job['end_date']):
+        # Case 3: Both are one-time jobs (including open-ended long-term)
+        elif new_start and existing_job['start_date']:
+            existing_end = existing_job['end_date']  # may be None for open-ended
+            if check_dates_overlap(new_start, new_end, existing_job['start_date'], existing_end):
                 # Dates overlap – now check if the daily time windows also overlap
                 if check_times_overlap(
                     new_job_daily_start_time, new_job_daily_end_time,
                     existing_job.get('daily_start_time'), existing_job.get('daily_end_time')
                 ):
                     is_conflict = True
-                    conflict_reason = f"Date range overlaps with existing job during overlapping hours"
+                    open_ended_note = " (open-ended contract)" if existing_job.get('is_open_ended') else ""
+                    conflict_reason = f"Date range overlaps with existing job{open_ended_note} during overlapping hours"
                 else:
-                    # Same dates but different hours – no conflict!
                     conflict_reason = ""
         
         if is_conflict:
@@ -463,16 +483,17 @@ def withdraw_conflicting_applications(
         ph_start = hire.scheduled_date
         ph_num_days = getattr(hire, 'num_days', 1) or 1
         ph_end = getattr(hire, 'end_date', None)
-        if ph_start and ph_num_days > 1 and not ph_end:
+        ph_is_open_ended = getattr(hire, 'is_longterm', False) and ph_end is None
+        if ph_start and ph_num_days > 1 and not ph_end and not ph_is_open_ended:
             ph_end = ph_start + timedelta(days=ph_num_days - 1)
-        if not ph_end:
-            ph_end = ph_start
+        # For open-ended: keep ph_end as None (handled by _two_jobs_conflict)
 
         ph_is_recurring = hire.is_recurring
         ph_recurring_day = hire.day_of_week if ph_is_recurring else None
         ph_daily_start = getattr(hire, 'daily_start_time', None) or hire.start_time
         ph_daily_end = getattr(hire, 'daily_end_time', None) or hire.end_time
 
+        # ph_end may be None for open-ended hires; pass through to _two_jobs_conflict
         if _two_jobs_conflict(
             newly_accepted_start_date, newly_accepted_end_date,
             newly_accepted_is_recurring, newly_accepted_recurring_day,
@@ -521,10 +542,10 @@ def withdraw_conflicting_applications(
         pp_start = parse_date_string(post.start_date)
         pp_end = parse_date_string(post.end_date)
         pp_num_days = getattr(post, 'num_days', 1) or 1
-        if pp_start and pp_num_days > 1 and not pp_end:
+        pp_is_open_ended = post.is_longterm and pp_end is None
+        if pp_start and pp_num_days > 1 and not pp_end and not pp_is_open_ended:
             pp_end = pp_start + timedelta(days=pp_num_days - 1)
-        if not pp_end:
-            pp_end = pp_start
+        # For open-ended: keep pp_end as None (handled by _two_jobs_conflict)
 
         pp_is_recurring = post.is_recurring
         pp_recurring_day = post.day_of_week if pp_is_recurring else None
@@ -575,10 +596,11 @@ def _two_jobs_conflict(
             return check_times_overlap(a_start_time, a_end_time, b_start_time, b_end_time)
         return False
 
-    # Case 2: A is recurring, B is one-time
+    # Case 2: A is recurring, B is one-time (possibly open-ended)
     if a_recurring and a_recurring_day and start_b:
         a_days = get_days_set(a_recurring_day)
-        b_end_safe = end_b or start_b
+        # If B is open-ended (end_b is None), scan one week forward to find a matching day
+        b_end_safe = end_b if end_b else (start_b + timedelta(days=6))
         cur = start_b
         while cur <= b_end_safe:
             if cur.strftime('%A').lower() in a_days:
@@ -587,10 +609,11 @@ def _two_jobs_conflict(
             cur += timedelta(days=1)
         return False
 
-    # Case 3: B is recurring, A is one-time
+    # Case 3: B is recurring, A is one-time (possibly open-ended)
     if b_recurring and b_recurring_day and start_a:
         b_days = get_days_set(b_recurring_day)
-        a_end_safe = end_a or start_a
+        # If A is open-ended (end_a is None), scan one week forward
+        a_end_safe = end_a if end_a else (start_a + timedelta(days=6))
         cur = start_a
         while cur <= a_end_safe:
             if cur.strftime('%A').lower() in b_days:
@@ -599,11 +622,10 @@ def _two_jobs_conflict(
             cur += timedelta(days=1)
         return False
 
-    # Case 4: Both one-time
+    # Case 4: Both one-time (end may be None = open-ended)
     if start_a and start_b:
-        a_end_safe = end_a or start_a
-        b_end_safe = end_b or start_b
-        if check_dates_overlap(start_a, a_end_safe, start_b, b_end_safe):
+        # None end date = open-ended (runs indefinitely)
+        if check_dates_overlap(start_a, end_a, start_b, end_b):
             return check_times_overlap(a_start_time, a_end_time, b_start_time, b_end_time)
 
     return False

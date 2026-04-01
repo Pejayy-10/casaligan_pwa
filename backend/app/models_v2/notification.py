@@ -49,6 +49,11 @@ class NotificationType(str, enum.Enum):
     # Referral related
     HOUSEKEEPER_REFERRAL = "housekeeper_referral" # Homeowner referred a housekeeper to you
     
+    # Long-term contract mutual cancellation
+    CANCEL_REQUEST_RECEIVED = "cancel_request_received"   # Other party requested cancellation
+    CANCEL_REQUEST_APPROVED = "cancel_request_approved"   # Your cancellation request was approved
+    CANCEL_REQUEST_REJECTED = "cancel_request_rejected"   # Your cancellation request was rejected
+    
     # General
     SYSTEM = "system"                             # System notification
     REMINDER = "reminder"                         # General reminder

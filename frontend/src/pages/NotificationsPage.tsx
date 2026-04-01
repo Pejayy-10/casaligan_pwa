@@ -66,6 +66,9 @@ const OWNER_ONLY_NOTIFICATIONS = [
   'applicant_withdrawn_due_to_conflict',
   'hire_canceled_worker_accepted_conflict',
   'housekeeper_referral',
+  'cancel_request_received',  // Worker requested cancellation — owner must respond
+  'cancel_request_approved',  // Worker approved owner's cancellation request
+  'cancel_request_rejected',  // Worker rejected owner's cancellation request
 ];
 
 // Worker/Housekeeper-specific notification types
@@ -91,6 +94,9 @@ const HOUSEKEEPER_ONLY_NOTIFICATIONS = [
   'contract_extension_rejected',
   'application_withdrawn_due_to_conflict',
   'direct_hire_rejected_due_to_conflict',
+  'cancel_request_received',  // Owner requested cancellation — worker must respond
+  'cancel_request_approved',  // Owner approved worker's cancellation request
+  'cancel_request_rejected',  // Owner rejected worker's cancellation request
 ];
 
 // Notifications that appear in both roles
