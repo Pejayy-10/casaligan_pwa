@@ -252,7 +252,7 @@ export default function ContractModal({
                 id="agree"
                 checked={agreed}
                 onChange={(e) => setAgreed(e.target.checked)}
-                className="mt-1 w-5 h-5 rounded border-gray-300 dark:border-white/30 text-[#EA526F] focus:ring-[#EA526F]"
+                className="mt-1 w-8 h-8 rounded border-gray-300 dark:border-white/30 text-[#EA526F] focus:ring-[#EA526F]"
               />
               <label htmlFor="agree" className="text-[#4B244A] dark:text-white text-sm font-medium">
                 I have read and agree to all terms and conditions stated in this contract. 

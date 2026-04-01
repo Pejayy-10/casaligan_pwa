@@ -582,22 +582,22 @@ export default function JobsPage() {
                 {/* Housekeeper Actions */}
                 <div className="space-y-3">
 
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => navigate('/recurring-services')}
-                          className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 p-2 sm:p-3 bg-white/50 dark:bg-slate-900/50 text-[#4B244A] dark:text-white font-medium rounded-xl border border-gray-200/60 dark:border-white/10 hover:border-[#4B244A]/30 dark:hover:border-white/30 hover:bg-white dark:hover:bg-slate-800 transition-all text-xs sm:text-sm group text-center"
+                          className="flex flex-row items-center justify-center gap-2 p-2.5 sm:p-3 bg-white/50 dark:bg-slate-900/50 text-[#4B244A] dark:text-white font-medium rounded-xl border border-gray-200/60 dark:border-white/10 hover:border-[#4B244A]/30 dark:hover:border-white/30 hover:bg-white dark:hover:bg-slate-800 transition-all text-xs sm:text-sm group text-center"
                         >
                           <div className="p-1.5 rounded-lg bg-[#4B244A]/5 dark:bg-white/5 group-hover:bg-[#4B244A]/10 dark:group-hover:bg-white/10 transition-colors">
                             <RotateCw className="w-4 h-4 sm:w-5 sm:h-5 text-[#4B244A] dark:text-white" />
                           </div>
-                        <span className="leading-tight">Manage Recurring</span>
+                        <span className="leading-tight whitespace-nowrap">Manage Recurring</span>
                         </button>
                         <button onClick={() => navigate('/direct-hires')}
-                          className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 p-2 sm:p-3 bg-white/50 dark:bg-slate-900/50 text-[#4B244A] dark:text-white font-medium rounded-xl border border-gray-200/60 dark:border-white/10 hover:border-[#4B244A]/30 dark:hover:border-white/30 hover:bg-white dark:hover:bg-slate-800 transition-all text-xs sm:text-sm group text-center">
+                          className="flex flex-row items-center justify-center gap-2 p-2.5 sm:p-3 bg-white/50 dark:bg-slate-900/50 text-[#4B244A] dark:text-white font-medium rounded-xl border border-gray-200/60 dark:border-white/10 hover:border-[#4B244A]/30 dark:hover:border-white/30 hover:bg-white dark:hover:bg-slate-800 transition-all text-xs sm:text-sm group text-center">
                           <div className="p-1.5 rounded-lg bg-[#4B244A]/5 dark:bg-white/5 group-hover:bg-[#4B244A]/10 dark:group-hover:bg-white/10 transition-colors">
                             <Briefcase className="w-4 h-4 sm:w-5 sm:h-5 text-[#4B244A] dark:text-white" />
                           </div>
-                        <span className="leading-tight">Direct Jobs</span>
+                        <span className="leading-tight whitespace-nowrap">Direct Jobs</span>
                         </button>
                     </div>
 

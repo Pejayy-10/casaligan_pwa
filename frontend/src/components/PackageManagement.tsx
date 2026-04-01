@@ -168,7 +168,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
 
   const handleAddCustomCategory = async () => {
     if (!customCategoryName.trim()) {
-      alert('Please fill the field');
+      alert('Please enter a category name');
       return;
     }
 
@@ -357,7 +357,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <label className={labelClass}>Price (₱) *</label>
           <input
@@ -413,14 +413,24 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
         <p className="text-[#4B244A]/50 dark:text-white/50 text-xs mt-1">Separate services with commas</p>
       </div>
 
-      <button
-        onClick={handleSubmit}
-        disabled={submitting}
-        className="w-full py-4 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
-      >
-        {submitting ? <Clock className="inline w-4 h-4 mr-1 animate-spin" /> : null}
-        {submitting ? 'Saving...' : editingPackage ? 'Update Package' : 'Create Package'}
-      </button>
+      <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end pt-2">
+        <button
+          type="button"
+          onClick={resetForm}
+          disabled={submitting}
+          className="w-full sm:w-auto px-5 py-3 border border-gray-300 dark:border-white/20 text-[#4B244A] dark:text-white font-semibold rounded-xl hover:bg-gray-100/70 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSubmit}
+          disabled={submitting}
+          className="w-full sm:w-auto px-6 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
+        >
+          {submitting ? <Clock className="inline w-4 h-4 mr-1 animate-spin" /> : null}
+          {submitting ? 'Saving...' : editingPackage ? 'Update Package' : 'Create Package'}
+        </button>
+      </div>
     </div>
   );
 
@@ -452,10 +462,10 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
               pkg.is_active ? 'border-gray-200 dark:border-white/20' : 'border-gray-100 dark:border-white/10 opacity-60'
             }`}
           >
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <h4 className="text-lg font-bold text-[#4B244A] dark:text-white">{pkg.name}</h4>
+                  <h4 className="text-lg font-bold text-[#4B244A] dark:text-white break-words">{pkg.name}</h4>
                   {!pkg.is_active && (
                     <span className="px-2 py-0.5 bg-gray-200 text-gray-600 dark:bg-gray-500/30 dark:text-gray-300 text-xs rounded-full font-bold">
                       Inactive
@@ -474,45 +484,46 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
                   ))}
                 </div>
               )}
-              <div className="mt-1 flex items-center gap-3 text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">
+              <div className="mt-1 flex flex-wrap items-center gap-3 text-[#4B244A]/60 dark:text-white/60 text-xs font-medium">
                 <span>⏱ {pkg.duration_hours} hrs/day</span>
                 <span>📆 {pkg.num_days || 1} day{(pkg.num_days || 1) > 1 ? 's' : ''}</span>
               </div>
               </div>
               
-              <div className="text-right">
+              <div className="text-right w-auto shrink-0">
                 <div className="text-xl font-bold text-[#EA526F]">
                   ₱{pkg.price.toLocaleString()}
                 </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <button
-                    onClick={() => handleEdit(pkg)}
-                    className="px-3 py-1 bg-white/80 dark:bg-white/20 text-[#4B244A] dark:text-white text-sm font-bold rounded-lg hover:bg-white dark:hover:bg-white/30 transition-colors shadow-sm"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleToggleActive(pkg)}
-                    disabled={actionLoading === `toggle-${pkg.package_id}`}
-                    className={`px-3 py-1 text-sm font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1 ${
-                      pkg.is_active 
-                        ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-300 dark:hover:bg-yellow-500/30'
-                        : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-500/20 dark:text-green-300 dark:hover:bg-green-500/30'
-                    }`}
-                  >
-                    {actionLoading === `toggle-${pkg.package_id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                    {pkg.is_active ? 'Deactivate' : 'Activate'}
-                  </button>
-                  <button
-                    onClick={() => handleDelete(pkg.package_id)}
-                    disabled={actionLoading === `delete-${pkg.package_id}`}
-                    className="px-3 py-1 bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-500/20 dark:text-red-300 text-sm font-bold rounded-lg dark:hover:bg-red-500/30 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1"
-                  >
-                    {actionLoading === `delete-${pkg.package_id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
-                    Delete
-                  </button>
-                </div>
               </div>
+            </div>
+
+            <div className="mt-3 pt-3 border-t border-gray-200/80 dark:border-white/10 flex items-center justify-center gap-2 flex-nowrap overflow-x-auto">
+              <button
+                onClick={() => handleEdit(pkg)}
+                className="px-3 py-1.5 bg-white/80 dark:bg-white/20 text-[#4B244A] dark:text-white text-sm font-bold rounded-lg hover:bg-white dark:hover:bg-white/30 transition-colors shadow-sm whitespace-nowrap"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => handleToggleActive(pkg)}
+                disabled={actionLoading === `toggle-${pkg.package_id}`}
+                className={`px-3 py-1.5 text-sm font-bold rounded-lg transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1 whitespace-nowrap ${
+                  pkg.is_active 
+                    ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200 dark:bg-yellow-500/20 dark:text-yellow-300 dark:hover:bg-yellow-500/30'
+                    : 'bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-500/20 dark:text-green-300 dark:hover:bg-green-500/30'
+                }`}
+              >
+                {actionLoading === `toggle-${pkg.package_id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                {pkg.is_active ? 'Deactivate' : 'Activate'}
+              </button>
+              <button
+                onClick={() => handleDelete(pkg.package_id)}
+                disabled={actionLoading === `delete-${pkg.package_id}`}
+                className="px-3 py-1.5 bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-500/20 dark:text-red-300 text-sm font-bold rounded-lg dark:hover:bg-red-500/30 transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1 whitespace-nowrap"
+              >
+                {actionLoading === `delete-${pkg.package_id}` ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                Delete
+              </button>
             </div>
           </div>
         ))
@@ -531,12 +542,12 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
   // Modal mode
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-        <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-sm">
+        <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl max-w-3xl w-full h-full max-h-[calc(100dvh-1rem)] sm:h-auto sm:max-h-[90vh] overflow-hidden border border-gray-200 dark:border-white/20 shadow-2xl flex flex-col">
         {/* Header */}
-        <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-6 border-b border-gray-200 dark:border-white/10 z-10">
+        <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md p-4 sm:p-6 border-b border-gray-200 dark:border-white/10 z-10">
           <div className="flex items-center justify-between">
-            <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">
+            <h2 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white pr-3">
               {showForm ? (
                 editingPackage ? (
                   <><Edit2 className="inline w-5 h-5 mr-2" /> Edit Package</>
@@ -562,7 +573,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
         </div>
 
         {/* Content */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6 overflow-y-auto flex-1">
           {content}
         </div>
         </div>

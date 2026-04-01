@@ -867,7 +867,7 @@ export default function CreateJobPage() {
                     <label
                       className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all
                         ${formData.accommodation_type === 'stay_out'
-                          ? 'border-[#EA526F] bg-[#EA526F]/10 dark:bg-[#EA526F]/20'
+                          ? 'border-[#EA526F] bg-[#EA526F]/12 dark:bg-[#EA526F]/25 shadow-sm'
                           : 'border-gray-200 dark:border-white/20 bg-white/50 dark:bg-white/5 hover:border-[#EA526F]/50'
                         }`}
                     >
@@ -880,7 +880,7 @@ export default function CreateJobPage() {
                         className="mt-0.5 w-4 h-4 text-[#EA526F] border-gray-300 focus:ring-[#EA526F]"
                       />
                       <div>
-                        <p className={`font-bold text-sm ${formData.accommodation_type === 'stay_out' ? 'text-[#EA526F]' : 'text-[#4B244A] dark:text-white'}`}>
+                        <p className="font-bold text-sm text-[#4B244A] dark:text-white">
                           Stay Out
                         </p>
                         <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
@@ -893,7 +893,7 @@ export default function CreateJobPage() {
                     <label
                       className={`flex items-start gap-3 p-4 rounded-2xl border-2 cursor-pointer transition-all
                         ${formData.accommodation_type === 'stay_in'
-                          ? 'border-[#EA526F] bg-[#EA526F]/10 dark:bg-[#EA526F]/20'
+                          ? 'border-[#EA526F] bg-[#EA526F]/12 dark:bg-[#EA526F]/25 shadow-sm'
                           : 'border-gray-200 dark:border-white/20 bg-white/50 dark:bg-white/5 hover:border-[#EA526F]/50'
                         }`}
                     >
@@ -906,7 +906,7 @@ export default function CreateJobPage() {
                         className="mt-0.5 w-4 h-4 text-[#EA526F] border-gray-300 focus:ring-[#EA526F]"
                       />
                       <div>
-                        <p className={`font-bold text-sm ${formData.accommodation_type === 'stay_in' ? 'text-[#EA526F]' : 'text-[#4B244A] dark:text-white'}`}>
+                        <p className="font-bold text-sm text-[#4B244A] dark:text-white">
                           Stay In
                         </p>
                         <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">
@@ -917,31 +917,31 @@ export default function CreateJobPage() {
                   </div>
                 </div>
 
-                <div className="md:col-span-2 p-4 sm:p-5 bg-linear-to-br from-white/70 to-blue-50 dark:from-slate-900/70 dark:to-blue-500/10 border border-blue-200/70 dark:border-blue-500/30 rounded-2xl shadow-sm">
+                <div className="md:col-span-2 p-4 sm:p-5 bg-linear-to-br from-white/70 to-purple-50 dark:from-slate-900/70 dark:to-purple-500/10 border border-purple-200/70 dark:border-purple-500/30 rounded-2xl shadow-sm">
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div>
-                      <p className="text-blue-700 dark:text-blue-200 text-sm font-bold">Smart Suggestions</p>
+                      <p className="text-purple-700 dark:text-purple-200 text-sm font-bold">Smart Suggestions</p>
                       <p className="text-[#4B244A]/70 dark:text-white/70 text-xs">Suggestions are assistive only and won’t overwrite fields unless you apply them.</p>
                     </div>
-                    {benchmarkLoading && <span className="text-blue-600 dark:text-blue-300 text-xs font-semibold">Updating...</span>}
+                    {benchmarkLoading && <span className="text-purple-600 dark:text-purple-300 text-xs font-semibold">Updating...</span>}
                   </div>
 
                   {benchmarkSuggestions ? (
                     <div className="space-y-4">
-                      <p className="text-blue-700 dark:text-blue-200 text-xs leading-relaxed">
+                      <p className="text-purple-700 dark:text-purple-200 text-xs leading-relaxed">
                         Based on {benchmarkSuggestions.meta.sample_size} similar completed jobs • Scope: {benchmarkSuggestions.meta.scope} • Confidence: {benchmarkSuggestions.meta.confidence}
                       </p>
 
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                        <div className="p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl">
+                        <div className="p-3 bg-white/80 dark:bg-white/5 border border-purple-200/80 dark:border-purple-500/20 rounded-xl">
                           <p className="text-[#4B244A] dark:text-white text-[11px] font-semibold uppercase tracking-wide">Budget range</p>
                           <p className="text-[#4B244A]/85 dark:text-white/85 text-sm font-bold mt-1">₱{Math.round(benchmarkSuggestions.budget.min)} - ₱{Math.round(benchmarkSuggestions.budget.max)}</p>
                         </div>
-                        <div className="p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl">
+                        <div className="p-3 bg-white/80 dark:bg-white/5 border border-purple-200/80 dark:border-purple-500/20 rounded-xl">
                           <p className="text-[#4B244A] dark:text-white text-[11px] font-semibold uppercase tracking-wide">Recommended workers</p>
                           <p className="text-[#4B244A]/85 dark:text-white/85 text-sm font-bold mt-1">{benchmarkSuggestions.recommended_people_needed} worker(s)</p>
                         </div>
-                        <div className="p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl">
+                        <div className="p-3 bg-white/80 dark:bg-white/5 border border-purple-200/80 dark:border-purple-500/20 rounded-xl">
                           <p className="text-[#4B244A] dark:text-white text-[11px] font-semibold uppercase tracking-wide">Recommended days</p>
                           <p className="text-[#4B244A]/85 dark:text-white/85 text-sm font-bold mt-1">{Math.max(1, Math.min(13, benchmarkSuggestions.recommended_num_days))} day(s)</p>
                         </div>
@@ -970,7 +970,7 @@ export default function CreateJobPage() {
                               key={idx}
                               type="button"
                               onClick={() => setFormData(prev => ({ ...prev, title }))}
-                              className="px-3 py-1.5 text-xs bg-white/90 dark:bg-white/10 border border-blue-200/80 dark:border-blue-500/20 rounded-full text-[#4B244A] dark:text-white hover:bg-white dark:hover:bg-white/20 transition-colors"
+                              className="px-3 py-1.5 text-xs bg-white/90 dark:bg-white/10 border border-purple-200/80 dark:border-purple-500/20 rounded-full text-[#4B244A] dark:text-white hover:bg-white dark:hover:bg-white/20 transition-colors"
                             >
                               {title}
                             </button>
