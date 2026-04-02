@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { RotateCw, X, ClipboardList, Briefcase, Calendar, ChevronDown, CheckCircle } from 'lucide-react';
-import TabBar from '../components/TabBar';
 import type { User } from '../types';
 import apiClient from '../services/api';
 
@@ -319,7 +318,7 @@ return (
       </div>
 
       {/* HEADER (Static with Navigation & Filters) */}
-      <header className="relative z-10 bg-gray-50 dark:bg-white/10 dark:backdrop-blur-xl border-b border-gray-200 dark:border-white/20 transition-all safe-area-top">
+      <header className="sticky top-0 z-40 bg-gray-50 dark:bg-white/10 dark:backdrop-blur-xl border-b border-gray-200 dark:border-white/20 transition-all safe-area-top">
         <div className="max-w-4xl mx-auto px-4 py-3 space-y-4">
           
           {/* Row 1: Navigation & Title */}
@@ -559,8 +558,6 @@ return (
           </div>
         </div>
       )}
-
-      <TabBar role={user?.active_role || 'owner'} />
     </div>
   );
 }

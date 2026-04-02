@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Calendar, DollarSign, FileText, X, Send, AlertCircle } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface ExtendContractModalProps {
   isOpen: boolean;
@@ -28,6 +29,9 @@ export default function ExtendContractModal({
   const [reason, setReason] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Lock background scroll when modal is open
+  useScrollLock(isOpen);
 
   if (!isOpen) return null;
 
@@ -195,7 +199,7 @@ export default function ExtendContractModal({
             <button
               onClick={handleSubmit}
               disabled={loading || !proposedEndDate}
-              className="flex-1 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 py-3 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {loading ? (
                 <div className="inline-block animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>

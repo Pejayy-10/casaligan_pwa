@@ -6,6 +6,7 @@ import { authService } from '../services/auth';
 import TabBar from '../components/TabBar';
 import PackageManagement from '../components/PackageManagement';
 import PackageOnboardingModal from '../components/PackageOnboardingModal';
+import { useScrollLock } from '../hooks/useScrollLock';
 import type { User } from '../types';
 
 export default function ProfilePage() {
@@ -98,6 +99,9 @@ export default function ProfilePage() {
   const [altPhoneStep, setAltPhoneStep] = useState<'input' | 'otp'>('input');
   const [removingAltPhone, setRemovingAltPhone] = useState(false);
   const altPhoneOtpRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Lock scroll when modals are open
+  useScrollLock(showEditProfile || showEmailOtp || showPhoneOtp || showAltPhoneModal || showPackageManagement || showPortfolioManagement);
 
   const openEditProfile = () => {
     if (!user) return;

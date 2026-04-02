@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import apiClient from '../services/api';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface Message {
   message_id: number;
@@ -34,6 +35,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
   otherParticipantName,
   title,
 }) => {
+  useScrollLock(isOpen);
   const [conversationId, setConversationId] = useState<number | null>(initialConversationId || null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');

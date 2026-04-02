@@ -8,7 +8,6 @@ import ReferHousekeeperModal from './ReferHousekeeperModal';
 import DirectHireReceiptModal from './DirectHireReceiptModal';
 import apiClient from '../services/api';
 import { usePayment } from '../context/PaymentContext';
-import { useConfirmDialog } from './useConfirmDialog';
 
 const resolveUploadUrl = (url: string) => {
   if (!url) return '';
@@ -88,7 +87,6 @@ interface Props {
 export default function DirectHiresList({ role, onClose }: Props) {
   const navigate = useNavigate();
   const { initiatePayment } = usePayment();
-  const { confirm, confirmDialog } = useConfirmDialog();
   const [hires, setHires] = useState<DirectHire[]>([]);
   const [loading, setLoading] = useState(true);
   const [verifyingFee, setVerifyingFee] = useState(false);
@@ -580,23 +578,22 @@ export default function DirectHiresList({ role, onClose }: Props) {
             setCancelRecurringHire(hire);
             setShowCancelRecurringModal(true);
           }}
-          className="px-3 py-1 bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 text-sm rounded-lg hover:bg-orange-200 dark:hover:bg-orange-500/30 font-semibold"
+          className="flex-1 px-3 py-1 bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300 text-sm rounded-lg hover:bg-orange-200 dark:hover:bg-orange-500/30 font-semibold transition-colors"
         >
           🛑 Stop Recurring
         </button>
       ) : null;
     
     if (role === 'owner') {
-      // Owner actions
       switch (hire.status) {
         case 'pending':
           if (isShortTermWeeklyRecurring(hire) && (hire.platform_fee_status || '').toLowerCase() !== 'paid') {
             return (
-              <div className="flex gap-2 w-full sm:w-auto">
+              <div className="flex flex-wrap items-center gap-2 w-full">
                 <button
                   onClick={() => handleOwnerWeeklyFeePayment(hire)}
                   disabled={processing || verifyingFee}
-                  className="px-3 py-1 bg-[#EA526F] text-white text-sm rounded-lg hover:bg-[#d64460] font-semibold shadow-sm disabled:opacity-50 flex items-center gap-1"
+                  className="flex-1 px-3 py-1 !bg-[#EA526F] !text-white text-sm rounded-lg hover:bg-[#d64460] font-semibold shadow-sm disabled:opacity-50 flex items-center justify-center gap-1"
                 >
                   {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Pay Weekly Post Fee
                 </button>
@@ -614,79 +611,81 @@ export default function DirectHiresList({ role, onClose }: Props) {
             <button
               onClick={() => handleAction(hire, 'cancel')}
               disabled={processing}
-              className="w-full px-4 py-3 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200 text-sm rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="w-full px-4 py-3 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200 text-sm rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-              Cancel
+              Cancel Booking
             </button>
           );
         case 'accepted':
         case 'in_progress':
           return (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 w-full">
               {hire.num_days && hire.num_days > 1 && (
                 <button
                   onClick={() => {
                     setDailyCompletionHire(hire);
                     setShowDailyCompletionModal(true);
                   }}
-                  className="px-3 py-1 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 font-semibold shadow-sm"
+                  className="flex-1 px-3 py-1 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 font-semibold shadow-sm"
                 >
                   📅 Daily Progress
                 </button>
               )}
-              {messageButton}
+              <div className="flex-1 flex gap-2">
+                {messageButton && <div className="flex-1 flex">{messageButton}</div>}
+                {cancelRecurringButton}
+              </div>
             </div>
           );
         case 'pending_completion':
           return (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 w-full">
               <button
                 onClick={() => {
                   setReviewHire(hire);
                   setShowReviewModal(true);
                 }}
-                className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm"
+                className="flex-1 px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm"
               >
                 Review & Approve
               </button>
-              {messageButton}
+              {messageButton && <div className="flex-1 flex">{messageButton}</div>}
             </div>
           );
         case 'completed':
           return (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 w-full">
               <button
                 onClick={() => handlePayment(hire)}
                 disabled={processing}
-                className="px-3 py-1 bg-[#EA526F] text-white text-sm rounded-lg hover:bg-[#d64460] font-semibold shadow-sm disabled:opacity-50"
+                className="flex-1 px-3 py-1 !bg-[#EA526F] !text-white text-sm rounded-lg hover:bg-[#d64460] font-semibold shadow-sm disabled:opacity-50"
               >
                 Pay (Maya/Cash)
               </button>
-              {messageButton}
+              {messageButton && <div className="flex-1 flex">{messageButton}</div>}
             </div>
           );
         case 'payment_pending':
           return (
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="text-blue-600 dark:text-blue-300 text-sm font-medium">
-                <Clock className="inline w-4 h-4 mr-1" /> Waiting for worker to confirm payment
+            <div className="flex flex-wrap items-center gap-2 w-full">
+              <div className="flex-1 text-blue-600 dark:text-blue-300 text-sm font-medium">
+                <Clock className="inline w-4 h-4 mr-1" /> Waiting for confirmation
               </div>
               <button
                 onClick={() => setShowReceiptHireId(hire.hire_id)}
-                className="px-3 py-1 bg-[#4B244A] text-white text-sm rounded-lg hover:bg-[#361a35] font-semibold shadow-sm"
+                className="flex-1 px-3 py-1 !bg-[#4B244A] !text-white text-sm rounded-lg hover:bg-[#361a35] font-semibold shadow-sm"
               >
                 View Receipt
               </button>
             </div>
           );
         case 'paid':
-          // Show Rate button if not already rated, plus Refer button
           return (
-            <div className="space-y-2">
+            <div className="grid grid-cols-1 gap-2 w-full">
               <button
                 onClick={() => setShowReceiptHireId(hire.hire_id)}
-                className="w-full px-3 py-1 bg-[#4B244A] text-white text-sm rounded-lg hover:bg-[#361a35] font-semibold shadow-sm"
+                className="w-full px-3 py-1 !bg-[#4B244A] !text-white text-sm rounded-lg hover:bg-[#361a35] font-semibold shadow-sm"
               >
                 View Receipt
               </button>
@@ -701,7 +700,9 @@ export default function DirectHiresList({ role, onClose }: Props) {
                   <Star className="inline w-4 h-4 mr-1" /> Rate {hire.worker_name}
                 </button>
               ) : (
-                <span className="block text-green-600 dark:text-green-400 text-sm font-semibold">✓ Rated</span>
+                <div className="w-full text-center py-1 bg-green-50 dark:bg-green-500/10 rounded-lg">
+                  <span className="text-green-600 dark:text-green-400 text-sm font-semibold">✓ Rated</span>
+                </div>
               )}
               <button
                 onClick={() => {
@@ -724,70 +725,70 @@ export default function DirectHiresList({ role, onClose }: Props) {
           if (isShortTermWeeklyRecurring(hire)) {
             const ownerWeeklyFeePaid = (hire.platform_fee_status || '').toLowerCase() === 'paid';
             return (
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex flex-wrap gap-2 w-full">
                 <button
                   onClick={() => handleAction(hire, 'accept')}
                   disabled={processing || verifyingFee || !ownerWeeklyFeePaid}
-                  className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm disabled:opacity-50 flex items-center gap-1"
+                  className="flex-1 px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm disabled:opacity-50 flex items-center justify-center gap-1"
                 >
                   {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Accept
                 </button>
                 <button
                   onClick={() => handleAction(hire, 'reject')}
                   disabled={processing || verifyingFee}
-                  className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 font-semibold disabled:opacity-50 flex items-center gap-1"
+                  className="flex-1 px-3 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 font-semibold disabled:opacity-50 flex items-center justify-center gap-1"
                 >
-                  {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Reject
+                  Reject
                 </button>
                 {!ownerWeeklyFeePaid && (
-                  <span className="text-xs font-medium text-amber-600 dark:text-amber-300 self-center">
-                    Waiting for owner weekly post fee
-                  </span>
+                  <p className="w-full text-center text-xs font-medium text-amber-600 dark:text-amber-300">
+                    Waiting for owner fee payment
+                  </p>
                 )}
               </div>
             );
           }
           return (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 w-full">
               <button
                 onClick={() => handleAcceptWithMayaFee(hire)}
                 disabled={processing || verifyingFee}
-                className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm disabled:opacity-50 flex items-center gap-1"
+                className="flex-1 px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm disabled:opacity-50 flex items-center justify-center gap-1"
               >
-                {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Accept & Pay {Number(hire.platform_fee_percentage ?? 7).toFixed(2).replace(/\.00$/, '')}%
+                {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Accept & Pay Fee
               </button>
               <button
                 onClick={() => handleAction(hire, 'reject')}
                 disabled={processing || verifyingFee}
-                className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 font-semibold disabled:opacity-50 flex items-center gap-1"
+                className="px-3 py-1 bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-300 text-sm rounded-lg hover:bg-red-200 dark:hover:bg-red-500/30 font-semibold"
               >
-                {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Reject
+                Reject
               </button>
             </div>
           );
         case 'accepted':
           return (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 w-full">
               <button
                 onClick={() => handleAction(hire, 'start')}
                 disabled={processing}
-                className="px-3 py-1 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 font-semibold shadow-sm disabled:opacity-50 flex items-center gap-1"
+                className="flex-1 px-3 py-1 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 font-semibold shadow-sm disabled:opacity-50 flex items-center justify-center gap-1"
               >
                 {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Start Work
               </button>
-              {messageButton}
+              {messageButton && <div className="flex-1 flex">{messageButton}</div>}
             </div>
           );
         case 'in_progress':
           return (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 w-full">
               {hire.num_days && hire.num_days > 1 && (
                 <button
                   onClick={() => {
                     setDailyCompletionHire(hire);
                     setShowDailyCompletionModal(true);
                   }}
-                  className="px-3 py-1 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 font-semibold shadow-sm"
+                  className="flex-1 px-3 py-1 bg-purple-500 text-white text-sm rounded-lg hover:bg-purple-600 font-semibold shadow-sm"
                 >
                   📅 Daily Progress
                 </button>
@@ -797,74 +798,41 @@ export default function DirectHiresList({ role, onClose }: Props) {
                   setSelectedHire(hire);
                   setShowCompletionModal(true);
                 }}
-                className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm"
+                className="flex-1 px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm"
               >
                 Submit Completion
               </button>
-              {messageButton}
+              {messageButton && <div className="flex-1 flex">{messageButton}</div>}
             </div>
           );
-        case 'pending_completion':
-        case 'completed':
-          return messageButton;
         case 'payment_pending':
           return (
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 w-full">
               <button
                 onClick={async () => {
-                  const shouldConfirm = await confirm({
-                    title: 'Confirm Payment',
-                    message: 'Confirm that you have received the payment?',
-                    confirmLabel: 'Yes, Confirm'
-                  });
-                  if (shouldConfirm) {
+                  if (window.confirm('Confirm that you have received the payment?')) {
                     try {
                       setProcessing(true);
                       const token = localStorage.getItem('access_token');
-                      const response = await fetch(`${API_BASE_URL}/direct-hire/${hire.hire_id}/confirm-payment`, {
+                      await fetch(`${API_BASE_URL}/direct-hire/${hire.hire_id}/confirm-payment`, {
                         method: 'POST',
-                        headers: {
-                          'Authorization': `Bearer ${token}`
-                        }
+                        headers: { 'Authorization': `Bearer ${token}` }
                       });
-                      
-                      if (response.ok) {
-                        alert('Payment confirmed! You can now rate the employer.');
-                        loadHires();
-                      } else {
-                        const error = await response.json();
-                        alert(error.detail || 'Failed to confirm payment');
-                      }
-                    } catch (error) {
-                      console.error('Payment confirmation error:', error);
-                      alert('Failed to confirm payment');
-                    } finally {
-                      setProcessing(false);
-                    }
+                      loadHires();
+                    } catch (e) { alert('Failed to confirm'); }
+                    finally { setProcessing(false); }
                   }
                 }}
                 disabled={processing}
-                className="px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm disabled:opacity-50 flex items-center gap-1"
+                className="flex-1 px-3 py-1 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 font-semibold shadow-sm flex items-center justify-center gap-1"
               >
-                {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : '✓'} Confirm Payment Received
+                {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Confirm Payment Receipt
               </button>
-              {messageButton}
-            </div>
-          );
-        case 'paid':
-          return (
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setShowReceiptHireId(hire.hire_id)}
-                className="px-3 py-1 bg-[#4B244A] text-white text-sm rounded-lg hover:bg-[#361a35] font-semibold shadow-sm"
-              >
-                View Receipt
-              </button>
-              {messageButton}
+              {messageButton && <div className="flex-1 flex">{messageButton}</div>}
             </div>
           );
         default:
-          return null;
+          return messageButton;
       }
     }
   };
@@ -920,11 +888,6 @@ export default function DirectHiresList({ role, onClose }: Props) {
                                     : `by ${hire.cancelled_by || (role === 'owner' ? 'worker' : 'employer')}`
                                 }
                               </span>
-                            )}
-                            {hire.recurring_status === 'cancelled' && hire.recurring_cancellation_reason && (
-                              <p className="mt-2 text-xs font-semibold text-red-700 dark:text-red-300">
-                                Reason: {hire.recurring_cancellation_reason}
-                              </p>
                             )}
                           </div>
                         )}
@@ -1273,8 +1236,6 @@ export default function DirectHiresList({ role, onClose }: Props) {
           onClose={() => setShowReceiptHireId(null)}
         />
       )}
-
-      {confirmDialog}
     </div>
   );
 }

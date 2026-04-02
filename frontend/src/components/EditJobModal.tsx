@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import type { JobPost } from './JobDetailModal';
 import { Camera, Edit2 } from 'lucide-react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 const resolveUploadUrl = (url: string) => {
   if (!url) return '';
@@ -18,6 +19,9 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [categories, setCategories] = useState<Array<{category_id: number, name: string, description: string | null, is_active: boolean}>>([]);
+  
+  // Lock background scroll when modal is open
+  useScrollLock(true);
   
   const [formData, setFormData] = useState({
     title: job.title,

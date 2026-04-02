@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import { CheckCircle, Clock, Lock, Upload, X, AlertTriangle } from 'lucide-react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface DaySchedule {
   day_schedule_id: number;
@@ -44,6 +45,7 @@ export default function DailyCompletionModal({
   onClose,
   onDayConfirmed,
 }: DailyCompletionModalProps) {
+  useScrollLock(true);
   const [daySchedules, setDaySchedules] = useState<DaySchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState<number | null>(null);

@@ -3,6 +3,7 @@ import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
 import { Users, Mail, Phone, User, CheckCircle, Inbox, PartyPopper, Clock } from 'lucide-react';
 import { useConfirmDialog } from './useConfirmDialog';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface Applicant {
   interest_id: number;
@@ -31,6 +32,9 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
   const [loading, setLoading] = useState(true);
   const [selectedWorkers, setSelectedWorkers] = useState<Set<number>>(new Set());
   const [startingJob, setStartingJob] = useState(false);
+
+  // Lock background scroll when modal is open
+  useScrollLock(true);
 
   // Count already accepted workers (from previous selections)
   const alreadyAcceptedCount = applicants.filter(a => a.status === 'accepted').length;

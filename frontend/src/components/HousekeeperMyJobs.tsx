@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight, Flag, FileText, X, Check, Loader2, AlertCircle } from 'lucide-react';
+import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight, Flag, FileText, X, Check, Loader2, AlertCircle, MapPin } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import ContractExtensionResponseModal, { type PendingExtension } from './ContractExtensionResponseModal';
 import HousekeeperSummaryModal from './HousekeeperSummaryModal';
@@ -391,19 +391,16 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
               {/* Job Details */}
               <div className="flex flex-wrap gap-2 mb-4">
                 <span className="px-3 py-1 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300 rounded-lg text-sm font-semibold">
-                  <DollarSign className="inline w-4 h-4 mr-1" /> ₱{job.budget}
-                </span>
-                <span className="px-3 py-1 bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300 rounded-lg text-sm font-semibold">
-                  📍 {job.location}
+                  ₱{job.budget}
                 </span>
                 {job.is_longterm && (
                   <span className="px-3 py-1 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 rounded-lg text-sm font-semibold">
-                    📆 Long-term
+                    Long-term
                   </span>
                 )}
                 {job.multi_day_schedule && job.multi_day_schedule.num_days > 1 && (
                   <span className="px-3 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300 rounded-lg text-sm font-semibold">
-                    📅 {job.multi_day_schedule.num_days} days
+                    {job.multi_day_schedule.num_days} days
                     {job.multi_day_schedule.daily_start_time && job.multi_day_schedule.daily_end_time && 
                       ` (${job.multi_day_schedule.daily_start_time}–${job.multi_day_schedule.daily_end_time})`}
                   </span>
@@ -412,11 +409,13 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
 
               {/* Employer Info */}
               <div className="bg-white/50 dark:bg-white/5 rounded-lg p-3 mb-4 border border-gray-200 dark:border-white/10">
-                <h4 className="text-sm font-bold text-[#4B244A] dark:text-white mb-2"><User className="inline w-4 h-4 mr-1" /> Employer</h4>
                 <div className="text-sm text-[#4B244A]/70 dark:text-white/70 space-y-1 font-medium">
-                  <p>{job.employer.name}</p>
+                  <h4 className="text-sm font-bold text-[#4B244A] dark:text-white mb-2"><User className="inline w-4 h-4 mr-1" /> {job.employer.name}</h4>
                   {job.employer.phone && <p><Phone className="inline w-4 h-4 mr-1" />{job.employer.phone}</p>}
                   {job.employer.email && <p><Mail className="inline w-4 h-4 mr-1" />{job.employer.email}</p>}
+                  <p className="pt-3 text-md font-bold text-[#EA526F] dark:text-[#FF7A99] flex items-center gap-2 border-t border-gray-300 dark:border-white/10">
+                    <MapPin className="w-10 h-10"></MapPin> {job.location}
+                  </p>
                 </div>
               </div>
 
@@ -521,7 +520,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                               respondToEdit(job, 'accept');
                             }
                           }}
-                          className="w-full py-2 bg-[#EA526F] text-white font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
+                          className="w-full py-2 !bg-[#EA526F] !text-white font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
                         >
                           ✓ Continue Application
                         </button>
@@ -544,7 +543,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                       </div>
                     </div>
                   ) : (
-                    <div className="py-3 text-center text-orange-700 dark:text-orange-300 font-bold bg-orange-100 dark:bg-orange-500/10 rounded-lg border border-orange-200 dark:border-orange-500/30 mb-4">
+                    <div className="py-3 text-center text-xs text-orange-700 dark:text-orange-300 font-bold bg-orange-100 dark:bg-orange-500/10 rounded-lg border border-orange-200 dark:border-orange-500/30 mb-4">
                       <Clock className="inline w-4 h-4 mr-1" /> Waiting for house owner to accept your application
                     </div>
                   )}

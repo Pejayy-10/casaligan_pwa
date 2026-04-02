@@ -26,6 +26,7 @@ import ExtendContractModal from '../components/ExtendContractModal';
 import ReferHousekeeperModal from '../components/ReferHousekeeperModal';
 import apiClient from '../services/api';
 import type { User } from '../types';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 export default function JobsPage() {
   const navigate = useNavigate();
@@ -93,6 +94,10 @@ export default function JobsPage() {
   // Referral state
   const [showReferModal, setShowReferModal] = useState(false);
   const [referWorkerData, setReferWorkerData] = useState<{ workerId: number; workerName: string } | null>(null);
+
+  // Lock background scroll when any modal is open
+  const isAnyModalOpen = selectedJob || showApplicants || showPayment || showContract || showPaymentTracker || showProgressTracker || showCheckIn || showHousekeeperProgress || showJobCompletion || showReportUnpaid || showCompletionReview || showPackageManagement || showEditJob || showRatingModal || showReportModal || showHousekeeperReportModal || showExtendContract || showSummaryJobId !== null || showReferModal;
+  useScrollLock(!!isAnyModalOpen);
 
   const loadJobs = useCallback(async () => {
     try {
@@ -847,7 +852,31 @@ export default function JobsPage() {
       )}
       
       {/* Package Management Modal (Housekeeper) */}
-      {showPackageManagement && ( <PackageManagement onClose={() => setShowPackageManagement(false)} /> )}
+      {showPackageManagement && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl relative">
+            <div className="p-6 border-b border-gray-200 dark:border-white/10 sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md z-10 flex justify-between items-center">
+              <div>
+                  <h3 className="text-xl font-bold text-[#4B244A] dark:text-white flex items-center gap-2">
+                      <Package className="w-5 h-5 text-[#EA526F]" />
+                      My Service Packages
+                  </h3>
+              </div>
+              <button
+                onClick={() => setShowPackageManagement(false)}
+                aria-label="Close"
+                className="p-2 hover:bg-gray-200/50 dark:hover:bg-white/10 rounded-lg transition-colors text-[#4B244A]/60 dark:text-white/60"
+              >
+                <span className="sr-only">Close</span>
+                ×
+              </button>
+            </div>
+            <div className="p-6">
+              <PackageManagement embedded />
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Direct Hires List Modal */}
       
@@ -1379,7 +1408,7 @@ function OwnerJobsContent({
              {job.status === 'pending_completion' && needsOwnerReviewOrPayment && (
                 <button
                   onClick={() => onShowCompletionReview(job)}
-                  className="w-full py-2.5 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-lg flex items-center justify-center gap-2 animate-pulse"
+                  className="w-full py-2.5 !bg-[#EA526F] !text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-lg flex items-center justify-center gap-2 animate-pulse"
                 >
                   <CheckCircle className="w-4 h-4" /> Review Completion & Pay
                 </button>
@@ -1596,7 +1625,7 @@ function OwnerJobsContent({
                <button
                  onClick={() => requestRepost(job.post_id, job.title)}
                  disabled={actionLoading === `repost-${job.post_id}`}
-                 className="mt-2 w-full py-2 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-1"
+                 className="mt-2 w-full py-2 !bg-[#EA526F] !text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-1"
                >
                  {actionLoading === `repost-${job.post_id}` ? <><Loader2 className="w-4 h-4 animate-spin" /> Reposting...</> : 'Repost Job'}
                </button>
@@ -1721,7 +1750,7 @@ function OwnerJobsContent({
                   await handleRepost(selectedPostId);
                 }}
                 disabled={actionLoading === `repost-${repostModal.postId}`}
-                className="py-2.5 rounded-lg bg-[#EA526F] text-white font-semibold hover:bg-[#d4486a] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="py-2.5 rounded-lg !bg-[#EA526F] !text-white font-semibold hover:bg-[#d4486a] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {actionLoading === `repost-${repostModal.postId}` ? <><Loader2 className="w-4 h-4 animate-spin" /> Reposting...</> : 'Yes, Repost'}
               </button>

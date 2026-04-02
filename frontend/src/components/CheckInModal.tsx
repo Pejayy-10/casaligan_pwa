@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { API_BASE_URL } from '../config';
 import { CheckCircle, Lightbulb, AlertTriangle } from 'lucide-react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface CheckInModalProps {
   jobId: number;
@@ -14,6 +15,9 @@ export default function CheckInModal({ jobId, jobTitle, onClose, onSuccess }: Ch
   const [notes, setNotes] = useState('');
   const [location, setLocation] = useState('');
   const [gettingLocation, setGettingLocation] = useState(false);
+
+  // Lock background scroll when modal is open
+  useScrollLock(true);
 
   const getCurrentLocation = () => {
     setGettingLocation(true);

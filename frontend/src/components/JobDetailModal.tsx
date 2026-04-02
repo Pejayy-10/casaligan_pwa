@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Home, Zap, Users, Calendar, FileText, Camera, User, Clock, RotateCw, Check, AlertTriangle, MapPin } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 export interface AcceptedWorker {
   worker_id: number;
@@ -92,6 +93,9 @@ interface JobDetailModalProps {
 export default function JobDetailModal({ job, onClose, onApply, hasApplied = false, applicationStatus, canReapply = false, withdrawnDueToConflict = false, onStatusRefresh }: JobDetailModalProps) {
   const [isApplying, setIsApplying] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+
+  // Lock background scroll when modal is open
+  useScrollLock(true);
 
   const resolveImageUrl = (url: string) => {
     if (!url) return '';

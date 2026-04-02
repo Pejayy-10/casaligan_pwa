@@ -254,7 +254,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Header / Welcome Section */}
-      <header className="relative z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/5 pb-6 shadow-sm transition-all duration-300 safe-area-top">
+      <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-white/5 pb-6 shadow-sm transition-all duration-300 safe-area-top">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pt-4">
             <div>

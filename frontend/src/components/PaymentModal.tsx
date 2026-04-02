@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CreditCard } from 'lucide-react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface PaymentModalProps {
   amount: number;
@@ -13,6 +15,9 @@ export default function PaymentModal({ amount, jobTitle, onClose, onSuccess }: P
   const [referenceNumber, setReferenceNumber] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  
+  // Lock background scroll when modal is open
+  useScrollLock(true);
 
   const handlePayment = async () => {
     if (!selectedMethod) return;
@@ -79,8 +84,8 @@ export default function PaymentModal({ amount, jobTitle, onClose, onSuccess }: P
     );
   }
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-gradient-to-br from-[#4B244A] to-[#6B3468] rounded-3xl max-w-md w-full max-h-[90vh] overflow-y-auto border border-white/20 shadow-2xl">
         {/* Header */}
         <div className="sticky top-0 bg-white/10 backdrop-blur-xl border-b border-white/20 p-6 flex items-center justify-between">
@@ -173,7 +178,7 @@ export default function PaymentModal({ amount, jobTitle, onClose, onSuccess }: P
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 bg-[#EA526F] rounded-lg flex items-center justify-center text-white font-bold text-xl">
+                  <div className="w-12 h-12 !bg-[#EA526F] rounded-lg flex items-center justify-center !text-white font-bold text-xl">
                     C
                   </div>
                   <div className="text-left flex-1">
@@ -206,4 +211,6 @@ export default function PaymentModal({ amount, jobTitle, onClose, onSuccess }: P
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }

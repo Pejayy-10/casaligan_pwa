@@ -281,25 +281,36 @@ export default function ChatPage() {
   const isSecurityBlocked = !!securityBlockedUntil && new Date(securityBlockedUntil) > new Date();
 
    return (
-    <div className="fixed inset-0 flex flex-col bg-[#F8F9FA] dark:bg-slate-950 transition-colors duration-300">
+    <div className="fixed inset-0 flex flex-col bg-[#F8F9FA] dark:bg-slate-950 transition-colors duration-300 ">
       {/* Header */}
-      <header className="bg-gradient-to-r from-[#4B244A] to-[#6B3468] dark:from-[#2a1429] dark:to-[#4a2448] px-4 py-3 flex items-center gap-3 shrink-0 safe-area-top shadow-md z-10">
-        <button
-          onClick={() => navigate('/messages')}
-          className="text-white/80 hover:text-white p-2 -ml-2 rounded-full hover:bg-white/10 transition-colors"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        
-        <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center text-white font-bold text-lg shrink-0 shadow-sm">
-          {displayName[0]?.toUpperCase() || '?'}
-        </div>
-        
-        <div className="flex-1 min-w-0">
-          <h1 className="text-white font-bold truncate">{displayName}</h1>
-          {displayTitle && <p className="text-white/70 text-xs truncate font-medium">{displayTitle}</p>}
+        <header className="sticky top-0 z-40 bg-gray-50 dark:bg-white/10 dark:backdrop-blur-xl border-b border-gray-200 dark:border-white/20 transition-all safe-area-top">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center gap-3">
+          {/* Back Button */}
+          <button
+            onClick={() => navigate('/messages')}
+            className="text-gray-600 dark:text-white/80 hover:bg-black/5 dark:hover:bg-white/10 p-2 -ml-2 rounded-full transition-colors"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+      
+          {/* Avatar/Initial Circular Placeholder */}
+          <div className="w-10 h-10 bg-gray-200 dark:bg-white/20 rounded-full flex items-center justify-center text-gray-700 dark:text-white font-bold text-lg shrink-0 shadow-sm">
+            {displayName[0]?.toUpperCase() || '?'}
+          </div>
+      
+          {/* Title and Subtitle Container */}
+          <div className="flex-1 min-w-0">
+            <h1 className="text-gray-900 dark:text-white font-bold truncate">
+              {displayName}
+            </h1>
+            {displayTitle && (
+              <p className="text-gray-500 dark:text-white/70 text-xs truncate font-medium">
+                {displayTitle}
+              </p>
+            )}
+          </div>
         </div>
       </header>
 

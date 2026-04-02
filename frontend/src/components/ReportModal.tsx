@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { API_BASE_URL } from '../config';
 import { Megaphone } from 'lucide-react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 const resolveUploadUrl = (url: string) => {
   if (!url) return '';
@@ -37,6 +38,9 @@ const ReportModal: React.FC<ReportModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  // Lock background scroll when modal is open
+  useScrollLock(isOpen);
 
   if (!isOpen) return null;
 

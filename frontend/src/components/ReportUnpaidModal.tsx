@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import { AlertTriangle, Calendar, FileText, Camera, Upload, Clock } from 'lucide-react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 const resolveUploadUrl = (url: string) => {
   if (!url) return '';
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export default function ReportUnpaidModal({ jobId, jobTitle, pendingPayments, onClose, onSuccess }: Props) {
+  useScrollLock(true);
   const [reason, setReason] = useState('');
   const [daysOverdue, setDaysOverdue] = useState<number | undefined>();
   const [submitting, setSubmitting] = useState(false);

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { API_BASE_URL } from '../config';
 import { X, AlertTriangle, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface JobEditResponseModalProps {
   jobId: number;
@@ -17,6 +18,7 @@ export default function JobEditResponseModal({
   onClose,
   onResponse
 }: JobEditResponseModalProps) {
+  useScrollLock(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState<{ type: 'accept' | 'reject'; message: string } | null>(null);
@@ -181,7 +183,7 @@ export default function JobEditResponseModal({
                 <button
                   onClick={() => handleResponse('accept')}
                   disabled={loading}
-                  className="w-full px-6 py-3 bg-[#EA526F] text-white rounded-xl hover:bg-[#d4486a] transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30 flex items-center justify-center gap-2"
+                  className="w-full px-6 py-3 !bg-[#EA526F] !text-white rounded-xl hover:bg-[#d4486a] transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30 flex items-center justify-center gap-2"
                 >
                   {loading ? (
                     <>

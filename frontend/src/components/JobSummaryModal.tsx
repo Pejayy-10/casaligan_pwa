@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface WorkerSummary {
   contract_id: number;
@@ -62,6 +63,7 @@ interface Props {
 }
 
 export default function JobSummaryModal({ jobId, onClose }: Props) {
+  useScrollLock(true);
   const [data, setData] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

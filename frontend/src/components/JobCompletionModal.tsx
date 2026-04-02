@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { API_BASE_URL } from '../config';
 import { CheckCircle, ClipboardList, Camera, Clock, Upload, FileText, AlertTriangle } from 'lucide-react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 const resolveUploadUrl = (url: string) => {
   if (!url) return '';
@@ -21,6 +22,9 @@ export default function JobCompletionModal({ jobId, jobTitle, onClose, onSuccess
   const [uploading, setUploading] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Lock background scroll when modal is open
+  useScrollLock(true);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

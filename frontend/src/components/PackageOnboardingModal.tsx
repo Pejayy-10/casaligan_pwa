@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Check } from 'lucide-react';
 import PackageManagement from './PackageManagement';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface PackageOnboardingModalProps {
   onClose: () => void;
@@ -8,6 +9,7 @@ interface PackageOnboardingModalProps {
 }
 
 export default function PackageOnboardingModal({ onClose, onComplete }: PackageOnboardingModalProps) {
+  useScrollLock(true);
   const [showPackageForm, setShowPackageForm] = useState(false);
 
   const handleSkip = () => {
@@ -53,10 +55,10 @@ export default function PackageOnboardingModal({ onClose, onComplete }: PackageO
           <div className="p-6">
             <PackageManagement embedded />
             
-            <div className="mt-6 flex justify-end">
+            <div className="mt-6 flex justify-center">
               <button
                 onClick={handlePackageComplete}
-                className="px-6 py-3 bg-[#EA526F] text-white font-semibold rounded-xl hover:bg-[#d64460] transition-all shadow-md"
+                className="px-6 py-3 !bg-[#EA526F] !text-white font-semibold rounded-xl hover:bg-[#d64460] transition-all shadow-md"
               >
                 Done Setting Up
               </button>
@@ -127,7 +129,7 @@ export default function PackageOnboardingModal({ onClose, onComplete }: PackageO
           <div className="space-y-3">
             <button
               onClick={handleSetupNow}
-              className="w-full py-4 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all shadow-lg shadow-[#EA526F]/20 flex items-center justify-center gap-2"
+              className="w-full py-4 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d64460] transition-all shadow-lg shadow-[#EA526F]/20 flex items-center justify-center gap-2"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />

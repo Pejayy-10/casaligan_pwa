@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Bot, X, Send, Sparkles } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface User {
   id: number;

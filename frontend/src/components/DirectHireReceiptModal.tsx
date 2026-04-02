@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { API_BASE_URL } from '../config';
 import { Calendar, CreditCard, MapPin, Receipt, User, X } from 'lucide-react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface ReceiptPackage {
   package_id: number;
@@ -54,6 +56,7 @@ const formatMethod = (method: string | null) => {
 };
 
 export default function DirectHireReceiptModal({ hireId, onClose }: Props) {
+  useScrollLock(true);
   const [data, setData] = useState<DirectHireReceipt | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -96,10 +99,11 @@ export default function DirectHireReceiptModal({ hireId, onClose }: Props) {
     };
   }, [hireId]);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+  return createPortal(
+    (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
-        <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10 p-4 flex items-center justify-between z-10">
+        <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10 p-4 flex items-center justify-between z-[9998]">
           <h2 className="text-xl font-bold text-[#4B244A] dark:text-white flex items-center gap-2">
             <Receipt className="w-5 h-5" /> Direct Hire Receipt
           </h2>
@@ -191,5 +195,7 @@ export default function DirectHireReceiptModal({ hireId, onClose }: Props) {
         </div>
       </div>
     </div>
+    ),
+    document.body
   );
 }

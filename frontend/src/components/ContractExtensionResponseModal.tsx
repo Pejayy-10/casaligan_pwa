@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Calendar, DollarSign, FileText, X, Check, XCircle, AlertCircle, User } from 'lucide-react';
 import { API_BASE_URL } from '../config';
 import { useConfirmDialog } from './useConfirmDialog';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 export interface PendingExtension {
   extension_id: number;
@@ -30,6 +31,7 @@ export default function ContractExtensionResponseModal({
   extension,
   onSuccess
 }: ContractExtensionResponseModalProps) {
+  useScrollLock(isOpen);
   const { confirm, confirmDialog } = useConfirmDialog();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');

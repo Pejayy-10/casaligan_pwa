@@ -5,6 +5,7 @@ import { API_BASE_URL } from '../config';
 import TabBar from '../components/TabBar';
 import type { User } from '../types';
 import { CheckCircle2 } from 'lucide-react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -128,6 +129,9 @@ export default function ApplyHousekeeperPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [approved, setApproved] = useState(false);
+
+  // Lock background scroll when page/modal is open
+  useScrollLock(true);
 
   // ── Guards ─────────────────────────────────────────────────────────────────
 

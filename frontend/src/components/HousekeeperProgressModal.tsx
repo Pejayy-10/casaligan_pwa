@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import { BarChart2, DollarSign, AlertTriangle, User, Phone, PartyPopper, CheckCircle, Check } from 'lucide-react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface PaymentWarning {
   schedule_id: number;
@@ -42,6 +43,7 @@ interface Props {
 }
 
 export default function HousekeeperProgressModal({ jobId, onClose, onSubmitCompletion }: Props) {
+  useScrollLock(true);
   const [progress, setProgress] = useState<HousekeeperProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

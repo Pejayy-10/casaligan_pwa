@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import { usePayment } from '../context/PaymentContext';
 import { DollarSign, Clock, CheckCircle, ClipboardList, Camera, FileText, Lightbulb, RotateCw, AlertTriangle, Loader2 } from 'lucide-react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface WorkerCompletion {
   contract_id: number;
@@ -41,6 +42,9 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
   const [loading, setLoading] = useState(true);
   const [processingWorker, setProcessingWorker] = useState<number | null>(null);
   const { initiatePayment } = usePayment();
+
+  // Lock background scroll when modal is open
+  useScrollLock(true);
 
   useEffect(() => {
     loadDetails();
@@ -343,7 +347,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                                 startShortTermPaymentFlow(worker);
                               }}
                               disabled={processingWorker === worker.contract_id}
-                              className="w-full py-2 bg-[#EA526F] text-white font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-1"
+                              className="w-full py-2 !bg-[#EA526F] !text-white font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-1"
                             >
                               {processingWorker === worker.contract_id ? <Loader2 className="w-4 h-4 animate-spin" /> : <DollarSign className="inline w-4 h-4" />} Pay Now
                             </button>

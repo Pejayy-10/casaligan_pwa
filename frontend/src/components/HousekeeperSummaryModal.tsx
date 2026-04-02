@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { API_BASE_URL } from '../config';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 const resolveMediaUrl = (url: string | null | undefined): string => {
   if (!url) return '';
@@ -59,6 +60,7 @@ interface Props {
 }
 
 export default function HousekeeperSummaryModal({ jobId, onClose }: Props) {
+  useScrollLock(true);
   const [data, setData] = useState<HousekeeperSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');

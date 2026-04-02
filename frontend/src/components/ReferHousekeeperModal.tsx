@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Search, Check, Loader2, Users, Send } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface Owner {
   user_id: number;
@@ -17,6 +19,7 @@ interface Props {
 }
 
 export default function ReferHousekeeperModal({ isOpen, onClose, workerId, workerName }: Props) {
+  useScrollLock(isOpen);
   const [owners, setOwners] = useState<Owner[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -121,8 +124,8 @@ export default function ReferHousekeeperModal({ isOpen, onClose, workerId, worke
     return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col border border-gray-200 dark:border-white/20 shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="px-5 py-4 border-b border-gray-200 dark:border-white/10 flex items-center justify-between flex-shrink-0">
@@ -244,7 +247,7 @@ export default function ReferHousekeeperModal({ isOpen, onClose, workerId, worke
               <button
                 onClick={handleRefer}
                 disabled={selectedOwners.size === 0 || sending}
-                className="w-full py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2"
+                className="w-full py-3 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d64460] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-md flex items-center justify-center gap-2"
               >
                 {sending ? (
                   <>
@@ -263,4 +266,6 @@ export default function ReferHousekeeperModal({ isOpen, onClose, workerId, worke
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }

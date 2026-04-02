@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, User, FileText, Calendar, DollarSign, CheckCircle } from 'lucide-react';
 import { API_BASE_URL } from '../config';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface JobInfo {
   post_id: number;
@@ -21,6 +22,8 @@ interface ApplicationAcceptedModalProps {
 export default function ApplicationAcceptedModal({ jobId, onClose }: ApplicationAcceptedModalProps) {
   const [jobInfo, setJobInfo] = useState<JobInfo | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useScrollLock(true);
 
   useEffect(() => {
     fetchJobInfo();

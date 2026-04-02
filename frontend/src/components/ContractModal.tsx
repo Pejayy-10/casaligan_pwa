@@ -1,5 +1,7 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Loader2, Check} from 'lucide-react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface ContractModalProps {
   jobTitle: string;
@@ -33,6 +35,7 @@ export default function ContractModal({
   onAccept, 
   onReject 
 }: ContractModalProps) {
+  useScrollLock(true);
   const [workerSignature, setWorkerSignature] = useState(workerName || '');
   const [agreed, setAgreed] = useState(false);
   const [accepting, setAccepting] = useState(false);
@@ -89,8 +92,8 @@ export default function ContractModal({
   const labelStyle = "text-[#4B244A]/60 dark:text-white/60 text-sm font-medium";
   const valueStyle = "text-[#4B244A] dark:text-white font-semibold";
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl">
         {/* Header */}
         <div className="sticky top-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-gray-200 dark:border-white/10 px-6 py-4 flex items-center justify-between z-10">
@@ -246,15 +249,15 @@ export default function ContractModal({
               />
             </div>
 
-            <div className="flex items-start gap-3">
+            <div className="flex items-start gap-4">
               <input
                 type="checkbox"
                 id="agree"
                 checked={agreed}
                 onChange={(e) => setAgreed(e.target.checked)}
-                className="mt-1 w-8 h-8 rounded border-gray-300 dark:border-white/30 text-[#EA526F] focus:ring-[#EA526F]"
+                className="mt-1 w-6 h-6 flex-shrink-0 rounded border-2 border-gray-300 dark:border-white/30 text-[#EA526F] focus:ring-2 focus:ring-[#EA526F] cursor-pointer"
               />
-              <label htmlFor="agree" className="text-[#4B244A] dark:text-white text-sm font-medium">
+              <label htmlFor="agree" className="text-[#4B244A] dark:text-white text-sm font-medium cursor-pointer">
                 I have read and agree to all terms and conditions stated in this contract. 
                 I understand my responsibilities and the payment terms. I agree to fulfill my duties as described.
               </label>
@@ -298,4 +301,6 @@ export default function ContractModal({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }

@@ -392,7 +392,7 @@ export default function WorkerProfilePage() {
       </div>
 
       {/* Header */}
-      <header className="relative z-10 bg-gray-50 dark:bg-white/10 dark:backdrop-blur-xl border-b border-gray-200 dark:border-white/20 transition-all safe-area-top">
+      <header className="sticky top-0 z-40 bg-gray-50 dark:bg-white/10 dark:backdrop-blur-xl border-b border-gray-200 dark:border-white/20 transition-all safe-area-top">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center gap-3">
                   <button 

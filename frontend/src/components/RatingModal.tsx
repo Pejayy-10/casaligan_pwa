@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import StarRating from './StarRating';
 import { Star } from 'lucide-react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface RatingModalProps {
   isOpen: boolean;
@@ -21,6 +23,9 @@ const RatingModal: React.FC<RatingModalProps> = ({
   const [review, setReview] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Lock background scroll when modal is open
+  useScrollLock(isOpen);
 
   if (!isOpen) return null;
 
@@ -56,8 +61,8 @@ const RatingModal: React.FC<RatingModalProps> = ({
 
   const ratingLabels = ['', 'Poor', 'Fair', 'Good', 'Very Good', 'Excellent'];
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+  const modalContent = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-all"
@@ -138,7 +143,7 @@ const RatingModal: React.FC<RatingModalProps> = ({
           <button
             onClick={handleSubmit}
             disabled={isSubmitting || rating === 0}
-            className="flex-1 px-4 py-3 bg-[#EA526F] text-white rounded-xl font-bold hover:bg-[#d64460] disabled:bg-gray-300 dark:disabled:bg-white/10 disabled:text-gray-500 dark:disabled:text-white/50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30 active:scale-95"
+            className="flex-1 px-4 py-3 !bg-[#EA526F] !text-white rounded-xl font-bold hover:bg-[#d64460] disabled:bg-gray-300 dark:disabled:bg-white/10 disabled:text-gray-500 dark:disabled:text-white/50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30 active:scale-95"
           >
             {isSubmitting ? (
               <div className="flex items-center justify-center gap-2">
@@ -153,6 +158,8 @@ const RatingModal: React.FC<RatingModalProps> = ({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 };
 
 export default RatingModal;

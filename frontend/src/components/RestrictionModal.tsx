@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface RestrictionModalProps {
   message: string;
@@ -6,6 +7,7 @@ interface RestrictionModalProps {
 }
 
 export default function RestrictionModal({ message, onClose }: RestrictionModalProps) {
+  useScrollLock(true);
   useEffect(() => {
     // Auto-close and redirect after 3 seconds
     const timeout = setTimeout(() => {
