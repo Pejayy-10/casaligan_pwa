@@ -29,6 +29,8 @@ interface WorkerProfile {
   user_id: number;
   first_name: string;
   last_name: string;
+  gender?: string | null;
+  relationship_status?: string | null;
   city: string | null;
   barangay: string | null;
   province?: string | null;
@@ -92,6 +94,8 @@ export default function BrowseWorkersPage() {
   const [loading, setLoading] = useState(true);
   const [searchCity, setSearchCity] = useState('');
   const [searchName, setSearchName] = useState('');
+  const [sexFilter, setSexFilter] = useState<string>('');
+  const [relationshipFilter, setRelationshipFilter] = useState<string>('');
   const [minRating, setMinRating] = useState<number | ''>('');
   const [sortBy, setSortBy] = useState<string>('');
   
@@ -316,12 +320,21 @@ export default function BrowseWorkersPage() {
     }
   };
 
-  const loadWorkers = async (city?: string, rating?: number, sort?: string, name?: string) => {
+  const loadWorkers = async (
+    city?: string,
+    rating?: number,
+    sort?: string,
+    name?: string,
+    sex?: string,
+    relationshipStatus?: string
+  ) => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
       if (city) params.append('city', city);
       if (name) params.append('name', name);
+      if (sex) params.append('sex', sex);
+      if (relationshipStatus) params.append('relationship_status', relationshipStatus);
       if (rating) params.append('min_rating', rating.toString());
       if (sort) params.append('sort_by', sort);
       
@@ -374,19 +387,38 @@ export default function BrowseWorkersPage() {
       searchCity.trim() || undefined, 
       minRating || undefined,
       sortBy || undefined,
-      searchName.trim() || undefined
+      searchName.trim() || undefined,
+      sexFilter || undefined,
+      relationshipFilter || undefined
     );
   };
 
-  const handleFilterChange = (newRating: number | '', newSort: string) => {
+  const handleFilterChange = (
+    newRating: number | '',
+    newSort: string,
+    newSex: string = sexFilter,
+    newRelationship: string = relationshipFilter
+  ) => {
     setMinRating(newRating);
     setSortBy(newSort);
+    setSexFilter(newSex);
+    setRelationshipFilter(newRelationship);
     loadWorkers(
       searchCity.trim() || undefined,
       newRating || undefined,
       newSort || undefined,
-      searchName.trim() || undefined
+      searchName.trim() || undefined,
+      newSex || undefined,
+      newRelationship || undefined
     );
+  };
+
+  const formatRelationshipStatus = (value?: string | null): string => {
+    if (!value) return 'Not specified';
+    return value
+      .split('_')
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
   };
 
   const handleViewProfile = (workerId: number) => {
@@ -686,6 +718,40 @@ export default function BrowseWorkersPage() {
                           </select>
                           <Filter className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 group-hover:text-[#EA526F] transition-colors pointer-events-none" />
                       </div>
+
+                          {/* Sex Filter */}
+                          <div className="relative flex-shrink-0 group">
+                            <select
+                              value={sexFilter}
+                              onChange={(e) => handleFilterChange(minRating, sortBy, e.target.value, relationshipFilter)}
+                              className="cursor-pointer appearance-none pl-3.5 pr-9 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 rounded-xl text-xs sm:text-sm font-semibold text-[#4B244A] dark:text-white shadow-sm hover:border-[#EA526F]/50 focus:border-[#EA526F] focus:ring-2 focus:ring-[#EA526F]/20 outline-none transition-all"
+                            >
+                              <option value="">Sex: Any</option>
+                              <option value="male">Male</option>
+                              <option value="female">Female</option>
+                              <option value="other">Other</option>
+                              <option value="prefer_not_to_say">Prefer not to say</option>
+                            </select>
+                            <Filter className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 group-hover:text-[#EA526F] transition-colors pointer-events-none" />
+                          </div>
+
+                          {/* Relationship Status Filter */}
+                          <div className="relative flex-shrink-0 group">
+                            <select
+                              value={relationshipFilter}
+                              onChange={(e) => handleFilterChange(minRating, sortBy, sexFilter, e.target.value)}
+                              className="cursor-pointer appearance-none pl-3.5 pr-9 py-2 bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 rounded-xl text-xs sm:text-sm font-semibold text-[#4B244A] dark:text-white shadow-sm hover:border-[#EA526F]/50 focus:border-[#EA526F] focus:ring-2 focus:ring-[#EA526F]/20 outline-none transition-all"
+                            >
+                              <option value="">Relationship: Any</option>
+                              <option value="single">Single</option>
+                              <option value="married">Married</option>
+                              <option value="in_a_relationship">In a relationship</option>
+                              <option value="widowed">Widowed</option>
+                              <option value="separated">Separated</option>
+                              <option value="prefer_not_to_say">Prefer not to say</option>
+                            </select>
+                            <Filter className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 group-hover:text-[#EA526F] transition-colors pointer-events-none" />
+                          </div>
                   </div>
               </div>
           </div>
@@ -711,7 +777,16 @@ export default function BrowseWorkersPage() {
                     : "There are no housekeepers in this area yet."}
                 </p>
                 <button 
-                    onClick={() => { setSelectedCategory(''); setSearchCity(''); setSearchName(''); }}
+                  onClick={() => {
+                    setSelectedCategory('');
+                    setSearchCity('');
+                    setSearchName('');
+                    setSexFilter('');
+                    setRelationshipFilter('');
+                    setMinRating('');
+                    setSortBy('');
+                    loadWorkers();
+                  }}
                     className="mt-4 text-[#EA526F] font-bold text-sm hover:underline"
                 >
                     Clear all filters
@@ -777,6 +852,15 @@ export default function BrowseWorkersPage() {
                                     <div className="flex items-center gap-1.5 mt-1 text-xs text-gray-500 dark:text-gray-400 truncate">
                                         <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
                                         {worker.barangay && `${worker.barangay}, `}{worker.city}
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-1.5 mt-2">
+                                      <span className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-white/10 text-[10px] font-semibold text-gray-700 dark:text-gray-300">
+                                        Sex: {worker.gender ? worker.gender.replace(/_/g, ' ') : 'Not specified'}
+                                      </span>
+                                      <span className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-white/10 text-[10px] font-semibold text-gray-700 dark:text-gray-300">
+                                        Relationship: {formatRelationshipStatus(worker.relationship_status)}
+                                      </span>
                                     </div>
                                 </div>
                             </div>

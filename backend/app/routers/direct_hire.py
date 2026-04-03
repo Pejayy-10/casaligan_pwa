@@ -1837,6 +1837,8 @@ def confirm_payment_received(
 def browse_workers(
     city: Optional[str] = None,
     name: Optional[str] = None,
+    sex: Optional[str] = None,
+    relationship_status: Optional[str] = None,
     min_rating: Optional[float] = None,
     sort_by: Optional[str] = None,  # "rating", "jobs_completed", "location"
     employer_city: Optional[str] = None,
@@ -1887,6 +1889,18 @@ def browse_workers(
     for worker in workers:
         user = db.query(User).filter(User.id == worker.user_id).first()
         address = db.query(Address).filter(Address.user_id == worker.user_id).first()
+
+        # Filter by sex if specified
+        if sex:
+            user_gender = user.gender.value if getattr(user, "gender", None) else None
+            if not user_gender or user_gender.lower() != sex.strip().lower():
+                continue
+
+        # Filter by relationship status if specified
+        if relationship_status:
+            user_relationship = (getattr(user, "relationship_status", None) or "").strip().lower()
+            if not user_relationship or user_relationship != relationship_status.strip().lower():
+                continue
         
         # Filter by city if specified
         if city and address and address.city_name and address.city_name.lower() != city.lower():
@@ -1989,6 +2003,8 @@ def browse_workers(
             "user_id": worker.user_id,
             "first_name": user.first_name,
             "last_name": user.last_name,
+            "gender": user.gender.value if getattr(user, "gender", None) else None,
+            "relationship_status": user.relationship_status,
             "city": address.city_name if address else None,
             "barangay": address.barangay_name if address else None,
             "province": address.province_name if address else None,
