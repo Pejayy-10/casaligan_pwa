@@ -40,6 +40,9 @@ from app.utils.platform_fees import get_direct_hire_fee_percentage
 
 router = APIRouter(prefix="/direct-hire", tags=["direct-hire"])
 
+MIN_SAME_DAY_LEAD_MINUTES = 30
+MIN_DURATION_MINUTES = 60
+
 
 # ============== HELPER FUNCTIONS ==============
 
@@ -165,6 +168,60 @@ def _should_reset_fee_for_next_cycle(*, current_date: date, next_date: date, fre
 
 def _is_short_term_weekly_recurring(hire: DirectHire) -> bool:
     return bool(getattr(hire, "is_recurring", False)) and ((getattr(hire, "frequency", None) or "").lower() == "weekly")
+
+
+def _parse_hhmm_to_minutes(value: Optional[str]) -> Optional[int]:
+    if not value:
+        return None
+    try:
+        hour, minute = value.split(":")
+        h = int(hour)
+        m = int(minute)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Time must be in HH:MM format") from exc
+
+    if h < 0 or h > 23 or m < 0 or m > 59:
+        raise HTTPException(status_code=400, detail="Time must be in HH:MM format")
+
+    return h * 60 + m
+
+
+def _validate_time_window(start_time: Optional[str], end_time: Optional[str], label: str, min_minutes: int = MIN_DURATION_MINUTES) -> None:
+    start_minutes = _parse_hhmm_to_minutes(start_time)
+    end_minutes = _parse_hhmm_to_minutes(end_time)
+
+    if start_minutes is None or end_minutes is None:
+        raise HTTPException(status_code=400, detail=f"{label}: start time and end time are required")
+    if end_minutes <= start_minutes:
+        raise HTTPException(status_code=400, detail=f"{label}: end time must be later than start time")
+    if (end_minutes - start_minutes) < min_minutes:
+        raise HTTPException(status_code=400, detail=f"{label}: minimum duration is {min_minutes} minutes")
+
+
+def _validate_same_day_lead_time(scheduled_date: date, start_time: Optional[str], label: str) -> None:
+    if not start_time:
+        return
+
+    now = datetime.now()
+    if scheduled_date != now.date():
+        return
+
+    start_minutes = _parse_hhmm_to_minutes(start_time)
+    if start_minutes is None:
+        return
+
+    start_hour = start_minutes // 60
+    start_minute = start_minutes % 60
+    scheduled_start = datetime.combine(scheduled_date, datetime.min.time()).replace(
+        hour=start_hour,
+        minute=start_minute,
+    )
+    minimum_allowed = now + timedelta(minutes=MIN_SAME_DAY_LEAD_MINUTES)
+    if scheduled_start < minimum_allowed:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{label} must be at least {MIN_SAME_DAY_LEAD_MINUTES} minutes from now for same-day bookings",
+        )
 
 
 def _ensure_hire_date_reached(hire: DirectHire, *, action: str) -> None:
@@ -665,6 +722,13 @@ def create_direct_hire(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="One or more packages are invalid or not available"
         )
+
+    # Date should never be in the past.
+    if hire_data.scheduled_date < datetime.now().date():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Scheduled date cannot be in the past"
+        )
     
     # Calculate total amount
     total_amount = sum(float(p.price) for p in packages)
@@ -703,6 +767,13 @@ def create_direct_hire(
         frequency = hire_data.recurring_schedule.frequency
         recurring_status = "active"
 
+        if not day_of_week:
+            raise HTTPException(status_code=400, detail="Recurring bookings require a day of week")
+        if not frequency:
+            raise HTTPException(status_code=400, detail="Recurring bookings require a frequency")
+        _validate_time_window(start_time, end_time, label="Recurring schedule")
+        _validate_same_day_lead_time(hire_data.scheduled_date, start_time, label="Recurring start time")
+
     initial_platform_fee_status = "pending"
     if is_recurring and (frequency or "").lower() == "weekly":
         initial_platform_fee_status = "pending_owner_weekly"
@@ -714,6 +785,7 @@ def create_direct_hire(
     hire_num_days = max_pkg_num_days
     # If the owner provided start/end times, use them; otherwise compute from package duration
     hire_daily_start = hire_data.daily_start_time or "08:00"
+    _parse_hhmm_to_minutes(hire_daily_start)
     # Compute end time from package duration if not provided
     if hire_data.daily_end_time:
         hire_daily_end = hire_data.daily_end_time
@@ -721,6 +793,10 @@ def create_direct_hire(
         start_hour = int(hire_daily_start.split(":")[0])
         end_hour = min(start_hour + max_pkg_duration_hours, 23)
         hire_daily_end = f"{end_hour:02d}:00"
+
+    _validate_time_window(hire_daily_start, hire_daily_end, label="Daily schedule")
+    if not is_recurring:
+        _validate_same_day_lead_time(hire_data.scheduled_date, hire_daily_start, label="Daily start time")
     # Compute end_date for multi-day hires
     hire_end_date = None
     if hire_num_days > 1:
