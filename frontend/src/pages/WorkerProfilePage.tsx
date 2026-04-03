@@ -63,6 +63,8 @@ interface WorkerProfile {
   portfolio_photos?: PortfolioPhoto[];
 }
 
+const MIN_SAME_DAY_LEAD_MINUTES = 30;
+
 export default function WorkerProfilePage() {
   const navigate = useNavigate();
   const { workerId } = useParams<{ workerId: string }>();
@@ -245,11 +247,23 @@ export default function WorkerProfilePage() {
       .reduce((sum, p) => sum + p.price, 0);
   };
 
+  const parseTimeToMinutes = (value: string): number => {
+    const [h, m] = value.split(':').map(Number);
+    return (h * 60) + m;
+  };
+
   const handleHire = async () => {
     if (!profile || selectedPackages.length === 0) return;
     
     if (!scheduledDate) {
       alert('Please select a date');
+      return;
+    }
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    if (scheduledDate < todayStr) {
+      alert('Scheduled date cannot be in the past');
       return;
     }
 
@@ -281,6 +295,15 @@ export default function WorkerProfilePage() {
     if (!isRecurring && !startTime) {
       alert('Please select a start time');
       return;
+    }
+
+    if (scheduledDate === todayStr && startTime) {
+      const nowMinutes = (now.getHours() * 60) + now.getMinutes();
+      const startMinutes = parseTimeToMinutes(startTime);
+      if ((startMinutes - nowMinutes) < MIN_SAME_DAY_LEAD_MINUTES) {
+        alert(`For same-day bookings, start time must be at least ${MIN_SAME_DAY_LEAD_MINUTES} minutes from now.`);
+        return;
+      }
     }
 
     // Validate custom address if not using registered address
