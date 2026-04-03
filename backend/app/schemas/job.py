@@ -3,7 +3,10 @@ Job posting schemas based on ForumPost model
 """
 from pydantic import BaseModel, Field, model_validator
 from typing import Optional, List
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+
+
+MIN_SAME_DAY_LEAD_MINUTES = 30
 
 
 def _parse_hhmm(value: Optional[str]) -> Optional[int]:
@@ -75,7 +78,8 @@ class JobPostCreate(BaseModel):
 
     @model_validator(mode="after")
     def validate_dates_and_times(self):
-        today = date.today()
+        now = datetime.now()
+        today = now.date()
 
         if not self.start_date:
             raise ValueError("Start date is required")
@@ -106,6 +110,32 @@ class JobPostCreate(BaseModel):
                 label="Daily schedule",
                 min_minutes=60,
             )
+
+        # For same-day postings, the first shift must still be in the future
+        # with a minimum lead window so workers have time to see/apply.
+        if self.start_date == today:
+            start_minutes: Optional[int] = None
+            time_label = "start time"
+
+            if self.recurring_schedule and self.recurring_schedule.is_recurring:
+                start_minutes = _parse_hhmm(self.recurring_schedule.start_time)
+                time_label = "Recurring start time"
+            elif self.multi_day_schedule:
+                start_minutes = _parse_hhmm(self.multi_day_schedule.daily_start_time)
+                time_label = "Daily start time"
+
+            if start_minutes is not None:
+                start_hour = start_minutes // 60
+                start_minute = start_minutes % 60
+                shift_start = datetime.combine(self.start_date, datetime.min.time()).replace(
+                    hour=start_hour,
+                    minute=start_minute,
+                )
+                minimum_allowed = now + timedelta(minutes=MIN_SAME_DAY_LEAD_MINUTES)
+                if shift_start < minimum_allowed:
+                    raise ValueError(
+                        f"{time_label} must be at least {MIN_SAME_DAY_LEAD_MINUTES} minutes from now for same-day jobs"
+                    )
 
         return self
 

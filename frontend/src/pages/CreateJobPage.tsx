@@ -44,6 +44,8 @@ type JobAISuggestions = {
   };
 };
 
+const MIN_SAME_DAY_LEAD_MINUTES = 30;
+
 const resolveUploadUrl = (url: string) => {
   if (!url) return '';
   return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
@@ -533,6 +535,25 @@ export default function CreateJobPage() {
           errors.end_time = 'Recurring end time must be later than recurring start time.';
         } else if ((recurringEnd - recurringStart) < minDurationMinutes) {
           errors.end_time = 'Recurring schedule must be at least 1 hour.';
+        }
+      }
+    }
+
+    const selectedStartDate = formData.duration_type === 'short_term' ? formData.job_date : formData.start_date;
+    const selectedStartTime = formData.is_recurring ? formData.start_time : formData.daily_start_time;
+
+    if (selectedStartDate === todayStr && selectedStartTime) {
+      const now = new Date();
+      const startMinutes = parseTimeToMinutes(selectedStartTime);
+      const nowMinutes = (now.getHours() * 60) + now.getMinutes();
+      const minutesUntilStart = startMinutes - nowMinutes;
+
+      if (minutesUntilStart < MIN_SAME_DAY_LEAD_MINUTES) {
+        const message = `For same-day jobs, start time must be at least ${MIN_SAME_DAY_LEAD_MINUTES} minutes from now.`;
+        if (formData.is_recurring) {
+          errors.start_time = message;
+        } else {
+          errors.daily_start_time = message;
         }
       }
     }
