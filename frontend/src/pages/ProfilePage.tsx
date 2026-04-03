@@ -48,7 +48,6 @@ export default function ProfilePage() {
   const [loadingPortfolio, setLoadingPortfolio] = useState(false);
   const [portfolioUploading, setPortfolioUploading] = useState(false);
   const [portfolioCategory, setPortfolioCategory] = useState('credentials');
-  const [portfolioCaption, setPortfolioCaption] = useState('');
   const [portfolioError, setPortfolioError] = useState('');
   const portfolioFileRef = useRef<HTMLInputElement>(null);
 
@@ -754,7 +753,7 @@ export default function ProfilePage() {
             },
             body: JSON.stringify({
               image_url: uploadData.url,
-              caption: portfolioCaption || null,
+              caption: null,
               category: portfolioCategory,
             }),
           });
@@ -764,7 +763,6 @@ export default function ProfilePage() {
           }
         }
       }
-      setPortfolioCaption('');
     } catch {
       setPortfolioError('Failed to upload. Please try again.');
     } finally {
@@ -785,6 +783,30 @@ export default function ProfilePage() {
       }
     } catch {
       console.error('Failed to delete photo');
+    }
+  };
+
+  const handleReclassifyLegacyPhoto = async (photoId: number, category: 'work_sample_before' | 'work_sample_after') => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE_URL}/portfolio/${photoId}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ category }),
+      });
+
+      if (!res.ok) {
+        setPortfolioError('Failed to update photo category. Please try again.');
+        return;
+      }
+
+      const updated = await res.json();
+      setPortfolioPhotos(prev => prev.map(photo => (photo.id === photoId ? updated : photo)));
+    } catch {
+      setPortfolioError('Failed to update photo category. Please try again.');
     }
   };
 
@@ -1828,7 +1850,8 @@ export default function ProfilePage() {
                   <div className="grid grid-cols-2 gap-2">
                     {[
                       { value: 'credentials', label: '📋 Credentials & Certifications' },
-                      { value: 'work_sample', label: '🧹 Work Sample' },
+                      { value: 'work_sample_before', label: '🧽 Work Sample - Before' },
+                      { value: 'work_sample_after', label: '✨ Work Sample - After' },
                     ].map(cat => (
                       <button
                         key={cat.value}
@@ -1844,19 +1867,6 @@ export default function ProfilePage() {
                       </button>
                     ))}
                   </div>
-                </div>
-
-                {/* Caption */}
-                <div>
-                  <label className="block text-xs font-semibold text-[#4B244A]/70 dark:text-white/70 mb-2">Caption (Optional)</label>
-                  <input
-                    type="text"
-                    value={portfolioCaption}
-                    onChange={e => setPortfolioCaption(e.target.value)}
-                    placeholder="E.g. Kitchen deep clean — before and after"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-[#4B244A] dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/50"
-                    maxLength={255}
-                  />
                 </div>
 
                 {/* Upload button */}
@@ -1942,36 +1952,113 @@ export default function ProfilePage() {
                     )}
 
                     {/* ── Work Sample ── */}
-                    {portfolioPhotos.filter(p => p.category === 'work_sample' || p.category === 'before_after').length > 0 && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-base">🧹</span>
-                          <span className="text-[#4B244A] dark:text-white font-bold text-xs">Work Sample</span>
-                          <span className="ml-auto px-2 py-0.5 bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 text-[10px] font-bold rounded-full">
-                            {portfolioPhotos.filter(p => p.category === 'work_sample' || p.category === 'before_after').length}
-                          </span>
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                          {portfolioPhotos.filter(p => p.category === 'work_sample' || p.category === 'before_after').map(photo => (
-                            <div key={photo.id} className="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5">
-                              <img src={photo.image_url} alt={photo.caption || 'Work Sample'} className="w-full h-32 object-cover" />
-                              <button
-                                type="button"
-                                onClick={() => handleDeletePortfolioPhoto(photo.id)}
-                                className="absolute top-2 right-2 p-1.5 bg-red-500/90 text-white rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-lg"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                              <div className="p-2">
-                                {photo.caption && (
-                                  <p className="text-[#4B244A]/70 dark:text-white/70 text-xs truncate">{photo.caption}</p>
-                                )}
+                    {(() => {
+                      const beforePhotos = portfolioPhotos.filter(p => p.category === 'work_sample_before');
+                      const afterPhotos = portfolioPhotos.filter(p => p.category === 'work_sample_after');
+                      const legacyWorkPhotos = portfolioPhotos.filter(p => p.category === 'work_sample' || p.category === 'before_after');
+                      const pairedCount = Math.max(beforePhotos.length, afterPhotos.length);
+
+                      if (pairedCount === 0 && legacyWorkPhotos.length === 0) {
+                        return null;
+                      }
+
+                      return (
+                        <div>
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className="text-base">🧹</span>
+                            <span className="text-[#4B244A] dark:text-white font-bold text-xs">Work Sample (Before &amp; After)</span>
+                            <span className="ml-auto px-2 py-0.5 bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 text-[10px] font-bold rounded-full">
+                              {beforePhotos.length + afterPhotos.length + legacyWorkPhotos.length}
+                            </span>
+                          </div>
+
+                          {pairedCount > 0 && (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              {Array.from({ length: pairedCount }).map((_, idx) => {
+                                const beforePhoto = beforePhotos[idx] || null;
+                                const afterPhoto = afterPhotos[idx] || null;
+
+                                return (
+                                  <div key={`pair-${idx}`} className="rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 overflow-hidden">
+                                    <div className="p-2 bg-amber-50 dark:bg-amber-500/10 border-b border-gray-200 dark:border-white/10 text-[11px] font-bold text-amber-700 dark:text-amber-300">Before</div>
+                                    <div className="relative group">
+                                      {beforePhoto ? (
+                                        <>
+                                          <img src={beforePhoto.image_url} alt="Work Sample Before" className="w-full h-36 object-cover" />
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeletePortfolioPhoto(beforePhoto.id)}
+                                            className="absolute top-2 right-2 p-1.5 bg-red-500/90 text-white rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-lg"
+                                          >
+                                            <X className="w-3 h-3" />
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <div className="h-36 flex items-center justify-center text-xs text-[#4B244A]/40 dark:text-white/40">No before photo</div>
+                                      )}
+                                    </div>
+
+                                    <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 border-y border-gray-200 dark:border-white/10 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">After</div>
+                                    <div className="relative group">
+                                      {afterPhoto ? (
+                                        <>
+                                          <img src={afterPhoto.image_url} alt="Work Sample After" className="w-full h-36 object-cover" />
+                                          <button
+                                            type="button"
+                                            onClick={() => handleDeletePortfolioPhoto(afterPhoto.id)}
+                                            className="absolute top-2 right-2 p-1.5 bg-red-500/90 text-white rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-lg"
+                                          >
+                                            <X className="w-3 h-3" />
+                                          </button>
+                                        </>
+                                      ) : (
+                                        <div className="h-36 flex items-center justify-center text-xs text-[#4B244A]/40 dark:text-white/40">No after photo</div>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {legacyWorkPhotos.length > 0 && (
+                            <div className="mt-4">
+                              <p className="text-[11px] font-semibold text-[#4B244A]/60 dark:text-white/60 mb-2">Unpaired legacy work samples</p>
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                {legacyWorkPhotos.map(photo => (
+                                  <div key={photo.id} className="relative group rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5">
+                                    <img src={photo.image_url} alt="Work Sample" className="w-full h-32 object-cover" />
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeletePortfolioPhoto(photo.id)}
+                                      className="absolute top-2 right-2 p-1.5 bg-red-500/90 text-white rounded-full opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shadow-lg"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                    <div className="p-2 border-t border-gray-200 dark:border-white/10 flex gap-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleReclassifyLegacyPhoto(photo.id, 'work_sample_before')}
+                                        className="flex-1 px-2 py-1 text-[10px] font-bold rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-300 dark:hover:bg-amber-500/30"
+                                      >
+                                        Set Before
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleReclassifyLegacyPhoto(photo.id, 'work_sample_after')}
+                                        className="flex-1 px-2 py-1 text-[10px] font-bold rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-500/20 dark:text-emerald-300 dark:hover:bg-emerald-500/30"
+                                      >
+                                        Set After
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
                             </div>
-                          ))}
+                          )}
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 )}
               </div>

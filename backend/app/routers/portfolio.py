@@ -20,7 +20,7 @@ MAX_PORTFOLIO_PHOTOS = 20  # Max photos per worker
 class PortfolioPhotoCreate(BaseModel):
     image_url: str
     caption: Optional[str] = None
-    category: str = "general"  # 'before_after', 'credentials', 'certification', 'work_sample', 'general'
+    category: str = "general"  # 'work_sample_before', 'work_sample_after', 'before_after', 'credentials', 'certification', 'work_sample', 'general'
 
 
 class PortfolioPhotoResponse(BaseModel):
@@ -121,7 +121,7 @@ def add_portfolio_photo(
         )
 
     # Validate category
-    valid_categories = ['before_after', 'credentials', 'certification', 'work_sample', 'general']
+    valid_categories = ['work_sample_before', 'work_sample_after', 'before_after', 'credentials', 'certification', 'work_sample', 'general']
     if data.category not in valid_categories:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -174,7 +174,7 @@ def add_portfolio_photos_bulk(
             detail=f"Adding these would exceed the limit of {MAX_PORTFOLIO_PHOTOS} photos. You currently have {existing_count}."
         )
 
-    valid_categories = ['before_after', 'credentials', 'certification', 'work_sample', 'general']
+    valid_categories = ['work_sample_before', 'work_sample_after', 'before_after', 'credentials', 'certification', 'work_sample', 'general']
     created = []
     for p in photos:
         cat = p.category if p.category in valid_categories else 'general'
@@ -226,7 +226,7 @@ def update_portfolio_photo(
     if data.caption is not None:
         photo.caption = data.caption
     if data.category is not None:
-        valid_categories = ['before_after', 'credentials', 'certification', 'work_sample', 'general']
+        valid_categories = ['work_sample_before', 'work_sample_after', 'before_after', 'credentials', 'certification', 'work_sample', 'general']
         if data.category not in valid_categories:
             raise HTTPException(status_code=400, detail=f"Invalid category. Must be one of: {', '.join(valid_categories)}")
         photo.category = data.category

@@ -624,7 +624,9 @@ export default function WorkerProfilePage() {
 
             {/* ── Work Sample Section ── */}
             {(() => {
-              const workPhotos = profile.portfolio_photos!.filter(p => p.category === 'work_sample' || p.category === 'before_after' || p.category === 'general');
+              const workPhotos = profile.portfolio_photos!.filter(
+                p => p.category === 'work_sample' || p.category === 'before_after' || p.category === 'work_sample_before' || p.category === 'work_sample_after' || p.category === 'general'
+              );
               if (workPhotos.length === 0) return null;
               return (
                 <div>
