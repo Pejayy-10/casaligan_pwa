@@ -1326,7 +1326,10 @@ function OwnerJobsContent({
               🧹 {job.cleaning_type}
             </span>
             <span className="px-2.5 py-1 bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-300 rounded-md text-xs font-semibold flex items-center">
-              <DollarSign className="w-3.5 h-3.5 mr-1" /> ₱{job.budget}
+              <DollarSign className="w-3.5 h-3.5 mr-1" />
+              {job.duration_type === 'long_term' && job.payment_schedule
+                ? `₱${job.payment_schedule.payment_amount.toLocaleString()}/${job.payment_schedule.frequency === 'biweekly' ? 'bi-wk' : 'mo'}`
+                : `₱${job.budget}`}
             </span>
             <span className="px-2.5 py-1 bg-purple-50 text-purple-700 dark:bg-purple-500/10 dark:text-purple-300 rounded-md text-xs font-semibold flex items-center">
               <UsersIcon className="w-3.5 h-3.5 mr-1" /> {job.people_needed} needed
@@ -1932,9 +1935,18 @@ function HousekeeperJobsContent({
             )}
             <div className="flex items-start justify-between mb-3 gap-2">
               <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white min-w-0 break-words">{job.title}</h3>
-              <span className="px-4 py-2 bg-[#359126/10 dark:bg-[#359126]/20 !text-[#359126] dark:text-[#359126] rounded-full text-md font-bold whitespace-nowrap">
-                ₱{job.budget}
-              </span>
+              <div className="text-right shrink-0">
+                <span className="px-4 py-2 bg-[#359126/10 dark:bg-[#359126]/20 !text-[#359126] dark:text-[#359126] rounded-full text-md font-bold whitespace-nowrap">
+                  {job.duration_type === 'long_term' && job.payment_schedule
+                    ? `₱${job.payment_schedule.payment_amount.toLocaleString()}`
+                    : `₱${job.budget}`}
+                </span>
+                {job.duration_type === 'long_term' && job.payment_schedule && (
+                  <p className="text-xs text-[#4B244A]/50 dark:text-white/50 mt-0.5 font-medium">
+                    per {job.payment_schedule.frequency === 'biweekly' ? 'bi-weekly cycle' : 'month'}
+                  </p>
+                )}
+              </div>
             </div>
           
             <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 text-sm sm:text-base break-words whitespace-normal">{job.description}</p>

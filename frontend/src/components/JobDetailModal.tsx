@@ -138,9 +138,22 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
             })}
           </div>
 
-          {/* Budget & Status */}
+          {/* Budget / Salary & Status */}
           <div className="flex items-center justify-between">
-            <div className="text-3xl font-bold text-[#EA526F]">₱{job.budget.toLocaleString()}</div>
+            <div>
+              {job.duration_type === 'long_term' && job.payment_schedule ? (
+                <div>
+                  <div className="text-3xl font-bold text-[#EA526F]">
+                    ₱{job.payment_schedule.payment_amount.toLocaleString()}
+                  </div>
+                  <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-0.5 font-medium">
+                    Salary per {job.payment_schedule.frequency === 'biweekly' ? 'bi-weekly cycle' : 'month'}
+                  </p>
+                </div>
+              ) : (
+                <div className="text-3xl font-bold text-[#EA526F]">₱{job.budget.toLocaleString()}</div>
+              )}
+            </div>
             <span className={`px-4 py-2 rounded-full text-sm font-bold ${
               job.status === 'open' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' : 
               job.status === 'in_progress' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' : 

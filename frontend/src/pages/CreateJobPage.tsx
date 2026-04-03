@@ -605,12 +605,17 @@ export default function CreateJobPage() {
       ].filter(Boolean);
       const formattedLocation = locationParts.join(', ');
       
+      // For long-term jobs, use payment_amount as the budget (salary per cycle)
+      const effectiveBudget = formData.duration_type === 'long_term'
+        ? parseFloat(formData.payment_amount) || 0
+        : parseFloat(formData.budget);
+
       const jobData: Record<string, unknown> = {
         title: formData.title,
         description: formData.description,
         house_type: formData.house_type,
         cleaning_type: formData.cleaning_type,
-        budget: parseFloat(formData.budget),
+        budget: effectiveBudget,
         people_needed: parseInt(formData.people_needed),
         image_urls: images,
         duration_type: formData.duration_type,
@@ -632,7 +637,7 @@ export default function CreateJobPage() {
       // Add payment schedule for long-term jobs
       if (formData.duration_type === 'long_term') {
         // No end date for open-ended contracts — payment_amount is the fixed per-cycle amount
-        const perCycleAmount = parseFloat(formData.payment_amount) || parseFloat(formData.budget) || 0;
+        const perCycleAmount = parseFloat(formData.payment_amount) || 0;
         jobData.payment_schedule = {
           frequency: formData.payment_frequency,
           payment_amount: perCycleAmount,
@@ -972,7 +977,9 @@ export default function CreateJobPage() {
                         type="button"
                         onClick={() => setFormData(prev => ({
                           ...prev,
-                          budget: String(Math.round(benchmarkSuggestions.budget.recommended)),
+                          ...(prev.duration_type !== 'long_term'
+                            ? { budget: String(Math.round(benchmarkSuggestions.budget.recommended)) }
+                            : {}),
                           people_needed: String(benchmarkSuggestions.recommended_people_needed),
                           ...(formData.duration_type === 'short_term'
                             ? { num_days: String(Math.max(1, Math.min(13, benchmarkSuggestions.recommended_num_days))) }
@@ -1118,6 +1125,7 @@ export default function CreateJobPage() {
                   )}
                 </div>
 
+                {formData.duration_type !== 'long_term' && (
                 <div>
                   <label className={labelClass}>Budget (₱) *</label>
                   <input
@@ -1146,6 +1154,7 @@ export default function CreateJobPage() {
                     </div>
                   )}
                 </div>
+                )}
 
                 <div>
                   <label className={labelClass}>People Needed *</label>
@@ -1626,8 +1635,7 @@ export default function CreateJobPage() {
                 <div className="bg-blue-100 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 rounded-xl p-4">
                   <p className="text-blue-800 dark:text-blue-200 text-sm font-bold mb-2">How Payment Works</p>
                   <p className="text-blue-700 dark:text-blue-200/80 text-xs font-medium">
-                    Since this is an open-ended contract, the <strong>Budget (₱{formData.budget || '0'})</strong> you entered is for reference. 
-                    The actual recurring payment is the salary you set above — paid {formData.payment_frequency === 'biweekly' ? 'every 14 days' : 'once a month'} per housekeeper until you cancel the contract.
+                    Since this is an open-ended contract, the salary you set above is the fixed amount paid {formData.payment_frequency === 'biweekly' ? 'every 14 days' : 'once a month'} per housekeeper until you cancel the contract.
                   </p>
                   {parseInt(formData.people_needed) > 1 && formData.payment_amount && (
                     <p className="text-orange-600 dark:text-yellow-300 text-xs mt-2 font-bold">
