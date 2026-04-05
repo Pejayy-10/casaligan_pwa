@@ -284,7 +284,7 @@ export default function ContractModal({
             <button
               onClick={handleAccept}
               disabled={!workerSignature.trim() || !agreed || accepting}
-              className="flex-1 px-6 py-4 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white font-bold rounded-xl hover:from-[#d4486a] hover:to-[#c2375b] transition-all shadow-lg shadow-[#EA526F]/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 px-6 py-4 bg-gradient-to-r from-[#EA526F] to-[#d4486a] !text-white font-bold rounded-xl hover:from-[#d4486a] hover:to-[#c2375b] transition-all shadow-lg shadow-[#EA526F]/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {accepting ? (
                 <>
