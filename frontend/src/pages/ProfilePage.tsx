@@ -1847,26 +1847,15 @@ export default function ProfilePage() {
                 {/* Category selector */}
                 <div>
                   <label className="block text-xs font-semibold text-[#4B244A]/70 dark:text-white/70 mb-2">Category</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {[
-                      { value: 'credentials', label: '📋 Credentials & Certifications' },
-                      { value: 'work_sample_before', label: '🧽 Work Sample - Before' },
-                      { value: 'work_sample_after', label: '✨ Work Sample - After' },
-                    ].map(cat => (
-                      <button
-                        key={cat.value}
-                        type="button"
-                        onClick={() => setPortfolioCategory(cat.value)}
-                        className={`px-3 py-2 rounded-xl text-sm font-medium text-left transition-all border ${
-                          portfolioCategory === cat.value
-                            ? 'bg-purple-500/20 border-purple-500 text-purple-700 dark:text-purple-300'
-                            : 'bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 text-[#4B244A]/70 dark:text-white/70 hover:bg-gray-100 dark:hover:bg-white/10'
-                        }`}
-                      >
-                        {portfolioCategory === cat.value ? '✓ ' : ''}{cat.label}
-                      </button>
-                    ))}
-                  </div>
+                  <select
+                    value={portfolioCategory}
+                    onChange={(e) => setPortfolioCategory(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl text-sm font-medium border bg-white dark:bg-slate-800 border-gray-200 dark:border-white/10 text-[#4B244A] dark:text-white focus:outline-none focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F]"
+                  >
+                    <option value="credentials">Credentials and Certifications</option>
+                    <option value="work_sample_before">Work Sample - Before</option>
+                    <option value="work_sample_after">Work Sample - After</option>
+                  </select>
                 </div>
 
                 {/* Upload button */}
@@ -1923,7 +1912,6 @@ export default function ProfilePage() {
                     {portfolioPhotos.filter(p => p.category === 'credentials' || p.category === 'certification').length > 0 && (
                       <div>
                         <div className="flex items-center gap-2 mb-2">
-                          <span className="text-base">📋</span>
                           <span className="text-[#4B244A] dark:text-white font-bold text-xs">Credentials &amp; Certifications</span>
                           <span className="ml-auto px-2 py-0.5 bg-purple-100 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300 text-[10px] font-bold rounded-full">
                             {portfolioPhotos.filter(p => p.category === 'credentials' || p.category === 'certification').length}
@@ -1965,7 +1953,6 @@ export default function ProfilePage() {
                       return (
                         <div>
                           <div className="flex items-center gap-2 mb-2">
-                            <span className="text-base">🧹</span>
                             <span className="text-[#4B244A] dark:text-white font-bold text-xs">Work Sample (Before &amp; After)</span>
                             <span className="ml-auto px-2 py-0.5 bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 text-[10px] font-bold rounded-full">
                               {beforePhotos.length + afterPhotos.length + legacyWorkPhotos.length}

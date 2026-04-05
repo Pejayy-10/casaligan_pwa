@@ -8,6 +8,7 @@ import ReferHousekeeperModal from './ReferHousekeeperModal';
 import DirectHireReceiptModal from './DirectHireReceiptModal';
 import apiClient from '../services/api';
 import { usePayment } from '../context/PaymentContext';
+import { DirectHiresSkeleton } from './Skeleton';
 
 const resolveUploadUrl = (url: string) => {
   if (!url) return '';
@@ -843,9 +844,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
       {/* Content */}
       <div className="p-6">
           {loading ? (
-            <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#EA526F]"></div>
-            </div>
+            <DirectHiresSkeleton />
           ) : hires.length === 0 ? (
             <div className="text-center py-8 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-xl border border-white/50 dark:border-white/10">
               <div className="text-4xl mb-2 opacity-50">📭</div>

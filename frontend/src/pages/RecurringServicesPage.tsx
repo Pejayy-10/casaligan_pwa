@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { RotateCw, X, ClipboardList, Briefcase, Calendar, ChevronDown, CheckCircle } from 'lucide-react';
 import type { User } from '../types';
 import apiClient from '../services/api';
+import { PageSkeleton } from '../components/Skeleton';
 
 interface RecurringJobPost {
   post_id: number;
@@ -364,10 +365,7 @@ return (
       {/* MAIN CONTENT (Scrollable List) */}
       <main className="relative z-10 max-w-4xl mx-auto px-4 py-6">
         {loading ? (
-          <div className="text-center py-20">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#EA526F]"></div>
-            <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading recurring services...</p>
-          </div>
+          <PageSkeleton titleWidth="w-52" withFilters rows={5} />
         ) : allServices.length === 0 ? (
           <div className="text-center py-20 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-white/50 dark:border-white/10 shadow-lg">
             <div className="text-6xl mb-4 opacity-50">🔄</div>

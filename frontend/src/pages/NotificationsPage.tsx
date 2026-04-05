@@ -7,6 +7,7 @@ import JobDetailModal from '../components/JobDetailModal';
 import ApplicantsListModal from '../components/ApplicantsListModal';
 import ApplicationAcceptedModal from '../components/ApplicationAcceptedModal';
 import { API_BASE_URL } from '../config';
+import { NotificationsPageSkeleton } from '../components/Skeleton';
 
 interface Notification {
   notification_id: number;
@@ -377,10 +378,7 @@ export default function NotificationsPage() {
       {/* Notifications List */}
       <div className="max-w-4xl mx-auto px-4 py-6">
         {loading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#E7467B] dark:border-[#EA526F] mx-auto"></div>
-            <p className="text-gray-600 dark:text-white/70 mt-4">Loading notifications...</p>
-          </div>
+          <NotificationsPageSkeleton />
         ) : notifications.length === 0 ? (
           <div className="text-center py-12">
             <Bell className="w-12 h-12 text-gray-300 dark:text-white/30 mx-auto mb-4" />

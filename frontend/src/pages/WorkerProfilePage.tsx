@@ -6,6 +6,7 @@ import StarRating from '../components/StarRating';
 import { psgcService } from '../services/psgc';
 import { API_BASE_URL } from '../config';
 import type { PSGCRegion, PSGCProvince, PSGCCity, PSGCBarangay } from '../types';
+import { PageSkeleton } from '../components/Skeleton';
 
 interface WorkerPackage {
   package_id: number;
@@ -383,10 +384,9 @@ export default function WorkerProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300 flex items-center justify-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#EA526F]"></div>
-          <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading profile...</p>
+      <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300">
+        <div className="max-w-4xl mx-auto px-4 py-6">
+          <PageSkeleton titleWidth="w-52" withFilters rows={5} />
         </div>
       </div>
     );

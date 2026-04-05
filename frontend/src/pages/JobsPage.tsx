@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { API_BASE_URL } from '../config';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, DollarSign, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X, ChevronLeft, ChevronRight, FileText, Loader2 } from 'lucide-react';
+import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X, ChevronLeft, ChevronRight, FileText, Loader2 } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import JobDetailModal, { type JobPost } from '../components/JobDetailModal';
 import ApplicantsListModal from '../components/ApplicantsListModal';
@@ -27,6 +27,7 @@ import ReferHousekeeperModal from '../components/ReferHousekeeperModal';
 import apiClient from '../services/api';
 import type { User } from '../types';
 import { useScrollLock } from '../hooks/useScrollLock';
+import { JobsPageSkeleton } from '../components/Skeleton';
 
 export default function JobsPage() {
   const navigate = useNavigate();
@@ -642,15 +643,9 @@ export default function JobsPage() {
       {/* Main Content */}
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-6">
         {user.active_role === 'owner' && loading ? (
-          <div className="text-center py-20">
-            <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#EA526F]"></div>
-            <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading your job posts...</p>
-          </div>
+          <JobsPageSkeleton />
         ) : loading && housekeeperView === 'find' ? (
-          <div className="text-center py-20">
-            <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#EA526F]"></div>
-            <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading jobs...</p>
-          </div>
+          <JobsPageSkeleton />
         ) : user.active_role === 'owner' ? (
           <OwnerJobsContent 
             jobs={jobs} 
@@ -1349,7 +1344,6 @@ function OwnerJobsContent({
               🧹 {job.cleaning_type}
             </span>
             <span className="px-2.5 py-1 bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-300 rounded-md text-xs font-semibold flex items-center">
-              <DollarSign className="w-3.5 h-3.5 mr-1" />
               {job.duration_type === 'long_term' && job.payment_schedule
                 ? `₱${job.payment_schedule.payment_amount.toLocaleString()}/${job.payment_schedule.frequency === 'biweekly' ? 'bi-wk' : 'mo'}`
                 : `₱${job.budget}`}

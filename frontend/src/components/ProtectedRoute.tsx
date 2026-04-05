@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { authService } from '../services/auth';
+import { PageSkeleton } from './Skeleton';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -84,29 +85,10 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
   // Show loading while checking restriction (only on first mount)
   if (checking) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        height: '100vh',
-        flexDirection: 'column',
-        gap: '1rem'
-      }}>
-        <div style={{ 
-          width: '40px', 
-          height: '40px', 
-          border: '4px solid #f3f3f3',
-          borderTop: '4px solid #3498db',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite'
-        }}></div>
-        <p>Loading...</p>
-        <style>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
+      <div className="min-h-screen bg-white dark:bg-slate-950 transition-colors duration-300">
+        <div className="max-w-5xl mx-auto px-4 py-8">
+          <PageSkeleton titleWidth="w-52" withFilters rows={5} />
+        </div>
       </div>
     );
   }

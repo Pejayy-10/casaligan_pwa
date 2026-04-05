@@ -7,6 +7,7 @@ import StarRating from '../components/StarRating';
 import { authService } from '../services/auth';
 import { psgcService } from '../services/psgc';
 import type { PSGCRegion, PSGCProvince, PSGCCity, PSGCBarangay } from '../types';
+import { PageSkeleton } from '../components/Skeleton';
 
 interface WorkerPackage {
   package_id: number;
@@ -676,7 +677,8 @@ export default function BrowseWorkersPage() {
                   </div>
       
                   {/* Scrollable Filters - Customized Dropdown Look */}
-                  <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-hide -mx-4 px-4 sm:mx-0 sm:px-0">
+                  <div className="-mx-4 px-4 overflow-x-auto pb-1 scrollbar-hide sm:mx-0 sm:px-0 sm:overflow-visible">
+                    <div className="flex min-w-max gap-2.5 sm:min-w-0 sm:flex-wrap sm:justify-center">
                       {/* Category Dropdown */}
                       <div className="relative flex-shrink-0 group">
                           <select
@@ -752,6 +754,7 @@ export default function BrowseWorkersPage() {
                             </select>
                             <Filter className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 group-hover:text-[#EA526F] transition-colors pointer-events-none" />
                           </div>
+                    </div>
                   </div>
               </div>
           </div>
@@ -761,10 +764,7 @@ export default function BrowseWorkersPage() {
         
         {/* 3. Workers List (Filtered) */}
         {loading ? (
-           <div className="flex flex-col items-center justify-center py-20">
-             <div className="w-12 h-12 border-4 border-[#EA526F]/30 border-t-[#EA526F] rounded-full animate-spin"></div>
-             <p className="mt-4 text-gray-500 font-medium">Finding housekeepers...</p>
-           </div>
+            <PageSkeleton titleWidth="w-52" withFilters rows={5} />
         ) : filteredWorkers.length === 0 ? (
             <div className="text-center py-20 px-6 bg-white dark:bg-slate-900 rounded-3xl border border-dashed border-gray-300 dark:border-white/10">
                 <div className="w-16 h-16 bg-gray-100 dark:bg-white/5 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -802,7 +802,7 @@ export default function BrowseWorkersPage() {
                      return (
                         <div 
                             key={worker.worker_id}
-                            className={`group relative bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 ${
+                        className={`group relative h-full bg-white dark:bg-slate-900 rounded-2xl p-4 sm:p-5 border transition-all duration-300 hover:shadow-lg hover:-translate-y-1 flex flex-col ${
                                 hasSelectedCategory 
                                 ? 'border-[#EA526F] ring-1 ring-[#EA526F]/20' 
                                 : 'border-gray-200 dark:border-white/5 hover:border-[#EA526F]/30'
@@ -870,26 +870,37 @@ export default function BrowseWorkersPage() {
 
                             {/* Packages */}
                             <div className="space-y-2">
-                                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Starting Packages</p>
-                                <div className="flex flex-wrap gap-2">
-                                    {worker.packages.slice(0, 3).map((pkg) => (
-                                        <div key={pkg.package_id} className="px-3 py-1.5 bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-lg flex items-center gap-2 group-hover:border-[#EA526F]/20 transition-colors">
-                                            <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{pkg.name}</span>
-                                            <span className="text-xs font-bold text-[#EA526F]">₱{pkg.price}</span>
-                                        </div>
-                                    ))}
-                                    {worker.packages.length > 3 && (
-                                        <span className="px-2 py-1.5 text-xs font-medium text-gray-400">
-                                            +{worker.packages.length - 3} more
-                                        </span>
-                                    )}
-                                </div>
+                              <p className="text-xs font-bold text-gray-400 uppercase tracking-wider">Starting Packages</p>
+                              <div className="flex flex-wrap gap-2">
+                                {worker.packages.length > 0 ? (
+                                  <>
+                                  {worker.packages.slice(0, 3).map((pkg, idx) => (
+                                    <div key={pkg.package_id} className={`px-3 py-1.5 bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 rounded-lg items-center gap-2 group-hover:border-[#EA526F]/20 transition-colors ${idx === 2 ? 'hidden sm:flex' : 'flex'}`}>
+                                      <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{pkg.name}</span>
+                                      <span className="text-xs font-bold text-[#EA526F]">₱{pkg.price}</span>
+                                    </div>
+                                  ))}
+                                  {worker.packages.length > 2 && (
+                                    <span className="px-2 py-1.5 text-xs font-medium text-gray-400 sm:hidden">
+                                      {worker.packages.length - 2} more
+                                    </span>
+                                  )}
+                                  {worker.packages.length > 3 && (
+                                    <span className="hidden sm:inline px-2 py-1.5 text-xs font-medium text-gray-400">
+                                      {worker.packages.length - 3} more
+                                    </span>
+                                  )}
+                                  </>
+                                ) : (
+                                  <span className="px-2 py-1.5 text-xs font-medium text-gray-400">No package currently</span>
+                                )}
+                              </div>
                             </div>
 
                             {/* Action Button */}
                             <button
                                 onClick={() => handleViewProfile(worker.worker_id)}
-                                className="mt-4 w-full py-2.5 !bg-[#4B244A] hover:bg-[#381b37] !text-white text-sm font-bold rounded-xl transition-all shadow-md group-hover:shadow-lg flex items-center justify-center gap-2"
+                              className="mt-3 w-full py-2.5 !bg-[#4B244A] hover:bg-[#381b37] !text-white text-sm font-bold rounded-xl transition-all shadow-md group-hover:shadow-lg flex items-center justify-center gap-2"
                             >
                                 View Profile
                             </button>
