@@ -527,13 +527,19 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
     """Register a new user (Step 1: Account & Personal Info) and return access token"""
 
-    def _is_incomplete_registration(user: User) -> bool:
-        """
-        A registration is considered incomplete (abandoned mid-flow) when
-        the user has no address saved yet AND their email has never been
-        verified. Such records are safe to overwrite so the user can retry.
-        """
-        return user.address is None and not user.email_verified
+    def _is_resumable_registration(user: User) -> bool:
+        """An account can resume onboarding while email is still unverified."""
+        return not bool(getattr(user, "email_verified", False))
+
+    def _is_safe_to_delete_stale_registration(user: User) -> bool:
+        """Only delete clearly abandoned Step-1 records with no meaningful progress."""
+        has_docs = len(getattr(user, "documents", []) or []) > 0
+        return (
+            user.address is None
+            and not has_docs
+            and not bool(getattr(user, "email_verified", False))
+            and not bool(getattr(user, "phone_verified", False))
+        )
 
     def _delete_incomplete_user(user: User) -> None:
         """Remove all rows created during an abandoned Step-1 registration."""
@@ -548,30 +554,76 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
         db.delete(user)
         db.flush()
 
-    # Check if email already exists
+    # Check existing records for email/phone and either block or resume onboarding.
     existing_user = db.query(User).filter(User.email == user_data.email).first()
-    if existing_user:
-        if _is_incomplete_registration(existing_user):
-            # Previous registration was abandoned mid-flow — clean it up and allow retry
+    existing_phone = db.query(User).filter(User.phone_number == user_data.phone_number).first()
+
+    # Hard conflicts: already completed account.
+    if existing_user and not _is_resumable_registration(existing_user):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered"
+        )
+    if (
+        existing_phone
+        and (not existing_user or existing_phone.id != existing_user.id)
+        and not _is_resumable_registration(existing_phone)
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Phone number already registered"
+        )
+
+    # If email and phone point to two different unfinished users, try cleaning stale one.
+    if (
+        existing_user
+        and existing_phone
+        and existing_user.id != existing_phone.id
+    ):
+        if _is_safe_to_delete_stale_registration(existing_phone):
+            _delete_incomplete_user(existing_phone)
+            existing_phone = None
+        elif _is_safe_to_delete_stale_registration(existing_user):
             _delete_incomplete_user(existing_user)
+            existing_user = None
         else:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    "We found unfinished registrations using this email/phone. "
+                    "Please log in with your existing account to continue registration."
+                )
             )
 
-    # Check if phone number already exists
-    existing_phone = db.query(User).filter(User.phone_number == user_data.phone_number).first()
-    if existing_phone:
-        if _is_incomplete_registration(existing_phone):
-            # Only delete if not already deleted above (different email, same phone)
-            if existing_phone.email != user_data.email:
-                _delete_incomplete_user(existing_phone)
-        else:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Phone number already registered"
-            )
+    resumable_user = existing_user or existing_phone
+
+    # Resume unfinished registration by updating Step-1 data and issuing a fresh token.
+    if resumable_user and _is_resumable_registration(resumable_user):
+        resumable_user.email = user_data.email
+        resumable_user.phone_number = user_data.phone_number
+        resumable_user.password_hash = get_password_hash(user_data.password)
+        resumable_user.first_name = user_data.first_name
+        resumable_user.middle_name = user_data.middle_name
+        resumable_user.last_name = user_data.last_name
+        resumable_user.suffix = user_data.suffix
+        resumable_user.gender = user_data.gender
+        resumable_user.relationship_status = user_data.relationship_status
+        resumable_user.birthday = user_data.birthday
+        # Keep this account in onboarding state until verification is completed.
+        resumable_user.status = "active"
+
+        if not resumable_user.employer:
+            db.add(Employer(user_id=resumable_user.id))
+
+        db.commit()
+        db.refresh(resumable_user)
+
+        access_token = create_access_token(data={"sub": resumable_user.email})
+        return {
+            "access_token": access_token,
+            "token_type": "bearer",
+            "user": resumable_user
+        }
     
     # Create new user - owners are active by default, housekeepers need approval
     db_user = User(
