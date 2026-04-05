@@ -44,12 +44,12 @@ type JobAISuggestions = {
   };
 };
 
-const MIN_SAME_DAY_LEAD_MINUTES = 30;
-
 const resolveUploadUrl = (url: string) => {
   if (!url) return '';
   return /^https?:\/\//i.test(url) ? url : `${API_BASE_URL}${url}`;
 };
+
+const MIN_SAME_DAY_LEAD_MINUTES = 30;
 
 export default function CreateJobPage() {
   const navigate = useNavigate();
@@ -106,6 +106,7 @@ export default function CreateJobPage() {
   const [benchmarkSuggestions, setBenchmarkSuggestions] = useState<JobBenchmarkSuggestions | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<JobAISuggestions | null>(null);
+  const [isSmartSuggestionsOpen, setIsSmartSuggestionsOpen] = useState(false);
   const [regions, setRegions] = useState<PSGCRegion[]>([]);
   const [provinces, setProvinces] = useState<PSGCProvince[]>([]);
   const [cities, setCities] = useState<PSGCCity[]>([]);
@@ -609,7 +610,7 @@ export default function CreateJobPage() {
       const effectiveBudget = formData.duration_type === 'long_term'
         ? parseFloat(formData.payment_amount) || 0
         : parseFloat(formData.budget);
-
+      
       const jobData: Record<string, unknown> = {
         title: formData.title,
         description: formData.description,
@@ -949,123 +950,135 @@ export default function CreateJobPage() {
                       <p className="text-purple-700 dark:text-purple-200 text-sm font-bold">Smart Suggestions</p>
                       <p className="text-[#4B244A]/70 dark:text-white/70 text-xs">Suggestions are assistive only and won’t overwrite fields unless you apply them.</p>
                     </div>
-                    {benchmarkLoading && <span className="text-purple-600 dark:text-purple-300 text-xs font-semibold">Updating...</span>}
-                  </div>
-
-                  {benchmarkSuggestions ? (
-                    <div className="space-y-4">
-                      <p className="text-purple-700 dark:text-purple-200 text-xs leading-relaxed">
-                        Based on {benchmarkSuggestions.meta.sample_size} similar completed jobs • Scope: {benchmarkSuggestions.meta.scope} • Confidence: {benchmarkSuggestions.meta.confidence}
-                      </p>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                        <div className="p-3 bg-white/80 dark:bg-white/5 border border-purple-200/80 dark:border-purple-500/20 rounded-xl">
-                          <p className="text-[#4B244A] dark:text-white text-[11px] font-semibold uppercase tracking-wide">Budget range</p>
-                          <p className="text-[#4B244A]/85 dark:text-white/85 text-sm font-bold mt-1">₱{Math.round(benchmarkSuggestions.budget.min)} - ₱{Math.round(benchmarkSuggestions.budget.max)}</p>
-                        </div>
-                        <div className="p-3 bg-white/80 dark:bg-white/5 border border-purple-200/80 dark:border-purple-500/20 rounded-xl">
-                          <p className="text-[#4B244A] dark:text-white text-[11px] font-semibold uppercase tracking-wide">Recommended workers</p>
-                          <p className="text-[#4B244A]/85 dark:text-white/85 text-sm font-bold mt-1">{benchmarkSuggestions.recommended_people_needed} worker(s)</p>
-                        </div>
-                        <div className="p-3 bg-white/80 dark:bg-white/5 border border-purple-200/80 dark:border-purple-500/20 rounded-xl">
-                          <p className="text-[#4B244A] dark:text-white text-[11px] font-semibold uppercase tracking-wide">Recommended days</p>
-                          <p className="text-[#4B244A]/85 dark:text-white/85 text-sm font-bold mt-1">{Math.max(1, Math.min(13, benchmarkSuggestions.recommended_num_days))} day(s)</p>
-                        </div>
-                      </div>
-
+                    <div className="flex items-center gap-2">
+                      {benchmarkLoading && <span className="text-purple-600 dark:text-purple-300 text-xs font-semibold">Updating...</span>}
                       <button
                         type="button"
-                        onClick={() => setFormData(prev => ({
-                          ...prev,
-                          ...(prev.duration_type !== 'long_term'
-                            ? { budget: String(Math.round(benchmarkSuggestions.budget.recommended)) }
-                            : {}),
-                          people_needed: String(benchmarkSuggestions.recommended_people_needed),
-                          ...(formData.duration_type === 'short_term'
-                            ? { num_days: String(Math.max(1, Math.min(13, benchmarkSuggestions.recommended_num_days))) }
-                            : {}),
-                        }))}
-                        className="w-full p-3.5 bg-[#EA526F] text-white text-sm font-bold rounded-xl hover:bg-[#d64460] transition-colors shadow-sm"
+                        onClick={() => setIsSmartSuggestionsOpen((prev) => !prev)}
+                        aria-label={isSmartSuggestionsOpen ? 'Hide smart suggestions' : 'Show smart suggestions'}
+                        className="w-10 h-10 inline-flex items-center justify-center bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors"
                       >
-                        Apply all recommended values
+                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isSmartSuggestionsOpen ? 'rotate-180' : ''}`} />
                       </button>
+                    </div>
+                  </div>
 
-                      <div className="space-y-2">
-                        <p className="text-[#4B244A] dark:text-white text-xs font-semibold">Quick title ideas</p>
-                        <div className="flex flex-wrap gap-2">
-                          {benchmarkSuggestions.quick_suggestions.titles.map((title, idx) => (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => setFormData(prev => ({ ...prev, title }))}
-                              className="px-3 py-1.5 text-xs bg-white/90 dark:bg-white/10 border border-purple-200/80 dark:border-purple-500/20 rounded-full text-[#4B244A] dark:text-white hover:bg-white dark:hover:bg-white/20 transition-colors"
-                            >
-                              {title}
-                            </button>
-                          ))}
+                  {isSmartSuggestionsOpen ? (
+                    benchmarkSuggestions ? (
+                      <div className="space-y-4">
+                        <p className="text-purple-700 dark:text-purple-200 text-xs leading-relaxed">
+                          Based on {benchmarkSuggestions.meta.sample_size} similar completed jobs • Scope: {benchmarkSuggestions.meta.scope} • Confidence: {benchmarkSuggestions.meta.confidence}
+                        </p>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          <div className="p-3 bg-white/80 dark:bg-white/5 border border-purple-200/80 dark:border-purple-500/20 rounded-xl">
+                            <p className="text-[#4B244A] dark:text-white text-[11px] font-semibold uppercase tracking-wide">Budget range</p>
+                            <p className="text-[#4B244A]/85 dark:text-white/85 text-sm font-bold mt-1">₱{Math.round(benchmarkSuggestions.budget.min)} - ₱{Math.round(benchmarkSuggestions.budget.max)}</p>
+                          </div>
+                          <div className="p-3 bg-white/80 dark:bg-white/5 border border-purple-200/80 dark:border-purple-500/20 rounded-xl">
+                            <p className="text-[#4B244A] dark:text-white text-[11px] font-semibold uppercase tracking-wide">Recommended workers</p>
+                            <p className="text-[#4B244A]/85 dark:text-white/85 text-sm font-bold mt-1">{benchmarkSuggestions.recommended_people_needed} worker(s)</p>
+                          </div>
+                          <div className="p-3 bg-white/80 dark:bg-white/5 border border-purple-200/80 dark:border-purple-500/20 rounded-xl">
+                            <p className="text-[#4B244A] dark:text-white text-[11px] font-semibold uppercase tracking-wide">Recommended days</p>
+                            <p className="text-[#4B244A]/85 dark:text-white/85 text-sm font-bold mt-1">{Math.max(1, Math.min(13, benchmarkSuggestions.recommended_num_days))} day(s)</p>
+                          </div>
                         </div>
-                      </div>
 
-                      <div className="space-y-2">
-                        <p className="text-[#4B244A] dark:text-white text-xs font-semibold">Quick description starter</p>
                         <button
                           type="button"
                           onClick={() => setFormData(prev => ({
                             ...prev,
-                            description: benchmarkSuggestions.quick_suggestions.descriptions.join(' '),
+                            ...(prev.duration_type !== 'long_term'
+                              ? { budget: String(Math.round(benchmarkSuggestions.budget.recommended)) }
+                              : {}),
+                            people_needed: String(benchmarkSuggestions.recommended_people_needed),
+                            ...(prev.duration_type === 'short_term'
+                              ? { num_days: String(Math.max(1, Math.min(13, benchmarkSuggestions.recommended_num_days))) }
+                              : {}),
                           }))}
-                          className="w-full text-left p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl hover:bg-white dark:hover:bg-white/10 transition-colors"
+                          className="w-full p-3.5 !bg-[#EA526F] !text-white text-sm font-bold rounded-xl hover:bg-[#d64460] transition-colors shadow-sm"
                         >
-                          <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">Apply a pre-filled description based on similar jobs</p>
+                          Apply all recommended values
                         </button>
-                      </div>
 
-                      <div className="pt-3 border-t border-blue-200/70 dark:border-blue-500/20 space-y-2">
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="text-[#4B244A] dark:text-white text-xs font-semibold">AI assistant suggestions</p>
-                          {aiLoading && <span className="text-[#4B244A]/70 dark:text-white/70 text-xs font-semibold">Analyzing...</span>}
+                        <div className="space-y-2">
+                          <p className="text-[#4B244A] dark:text-white text-xs font-semibold">Quick title ideas</p>
+                          <div className="flex flex-wrap gap-2">
+                            {benchmarkSuggestions.quick_suggestions.titles.map((title, idx) => (
+                              <button
+                                key={idx}
+                                type="button"
+                                onClick={() => setFormData(prev => ({ ...prev, title }))}
+                                className="px-3 py-1.5 text-xs bg-white/90 dark:bg-white/10 border border-purple-200/80 dark:border-purple-500/20 rounded-full text-[#4B244A] dark:text-white hover:bg-white dark:hover:bg-white/20 transition-colors"
+                              >
+                                {title}
+                              </button>
+                            ))}
+                          </div>
                         </div>
 
-                        {aiSuggestions ? (
-                          <div className="space-y-2.5 p-3 bg-white/60 dark:bg-white/5 border border-blue-200/60 dark:border-blue-500/20 rounded-xl">
-                            <p className="text-[#4B244A]/70 dark:text-white/70 text-xs">
-                              Source: {aiSuggestions.source === 'ai' ? 'AI-generated' : 'Smart fallback'}
-                            </p>
+                        <div className="space-y-2">
+                          <p className="text-[#4B244A] dark:text-white text-xs font-semibold">Quick description starter</p>
+                          <button
+                            type="button"
+                            onClick={() => setFormData(prev => ({
+                              ...prev,
+                              description: benchmarkSuggestions.quick_suggestions.descriptions.join(' '),
+                            }))}
+                            className="w-full text-left p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl hover:bg-white dark:hover:bg-white/10 transition-colors"
+                          >
+                            <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">Apply a pre-filled description based on similar jobs</p>
+                          </button>
+                        </div>
 
-                            {aiSuggestions.title_options?.length > 0 && (
-                              <div className="flex flex-wrap gap-2">
-                                {aiSuggestions.title_options.map((title, idx) => (
-                                  <button
-                                    key={`ai-title-${idx}`}
-                                    type="button"
-                                    onClick={() => setFormData(prev => ({ ...prev, title }))}
-                                    className="px-3 py-1.5 text-xs bg-white/90 dark:bg-white/10 border border-blue-200/80 dark:border-blue-500/20 rounded-full text-[#4B244A] dark:text-white hover:bg-white dark:hover:bg-white/20 transition-colors"
-                                  >
-                                    {title}
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-
-                            {!!aiSuggestions.description_draft && (
-                              <button
-                                type="button"
-                                onClick={() => setFormData(prev => ({ ...prev, description: aiSuggestions.description_draft }))}
-                                className="w-full text-left p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl hover:bg-white dark:hover:bg-white/10 transition-colors"
-                              >
-                                <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">Use AI description draft</p>
-                              </button>
-                            )}
+                        <div className="pt-3 border-t border-blue-200/70 dark:border-blue-500/20 space-y-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[#4B244A] dark:text-white text-xs font-semibold">AI assistant suggestions</p>
+                            {aiLoading && <span className="text-[#4B244A]/70 dark:text-white/70 text-xs font-semibold">Analyzing...</span>}
                           </div>
-                        ) : (
-                          <p className="text-[#4B244A]/70 dark:text-white/70 text-xs">
-                            Select categories or type title and description to get AI suggestions.
-                          </p>
-                        )}
+
+                          {aiSuggestions ? (
+                            <div className="space-y-2.5 p-3 bg-white/60 dark:bg-white/5 border border-blue-200/60 dark:border-blue-500/20 rounded-xl">
+                              <p className="text-[#4B244A]/70 dark:text-white/70 text-xs">
+                                Source: {aiSuggestions.source === 'ai' ? 'AI-generated' : 'Smart fallback'}
+                              </p>
+
+                              {aiSuggestions.title_options?.length > 0 && (
+                                <div className="flex flex-wrap gap-2">
+                                  {aiSuggestions.title_options.map((title, idx) => (
+                                    <button
+                                      key={`ai-title-${idx}`}
+                                      type="button"
+                                      onClick={() => setFormData(prev => ({ ...prev, title }))}
+                                      className="px-3 py-1.5 text-xs bg-white/90 dark:bg-white/10 border border-blue-200/80 dark:border-blue-500/20 rounded-full text-[#4B244A] dark:text-white hover:bg-white dark:hover:bg-white/20 transition-colors"
+                                    >
+                                      {title}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
+
+                              {!!aiSuggestions.description_draft && (
+                                <button
+                                  type="button"
+                                  onClick={() => setFormData(prev => ({ ...prev, description: aiSuggestions.description_draft }))}
+                                  className="w-full text-left p-3 bg-white/80 dark:bg-white/5 border border-blue-200/80 dark:border-blue-500/20 rounded-xl hover:bg-white dark:hover:bg-white/10 transition-colors"
+                                >
+                                  <p className="text-[#4B244A]/80 dark:text-white/80 text-xs">Use AI description draft</p>
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-blue-700 dark:text-blue-200 text-xs">Suggestions will appear after selecting house type and cleaning type.</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <p className="text-blue-700 dark:text-blue-200 text-xs">Suggestions will appear after selecting house type and cleaning type.</p>
+                    )
                   ) : (
-                    <p className="text-blue-700 dark:text-blue-200 text-xs">Suggestions will appear after selecting house type and cleaning type.</p>
+                    <p className="text-[#4B244A]/70 dark:text-white/70 text-xs">Tap Show to expand smart suggestions.</p>
                   )}
                 </div>
 

@@ -219,19 +219,15 @@ class JobPostResponse(BaseModel):
         # Map job_type enum to duration_type string
         duration_type = "long_term" if post.is_longterm else "short_term"
 
-        recurring_status = getattr(post, 'recurring_status', None)
-        day_of_week = post.day_of_week if hasattr(post, 'day_of_week') else None
-        start_time = post.start_time if hasattr(post, 'start_time') else None
-        end_time = post.end_time if hasattr(post, 'end_time') else None
-        frequency = post.frequency if hasattr(post, 'frequency') else None
-        inferred_is_recurring = bool(
-            (post.is_recurring if hasattr(post, 'is_recurring') else False)
-            or recurring_status is not None
-            or day_of_week
-            or start_time
-            or end_time
-            or frequency
-        )
+        # Use only the explicit is_recurring flag to determine recurring status.
+        # Do NOT infer from recurring_status/day_of_week/etc. because recurring_status
+        # defaults to "active" on all posts, which would incorrectly mark every job as recurring.
+        inferred_is_recurring = bool(post.is_recurring if hasattr(post, 'is_recurring') else False)
+        recurring_status = getattr(post, 'recurring_status', None) if inferred_is_recurring else None
+        day_of_week = (post.day_of_week if hasattr(post, 'day_of_week') else None) if inferred_is_recurring else None
+        start_time = (post.start_time if hasattr(post, 'start_time') else None) if inferred_is_recurring else None
+        end_time = (post.end_time if hasattr(post, 'end_time') else None) if inferred_is_recurring else None
+        frequency = (post.frequency if hasattr(post, 'frequency') else None) if inferred_is_recurring else None
         
         # Build multi-day schedule info
         num_days = getattr(post, 'num_days', None) or custom_fields.get('num_days', 1)

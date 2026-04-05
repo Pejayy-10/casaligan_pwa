@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { API_BASE_URL } from '../config';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, DollarSign, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X, ChevronLeft, ChevronRight, FileText, Loader2 } from 'lucide-react';
+import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X, ChevronLeft, ChevronRight, FileText, Loader2 } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import JobDetailModal, { type JobPost } from '../components/JobDetailModal';
 import ApplicantsListModal from '../components/ApplicantsListModal';
@@ -27,6 +27,7 @@ import ReferHousekeeperModal from '../components/ReferHousekeeperModal';
 import apiClient from '../services/api';
 import type { User } from '../types';
 import { useScrollLock } from '../hooks/useScrollLock';
+import { JobsPageSkeleton } from '../components/Skeleton';
 
 export default function JobsPage() {
   const navigate = useNavigate();
@@ -94,6 +95,9 @@ export default function JobsPage() {
   // Referral state
   const [showReferModal, setShowReferModal] = useState(false);
   const [referWorkerData, setReferWorkerData] = useState<{ workerId: number; workerName: string } | null>(null);
+
+  // Schedule conflict messages per job (set when backend returns 409)
+  const [conflictMessages, setConflictMessages] = useState<Record<number, string>>({});
 
   // Lock background scroll when any modal is open
   const isAnyModalOpen = selectedJob || showApplicants || showPayment || showContract || showPaymentTracker || showProgressTracker || showCheckIn || showHousekeeperProgress || showJobCompletion || showReportUnpaid || showCompletionReview || showPackageManagement || showEditJob || showRatingModal || showReportModal || showHousekeeperReportModal || showExtendContract || showSummaryJobId !== null || showReferModal;
@@ -521,8 +525,8 @@ export default function JobsPage() {
                 {/* 3. Status Filters (Segmented Control) */}
                 <div className="space-y-2">
                     
-                    <div className="overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
-                        <div className="flex gap-1.5 min-w-max p-1.5 bg-gray-100/80 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-white/5">
+                  <div className="pb-1 -mx-4 px-4 overflow-x-auto sm:overflow-visible sm:mx-0 sm:px-0 sm:flex sm:justify-center scrollbar-hide">
+                    <div className="flex min-w-max sm:min-w-0 sm:inline-flex sm:flex-wrap sm:justify-center gap-1.5 p-1.5 bg-gray-100/80 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-white/5 max-w-full">
                             <FilterTab 
                                 active={statusFilter === 'all'} 
                               onClick={() => handleOwnerStatusFilterChange('all')} 
@@ -617,11 +621,11 @@ export default function JobsPage() {
                     
                     {/* Category Filter */}
                     {housekeeperView === 'find' && (
-                        <div className="mt-2">
+                      <div className="mt-2 flex justify-center">
                             <select
                                 value={selectedCategory}
                                 onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : '')}
-                                className="w-full appearance-none px-4 py-2.5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-gray-200 dark:border-white/10 rounded-xl text-sm font-medium text-gray-700 dark:text-white shadow-sm hover:border-[#EA526F]/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] transition-all cursor-pointer"
+                          className="w-full sm:w-[24rem] max-w-full appearance-none px-4 py-2.5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-gray-200 dark:border-white/10 rounded-xl text-sm font-medium text-gray-700 dark:text-white shadow-sm hover:border-[#EA526F]/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] transition-all cursor-pointer"
                             >
                                 <option value="">All Categories</option>
                                 {categories.map(cat => (
@@ -639,15 +643,9 @@ export default function JobsPage() {
       {/* Main Content */}
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-6">
         {user.active_role === 'owner' && loading ? (
-          <div className="text-center py-20">
-            <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#EA526F]"></div>
-            <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading your job posts...</p>
-          </div>
+          <JobsPageSkeleton />
         ) : loading && housekeeperView === 'find' ? (
-          <div className="text-center py-20">
-            <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#EA526F]"></div>
-            <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading jobs...</p>
-          </div>
+          <JobsPageSkeleton />
         ) : user.active_role === 'owner' ? (
           <OwnerJobsContent 
             jobs={jobs} 
@@ -719,6 +717,18 @@ export default function JobsPage() {
           applicationStatus={applicationStatuses[selectedJob.post_id]?.status}
           canReapply={applicationStatuses[selectedJob.post_id]?.can_reapply || false}
           withdrawnDueToConflict={applicationStatuses[selectedJob.post_id]?.withdrawn_due_to_conflict || false}
+          scheduleConflict={conflictMessages[selectedJob.post_id] || null}
+          onClearConflict={() => {
+            // Clear the cached conflict message so the worker can attempt to apply again.
+            // The backend will re-run the conflict check fresh on the next apply attempt.
+            setConflictMessages(prev => {
+              const next = { ...prev };
+              delete next[selectedJob.post_id];
+              return next;
+            });
+            // Immediately re-open the contract modal for a fresh attempt
+            setShowContract(selectedJob);
+          }}
           onStatusRefresh={async () => {
             const token = localStorage.getItem('access_token');
             if (token && selectedJob) {
@@ -771,7 +781,15 @@ export default function JobsPage() {
                 loadJobs();
               } else {
                 const errorData = await response.json();
-                alert(errorData.detail || 'Failed to apply to job');
+                if (response.status === 409) {
+                  // Schedule conflict — close contract modal, keep job detail open, show conflict banner
+                  const conflictMsg = errorData.detail || 'Your schedule conflicts with an existing commitment.';
+                  setConflictMessages(prev => ({ ...prev, [showContract.post_id]: conflictMsg }));
+                  setShowContract(null);
+                  // selectedJob stays open so the user sees the conflict banner
+                } else {
+                  alert(errorData.detail || 'Failed to apply to job');
+                }
               }
             } catch (error) {
               console.error('Apply error:', error);
@@ -1035,7 +1053,7 @@ function FilterTab({
             type="button"
             aria-pressed={active}
             aria-current={active ? 'true' : undefined}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+        className={`min-w-[8.5rem] sm:min-w-0 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${
                 active
                     ? `${activeColor} shadow-md ring-2 ring-[#4B244A]/30 dark:ring-white/30 ring-offset-2 ring-offset-gray-100 dark:ring-offset-slate-800`
                     : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
@@ -1290,7 +1308,7 @@ function OwnerJobsContent({
                 : `Unpublished: pay ₱${Number(job.post_fee_amount || 0).toLocaleString()} (${Number(job.post_fee_percentage || 7)}%) to publish this short-term post.`}
             </div>
           )}
-          <div className="flex items-start justify-between mb-3 gap-2">
+          <div className="flex flex-col items-start mb-3 gap-2">
             <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white break-words min-w-0">{job.title}</h3>
             <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
               showPostFeeGate ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
@@ -1326,7 +1344,6 @@ function OwnerJobsContent({
               🧹 {job.cleaning_type}
             </span>
             <span className="px-2.5 py-1 bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-300 rounded-md text-xs font-semibold flex items-center">
-              <DollarSign className="w-3.5 h-3.5 mr-1" />
               {job.duration_type === 'long_term' && job.payment_schedule
                 ? `₱${job.payment_schedule.payment_amount.toLocaleString()}/${job.payment_schedule.frequency === 'biweekly' ? 'bi-wk' : 'mo'}`
                 : `₱${job.budget}`}
@@ -1549,7 +1566,7 @@ function OwnerJobsContent({
              {/* Edit/Cancel actions for open jobs */}
              {job.status === 'open' && (
                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    <button onClick={() => onEditJob(job)} className="py-2 bg-gray text-gray-700 dark:bg-white/10 dark :text-white text-sm font-bold rounded-lg hover:bg-gray-200 dark:hover:bg-white/20">
+                    <button onClick={() => onEditJob(job)} className="py-2 bg-gray text-gray-700 border border-gray-300 dark:bg-white/10 dark :text-white text-sm font-bold rounded-lg hover:bg-gray-200 dark:hover:bg-white/20">
                         Edit
                     </button>
                     <button 
@@ -1563,7 +1580,7 @@ function OwnerJobsContent({
                           });
                         }} 
                         disabled={actionLoading === `status-${job.post_id}`}
-                        className="py-2 bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white text-sm font-bold rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
+                        className="py-2 bg-gray-100 text-gray-700 border border-gray-300 dark:bg-white/10 dark:text-white text-sm font-bold rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
                     >
                         {actionLoading === `status-${job.post_id}` ? <><Loader2 className="w-4 h-4 animate-spin" /> Cancelling...</> : 'Cancel'}
                     </button>

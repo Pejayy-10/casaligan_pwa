@@ -8,6 +8,7 @@ import apiClient from '../services/api';
 import { API_BASE_URL } from '../config';
 import { Briefcase, ClipboardList, MessageCircle, CheckCircle, DollarSign, AlertCircle, Clock, MapPin, Star, ChevronRight, User as UserIcon, Loader2 } from 'lucide-react';
 import type { User } from '../types';
+import { ListSkeleton, StatGridSkeleton } from '../components/Skeleton';
 
 interface RatingSummary {
   average_rating: number;
@@ -335,10 +336,7 @@ export default function DashboardPage() {
 
         {/* Quick Stats Grid */}
         {loadingAnalytics ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <Loader2 className="w-10 h-10 text-[#EA526F] animate-spin mb-4" />
-            <p className="text-sm font-medium text-gray-400 dark:text-gray-500">Loading dashboard...</p>
-          </div>
+          <StatGridSkeleton />
         ) : (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard 
@@ -386,10 +384,7 @@ export default function DashboardPage() {
 
         {/* Rating Details Section (Housekeeper Only) */}
         {user.active_role === 'housekeeper' && loadingRatings && (
-          <div className="flex flex-col items-center justify-center py-12">
-            <Loader2 className="w-8 h-8 text-[#EA526F] animate-spin mb-3" />
-            <p className="text-sm font-medium text-gray-400 dark:text-gray-500">Loading ratings & reviews...</p>
-          </div>
+          <ListSkeleton rows={2} />
         )}
         {user.active_role === 'housekeeper' && !loadingRatings && (
           <div className="grid md:grid-cols-3 gap-6">

@@ -88,9 +88,11 @@ interface JobDetailModalProps {
   canReapply?: boolean;
   withdrawnDueToConflict?: boolean;
   onStatusRefresh?: () => void;
+  scheduleConflict?: string | null;
+  onClearConflict?: () => void;
 }
 
-export default function JobDetailModal({ job, onClose, onApply, hasApplied = false, applicationStatus, canReapply = false, withdrawnDueToConflict = false, onStatusRefresh }: JobDetailModalProps) {
+export default function JobDetailModal({ job, onClose, onApply, hasApplied = false, applicationStatus, canReapply = false, withdrawnDueToConflict = false, onStatusRefresh, scheduleConflict, onClearConflict }: JobDetailModalProps) {
   const [isApplying, setIsApplying] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -341,6 +343,27 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
         {/* Footer - Apply Button */}
         {onApply && (
           <div className="sticky bottom-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-gray-200 dark:border-white/10 p-6 rounded-b-3xl">
+            {/* Schedule conflict banner */}
+            {scheduleConflict && (
+              <div className="mb-4 flex items-start gap-3 bg-red-50 dark:bg-red-500/10 border border-red-300 dark:border-red-500/40 rounded-xl p-4">
+                <AlertTriangle className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-bold text-red-700 dark:text-red-300 text-sm">Cannot Apply — Schedule Conflict</p>
+                  <p className="text-red-600 dark:text-red-400 text-xs mt-0.5">{scheduleConflict}</p>
+                  <p className="text-red-500/80 dark:text-red-400/70 text-xs mt-2">
+                    If the conflicting job has since been cancelled, you can try applying again.
+                  </p>
+                  {onClearConflict && (
+                    <button
+                      onClick={onClearConflict}
+                      className="mt-3 px-4 py-1.5 bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-300 text-xs font-bold rounded-lg border border-red-300 dark:border-red-500/40 hover:bg-red-200 dark:hover:bg-red-500/30 transition-colors"
+                    >
+                      <RotateCw className="inline w-3 h-3 mr-1" /> Try Again
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
             {hasApplied ? (
               <div className="text-center space-y-3">
                 <div className={`inline-flex items-center px-6 py-3 rounded-xl font-bold ${
@@ -378,10 +401,16 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
             ) : (
               <button
                 onClick={handleApply}
-                disabled={isApplying}
-                className="w-full py-4 bg-gradient-to-r from-[#EA526F] to-[#d4486a] !text-white font-bold text-lg rounded-xl hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
+                disabled={isApplying || !!scheduleConflict}
+                className={`w-full py-4 font-bold text-lg rounded-xl transition-all ${
+                  scheduleConflict
+                    ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-[#EA526F] to-[#d4486a] !text-white hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30'
+                }`}
               >
-                {isApplying ? 'Applying...' : 'Apply Now'}
+                {scheduleConflict
+                  ? <><AlertTriangle className="inline w-4 h-4 mr-1" /> Schedule Conflict</>
+                  : isApplying ? 'Applying...' : 'Apply Now'}
               </button>
             )}
           </div>

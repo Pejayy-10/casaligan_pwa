@@ -55,7 +55,7 @@ export default function MessagesPage() {
                 onClick={() => setActiveTab('active')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
                   activeTab === 'active'
-                    ? 'bg-[#EA526F] text-white shadow-md' 
+                    ? '!bg-[#EA526F] !text-white shadow-md' 
                     : 'text-gray-500 dark:text-white/60 hover:bg-[#EA526F]/10 hover:text-[#EA526F] dark:hover:text-white'
                 }`}
               >
@@ -67,7 +67,7 @@ export default function MessagesPage() {
                 onClick={() => setActiveTab('archived')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
                   activeTab === 'archived'
-                    ? 'bg-[#EA526F] text-white shadow-md' 
+                    ? '!bg-[#EA526F] !text-white shadow-md' 
                     : 'text-gray-500 dark:text-white/60 hover:bg-[#EA526F]/10 hover:text-[#EA526F] dark:hover:text-white'
                 }`}
               >

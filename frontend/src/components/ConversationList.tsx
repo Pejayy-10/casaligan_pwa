@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MessageSquare, Archive, Clock, CheckCircle, Circle, Lock } from 'lucide-react';
 import api from '../services/api';
+import { ListSkeleton } from './Skeleton';
 
 // Helper function to format time
 const formatTimeAgo = (dateString: string | null): string => {
@@ -168,9 +169,7 @@ export default function ConversationList({ filter = 'all', onConversationCountCh
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-      </div>
+      <ListSkeleton rows={5} />
     );
   }
 

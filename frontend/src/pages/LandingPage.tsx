@@ -16,7 +16,7 @@ export default function LandingPage() {
         <div className="text-center">
           <div className="mb-6 inline-block">
              {/* Logo placeholder or Icon */}
-             <Home className="w-16 h-16 text-[#EA526F] mx-auto" />
+              <Home className="w-16 h-16 text-[#EA526F] mx-auto" />
           </div>
           <h1 className="text-5xl md:text-6xl font-extrabold text-[#4B244A] dark:text-white mb-6 tracking-tight">
             Casaligan
@@ -46,7 +46,7 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
             <Link
               to="/register"
-              className="w-full sm:w-auto px-10 py-4 bg-[#EA526F] text-white font-bold text-lg rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30 hover:shadow-[#EA526F]/50 active:scale-95"
+              className="w-full sm:w-auto px-10 py-4 !bg-[#EA526F] !text-white font-bold text-lg rounded-xl hover:bg-[#d4486a] transition-all shadow-lg shadow-[#EA526F]/30 hover:shadow-[#EA526F]/50 active:scale-95"
             >
               Get Started
             </Link>

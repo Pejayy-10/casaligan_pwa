@@ -60,7 +60,7 @@ class ForumPost(Base):
     start_time = Column(String(10), nullable=True)  # e.g., "09:00"
     end_time = Column(String(10), nullable=True)  # e.g., "11:00"
     frequency = Column(String(20), nullable=True)  # "weekly", "biweekly", "monthly"
-    recurring_status = Column(String(20), nullable=True, default="active")  # "active", "cancelled", "paused"
+    recurring_status = Column(String(20), nullable=True, default=None)  # "active", "cancelled", "paused" — only set when is_recurring=True
     recurring_cancelled_at = Column(DateTime(timezone=True), nullable=True)
     recurring_cancellation_reason = Column(Text, nullable=True)
     cancelled_by = Column(String(20), nullable=True)  # "employer" or "worker"

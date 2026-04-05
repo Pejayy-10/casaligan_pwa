@@ -53,7 +53,7 @@ export default function TabBar({ role }: TabBarProps) {
   }, []);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white/10 backdrop-blur-xl border-t border-white/20 z-40">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white/10 backdrop-blur-xl border-t border-white/20 z-50">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-around h-16">
           {/* Home Tab */}
@@ -102,7 +102,7 @@ export default function TabBar({ role }: TabBarProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
               </svg>
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-2 bg-[#EA526F] text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                <span className="absolute -top-1 -right-2 !bg-[#EA526F] !text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
                   {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
               )}
@@ -122,7 +122,7 @@ export default function TabBar({ role }: TabBarProps) {
             <div className="relative">
               <Bell className="w-6 h-6 mb-1" />
               {unreadNotifications > 0 && (
-                <span className="absolute -top-1 -right-2 bg-[#EA526F] text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
+                <span className="absolute -top-1 -right-2 !bg-[#EA526F] !text-white text-xs font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
                   {unreadNotifications > 99 ? '99+' : unreadNotifications}
                 </span>
               )}

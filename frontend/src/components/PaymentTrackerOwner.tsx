@@ -345,7 +345,7 @@ export default function PaymentTrackerOwner({ jobId, jobTitle, onClose }: Paymen
                               {payment.status === 'pending' && (
                                 <button
                                   onClick={() => handlePayment(payment)}
-                                  className="w-full mt-2 px-4 py-2 bg-[#EA526F] text-white font-bold rounded-lg hover:bg-[#d4486a] transition-all text-sm shadow-md"
+                                  className="w-full mt-2 px-4 py-2 !bg-[#EA526F] !text-white font-bold rounded-lg hover:bg-[#d4486a] transition-all text-sm shadow-md"
                                 >
                                   📤 Pay Now
                                 </button>

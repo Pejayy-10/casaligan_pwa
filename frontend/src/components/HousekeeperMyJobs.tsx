@@ -7,6 +7,7 @@ import ContractExtensionResponseModal, { type PendingExtension } from './Contrac
 import HousekeeperSummaryModal from './HousekeeperSummaryModal';
 import DailyCompletionModal from './DailyCompletionModal';
 import { useConfirmDialog } from './useConfirmDialog';
+import { JobsPageSkeleton } from './Skeleton';
 
 interface AcceptedJob {
   post_id: number;
@@ -331,10 +332,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
 
   if (loading) {
     return (
-      <div className="text-center py-20">
-        <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#EA526F]"></div>
-        <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading your jobs...</p>
-      </div>
+      <JobsPageSkeleton />
     );
   }
 

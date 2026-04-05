@@ -973,7 +973,7 @@ export default function ApplyHousekeeperPage() {
                       type="button"
                       onClick={handleSendOtp}
                       disabled={sendingOtp}
-                      className="w-full py-3.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-50"
+                      className="w-full py-3.5 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg disabled:opacity-50"
                     >
                       {sendingOtp ? 'Sending…' : `Send OTP to ${user.phone_number}`}
                     </button>

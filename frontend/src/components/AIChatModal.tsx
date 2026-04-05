@@ -117,7 +117,7 @@ export default function AIChatModal() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-24 right-4 md:bottom-8 md:right-8 z-50 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white rounded-full p-4 shadow-2xl hover:shadow-xl transition-all hover:scale-110 group"
+        className="fixed bottom-24 right-4 md:bottom-8 md:right-8 z-60 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white rounded-full p-4 shadow-2xl hover:shadow-xl transition-all hover:scale-110 group"
         title="AI Assistant"
       >
         <Sparkles className="w-6 h-6 group-hover:rotate-12 transition-transform" />
@@ -126,7 +126,7 @@ export default function AIChatModal() {
   }
 
   return (
-    <div className="fixed z-50
+    <div className="fixed z-60
       bottom-20 left-3 right-3
       md:bottom-8 md:left-auto md:right-8 md:w-[380px]
       h-[460px] md:h-[520px] max-h-[75vh]
