@@ -1525,6 +1525,8 @@ def update_job_post(
     old_duration_type = "long_term" if post.is_longterm else "short_term"
     old_start_date = post.start_date or old_details.get('start_date', '')
     old_end_date = post.end_date or old_details.get('end_date', '')
+    old_daily_start_time = getattr(post, 'daily_start_time', None) or old_details.get('daily_start_time', '')
+    old_daily_end_time = getattr(post, 'daily_end_time', None) or old_details.get('daily_end_time', '')
     
     # Check if there are any applicants (pending or accepted) before updating
     existing_applicants = db.query(InterestCheck).filter(
@@ -1602,6 +1604,15 @@ def update_job_post(
             old_end = old_end_date if old_end_date else 'Not set'
             new_end = new_end_date if new_end_date else 'Not set'
             changes.append(f"• End Date: {old_end} → {new_end}")
+
+    # Daily schedule change
+    if job_update.multi_day_schedule:
+        new_daily_start_time = job_update.multi_day_schedule.daily_start_time
+        new_daily_end_time = job_update.multi_day_schedule.daily_end_time
+        if old_daily_start_time != new_daily_start_time or old_daily_end_time != new_daily_end_time:
+            old_window = f"{old_daily_start_time or 'Not set'} - {old_daily_end_time or 'Not set'}"
+            new_window = f"{new_daily_start_time} - {new_daily_end_time}"
+            changes.append(f"• Daily Time: {old_window} → {new_window}")
     
     # Update fields
     if job_update.title:
@@ -1677,6 +1688,7 @@ def update_job_post(
         job_update.duration_type,
         job_update.start_date,
         job_update.end_date,
+        job_update.multi_day_schedule,
     ]):
         
         try:
@@ -1706,6 +1718,12 @@ def update_job_post(
         if job_update.end_date:
             current_details['end_date'] = job_update.end_date.isoformat()
             post.end_date = job_update.end_date.isoformat()
+        if job_update.multi_day_schedule:
+            current_details['num_days'] = job_update.multi_day_schedule.num_days
+            current_details['daily_start_time'] = job_update.multi_day_schedule.daily_start_time
+            current_details['daily_end_time'] = job_update.multi_day_schedule.daily_end_time
+            post.daily_start_time = job_update.multi_day_schedule.daily_start_time
+            post.daily_end_time = job_update.multi_day_schedule.daily_end_time
         if job_update.location:
             current_details['location'] = job_update.location
         
@@ -2004,6 +2022,97 @@ def apply_to_job(
         "interest_id": interest.interest_id,
         "status": interest.status.value if hasattr(interest.status, 'value') else str(interest.status),
         "is_reapplication": is_reapplying
+    }
+
+
+@router.post("/{post_id}/withdraw-application")
+def withdraw_job_application(
+    post_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Withdraw a pending job application (housekeeper only)."""
+
+    if not current_user.is_housekeeper:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only housekeepers can withdraw job applications"
+        )
+
+    worker_record = db.query(Worker).filter(Worker.user_id == current_user.id).first()
+    if not worker_record:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Worker profile not found"
+        )
+
+    post = db.query(ForumPost).filter(ForumPost.post_id == post_id).first()
+    if not post:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job post not found"
+        )
+
+    application = db.query(InterestCheck).filter(
+        InterestCheck.post_id == post_id,
+        InterestCheck.worker_id == worker_record.worker_id
+    ).first()
+
+    if not application:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="You have not applied to this job"
+        )
+
+    if application.status != InterestStatus.PENDING:
+        current_status = application.status.value if hasattr(application.status, 'value') else str(application.status)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Only pending applications can be cancelled. Current status: {current_status}"
+        )
+
+    # Mark as rejected to keep existing "withdrawn" behavior and re-apply flow consistent.
+    application.status = InterestStatus.REJECTED
+    application.edit_response = EditResponseStatus.REJECTED
+    application.edit_responded_at = datetime.now(timezone.utc)
+    application.withdrawn_due_to_conflict = False
+
+    # Cancel related pending contract record, if present.
+    try:
+        contract = db.query(Contract).filter(
+            Contract.post_id == post_id,
+            Contract.worker_id == worker_record.worker_id
+        ).first()
+        if contract:
+            contract.status = ContractStatus.CANCELLED
+            contract.worker_accepted = -1
+    except Exception as e:
+        print(f"Warning: Could not update contract while withdrawing application: {e}")
+
+    db.commit()
+
+    # Notify employer (best effort; should not fail withdrawal).
+    try:
+        employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+        if employer:
+            notify_user(
+                db=db,
+                user_id=employer.user_id,
+                notification_type=NotificationType.SYSTEM,
+                title="Application Withdrawn",
+                message=f"{current_user.first_name} {current_user.last_name} withdrew their application for '{post.title}'.",
+                reference_type="job",
+                reference_id=post_id,
+                commit=True,
+            )
+    except Exception as e:
+        db.rollback()
+        print(f"Warning: Could not send withdrawal notification: {e}")
+
+    return {
+        "message": "Application cancelled successfully",
+        "post_id": post_id,
+        "status": "withdrawn"
     }
 
 @router.get("/{post_id}/application-status")

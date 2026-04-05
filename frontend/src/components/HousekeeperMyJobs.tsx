@@ -96,6 +96,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
   const { confirm, confirmDialog } = useConfirmDialog();
   const [jobs, setJobs] = useState<AcceptedJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed'>(initialStatusFilter || 'all');
   const [showExtensionResponse, setShowExtensionResponse] = useState<PendingExtension | null>(null);
   const [showSummaryJobId, setShowSummaryJobId] = useState<number | null>(null);
@@ -136,6 +137,12 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
     return () => window.removeEventListener('my-jobs-updated', handleRefresh);
   }, [statusFilter]);
 
+  useEffect(() => {
+    if (!successMessage) return;
+    const timer = window.setTimeout(() => setSuccessMessage(null), 3500);
+    return () => window.clearTimeout(timer);
+  }, [successMessage]);
+
   const loadMyJobs = async (showLoader = false) => {
     try {
       if (showLoader) setLoading(true);
@@ -143,7 +150,8 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
       const response = await fetch(
         `${API_BASE_URL}/jobs/my-accepted-jobs${statusFilter !== 'all' ? `?status_filter=${statusFilter}` : ''}`,
         {
-          headers: { 'Authorization': `Bearer ${token}` }
+          headers: { 'Authorization': `Bearer ${token}` },
+          cache: 'no-store'
         }
       );
 
@@ -243,6 +251,43 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
     }
   };
 
+  const handleCancelPendingApplication = async (job: AcceptedJob) => {
+    const shouldCancel = await confirm({
+      title: 'Cancel Application',
+      message: 'Are you sure you want to cancel this application? You can apply again later if the job is still open.',
+      confirmLabel: 'Cancel Application',
+      tone: 'danger'
+    });
+
+    if (!shouldCancel) return;
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/jobs/${job.post_id}/withdraw-application`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        alert(errorData.detail || 'Failed to cancel application');
+        return;
+      }
+
+      setJobs((prev) => prev.filter((existingJob) => existingJob.post_id !== job.post_id));
+      setSuccessMessage(`Application cancelled for "${job.title}".`);
+      if (currentPage > 1 && (jobs.length - 1) <= (currentPage - 1) * ITEMS_PER_PAGE) {
+        setCurrentPage((p) => Math.max(1, p - 1));
+      }
+      window.dispatchEvent(new Event('my-jobs-updated'));
+    } catch (error) {
+      console.error('Failed to cancel application:', error);
+      alert('Failed to cancel application');
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
@@ -293,6 +338,12 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
 
   return (
     <div>
+      {successMessage && (
+        <div className="mb-4 rounded-xl border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/15 px-4 py-3 text-sm font-bold text-green-700 dark:text-green-300">
+          <CheckCircle className="inline w-4 h-4 mr-1" /> {successMessage}
+        </div>
+      )}
+
       {/* Status Filter Tabs */}
       <div className="mb-6 overflow-x-auto pb-2">
         <div className="flex gap-2 min-w-max p-1 bg-white/50 dark:bg-slate-900/50 rounded-xl border border-gray-200 dark:border-white/10">
@@ -541,8 +592,16 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                       </div>
                     </div>
                   ) : (
-                    <div className="py-3 text-center text-xs text-orange-700 dark:text-orange-300 font-bold bg-orange-100 dark:bg-orange-500/10 rounded-lg border border-orange-200 dark:border-orange-500/30 mb-4">
-                      <Clock className="inline w-4 h-4 mr-1" /> Waiting for house owner to accept your application
+                    <div className="mb-4 space-y-2">
+                      <div className="py-3 text-center text-xs text-orange-700 dark:text-orange-300 font-bold bg-orange-100 dark:bg-orange-500/10 rounded-lg border border-orange-200 dark:border-orange-500/30">
+                        <Clock className="inline w-4 h-4 mr-1" /> Waiting for house owner to accept your application
+                      </div>
+                      <button
+                        onClick={() => handleCancelPendingApplication(job)}
+                        className="w-full py-2 bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300 font-bold rounded-lg hover:bg-red-200 dark:hover:bg-red-500/25 transition-all border border-red-200 dark:border-red-500/30"
+                      >
+                        <X className="inline w-4 h-4 mr-1" /> Cancel Application
+                      </button>
                     </div>
                   )}
                 </>
