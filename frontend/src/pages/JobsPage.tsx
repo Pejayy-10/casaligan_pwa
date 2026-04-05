@@ -524,8 +524,8 @@ export default function JobsPage() {
                 {/* 3. Status Filters (Segmented Control) */}
                 <div className="space-y-2">
                     
-                    <div className="overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
-                        <div className="flex gap-1.5 min-w-max p-1.5 bg-gray-100/80 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-white/5">
+                  <div className="pb-1 -mx-4 px-4 overflow-x-auto sm:overflow-visible sm:mx-0 sm:px-0 sm:flex sm:justify-center scrollbar-hide">
+                    <div className="flex min-w-max sm:min-w-0 sm:inline-flex sm:flex-wrap sm:justify-center gap-1.5 p-1.5 bg-gray-100/80 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-white/5 max-w-full">
                             <FilterTab 
                                 active={statusFilter === 'all'} 
                               onClick={() => handleOwnerStatusFilterChange('all')} 
@@ -620,11 +620,11 @@ export default function JobsPage() {
                     
                     {/* Category Filter */}
                     {housekeeperView === 'find' && (
-                        <div className="mt-2">
+                      <div className="mt-2 flex justify-center">
                             <select
                                 value={selectedCategory}
                                 onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : '')}
-                                className="w-full appearance-none px-4 py-2.5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-gray-200 dark:border-white/10 rounded-xl text-sm font-medium text-gray-700 dark:text-white shadow-sm hover:border-[#EA526F]/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] transition-all cursor-pointer"
+                          className="w-full sm:w-[24rem] max-w-full appearance-none px-4 py-2.5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-gray-200 dark:border-white/10 rounded-xl text-sm font-medium text-gray-700 dark:text-white shadow-sm hover:border-[#EA526F]/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] transition-all cursor-pointer"
                             >
                                 <option value="">All Categories</option>
                                 {categories.map(cat => (
@@ -1058,7 +1058,7 @@ function FilterTab({
             type="button"
             aria-pressed={active}
             aria-current={active ? 'true' : undefined}
-            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+        className={`min-w-[8.5rem] sm:min-w-0 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${
                 active
                     ? `${activeColor} shadow-md ring-2 ring-[#4B244A]/30 dark:ring-white/30 ring-offset-2 ring-offset-gray-100 dark:ring-offset-slate-800`
                     : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
