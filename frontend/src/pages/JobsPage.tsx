@@ -95,6 +95,9 @@ export default function JobsPage() {
   const [showReferModal, setShowReferModal] = useState(false);
   const [referWorkerData, setReferWorkerData] = useState<{ workerId: number; workerName: string } | null>(null);
 
+  // Schedule conflict messages per job (set when backend returns 409)
+  const [conflictMessages, setConflictMessages] = useState<Record<number, string>>({});
+
   // Lock background scroll when any modal is open
   const isAnyModalOpen = selectedJob || showApplicants || showPayment || showContract || showPaymentTracker || showProgressTracker || showCheckIn || showHousekeeperProgress || showJobCompletion || showReportUnpaid || showCompletionReview || showPackageManagement || showEditJob || showRatingModal || showReportModal || showHousekeeperReportModal || showExtendContract || showSummaryJobId !== null || showReferModal;
   useScrollLock(!!isAnyModalOpen);
@@ -719,6 +722,18 @@ export default function JobsPage() {
           applicationStatus={applicationStatuses[selectedJob.post_id]?.status}
           canReapply={applicationStatuses[selectedJob.post_id]?.can_reapply || false}
           withdrawnDueToConflict={applicationStatuses[selectedJob.post_id]?.withdrawn_due_to_conflict || false}
+          scheduleConflict={conflictMessages[selectedJob.post_id] || null}
+          onClearConflict={() => {
+            // Clear the cached conflict message so the worker can attempt to apply again.
+            // The backend will re-run the conflict check fresh on the next apply attempt.
+            setConflictMessages(prev => {
+              const next = { ...prev };
+              delete next[selectedJob.post_id];
+              return next;
+            });
+            // Immediately re-open the contract modal for a fresh attempt
+            setShowContract(selectedJob);
+          }}
           onStatusRefresh={async () => {
             const token = localStorage.getItem('access_token');
             if (token && selectedJob) {
@@ -771,7 +786,15 @@ export default function JobsPage() {
                 loadJobs();
               } else {
                 const errorData = await response.json();
-                alert(errorData.detail || 'Failed to apply to job');
+                if (response.status === 409) {
+                  // Schedule conflict — close contract modal, keep job detail open, show conflict banner
+                  const conflictMsg = errorData.detail || 'Your schedule conflicts with an existing commitment.';
+                  setConflictMessages(prev => ({ ...prev, [showContract.post_id]: conflictMsg }));
+                  setShowContract(null);
+                  // selectedJob stays open so the user sees the conflict banner
+                } else {
+                  alert(errorData.detail || 'Failed to apply to job');
+                }
               }
             } catch (error) {
               console.error('Apply error:', error);
