@@ -1332,6 +1332,21 @@ function OwnerJobsContent({
             <span className="px-2.5 py-1 bg-[#EA526F]/10 text-[#EA526F] dark:bg-[#EA526F]/20 dark:text-[#EA526F] rounded-md text-xs font-semibold flex items-center">
               <Home className="w-3.5 h-3.5 mr-1" /> {job.house_type}
             </span>
+            <span className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1 ${
+              (job.accommodation_type || 'stay_out') === 'stay_in'
+                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                : 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-300'
+            }`}>
+              {(job.accommodation_type || 'stay_out') === 'stay_in' ? (
+                <>
+                  <Home className="w-3.5 h-3.5" /> Stay In
+                </>
+              ) : (
+                <>
+                  <MapPin className="w-3.5 h-3.5" /> Stay Out
+                </>
+              )}
+            </span>
             <span className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center ${
               job.is_recurring
                 ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300'
@@ -1341,7 +1356,15 @@ function OwnerJobsContent({
               {job.is_recurring ? 'Recurring' : 'One-time'}
             </span>
             <span className="px-2.5 py-1 bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 rounded-md text-xs font-semibold flex items-center">
-              🧹 {job.cleaning_type}
+              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M7 21h10" />
+                <path d="M10 21v-4" />
+                <path d="M14 21v-4" />
+                <path d="M8 17h8l-1.5-5h-5z" />
+                <path d="M12 12V3" />
+                <path d="M12 3l3 3" />
+              </svg>
+              {job.cleaning_type}
             </span>
             <span className="px-2.5 py-1 bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-300 rounded-md text-xs font-semibold flex items-center">
               {job.duration_type === 'long_term' && job.payment_schedule
@@ -1983,6 +2006,21 @@ function HousekeeperJobsContent({
               <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
                 🏠 {job.house_type}
               </span>
+              <span className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1 ${
+                (job.accommodation_type || 'stay_out') === 'stay_in'
+                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
+                  : 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-300'
+              }`}>
+                {(job.accommodation_type || 'stay_out') === 'stay_in' ? (
+                  <>
+                    <Home className="w-3.5 h-3.5" /> Stay In
+                  </>
+                ) : (
+                  <>
+                    <MapPin className="w-3.5 h-3.5" /> Stay Out
+                  </>
+                )}
+              </span>
               <span className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-medium flex items-center ${
                 job.is_recurring
                   ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300'
@@ -1992,7 +2030,15 @@ function HousekeeperJobsContent({
                 {job.is_recurring ? 'Recurring' : 'One-time'}
               </span>
               <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
-                🧹 {job.cleaning_type}
+                <svg viewBox="0 0 24 24" className="inline w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M7 21h10" />
+                  <path d="M10 21v-4" />
+                  <path d="M14 21v-4" />
+                  <path d="M8 17h8l-1.5-5h-5z" />
+                  <path d="M12 12V3" />
+                  <path d="M12 3l3 3" />
+                </svg>
+                {job.cleaning_type}
               </span>
               <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
                 👥 {job.people_needed} needed

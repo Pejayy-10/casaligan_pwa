@@ -53,7 +53,7 @@ export default function TabBar({ role }: TabBarProps) {
   }, []);
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white/10 backdrop-blur-xl border-t border-white/20 z-50">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white/10 backdrop-blur-xl border-t border-white/20 z-40">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center justify-around h-16">
           {/* Home Tab */}

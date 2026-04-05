@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight, Flag, FileText, X, Check, Loader2, AlertCircle, MapPin } from 'lucide-react';
+import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight, Flag, FileText, X, Check, Loader2, AlertCircle, MapPin, Home } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import ContractExtensionResponseModal, { type PendingExtension } from './ContractExtensionResponseModal';
 import HousekeeperSummaryModal from './HousekeeperSummaryModal';
@@ -14,6 +14,7 @@ interface AcceptedJob {
   title: string;
   description: string;
   location: string;
+  accommodation_type?: string | null;
   budget: number;
   status: string;
   post_fee_status?: string | null;
@@ -441,6 +442,21 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
               <div className="flex flex-wrap gap-2 mb-4">
                 <span className="px-3 py-1 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300 rounded-lg text-sm font-semibold">
                   ₱{job.budget}
+                </span>
+                <span className={`px-3 py-1 rounded-lg text-sm font-semibold flex items-center gap-1 ${
+                  (job.accommodation_type || 'stay_out') === 'stay_in'
+                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                    : 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300'
+                }`}>
+                  {(job.accommodation_type || 'stay_out') === 'stay_in' ? (
+                    <>
+                      <Home className="w-3.5 h-3.5" /> Stay In
+                    </>
+                  ) : (
+                    <>
+                      <MapPin className="w-3.5 h-3.5" /> Stay Out
+                    </>
+                  )}
                 </span>
                 {job.is_longterm && (
                   <span className="px-3 py-1 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 rounded-lg text-sm font-semibold">
