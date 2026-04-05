@@ -368,7 +368,7 @@ return (
           <PageSkeleton titleWidth="w-52" withFilters rows={5} />
         ) : allServices.length === 0 ? (
           <div className="text-center py-20 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-white/50 dark:border-white/10 shadow-lg">
-            <div className="text-6xl mb-4 opacity-50">🔄</div>
+            <RotateCw className="w-16 h-16 mx-auto mb-4 opacity-50 text-[#4B244A] dark:text-white" />
             <h3 className="text-xl font-bold text-[#4B244A] dark:text-white mb-2">No Recurring Services</h3>
             <p className="text-[#4B244A]/70 dark:text-white/70">
               {filter === 'all' 

@@ -612,7 +612,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
             <button
               onClick={() => handleAction(hire, 'cancel')}
               disabled={processing}
-              className="w-full px-4 py-3 bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-200 text-sm rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
+              className="w-full px-4 py-3 bg-gray-100 text-gray-700 border border-gray-300 dark:bg-gray-800 dark:text-gray-200 text-sm rounded-xl hover:bg-gray-200 dark:hover:bg-gray-700 font-semibold disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {processing ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               Cancel Booking

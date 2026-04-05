@@ -284,7 +284,7 @@ export default function RegisterStep3DocumentsPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30 mt-6"
+              className="w-full py-3.5 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30 mt-6"
             >
               {loading ? (
                 <div className="flex items-center justify-center">

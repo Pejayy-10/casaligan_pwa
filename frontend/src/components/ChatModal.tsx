@@ -323,7 +323,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
                             msg.failed
                               ? 'bg-gray-300/70 dark:bg-white/10 text-gray-700 dark:text-white/80 rounded-br-md border border-dashed border-gray-400 dark:border-white/20'
                               : msg.is_mine
-                              ? 'bg-[#EA526F] text-white rounded-br-md'
+                              ? '!bg-[#EA526F] !text-white rounded-br-md'
                               : 'bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 rounded-bl-md border border-gray-100 dark:border-white/5'
                           }`}
                         >
@@ -381,7 +381,7 @@ const ChatModal: React.FC<ChatModalProps> = ({
               <button
                 onClick={handleSend}
                 disabled={!newMessage.trim() || sending}
-                className="p-2 bg-[#EA526F] text-white rounded-full hover:bg-[#d64460] disabled:bg-gray-300 dark:disabled:bg-white/10 disabled:cursor-not-allowed transition-all shadow-md active:scale-95"
+                className="p-2 !bg-[#EA526F] !text-white rounded-full hover:bg-[#d64460] disabled:bg-gray-300 dark:disabled:bg-white/10 disabled:cursor-not-allowed transition-all shadow-md active:scale-95"
               >
                 {sending ? (
                   <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />

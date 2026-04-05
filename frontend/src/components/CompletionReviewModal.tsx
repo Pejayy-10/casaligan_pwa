@@ -271,7 +271,7 @@ export default function CompletionReviewModal({ jobId, jobTitle, onClose, onAppr
                           {/* Worker Header */}
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-[#EA526F] flex items-center justify-center text-white font-bold shadow-md">
+                              <div className="w-10 h-10 rounded-full !bg-[#EA526F] flex items-center justify-center !text-white font-bold shadow-md">
                                 {worker.worker_name.charAt(0).toUpperCase()}
                               </div>
                               <div>

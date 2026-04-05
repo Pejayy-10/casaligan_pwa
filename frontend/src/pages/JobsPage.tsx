@@ -1308,7 +1308,7 @@ function OwnerJobsContent({
                 : `Unpublished: pay ₱${Number(job.post_fee_amount || 0).toLocaleString()} (${Number(job.post_fee_percentage || 7)}%) to publish this short-term post.`}
             </div>
           )}
-          <div className="flex items-start justify-between mb-3 gap-2">
+          <div className="flex flex-col items-start mb-3 gap-2">
             <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white break-words min-w-0">{job.title}</h3>
             <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
               showPostFeeGate ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
@@ -1566,7 +1566,7 @@ function OwnerJobsContent({
              {/* Edit/Cancel actions for open jobs */}
              {job.status === 'open' && (
                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    <button onClick={() => onEditJob(job)} className="py-2 bg-gray text-gray-700 dark:bg-white/10 dark :text-white text-sm font-bold rounded-lg hover:bg-gray-200 dark:hover:bg-white/20">
+                    <button onClick={() => onEditJob(job)} className="py-2 bg-gray text-gray-700 border border-gray-300 dark:bg-white/10 dark :text-white text-sm font-bold rounded-lg hover:bg-gray-200 dark:hover:bg-white/20">
                         Edit
                     </button>
                     <button 
@@ -1580,7 +1580,7 @@ function OwnerJobsContent({
                           });
                         }} 
                         disabled={actionLoading === `status-${job.post_id}`}
-                        className="py-2 bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white text-sm font-bold rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
+                        className="py-2 bg-gray-100 text-gray-700 border border-gray-300 dark:bg-white/10 dark:text-white text-sm font-bold rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
                     >
                         {actionLoading === `status-${job.post_id}` ? <><Loader2 className="w-4 h-4 animate-spin" /> Cancelling...</> : 'Cancel'}
                     </button>

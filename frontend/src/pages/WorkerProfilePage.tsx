@@ -3,10 +3,10 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Phone, Mail, Calendar, MapPin, Star, Check, Clock, X, MessageCircle, Package, User, Briefcase, AlertTriangle, AlertCircle, ChevronLeft, ChevronDown } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import StarRating from '../components/StarRating';
+import { useScrollLock } from '../hooks/useScrollLock';
 import { psgcService } from '../services/psgc';
 import { API_BASE_URL } from '../config';
 import type { PSGCRegion, PSGCProvince, PSGCCity, PSGCBarangay } from '../types';
-import { PageSkeleton } from '../components/Skeleton';
 
 interface WorkerPackage {
   package_id: number;
@@ -63,8 +63,6 @@ interface WorkerProfile {
   portfolio_photos?: PortfolioPhoto[];
 }
 
-const MIN_SAME_DAY_LEAD_MINUTES = 30;
-
 export default function WorkerProfilePage() {
   const navigate = useNavigate();
   const { workerId } = useParams<{ workerId: string }>();
@@ -79,6 +77,8 @@ export default function WorkerProfilePage() {
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [useMyAddress, setUseMyAddress] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  useScrollLock(showHireModal);
   
   // Recurring schedule state
   const [isRecurring, setIsRecurring] = useState(false);
@@ -245,23 +245,11 @@ export default function WorkerProfilePage() {
       .reduce((sum, p) => sum + p.price, 0);
   };
 
-  const parseTimeToMinutes = (value: string): number => {
-    const [h, m] = value.split(':').map(Number);
-    return (h * 60) + m;
-  };
-
   const handleHire = async () => {
     if (!profile || selectedPackages.length === 0) return;
     
     if (!scheduledDate) {
       alert('Please select a date');
-      return;
-    }
-
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    if (scheduledDate < todayStr) {
-      alert('Scheduled date cannot be in the past');
       return;
     }
 
@@ -293,15 +281,6 @@ export default function WorkerProfilePage() {
     if (!isRecurring && !startTime) {
       alert('Please select a start time');
       return;
-    }
-
-    if (scheduledDate === todayStr && startTime) {
-      const nowMinutes = (now.getHours() * 60) + now.getMinutes();
-      const startMinutes = parseTimeToMinutes(startTime);
-      if ((startMinutes - nowMinutes) < MIN_SAME_DAY_LEAD_MINUTES) {
-        alert(`For same-day bookings, start time must be at least ${MIN_SAME_DAY_LEAD_MINUTES} minutes from now.`);
-        return;
-      }
     }
 
     // Validate custom address if not using registered address
@@ -384,9 +363,10 @@ export default function WorkerProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300">
-        <div className="max-w-4xl mx-auto px-4 py-6">
-          <PageSkeleton titleWidth="w-52" withFilters rows={5} />
+      <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 transition-colors duration-300 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#EA526F]"></div>
+          <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading profile...</p>
         </div>
       </div>
     );
@@ -398,7 +378,7 @@ export default function WorkerProfilePage() {
         <div className="text-center text-[#4B244A] dark:text-white">
           <div className="text-6xl mb-4">❌</div>
           <h2 className="text-2xl font-bold mb-2">Worker not found</h2>
-          <button onClick={() => navigate(-1)} className="mt-4 px-6 py-3 bg-[#EA526F] text-white font-bold rounded-xl shadow-lg hover:bg-[#d64460] transition-all">
+          <button onClick={() => navigate(-1)} className="mt-4 px-6 py-3 !bg-[#EA526F] !text-white font-bold rounded-xl shadow-lg hover:bg-[#d64460] transition-all">
             Go Back
           </button>
         </div>
@@ -624,9 +604,7 @@ export default function WorkerProfilePage() {
 
             {/* ── Work Sample Section ── */}
             {(() => {
-              const workPhotos = profile.portfolio_photos!.filter(
-                p => p.category === 'work_sample' || p.category === 'before_after' || p.category === 'work_sample_before' || p.category === 'work_sample_after' || p.category === 'general'
-              );
+              const workPhotos = profile.portfolio_photos!.filter(p => p.category === 'work_sample' || p.category === 'before_after' || p.category === 'general');
               if (workPhotos.length === 0) return null;
               return (
                 <div>
@@ -847,7 +825,7 @@ export default function WorkerProfilePage() {
                 {profile.is_available ? (
                   <button
                     onClick={() => setShowHireModal(true)}
-                    className="px-8 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all shadow-lg shadow-[#EA526F]/30"
+                    className="px-8 py-3 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d64460] transition-all shadow-lg shadow-[#EA526F]/30"
                   >
                     Hire Now
                   </button>
@@ -870,7 +848,7 @@ export default function WorkerProfilePage() {
 
       {/* Hire Modal */}
       {showHireModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-[#E8E4E1] dark:bg-slate-900 rounded-3xl max-w-lg w-full max-h-[90vh] overflow-y-auto border border-gray-200 dark:border-white/20 shadow-2xl relative">
             <div className="p-6 border-b border-gray-200 dark:border-white/10 bg-[#E8E4E1]/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-10">
               <div className="flex items-center justify-between">
@@ -1284,7 +1262,7 @@ export default function WorkerProfilePage() {
               <button
                 onClick={handleHire}
                 disabled={submitting || !scheduledDate || conflictingDays.length > 0}
-                className="w-full py-4 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d64460] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
+                className="w-full py-4 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d64460] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
               >
                 {submitting ? '⏳ Sending Request...' : conflictingDays.length > 0 ? '❌ Resolve Schedule Conflicts First' : '✓ Confirm Booking Request'}
               </button>

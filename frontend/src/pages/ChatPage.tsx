@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
 import apiClient from '../services/api';
-import { ChatSkeleton } from '../components/Skeleton';
 
 interface Message {
   message_id: number;
@@ -321,7 +320,9 @@ export default function ChatPage() {
         className="flex-1 overflow-y-auto p-4 min-h-0 bg-[#F8F9FA] dark:bg-slate-950"
       >
         {loading ? (
-          <ChatSkeleton />
+          <div className="flex items-center justify-center h-full">
+            <div className="w-8 h-8 border-4 border-[#EA526F] border-t-transparent rounded-full animate-spin" />
+          </div>
         ) : error ? (
           <div className="flex items-center justify-center h-full text-red-600 dark:text-red-400">
             <div className="text-center">
@@ -367,7 +368,7 @@ export default function ChatPage() {
                           msg.failed
                             ? 'bg-gray-300/70 dark:bg-white/10 text-gray-700 dark:text-white/80 rounded-br-md border border-dashed border-gray-400 dark:border-white/20'
                             : msg.is_mine
-                            ? 'bg-[#EA526F] text-white rounded-br-md'
+                            ? '!bg-[#EA526F] !text-white rounded-br-md'
                             : 'bg-white dark:bg-slate-800 text-gray-800 dark:text-gray-100 rounded-bl-md border border-gray-100 dark:border-white/5'
                         }`}
                       >
@@ -425,7 +426,7 @@ export default function ChatPage() {
             <button
               onClick={handleSend}
               disabled={!newMessage.trim() || sending}
-              className="p-3 bg-[#EA526F] text-white rounded-full hover:bg-[#d64460] disabled:bg-gray-300 dark:disabled:bg-white/10 disabled:cursor-not-allowed transition-all shrink-0 shadow-md active:scale-95"
+              className="p-3 !bg-[#EA526F] !text-white rounded-full hover:bg-[#d64460] disabled:bg-gray-300 dark:disabled:bg-white/10 disabled:cursor-not-allowed transition-all shrink-0 shadow-md active:scale-95"
             >
               {sending ? (
                 <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />

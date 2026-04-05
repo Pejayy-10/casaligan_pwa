@@ -476,7 +476,7 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 py-3 bg-[#EA526F] text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
+              className="flex-1 py-3 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
             >
               {loading ? 'Updating...' : 'Update Job'}
             </button>
