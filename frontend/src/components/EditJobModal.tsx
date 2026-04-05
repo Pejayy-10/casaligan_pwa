@@ -31,6 +31,9 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
     budget: job.budget.toString(),
     people_needed: job.people_needed.toString(),
     location: job.location || '',
+    start_date: job.start_date || '',
+    daily_start_time: job.multi_day_schedule?.daily_start_time || job.start_time || '',
+    daily_end_time: job.multi_day_schedule?.daily_end_time || job.end_time || '',
   });
   
   const [selectedCategories, setSelectedCategories] = useState<number[]>(
@@ -170,6 +173,49 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    if (!formData.start_date) {
+      setError('Please select a job date');
+      return;
+    }
+
+    if (formData.start_date < todayStr) {
+      setError('Job date cannot be in the past');
+      return;
+    }
+
+    if ((formData.daily_start_time && !formData.daily_end_time) || (!formData.daily_start_time && formData.daily_end_time)) {
+      setError('Please provide both start time and end time');
+      return;
+    }
+
+    if (formData.daily_start_time && formData.daily_end_time) {
+      const [startHour, startMinute] = formData.daily_start_time.split(':').map(Number);
+      const [endHour, endMinute] = formData.daily_end_time.split(':').map(Number);
+      const startMinutes = (startHour * 60) + startMinute;
+      const endMinutes = (endHour * 60) + endMinute;
+
+      if (endMinutes <= startMinutes) {
+        setError('End time must be later than start time');
+        return;
+      }
+
+      if ((endMinutes - startMinutes) < 60) {
+        setError('Schedule must be at least 1 hour');
+        return;
+      }
+
+      if (formData.start_date === todayStr) {
+        const now = new Date();
+        const nowMinutes = (now.getHours() * 60) + now.getMinutes();
+        if ((startMinutes - nowMinutes) < 30) {
+          setError('For same-day jobs, start time must be at least 30 minutes from now');
+          return;
+        }
+      }
+    }
     
     // Validate at least one category is selected
     if (selectedCategories.length === 0) {
@@ -192,6 +238,13 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
         image_urls: images,
         location: formData.location || null,
         category_ids: selectedCategories,
+        start_date: formData.start_date,
+        end_date: job.duration_type === 'short_term' ? formData.start_date : null,
+        multi_day_schedule: (formData.daily_start_time && formData.daily_end_time) ? {
+          num_days: job.multi_day_schedule?.num_days || 1,
+          daily_start_time: formData.daily_start_time,
+          daily_end_time: formData.daily_end_time,
+        } : undefined,
       };
       
       const response = await fetch(`${API_BASE_URL}/jobs/${job.post_id}`, {
@@ -285,6 +338,44 @@ export default function EditJobModal({ job, onClose, onSuccess }: EditJobModalPr
               className={inputClass}
               placeholder="e.g., Quezon City"
             />
+          </div>
+
+          {/* Date and Time */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className={labelClass}>Job Date *</label>
+              <input
+                type="date"
+                name="start_date"
+                value={formData.start_date}
+                onChange={handleInputChange}
+                required
+                min={new Date().toISOString().split('T')[0]}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label className={labelClass}>Start Time</label>
+              <input
+                type="time"
+                name="daily_start_time"
+                value={formData.daily_start_time}
+                onChange={handleInputChange}
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label className={labelClass}>End Time</label>
+              <input
+                type="time"
+                name="daily_end_time"
+                value={formData.daily_end_time}
+                onChange={handleInputChange}
+                className={inputClass}
+              />
+            </div>
           </div>
 
           {/* Categories */}
