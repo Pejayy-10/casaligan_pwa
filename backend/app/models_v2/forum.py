@@ -15,6 +15,7 @@ class JobType(str, enum.Enum):
 
 class ForumPostStatus(str, enum.Enum):
     OPEN = "open"
+    IN_QUEUE = "in_queue"  # Hired but start date not yet reached; becomes ONGOING automatically on start_date
     ONGOING = "ongoing"
     PENDING_COMPLETION = "pending_completion"  # Housekeeper submitted proof, waiting for owner approval
     COMPLETED = "completed"

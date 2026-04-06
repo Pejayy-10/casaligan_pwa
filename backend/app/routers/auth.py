@@ -1086,6 +1086,36 @@ def verify_email_otp(
     return {"message": "Email verified successfully.", "email_verified": True}
 
 
+@router.post("/skip-email-verification")
+def skip_email_verification(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    TESTING ONLY — instantly marks the current user's email as verified
+    without requiring an OTP. Remove or restrict this endpoint in production.
+    """
+    db.refresh(current_user)
+    if getattr(current_user, "email_verified", False):
+        return {"message": "Email already verified.", "email_verified": True}
+
+    try:
+        from sqlalchemy import text
+        db.execute(
+            text("UPDATE users SET email_verified = TRUE WHERE id = :uid"),
+            {"uid": current_user.id}
+        )
+        db.commit()
+    except Exception as e:
+        logger.error(f"[skip-email-verification] Failed for user {current_user.id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to skip email verification.")
+
+    # Clear any pending OTP so it can't be accidentally reused
+    _otp_store.pop(current_user.id, None)
+
+    return {"message": "Email verification skipped (testing mode).", "email_verified": True}
+
+
 # ─── Phone OTP Endpoints ──────────────────────────────────────────────────────
 
 class PhoneOTPVerifyRequest(BaseModel):

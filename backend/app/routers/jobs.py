@@ -633,7 +633,10 @@ def _sync_job_activation_state(db: Session, post: ForumPost) -> bool:
     Heal stale job/contract states for multi-worker jobs.
 
     If enough applicants are accepted to satisfy people_needed, the post should be
-    ongoing and those accepted workers' contracts should be active.
+    ongoing (or in_queue if start_date is still in the future) and those accepted
+    workers' contracts should be active.
+
+    Also auto-promotes in_queue → ongoing when the start date is reached.
     """
     has_updates = False
     people_needed = _get_people_needed_from_post(post)
@@ -644,9 +647,24 @@ def _sync_job_activation_state(db: Session, post: ForumPost) -> bool:
     ).all()
 
     if len(accepted_interests) < people_needed:
-        return False
+        # Still transition in_queue → ongoing if start date has been reached
+        if post.status == ForumPostStatus.IN_QUEUE:
+            start_date = _extract_post_start_date(post)
+            today_utc = datetime.now(timezone.utc).date()
+            if not start_date or today_utc >= start_date:
+                post.status = ForumPostStatus.ONGOING
+                has_updates = True
+        return has_updates
+
+    # Determine target status based on start date
+    start_date = _extract_post_start_date(post)
+    today_utc = datetime.now(timezone.utc).date()
+    job_has_started = (not start_date) or (today_utc >= start_date)
 
     if post.status == ForumPostStatus.OPEN:
+        post.status = ForumPostStatus.ONGOING if job_has_started else ForumPostStatus.IN_QUEUE
+        has_updates = True
+    elif post.status == ForumPostStatus.IN_QUEUE and job_has_started:
         post.status = ForumPostStatus.ONGOING
         has_updates = True
 
@@ -994,6 +1012,8 @@ def get_my_job_posts(
                 query = query.filter(
                     ForumPost.status.in_([ForumPostStatus.ONGOING, ForumPostStatus.PENDING_COMPLETION, ForumPostStatus.PENDING_CANCELLATION])
                 )
+            elif filter_status == ForumPostStatus.IN_QUEUE:
+                query = query.filter(ForumPost.status == ForumPostStatus.IN_QUEUE)
             else:
                 query = query.filter(ForumPost.status == filter_status)
         except ValueError:
@@ -1010,6 +1030,25 @@ def get_my_job_posts(
 
         if _sync_job_activation_state(db, post):
             has_status_updates = True
+
+        # Re-validate the filter AFTER auto-heal so that a post that was stored
+        # as 'in_queue' but whose start date has now passed (and was just promoted
+        # to 'ongoing') does NOT appear in the 'in_queue' tab — and vice versa.
+        if status_filter and status_filter.lower() not in ('all', ''):
+            current_post_status = post.status.value if hasattr(post.status, 'value') else str(post.status)
+            sf = status_filter.lower()
+            if sf == 'in_queue':
+                if current_post_status != 'in_queue':
+                    continue
+            elif sf == 'ongoing':
+                if current_post_status not in ('ongoing', 'pending_completion', 'pending_cancellation'):
+                    continue
+            elif sf == 'closed':
+                if current_post_status != 'cancelled':
+                    continue
+            else:
+                if current_post_status != sf:
+                    continue
 
         # Auto-heal short-term jobs only after both conditions are satisfied:
         # 1) all assigned workers' work is approved (contract COMPLETED)
@@ -1264,7 +1303,7 @@ def get_my_accepted_jobs(
         edit_response_status = interest.edit_response.value if interest.edit_response and hasattr(interest.edit_response, 'value') else (str(interest.edit_response) if interest.edit_response else None)
         edit_notified_at = interest.edit_notified_at.isoformat() if interest.edit_notified_at else None
         
-        # Apply status filter based on CONTRACT status (worker's individual progress)
+        # Apply status filter based on POST status (after auto-heal so promoted jobs sort correctly)
         if status_filter and status_filter.lower() != 'all':
             # Handle the 'pending_application' filter for pending interests
             if status_filter.lower() == 'pending_application':
@@ -1273,8 +1312,17 @@ def get_my_accepted_jobs(
             elif interest_status == 'pending':
                 # Pending applications only show in 'all' or 'pending_application' filter
                 continue
+            elif status_filter.lower() == 'in_queue':
+                # Only show jobs whose post status is currently in_queue (start date still future).
+                # If _sync_job_activation_state just promoted it to ongoing, post_status_val
+                # will already reflect 'ongoing' — so it will correctly be excluded here.
+                if post_status_val.lower() != 'in_queue':
+                    continue
             elif status_filter.lower() == 'ongoing':
-                # Include ongoing, active, and pending_cancellation jobs in the ongoing filter
+                # Include ongoing, active, pending_cancellation — but NOT in_queue
+                # (in_queue jobs are hired but haven't started yet, they belong to their own tab)
+                if post_status_val.lower() == 'in_queue':
+                    continue
                 if contract:
                     contract_status = contract.status.value if hasattr(contract.status, 'value') else str(contract.status)
                     if contract_status.lower() not in ('ongoing', 'active', 'pending_cancellation'):
@@ -1283,14 +1331,17 @@ def get_my_accepted_jobs(
                 else:
                     if post_status_val.lower() not in ('ongoing', 'pending_cancellation'):
                         continue
-            elif contract:
-                contract_status = contract.status.value if hasattr(contract.status, 'value') else str(contract.status)
-                if contract_status.lower() != status_filter.lower():
-                    if not (status_filter.lower() == 'ongoing' and contract_status.lower() == 'active'):
-                        continue
             else:
+                # For completed, pending_completion, and any other filter:
+                # Use post_status_val as the primary check (authoritative).
+                # Fall back to contract_status only if post_status doesn't match.
                 if post_status_val.lower() != status_filter.lower():
-                    continue
+                    if contract:
+                        contract_status = contract.status.value if hasattr(contract.status, 'value') else str(contract.status)
+                        if contract_status.lower() != status_filter.lower():
+                            continue
+                    else:
+                        continue
         
         # Employer info
         employer = employer_map.get(post.employer_id)
@@ -1525,8 +1576,6 @@ def update_job_post(
     old_duration_type = "long_term" if post.is_longterm else "short_term"
     old_start_date = post.start_date or old_details.get('start_date', '')
     old_end_date = post.end_date or old_details.get('end_date', '')
-    old_daily_start_time = getattr(post, 'daily_start_time', None) or old_details.get('daily_start_time', '')
-    old_daily_end_time = getattr(post, 'daily_end_time', None) or old_details.get('daily_end_time', '')
     
     # Check if there are any applicants (pending or accepted) before updating
     existing_applicants = db.query(InterestCheck).filter(
@@ -1604,15 +1653,6 @@ def update_job_post(
             old_end = old_end_date if old_end_date else 'Not set'
             new_end = new_end_date if new_end_date else 'Not set'
             changes.append(f"• End Date: {old_end} → {new_end}")
-
-    # Daily schedule change
-    if job_update.multi_day_schedule:
-        new_daily_start_time = job_update.multi_day_schedule.daily_start_time
-        new_daily_end_time = job_update.multi_day_schedule.daily_end_time
-        if old_daily_start_time != new_daily_start_time or old_daily_end_time != new_daily_end_time:
-            old_window = f"{old_daily_start_time or 'Not set'} - {old_daily_end_time or 'Not set'}"
-            new_window = f"{new_daily_start_time} - {new_daily_end_time}"
-            changes.append(f"• Daily Time: {old_window} → {new_window}")
     
     # Update fields
     if job_update.title:
@@ -1688,7 +1728,6 @@ def update_job_post(
         job_update.duration_type,
         job_update.start_date,
         job_update.end_date,
-        job_update.multi_day_schedule,
     ]):
         
         try:
@@ -1718,12 +1757,6 @@ def update_job_post(
         if job_update.end_date:
             current_details['end_date'] = job_update.end_date.isoformat()
             post.end_date = job_update.end_date.isoformat()
-        if job_update.multi_day_schedule:
-            current_details['num_days'] = job_update.multi_day_schedule.num_days
-            current_details['daily_start_time'] = job_update.multi_day_schedule.daily_start_time
-            current_details['daily_end_time'] = job_update.multi_day_schedule.daily_end_time
-            post.daily_start_time = job_update.multi_day_schedule.daily_start_time
-            post.daily_end_time = job_update.multi_day_schedule.daily_end_time
         if job_update.location:
             current_details['location'] = job_update.location
         
@@ -2022,97 +2055,6 @@ def apply_to_job(
         "interest_id": interest.interest_id,
         "status": interest.status.value if hasattr(interest.status, 'value') else str(interest.status),
         "is_reapplication": is_reapplying
-    }
-
-
-@router.post("/{post_id}/withdraw-application")
-def withdraw_job_application(
-    post_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Withdraw a pending job application (housekeeper only)."""
-
-    if not current_user.is_housekeeper:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only housekeepers can withdraw job applications"
-        )
-
-    worker_record = db.query(Worker).filter(Worker.user_id == current_user.id).first()
-    if not worker_record:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Worker profile not found"
-        )
-
-    post = db.query(ForumPost).filter(ForumPost.post_id == post_id).first()
-    if not post:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Job post not found"
-        )
-
-    application = db.query(InterestCheck).filter(
-        InterestCheck.post_id == post_id,
-        InterestCheck.worker_id == worker_record.worker_id
-    ).first()
-
-    if not application:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="You have not applied to this job"
-        )
-
-    if application.status != InterestStatus.PENDING:
-        current_status = application.status.value if hasattr(application.status, 'value') else str(application.status)
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Only pending applications can be cancelled. Current status: {current_status}"
-        )
-
-    # Mark as rejected to keep existing "withdrawn" behavior and re-apply flow consistent.
-    application.status = InterestStatus.REJECTED
-    application.edit_response = EditResponseStatus.REJECTED
-    application.edit_responded_at = datetime.now(timezone.utc)
-    application.withdrawn_due_to_conflict = False
-
-    # Cancel related pending contract record, if present.
-    try:
-        contract = db.query(Contract).filter(
-            Contract.post_id == post_id,
-            Contract.worker_id == worker_record.worker_id
-        ).first()
-        if contract:
-            contract.status = ContractStatus.CANCELLED
-            contract.worker_accepted = -1
-    except Exception as e:
-        print(f"Warning: Could not update contract while withdrawing application: {e}")
-
-    db.commit()
-
-    # Notify employer (best effort; should not fail withdrawal).
-    try:
-        employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
-        if employer:
-            notify_user(
-                db=db,
-                user_id=employer.user_id,
-                notification_type=NotificationType.SYSTEM,
-                title="Application Withdrawn",
-                message=f"{current_user.first_name} {current_user.last_name} withdrew their application for '{post.title}'.",
-                reference_type="job",
-                reference_id=post_id,
-                commit=True,
-            )
-    except Exception as e:
-        db.rollback()
-        print(f"Warning: Could not send withdrawal notification: {e}")
-
-    return {
-        "message": "Application cancelled successfully",
-        "post_id": post_id,
-        "status": "withdrawn"
     }
 
 @router.get("/{post_id}/application-status")
@@ -2574,7 +2516,9 @@ def start_job(
             detail="Please pay this week's posting fee before starting or continuing this recurring job."
         )
 
-    _ensure_post_date_reached(post, action="start this job")
+    # Note: we no longer require today >= start_date for hiring.
+    # Hiring before the start date places the job In Queue; it auto-transitions
+    # to Ongoing when the start date is reached.
     
     try:
         job_details = {}
@@ -2938,7 +2882,13 @@ def start_job(
         if _sync_job_activation_state(db, post):
             pass
         else:
-            post.status = ForumPostStatus.ONGOING
+            # Determine correct status based on start date
+            start_date = _extract_post_start_date(post)
+            today_utc = datetime.now(timezone.utc).date()
+            if start_date and today_utc < start_date:
+                post.status = ForumPostStatus.IN_QUEUE
+            else:
+                post.status = ForumPostStatus.ONGOING
 
         # Ensure already-accepted workers are not left with pending contracts.
         accepted_worker_ids = [row.worker_id for row in db.query(InterestCheck).filter(
@@ -2958,10 +2908,11 @@ def start_job(
 
         db.commit()
 
+        final_status = post.status.value if hasattr(post.status, 'value') else str(post.status)
         return {
-            "message": f"Job started with {len(accepted_worker_ids)} worker(s)!",
+            "message": f"{'Job queued' if final_status == 'in_queue' else 'Job started'} with {len(accepted_worker_ids)} worker(s)!" + (f" It will automatically start on {_extract_post_start_date(post)}." if final_status == 'in_queue' else ""),
             "post_id": post_id,
-            "status": "ongoing",
+            "status": final_status,
             "accepted_workers": accepted_workers
         }
     except HTTPException:

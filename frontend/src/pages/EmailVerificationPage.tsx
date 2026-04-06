@@ -10,6 +10,7 @@ export default function EmailVerificationPage() {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [skipLoading, setSkipLoading] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
   const [userEmail, setUserEmail] = useState('');
   const [devOtp, setDevOtp] = useState(''); // Only shown if SMTP not configured
@@ -168,6 +169,37 @@ export default function EmailVerificationPage() {
     }
   };
 
+  const handleSkip = async () => {
+    setSkipLoading(true);
+    setError('');
+    try {
+      const token = localStorage.getItem('access_token');
+      const res = await fetch(`${API_BASE_URL}/auth/skip-email-verification`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok) {
+        try {
+          const userStr = localStorage.getItem('user');
+          if (userStr) {
+            const u = JSON.parse(userStr);
+            u.email_verified = true;
+            localStorage.setItem('user', JSON.stringify(u));
+          }
+        } catch { /* ignore */ }
+        setSuccess(true);
+        setTimeout(() => navigate('/dashboard'), 1800);
+      } else {
+        setError(data.detail || 'Skip failed. Please try again.');
+      }
+    } catch {
+      setError('Could not connect to the server. Please try again.');
+    } finally {
+      setSkipLoading(false);
+    }
+  };
+
   const obscureEmail = (email: string) => {
     if (!email) return '';
     const [local, domain] = email.split('@');
@@ -309,6 +341,24 @@ export default function EmailVerificationPage() {
                 )}
               </button>
             )}
+          </div>
+
+          {/* Testing-only skip button */}
+          <div className="mt-4 pt-4 border-t border-dashed border-gray-300 dark:border-white/10">
+            <p className="text-center text-xs text-gray-400 dark:text-white/30 mb-2 font-medium">
+              ⚙️ Testing only
+            </p>
+            <button
+              onClick={handleSkip}
+              disabled={skipLoading}
+              className="w-full py-2 rounded-xl text-xs font-bold border border-dashed border-gray-300 dark:border-white/20 text-gray-500 dark:text-white/40 hover:bg-gray-100 dark:hover:bg-white/5 hover:text-gray-700 dark:hover:text-white/60 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {skipLoading ? (
+                <><RefreshCw className="w-3 h-3 animate-spin" /> Skipping…</>
+              ) : (
+                'Skip Email Verification'
+              )}
+            </button>
           </div>
 
           {/* Step indicator */}

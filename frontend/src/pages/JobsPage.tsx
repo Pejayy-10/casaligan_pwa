@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { API_BASE_URL } from '../config';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X, ChevronLeft, ChevronRight, FileText, Loader2 } from 'lucide-react';
+import { Briefcase, ClipboardList, Users, UserPlus, BookOpen, Package, Calendar, AlertTriangle, CheckCircle, Clock, AlertCircle, RotateCw, Folder, Home, DollarSign, Users as UsersIcon, Mail, Eye, Edit2, Tag, MapPin, Star, Check, X, ChevronLeft, ChevronRight, FileText, Loader2 } from 'lucide-react';
 import TabBar from '../components/TabBar';
 import JobDetailModal, { type JobPost } from '../components/JobDetailModal';
 import ApplicantsListModal from '../components/ApplicantsListModal';
@@ -27,7 +27,6 @@ import ReferHousekeeperModal from '../components/ReferHousekeeperModal';
 import apiClient from '../services/api';
 import type { User } from '../types';
 import { useScrollLock } from '../hooks/useScrollLock';
-import { JobsPageSkeleton } from '../components/Skeleton';
 
 export default function JobsPage() {
   const navigate = useNavigate();
@@ -43,9 +42,9 @@ export default function JobsPage() {
   const [applicationStatuses, setApplicationStatuses] = useState<Record<number, { has_applied: boolean; status?: string; can_reapply?: boolean; withdrawn_due_to_conflict?: boolean }>>({});
   const [showApplicants, setShowApplicants] = useState<JobPost | null>(null);
   const [showPayment, setShowPayment] = useState<{ jobTitle: string; amount: number; workerName: string } | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'ongoing' | 'completed' | 'closed'>(() => {
+  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'in_queue' | 'ongoing' | 'completed' | 'closed'>(() => {
     const tabParam = searchParams.get('tab');
-    return (tabParam as 'all' | 'open' | 'ongoing' | 'completed' | 'closed') || 'all';
+    return (tabParam as 'all' | 'open' | 'in_queue' | 'ongoing' | 'completed' | 'closed') || 'all';
   });
   const [showContract, setShowContract] = useState<JobPost | null>(null);
   const [showPaymentTracker, setShowPaymentTracker] = useState<JobPost | null>(null);
@@ -154,7 +153,7 @@ export default function JobsPage() {
     }
   }, [user, statusFilter]);
 
-  const handleOwnerStatusFilterChange = (nextFilter: 'all' | 'open' | 'ongoing' | 'completed' | 'closed') => {
+  const handleOwnerStatusFilterChange = (nextFilter: 'all' | 'open' | 'in_queue' | 'ongoing' | 'completed' | 'closed') => {
     if (statusFilter === nextFilter) return;
     setJobsFilterLoading(true);
     setStatusFilter(nextFilter);
@@ -525,8 +524,8 @@ export default function JobsPage() {
                 {/* 3. Status Filters (Segmented Control) */}
                 <div className="space-y-2">
                     
-                  <div className="pb-1 -mx-4 px-4 overflow-x-auto sm:overflow-visible sm:mx-0 sm:px-0 sm:flex sm:justify-center scrollbar-hide">
-                    <div className="flex min-w-max sm:min-w-0 sm:inline-flex sm:flex-wrap sm:justify-center gap-1.5 p-1.5 bg-gray-100/80 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-white/5 max-w-full">
+                    <div className="overflow-x-auto pb-1 -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
+                        <div className="flex gap-1.5 min-w-max p-1.5 bg-gray-100/80 dark:bg-slate-800/50 rounded-xl border border-gray-200 dark:border-white/5">
                             <FilterTab 
                                 active={statusFilter === 'all'} 
                               onClick={() => handleOwnerStatusFilterChange('all')} 
@@ -539,6 +538,13 @@ export default function JobsPage() {
                                 icon={CheckCircle} 
                                 label="Open" 
                                 activeColor="bg-green-500 text-white"
+                            />
+                            <FilterTab 
+                                active={statusFilter === 'in_queue'} 
+                              onClick={() => handleOwnerStatusFilterChange('in_queue')} 
+                                icon={Clock} 
+                                label="In Queue" 
+                                activeColor="bg-amber-500 text-white"
                             />
                             <FilterTab 
                                 active={statusFilter === 'ongoing'} 
@@ -621,11 +627,11 @@ export default function JobsPage() {
                     
                     {/* Category Filter */}
                     {housekeeperView === 'find' && (
-                      <div className="mt-2 flex justify-center">
+                        <div className="mt-2">
                             <select
                                 value={selectedCategory}
                                 onChange={(e) => setSelectedCategory(e.target.value ? Number(e.target.value) : '')}
-                          className="w-full sm:w-[24rem] max-w-full appearance-none px-4 py-2.5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-gray-200 dark:border-white/10 rounded-xl text-sm font-medium text-gray-700 dark:text-white shadow-sm hover:border-[#EA526F]/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] transition-all cursor-pointer"
+                                className="w-full appearance-none px-4 py-2.5 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border border-gray-200 dark:border-white/10 rounded-xl text-sm font-medium text-gray-700 dark:text-white shadow-sm hover:border-[#EA526F]/50 focus:outline-none focus:ring-2 focus:ring-[#EA526F]/20 focus:border-[#EA526F] transition-all cursor-pointer"
                             >
                                 <option value="">All Categories</option>
                                 {categories.map(cat => (
@@ -643,9 +649,15 @@ export default function JobsPage() {
       {/* Main Content */}
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-6">
         {user.active_role === 'owner' && loading ? (
-          <JobsPageSkeleton />
+          <div className="text-center py-20">
+            <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#EA526F]"></div>
+            <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading your job posts...</p>
+          </div>
         ) : loading && housekeeperView === 'find' ? (
-          <JobsPageSkeleton />
+          <div className="text-center py-20">
+            <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#EA526F]"></div>
+            <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading jobs...</p>
+          </div>
         ) : user.active_role === 'owner' ? (
           <OwnerJobsContent 
             jobs={jobs} 
@@ -1053,7 +1065,7 @@ function FilterTab({
             type="button"
             aria-pressed={active}
             aria-current={active ? 'true' : undefined}
-        className={`min-w-[8.5rem] sm:min-w-0 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center justify-center gap-1.5 ${
+            className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
                 active
                     ? `${activeColor} shadow-md ring-2 ring-[#4B244A]/30 dark:ring-white/30 ring-offset-2 ring-offset-gray-100 dark:ring-offset-slate-800`
                     : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
@@ -1308,11 +1320,12 @@ function OwnerJobsContent({
                 : `Unpublished: pay ₱${Number(job.post_fee_amount || 0).toLocaleString()} (${Number(job.post_fee_percentage || 7)}%) to publish this short-term post.`}
             </div>
           )}
-          <div className="flex flex-col items-start mb-3 gap-2">
+          <div className="flex items-start justify-between mb-3 gap-2">
             <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white break-words min-w-0">{job.title}</h3>
             <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
               showPostFeeGate ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
               job.status === 'open' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' : 
+              job.status === 'in_queue' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
               job.status === 'ongoing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' :
               job.status === 'pending_cancellation' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' :
               job.status === 'pending_completion' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300' :
@@ -1320,6 +1333,7 @@ function OwnerJobsContent({
               'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300'
             }`}>
               {showPostFeeGate ? 'UNPUBLISHED' : 
+               job.status === 'in_queue' ? '⏳ IN QUEUE' :
                job.status === 'pending_completion' ? 'PENDING APPROVAL' : 
                job.status === 'pending_cancellation' ? 'CANCEL PENDING' :
                job.status.toUpperCase()}
@@ -1332,21 +1346,6 @@ function OwnerJobsContent({
             <span className="px-2.5 py-1 bg-[#EA526F]/10 text-[#EA526F] dark:bg-[#EA526F]/20 dark:text-[#EA526F] rounded-md text-xs font-semibold flex items-center">
               <Home className="w-3.5 h-3.5 mr-1" /> {job.house_type}
             </span>
-            <span className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1 ${
-              (job.accommodation_type || 'stay_out') === 'stay_in'
-                ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
-                : 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-300'
-            }`}>
-              {(job.accommodation_type || 'stay_out') === 'stay_in' ? (
-                <>
-                  <Home className="w-3.5 h-3.5" /> Stay In
-                </>
-              ) : (
-                <>
-                  <MapPin className="w-3.5 h-3.5" /> Stay Out
-                </>
-              )}
-            </span>
             <span className={`px-2.5 py-1 rounded-md text-xs font-semibold flex items-center ${
               job.is_recurring
                 ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300'
@@ -1356,17 +1355,10 @@ function OwnerJobsContent({
               {job.is_recurring ? 'Recurring' : 'One-time'}
             </span>
             <span className="px-2.5 py-1 bg-blue-50 text-blue-700 dark:bg-blue-500/10 dark:text-blue-300 rounded-md text-xs font-semibold flex items-center">
-              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M7 21h10" />
-                <path d="M10 21v-4" />
-                <path d="M14 21v-4" />
-                <path d="M8 17h8l-1.5-5h-5z" />
-                <path d="M12 12V3" />
-                <path d="M12 3l3 3" />
-              </svg>
-              {job.cleaning_type}
+              🧹 {job.cleaning_type}
             </span>
             <span className="px-2.5 py-1 bg-green-50 text-green-700 dark:bg-green-500/10 dark:text-green-300 rounded-md text-xs font-semibold flex items-center">
+              <DollarSign className="w-3.5 h-3.5 mr-1" />
               {job.duration_type === 'long_term' && job.payment_schedule
                 ? `₱${job.payment_schedule.payment_amount.toLocaleString()}/${job.payment_schedule.frequency === 'biweekly' ? 'bi-wk' : 'mo'}`
                 : `₱${job.budget}`}
@@ -1422,6 +1414,13 @@ function OwnerJobsContent({
 
           {/* Action Buttons */}
           <div className="mt-4 grid grid-cols-1 gap-2">
+             {/* In Queue banner */}
+             {job.status === 'in_queue' && (
+               <div className="w-full py-2.5 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 text-sm font-semibold rounded-lg border border-amber-200 dark:border-amber-500/30 flex items-center justify-center gap-2">
+                 <Clock className="w-4 h-4 flex-shrink-0" />
+                 <span>Housekeeper hired — job starts automatically on {job.start_date ? new Date(job.start_date).toLocaleDateString() : 'the scheduled date'}</span>
+               </div>
+             )}
              {showPostFeeGate && (
                <button
                 onClick={() => onPayPostFee(job)}
@@ -1589,7 +1588,7 @@ function OwnerJobsContent({
              {/* Edit/Cancel actions for open jobs */}
              {job.status === 'open' && (
                  <div className="grid grid-cols-2 gap-2 mt-2">
-                    <button onClick={() => onEditJob(job)} className="py-2 bg-gray text-gray-700 border border-gray-300 dark:bg-white/10 dark :text-white text-sm font-bold rounded-lg hover:bg-gray-200 dark:hover:bg-white/20">
+                    <button onClick={() => onEditJob(job)} className="py-2 bg-gray text-gray-700 dark:bg-white/10 dark :text-white text-sm font-bold rounded-lg hover:bg-gray-200 dark:hover:bg-white/20">
                         Edit
                     </button>
                     <button 
@@ -1603,7 +1602,7 @@ function OwnerJobsContent({
                           });
                         }} 
                         disabled={actionLoading === `status-${job.post_id}`}
-                        className="py-2 bg-gray-100 text-gray-700 border border-gray-300 dark:bg-white/10 dark:text-white text-sm font-bold rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
+                        className="py-2 bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white text-sm font-bold rounded-lg hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400 transition-colors disabled:opacity-50 flex items-center justify-center gap-1"
                     >
                         {actionLoading === `status-${job.post_id}` ? <><Loader2 className="w-4 h-4 animate-spin" /> Cancelling...</> : 'Cancel'}
                     </button>
@@ -2006,21 +2005,6 @@ function HousekeeperJobsContent({
               <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
                 🏠 {job.house_type}
               </span>
-              <span className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1 ${
-                (job.accommodation_type || 'stay_out') === 'stay_in'
-                  ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300'
-                  : 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-300'
-              }`}>
-                {(job.accommodation_type || 'stay_out') === 'stay_in' ? (
-                  <>
-                    <Home className="w-3.5 h-3.5" /> Stay In
-                  </>
-                ) : (
-                  <>
-                    <MapPin className="w-3.5 h-3.5" /> Stay Out
-                  </>
-                )}
-              </span>
               <span className={`px-2 sm:px-3 py-1 rounded-lg text-xs sm:text-sm font-medium flex items-center ${
                 job.is_recurring
                   ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/10 dark:text-indigo-300'
@@ -2030,15 +2014,7 @@ function HousekeeperJobsContent({
                 {job.is_recurring ? 'Recurring' : 'One-time'}
               </span>
               <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
-                <svg viewBox="0 0 24 24" className="inline w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path d="M7 21h10" />
-                  <path d="M10 21v-4" />
-                  <path d="M14 21v-4" />
-                  <path d="M8 17h8l-1.5-5h-5z" />
-                  <path d="M12 12V3" />
-                  <path d="M12 3l3 3" />
-                </svg>
-                {job.cleaning_type}
+                🧹 {job.cleaning_type}
               </span>
               <span className="px-2 sm:px-3 py-1 bg-white/50 dark:bg-white/10 text-[#4B244A]/80 dark:text-white/80 rounded-lg text-xs sm:text-sm font-medium">
                 👥 {job.people_needed} needed

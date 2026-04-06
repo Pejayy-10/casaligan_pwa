@@ -1,20 +1,18 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import { useNavigate } from 'react-router-dom';
-import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight, Flag, FileText, X, Check, Loader2, AlertCircle, MapPin, Home } from 'lucide-react';
+import { RotateCw, Clock, CheckCircle, Briefcase, DollarSign, User, Phone, Mail, CreditCard, Calendar, BarChart2, AlertTriangle, ClipboardList, ChevronLeft, ChevronRight, Flag, FileText, X, Check, Loader2, AlertCircle, MapPin } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import ContractExtensionResponseModal, { type PendingExtension } from './ContractExtensionResponseModal';
 import HousekeeperSummaryModal from './HousekeeperSummaryModal';
 import DailyCompletionModal from './DailyCompletionModal';
 import { useConfirmDialog } from './useConfirmDialog';
-import { JobsPageSkeleton } from './Skeleton';
 
 interface AcceptedJob {
   post_id: number;
   title: string;
   description: string;
   location: string;
-  accommodation_type?: string | null;
   budget: number;
   status: string;
   post_fee_status?: string | null;
@@ -89,7 +87,7 @@ interface Props {
   onShowPayments?: (job: AcceptedJob) => void;
   onReportEmployer?: (job: AcceptedJob) => void;
   reportedUsers?: Set<string>;
-  initialStatusFilter?: 'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed';
+  initialStatusFilter?: 'all' | 'pending_application' | 'in_queue' | 'ongoing' | 'pending_completion' | 'completed';
 }
 
 export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, onReportUnpaid, onShowPayments, onReportEmployer, reportedUsers, initialStatusFilter }: Props) {
@@ -97,8 +95,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
   const { confirm, confirmDialog } = useConfirmDialog();
   const [jobs, setJobs] = useState<AcceptedJob[]>([]);
   const [loading, setLoading] = useState(true);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed'>(initialStatusFilter || 'all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending_application' | 'in_queue' | 'ongoing' | 'pending_completion' | 'completed'>(initialStatusFilter || 'all');
   const [showExtensionResponse, setShowExtensionResponse] = useState<PendingExtension | null>(null);
   const [showSummaryJobId, setShowSummaryJobId] = useState<number | null>(null);
   const [proofModal, setProofModal] = useState<{
@@ -138,12 +135,6 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
     return () => window.removeEventListener('my-jobs-updated', handleRefresh);
   }, [statusFilter]);
 
-  useEffect(() => {
-    if (!successMessage) return;
-    const timer = window.setTimeout(() => setSuccessMessage(null), 3500);
-    return () => window.clearTimeout(timer);
-  }, [successMessage]);
-
   const loadMyJobs = async (showLoader = false) => {
     try {
       if (showLoader) setLoading(true);
@@ -151,8 +142,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
       const response = await fetch(
         `${API_BASE_URL}/jobs/my-accepted-jobs${statusFilter !== 'all' ? `?status_filter=${statusFilter}` : ''}`,
         {
-          headers: { 'Authorization': `Bearer ${token}` },
-          cache: 'no-store'
+          headers: { 'Authorization': `Bearer ${token}` }
         }
       );
 
@@ -167,7 +157,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
     }
   };
 
-  const handleStatusFilterChange = (nextFilter: 'all' | 'pending_application' | 'ongoing' | 'pending_completion' | 'completed') => {
+  const handleStatusFilterChange = (nextFilter: 'all' | 'pending_application' | 'in_queue' | 'ongoing' | 'pending_completion' | 'completed') => {
     if (statusFilter === nextFilter) return;
     setLoading(true);
     setStatusFilter(nextFilter);
@@ -252,47 +242,11 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
     }
   };
 
-  const handleCancelPendingApplication = async (job: AcceptedJob) => {
-    const shouldCancel = await confirm({
-      title: 'Cancel Application',
-      message: 'Are you sure you want to cancel this application? You can apply again later if the job is still open.',
-      confirmLabel: 'Cancel Application',
-      tone: 'danger'
-    });
-
-    if (!shouldCancel) return;
-
-    try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_BASE_URL}/jobs/${job.post_id}/withdraw-application`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        alert(errorData.detail || 'Failed to cancel application');
-        return;
-      }
-
-      setJobs((prev) => prev.filter((existingJob) => existingJob.post_id !== job.post_id));
-      setSuccessMessage(`Application cancelled for "${job.title}".`);
-      if (currentPage > 1 && (jobs.length - 1) <= (currentPage - 1) * ITEMS_PER_PAGE) {
-        setCurrentPage((p) => Math.max(1, p - 1));
-      }
-      window.dispatchEvent(new Event('my-jobs-updated'));
-    } catch (error) {
-      console.error('Failed to cancel application:', error);
-      alert('Failed to cancel application');
-    }
-  };
-
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'active':
       case 'ongoing': return 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300';
+      case 'in_queue': return 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300';
       case 'pending_application': return 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300';
       case 'pending_completion': return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-300';
       case 'pending_cancellation': return 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300';
@@ -306,6 +260,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
     switch (status) {
       case 'active':
       case 'ongoing': return <><RotateCw className="inline w-4 h-4 mr-1" /> Ongoing</>;
+      case 'in_queue': return <><Clock className="inline w-4 h-4 mr-1" /> In Queue</>;
       case 'pending_completion': return <><Clock className="inline w-4 h-4 mr-1" /> Pending Approval</>;
       case 'pending_cancellation': return <><AlertCircle className="inline w-4 h-4 mr-1" /> Cancel Pending</>;
       case 'completed': return <><CheckCircle className="inline w-4 h-4 mr-1" /> Completed</>;
@@ -318,6 +273,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
   const getEffectiveStatus = (job: AcceptedJob): string => {
     if (job.status === 'cancelled') return 'cancelled';
     if (job.status === 'pending_cancellation') return 'pending_cancellation';
+    if (job.status === 'in_queue') return 'in_queue';
     if (job.application_status === 'pending') return 'pending_application';
     return job.contract?.status || job.status;
   };
@@ -333,18 +289,15 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
 
   if (loading) {
     return (
-      <JobsPageSkeleton />
+      <div className="text-center py-20">
+        <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#EA526F]"></div>
+        <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading your jobs...</p>
+      </div>
     );
   }
 
   return (
     <div>
-      {successMessage && (
-        <div className="mb-4 rounded-xl border border-green-200 dark:border-green-500/30 bg-green-100 dark:bg-green-500/15 px-4 py-3 text-sm font-bold text-green-700 dark:text-green-300">
-          <CheckCircle className="inline w-4 h-4 mr-1" /> {successMessage}
-        </div>
-      )}
-
       {/* Status Filter Tabs */}
       <div className="mb-6 overflow-x-auto pb-2">
         <div className="flex gap-2 min-w-max p-1 bg-white/50 dark:bg-slate-900/50 rounded-xl border border-gray-200 dark:border-white/10">
@@ -369,6 +322,17 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
             }`}
           >
             <Clock className="inline w-4 h-4 mr-1" /> Applied
+          </button>
+          <button
+            onClick={() => handleStatusFilterChange('in_queue')}
+            disabled={loading}
+            className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${
+              statusFilter === 'in_queue'
+                ? 'bg-amber-500 text-white shadow-md'
+                : 'text-[#4B244A]/70 dark:text-white/70 hover:bg-white/50 dark:hover:bg-white/10'
+            }`}
+          >
+            <Clock className="inline w-4 h-4 mr-1" /> In Queue
           </button>
           <button
             onClick={() => handleStatusFilterChange('ongoing')}
@@ -415,6 +379,8 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
               ? "You haven't applied to or been accepted to any jobs yet. Start applying!" 
               : statusFilter === 'pending_application'
               ? "You have no pending applications."
+              : statusFilter === 'in_queue'
+              ? "You have no jobs waiting to start."
               : `No ${statusFilter.replace('_', ' ')} jobs found.`}
           </p>
         </div>
@@ -442,21 +408,6 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
               <div className="flex flex-wrap gap-2 mb-4">
                 <span className="px-3 py-1 bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300 rounded-lg text-sm font-semibold">
                   ₱{job.budget}
-                </span>
-                <span className={`px-3 py-1 rounded-lg text-sm font-semibold flex items-center gap-1 ${
-                  (job.accommodation_type || 'stay_out') === 'stay_in'
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
-                    : 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300'
-                }`}>
-                  {(job.accommodation_type || 'stay_out') === 'stay_in' ? (
-                    <>
-                      <Home className="w-3.5 h-3.5" /> Stay In
-                    </>
-                  ) : (
-                    <>
-                      <MapPin className="w-3.5 h-3.5" /> Stay Out
-                    </>
-                  )}
                 </span>
                 {job.is_longterm && (
                   <span className="px-3 py-1 bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300 rounded-lg text-sm font-semibold">
@@ -608,19 +559,26 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                       </div>
                     </div>
                   ) : (
-                    <div className="mb-4 space-y-2">
-                      <div className="py-3 text-center text-xs text-orange-700 dark:text-orange-300 font-bold bg-orange-100 dark:bg-orange-500/10 rounded-lg border border-orange-200 dark:border-orange-500/30">
-                        <Clock className="inline w-4 h-4 mr-1" /> Waiting for house owner to accept your application
-                      </div>
-                      <button
-                        onClick={() => handleCancelPendingApplication(job)}
-                        className="w-full py-2 bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300 font-bold rounded-lg hover:bg-red-200 dark:hover:bg-red-500/25 transition-all border border-red-200 dark:border-red-500/30"
-                      >
-                        <X className="inline w-4 h-4 mr-1" /> Cancel Application
-                      </button>
+                    <div className="py-3 text-center text-xs text-orange-700 dark:text-orange-300 font-bold bg-orange-100 dark:bg-orange-500/10 rounded-lg border border-orange-200 dark:border-orange-500/30 mb-4">
+                      <Clock className="inline w-4 h-4 mr-1" /> Waiting for house owner to accept your application
                     </div>
                   )}
                 </>
+              )}
+
+              {/* In Queue Banner */}
+              {myStatus === 'in_queue' && (
+                <div className="mb-4 py-3 px-4 text-amber-800 dark:text-amber-200 font-semibold bg-amber-50 dark:bg-amber-500/10 rounded-lg border border-amber-200 dark:border-amber-500/30 flex items-center gap-2">
+                  <Clock className="w-5 h-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                  <div>
+                    <p className="text-sm font-bold">You're hired! Job starting soon.</p>
+                    {job.start_date && (
+                      <p className="text-xs mt-0.5 opacity-80">
+                        This job will automatically start on <span className="font-bold">{new Date(job.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>.
+                      </p>
+                    )}
+                  </div>
+                </div>
               )}
 
               {/* Action Buttons - Use myStatus (contract status) for individual worker state */}
