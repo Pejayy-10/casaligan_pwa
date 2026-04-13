@@ -9,10 +9,9 @@ type ChartDatum = {
   color: string;
 };
 
-const chartData: ChartDatum[] = [
-  { label: "Workers", value: 75, color: "#e7467b" },
-  { label: "Employers", value: 25, color: "#173d6c" },
-];
+type PieChartUsersCardProps = {
+  data: ChartDatum[];
+};
 
 function TooltipContent({ active, payload }: TooltipProps<number, string> & { payload?: Array<{ payload: ChartDatum }> }) {
   if (!active || !payload?.length) {
@@ -29,7 +28,7 @@ function TooltipContent({ active, payload }: TooltipProps<number, string> & { pa
   );
 }
 
-export function PieChartUsersCard() {
+export function PieChartUsersCard({ data }: PieChartUsersCardProps) {
   return (
     <section className="flex flex-col rounded-2xl border border-border bg-muted p-5 text-card-foreground shadow-sm">
       <header className="mb-4">
@@ -39,14 +38,14 @@ export function PieChartUsersCard() {
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
-              data={chartData}
+              data={data}
               dataKey="value"
               nameKey="label"
               innerRadius="55%"
               outerRadius="80%"
               paddingAngle={2}
             >
-              {chartData.map((entry) => (
+              {data.map((entry) => (
                 <Cell key={entry.label} fill={entry.color} />
               ))}
             </Pie>
@@ -55,7 +54,7 @@ export function PieChartUsersCard() {
         </ResponsiveContainer>
       </div>
       <footer className="mt-auto grid grid-cols-2 gap-2 text-xs">
-        {chartData.map((item) => (
+        {data.map((item) => (
           <div key={item.label} className="flex items-center gap-2">
             <span
               className="h-2.5 w-2.5 rounded-full"

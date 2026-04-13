@@ -5,6 +5,69 @@ import { createClient } from './server'
  * Updated to match actual Supabase schema
  */
 
+const WEEK_BUCKETS = 5
+const MS_PER_DAY = 24 * 60 * 60 * 1000
+
+const startOfWeek = (value: Date) => {
+  const date = new Date(value)
+  const day = date.getDay()
+  const diff = (day + 6) % 7
+  date.setDate(date.getDate() - diff)
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
+const getIsoWeek = (value: Date) => {
+  const date = new Date(Date.UTC(value.getFullYear(), value.getMonth(), value.getDate()))
+  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7))
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1))
+  return Math.ceil((((date.getTime() - yearStart.getTime()) / MS_PER_DAY) + 1) / 7)
+}
+
+const buildWeekBuckets = (count: number) => {
+  const weeks: { key: string; label: string; start: Date; end: Date }[] = []
+  const currentWeekStart = startOfWeek(new Date())
+  const firstWeekStart = new Date(currentWeekStart)
+  firstWeekStart.setDate(firstWeekStart.getDate() - (count - 1) * 7)
+
+  for (let i = 0; i < count; i += 1) {
+    const start = new Date(firstWeekStart)
+    start.setDate(firstWeekStart.getDate() + (i * 7))
+    const end = new Date(start)
+    end.setDate(start.getDate() + 6)
+    const weekNumber = getIsoWeek(start)
+    const key = `${start.getFullYear()}-W${weekNumber}`
+    const label = `W${weekNumber}`
+    weeks.push({ key, label, start, end })
+  }
+
+  return weeks
+}
+
+const getWeekKey = (value?: string | null) => {
+  if (!value) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return null
+  const start = startOfWeek(date)
+  return `${start.getFullYear()}-W${getIsoWeek(start)}`
+}
+
+const toNumber = (value: unknown) => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+const percentChange = (current: number, previous: number) => {
+  if (previous <= 0) {
+    return current > 0 ? 100 : 0
+  }
+  return ((current - previous) / previous) * 100
+}
+
+const isMissingColumnError = (error: any, column: string) => {
+  return error?.code === '42703' && String(error?.message || '').includes(column)
+}
+
 // Get dashboard statistics
 export async function getDashboardStats() {
   const supabase = await createClient()
@@ -18,10 +81,187 @@ export async function getDashboardStats() {
 
   const totalBookings = (contractsResult.count || 0) + (directHiresResult.count || 0)
 
+  const now = new Date()
+  const currentStart = new Date(now)
+  currentStart.setDate(currentStart.getDate() - 30)
+  const previousStart = new Date(now)
+  previousStart.setDate(previousStart.getDate() - 60)
+
+  const [currentUsers, previousUsers, currentJobs, previousJobs, currentContracts, previousContracts, currentDirectHires, previousDirectHires] = await Promise.all([
+    supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', currentStart.toISOString()),
+    supabase.from('users').select('*', { count: 'exact', head: true }).gte('created_at', previousStart.toISOString()).lt('created_at', currentStart.toISOString()),
+    supabase.from('forumposts').select('*', { count: 'exact', head: true }).gte('created_at', currentStart.toISOString()),
+    supabase.from('forumposts').select('*', { count: 'exact', head: true }).gte('created_at', previousStart.toISOString()).lt('created_at', currentStart.toISOString()),
+    supabase.from('contracts').select('*', { count: 'exact', head: true }).gte('created_at', currentStart.toISOString()),
+    supabase.from('contracts').select('*', { count: 'exact', head: true }).gte('created_at', previousStart.toISOString()).lt('created_at', currentStart.toISOString()),
+    supabase.from('direct_hires').select('*', { count: 'exact', head: true }).gte('created_at', currentStart.toISOString()),
+    supabase.from('direct_hires').select('*', { count: 'exact', head: true }).gte('created_at', previousStart.toISOString()).lt('created_at', currentStart.toISOString()),
+  ])
+
+  const currentBookings = (currentContracts.count || 0) + (currentDirectHires.count || 0)
+  const previousBookings = (previousContracts.count || 0) + (previousDirectHires.count || 0)
+
   return {
     totalUsers: usersResult.count || 0,
     totalJobs: jobsResult.count || 0,
     totalBookings: totalBookings,
+    trends: {
+      users: percentChange(currentUsers.count || 0, previousUsers.count || 0),
+      jobs: percentChange(currentJobs.count || 0, previousJobs.count || 0),
+      bookings: percentChange(currentBookings, previousBookings),
+    },
+  }
+}
+
+export async function getDashboardAnalytics() {
+  const supabase = await createClient()
+  const weekBuckets = buildWeekBuckets(WEEK_BUCKETS)
+  const rangeStart = weekBuckets[0]?.start?.toISOString() ?? new Date().toISOString()
+
+  const [contractsResult, directHiresResult, directHireFeesResult, statusResult, workersResult, employersResult] = await Promise.all([
+    supabase.from('contracts').select('created_at').gte('created_at', rangeStart),
+    supabase.from('direct_hires').select('created_at, paid_at, platform_fee_amount, platform_fee_status').gte('created_at', rangeStart),
+    supabase
+      .from('direct_hires')
+      .select('paid_at, created_at, platform_fee_amount, platform_fee_status')
+      .gte('created_at', rangeStart),
+    supabase.from('forumposts').select('status'),
+    supabase.from('workers').select('*', { count: 'exact', head: true }),
+    supabase.from('employers').select('*', { count: 'exact', head: true }),
+  ])
+
+  let postFeesResult = await supabase
+    .from('forumposts')
+    .select('created_at, status, post_fee_amount, post_fee_status, post_fee_paid_at, flat_post_fee_amount, flat_post_fee_status, flat_post_fee_paid_at')
+    .gte('created_at', rangeStart)
+
+  if (
+    isMissingColumnError(postFeesResult.error, 'flat_post_fee_amount') ||
+    isMissingColumnError(postFeesResult.error, 'flat_post_fee_status') ||
+    isMissingColumnError(postFeesResult.error, 'flat_post_fee_paid_at')
+  ) {
+    postFeesResult = await supabase
+      .from('forumposts')
+      .select('created_at, status, post_fee_amount, post_fee_status, post_fee_paid_at')
+      .gte('created_at', rangeStart)
+  }
+
+  const bookingsByWeek: Record<string, number> = {}
+  const revenueByWeek: Record<string, number> = {}
+  weekBuckets.forEach((bucket) => {
+    bookingsByWeek[bucket.key] = 0
+    revenueByWeek[bucket.key] = 0
+  })
+
+  ;(contractsResult.data || []).forEach((contract: { created_at?: string }) => {
+    const key = getWeekKey(contract.created_at)
+    if (key && key in bookingsByWeek) {
+      bookingsByWeek[key] += 1
+    }
+  })
+
+  ;(directHiresResult.data || []).forEach((hire: { created_at?: string }) => {
+    const key = getWeekKey(hire.created_at)
+    if (key && key in bookingsByWeek) {
+      bookingsByWeek[key] += 1
+    }
+  })
+
+  const addRevenue = (dateValue: string | null | undefined, amount: number) => {
+    const key = getWeekKey(dateValue || undefined)
+    if (key && key in revenueByWeek) {
+      revenueByWeek[key] += amount
+    }
+  }
+
+  ;(postFeesResult.data || []).forEach((post: any) => {
+    const flatStatus = String(post.flat_post_fee_status || '').toLowerCase()
+    const insuranceStatus = String(post.post_fee_status || '').toLowerCase()
+    if (flatStatus === 'paid') {
+      addRevenue(post.flat_post_fee_paid_at || post.created_at, toNumber(post.flat_post_fee_amount))
+    }
+    if (insuranceStatus === 'paid') {
+      addRevenue(post.post_fee_paid_at || post.created_at, toNumber(post.post_fee_amount))
+    }
+  })
+
+  ;(directHireFeesResult.data || []).forEach((hire: any) => {
+    const status = String(hire.platform_fee_status || '').toLowerCase()
+    if (status === 'paid') {
+      addRevenue(hire.paid_at || hire.created_at, toNumber(hire.platform_fee_amount))
+    }
+  })
+
+  const bookingsSeries = weekBuckets.map((bucket) => ({
+    week: bucket.label,
+    bookings: bookingsByWeek[bucket.key] ?? 0,
+  }))
+
+  const revenueSeries = weekBuckets.map((bucket) => ({
+    week: bucket.label,
+    revenue: Number((revenueByWeek[bucket.key] ?? 0).toFixed(2)),
+  }))
+
+  const workerCount = workersResult.count || 0
+  const employerCount = employersResult.count || 0
+  const totalUserCount = workerCount + employerCount
+  const workerPercent = totalUserCount > 0 ? Number(((workerCount / totalUserCount) * 100).toFixed(1)) : 0
+  const employerPercent = totalUserCount > 0 ? Number(((employerCount / totalUserCount) * 100).toFixed(1)) : 0
+
+  const userDistribution = [
+    { label: 'Workers', value: workerPercent, color: '#e7467b' },
+    { label: 'Employers', value: employerPercent, color: '#173d6c' },
+  ]
+
+  const statusCounts: Record<string, number> = {
+    open: 0,
+    in_queue: 0,
+    ongoing: 0,
+    pending_completion: 0,
+    completed: 0,
+  }
+
+  ;(statusResult.data || []).forEach((row: { status?: string }) => {
+    const status = String(row.status || '').toLowerCase()
+    if (status in statusCounts) {
+      statusCounts[status] += 1
+    }
+  })
+
+  const jobStatusMix = [
+    { label: 'Open', value: statusCounts.open },
+    { label: 'In Queue', value: statusCounts.in_queue },
+    { label: 'Ongoing', value: statusCounts.ongoing },
+    { label: 'Pending', value: statusCounts.pending_completion },
+    { label: 'Completed', value: statusCounts.completed },
+  ]
+
+  const topStatus = jobStatusMix.reduce((top, item) => (item.value > top.value ? item : top), jobStatusMix[0])
+  const totalJobs = jobStatusMix.reduce((sum, item) => sum + item.value, 0)
+
+  const rangeLabel = weekBuckets.length > 0
+    ? `${weekBuckets[0].start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekBuckets[weekBuckets.length - 1].end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+    : ''
+
+  const error = contractsResult.error || directHiresResult.error || postFeesResult.error || directHireFeesResult.error || statusResult.error || workersResult.error || employersResult.error || null
+
+  if (error) {
+    console.error('Error loading dashboard analytics:', error)
+  }
+
+  return {
+    data: {
+      bookingsByWeek: bookingsSeries,
+      revenueByWeek: revenueSeries,
+      userDistribution,
+      jobStatusMix,
+      jobStatusSummary: {
+        topLabel: topStatus?.label || 'N/A',
+        total: totalJobs,
+      },
+      rangeLabel,
+    },
+    error,
   }
 }
 

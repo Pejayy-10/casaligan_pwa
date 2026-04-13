@@ -175,6 +175,7 @@ export async function getPayments(limit = 50, offset = 0, status?: string, searc
     return {
       payment_id: `DH-${hire.hire_id}`,
       hire_id: hire.hire_id,
+      job_title: hire.job_title || null,
       amount: hire.total_amount,
       status: hire.status === 'paid' ? 'completed' : hire.status,
       payment_date: hire.paid_at || hire.created_at,
@@ -217,6 +218,7 @@ export async function getPayments(limit = 50, offset = 0, status?: string, searc
       payment_id: `JP-${trans.transaction_id}`,
       transaction_id: trans.transaction_id,
       schedule_id: trans.schedule_id,
+      job_title: forumpost?.title || 'Job Post Payment',
       amount: trans.amount_paid,
       status: 'completed', // Transactions are always completed
       payment_date: trans.paid_at,
@@ -634,56 +636,82 @@ export async function createPayment(paymentData: {
 export async function getPlatformFinanceOverview() {
   const supabase = createClient()
 
-  const [postFeesResult, directHireFeesResult, settingsResult] = await Promise.all([
-    supabase
+  const isMissingColumnError = (error: any, column: string) => {
+    return error?.code === '42703' && String(error?.message || '').includes(column)
+  }
+
+  let postFeesResult = await supabase
+    .from('forumposts')
+    .select('post_fee_amount, post_fee_status, flat_post_fee_amount, flat_post_fee_status')
+
+  if (isMissingColumnError(postFeesResult.error, 'flat_post_fee_amount') || isMissingColumnError(postFeesResult.error, 'flat_post_fee_status')) {
+    postFeesResult = await supabase
       .from('forumposts')
-      .select('post_fee_amount, post_fee_status'),
-    supabase
-      .from('direct_hires')
-      .select('platform_fee_amount, platform_fee_status'),
-    supabase
+      .select('post_fee_amount, post_fee_status')
+  }
+
+  const directHireFeesResult = await supabase
+    .from('direct_hires')
+    .select('platform_fee_amount, platform_fee_status')
+
+  let settingsResult = await supabase
+    .from('platform_settings')
+    .select('post_fee_percentage, direct_hire_fee_percentage, flat_post_fee_amount')
+    .eq('id', 1)
+    .maybeSingle()
+
+  if (isMissingColumnError(settingsResult.error, 'flat_post_fee_amount')) {
+    settingsResult = await supabase
       .from('platform_settings')
       .select('post_fee_percentage, direct_hire_fee_percentage')
       .eq('id', 1)
-      .maybeSingle(),
-  ])
+      .maybeSingle()
+  }
 
   const postFeesPaid = (postFeesResult.data || []).filter((row: any) => String(row.post_fee_status || '').toLowerCase() === 'paid')
+  const flatPostFeesPaid = (postFeesResult.data || []).filter((row: any) => String(row.flat_post_fee_status || '').toLowerCase() === 'paid')
   const directHiresPaid = (directHireFeesResult.data || []).filter((row: any) => String(row.platform_fee_status || '').toLowerCase() === 'paid')
 
-  const postFeeRevenue = postFeesPaid.reduce((sum: number, row: any) => sum + (parseFloat(row.post_fee_amount?.toString() || '0') || 0), 0)
+  const insuranceFeeRevenue = postFeesPaid.reduce((sum: number, row: any) => sum + (parseFloat(row.post_fee_amount?.toString() || '0') || 0), 0)
+  const flatPostFeeRevenue = flatPostFeesPaid.reduce((sum: number, row: any) => sum + (parseFloat(row.flat_post_fee_amount?.toString() || '0') || 0), 0)
   const directHireFeeRevenue = directHiresPaid.reduce((sum: number, row: any) => sum + (parseFloat(row.platform_fee_amount?.toString() || '0') || 0), 0)
 
   const settings = settingsResult.data || {
     post_fee_percentage: 7,
     direct_hire_fee_percentage: 7,
+    flat_post_fee_amount: 20,
   }
+
+  const totalPlatformWallet = Number((flatPostFeeRevenue + insuranceFeeRevenue + directHireFeeRevenue).toFixed(2))
 
   return {
     data: {
-      postFeeRevenue,
+      flatPostFeeRevenue,
+      insuranceFeeRevenue,
       directHireFeeRevenue,
-      totalPlatformWallet: Number((postFeeRevenue + directHireFeeRevenue).toFixed(2)),
-      postFeePercentage: Number(settings.post_fee_percentage ?? 7),
+      totalPlatformWallet,
+      flatPostFeeAmount: Number(settings.flat_post_fee_amount ?? 20),
+      insuranceFeePercentage: Number(settings.post_fee_percentage ?? 7),
       directHireFeePercentage: Number(settings.direct_hire_fee_percentage ?? 7),
     },
     error: postFeesResult.error || directHireFeesResult.error || settingsResult.error || null,
   }
 }
 
-export async function updatePlatformFeeSettings(postFeePercentage: number, directHireFeePercentage: number) {
+export async function updatePlatformFeeSettings(insuranceFeePercentage: number, directHireFeePercentage: number, flatPostFeeAmount: number) {
   const supabase = createClient()
 
   const payload = {
     id: 1,
-    post_fee_percentage: Number(postFeePercentage.toFixed(2)),
+    post_fee_percentage: Number(insuranceFeePercentage.toFixed(2)),
     direct_hire_fee_percentage: Number(directHireFeePercentage.toFixed(2)),
+    flat_post_fee_amount: Number(flatPostFeeAmount.toFixed(2)),
   }
 
   const { data, error } = await supabase
     .from('platform_settings')
     .upsert(payload, { onConflict: 'id' })
-    .select('post_fee_percentage, direct_hire_fee_percentage')
+    .select('post_fee_percentage, direct_hire_fee_percentage, flat_post_fee_amount')
     .single()
 
   return { data, error }

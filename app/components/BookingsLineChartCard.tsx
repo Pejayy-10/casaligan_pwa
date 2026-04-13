@@ -8,13 +8,10 @@ type ChartDatum = {
   bookings: number;
 };
 
-const chartData: ChartDatum[] = [
-  { week: "W1", bookings: 52 },
-  { week: "W2", bookings: 81 },
-  { week: "W3", bookings: 65 },
-  { week: "W4", bookings: 54 },
-  { week: "W5", bookings: 83 },
-];
+type BookingsLineChartCardProps = {
+  data: ChartDatum[];
+  rangeLabel?: string;
+};
 
 function TooltipContent({ active, payload }: TooltipProps<number, string>) {
   if (!active || !payload?.length) return null;
@@ -27,13 +24,13 @@ function TooltipContent({ active, payload }: TooltipProps<number, string>) {
   );
 }
 
-export function BookingsLineChartCard() {
+export function BookingsLineChartCard({ data, rangeLabel }: BookingsLineChartCardProps) {
   return (
     <section className="flex flex-col rounded-2xl border border-border bg-muted p-5 text-card-foreground shadow-sm">
       <header className="mb-4 flex items-start justify-between">
         <div>
           <p className="text-sm font-semibold text-muted-foreground">Bookings</p>
-          <p className="text-xs text-muted-foreground">September, 2025</p>
+          <p className="text-xs text-muted-foreground">{rangeLabel || "Recent weeks"}</p>
         </div>
         <button
           type="button"
@@ -45,7 +42,7 @@ export function BookingsLineChartCard() {
 
       <div className="h-64">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+          <LineChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="4 4" stroke="hsl(var(--muted-foreground)/0.1)" />
             <XAxis dataKey="week" tickLine={false} axisLine={false} tickMargin={10} />
             <YAxis tickLine={false} axisLine={false} width={32} />

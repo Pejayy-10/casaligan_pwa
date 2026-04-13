@@ -17,9 +17,13 @@
 # next.js
 /.next/
 /out/
+**/.next/
+**/out/
+**/.turbo/
 
 # production
 /build
+**/build/
 **/dist/
 frontend/android/
 **/android/app/build/
@@ -42,6 +46,7 @@ yarn-error.log*
 
 # vercel
 .vercel
+**/.vercel/
 
 # typescript
 *.tsbuildinfo

@@ -9,13 +9,16 @@ export default function PaymentsPage() {
 	const [count, setCount] = useState(0);
 	const [loading, setLoading] = useState(true);
 	const [finance, setFinance] = useState({
-		postFeeRevenue: 0,
+		flatPostFeeRevenue: 0,
+		insuranceFeeRevenue: 0,
 		directHireFeeRevenue: 0,
 		totalPlatformWallet: 0,
-		postFeePercentage: 7,
+		flatPostFeeAmount: 20,
+		insuranceFeePercentage: 7,
 		directHireFeePercentage: 7,
 	});
-	const [postFeeInput, setPostFeeInput] = useState("7.00");
+	const [flatPostFeeInput, setFlatPostFeeInput] = useState("20.00");
+	const [insuranceFeeInput, setInsuranceFeeInput] = useState("7.00");
 	const [directHireFeeInput, setDirectHireFeeInput] = useState("7.00");
 	const [savingFees, setSavingFees] = useState(false);
 
@@ -33,27 +36,34 @@ export default function PaymentsPage() {
 
 		if (data) {
 			setFinance(data);
-			setPostFeeInput(Number(data.postFeePercentage || 7).toFixed(2));
+			setFlatPostFeeInput(Number(data.flatPostFeeAmount ?? 20).toFixed(2));
+			setInsuranceFeeInput(Number(data.insuranceFeePercentage || 7).toFixed(2));
 			setDirectHireFeeInput(Number(data.directHireFeePercentage || 7).toFixed(2));
 		}
 	}
 
 	async function handleSaveFees() {
-		const postFee = Number(postFeeInput);
+		const flatPostFee = Number(flatPostFeeInput);
+		const insuranceFee = Number(insuranceFeeInput);
 		const directHireFee = Number(directHireFeeInput);
 
-		if (Number.isNaN(postFee) || Number.isNaN(directHireFee)) {
-			alert("Please enter valid fee percentages.");
+		if (Number.isNaN(flatPostFee) || Number.isNaN(insuranceFee) || Number.isNaN(directHireFee)) {
+			alert("Please enter valid fee values.");
 			return;
 		}
 
-		if (postFee < 0 || postFee > 100 || directHireFee < 0 || directHireFee > 100) {
+		if (flatPostFee < 0) {
+			alert("Flat post fee must be 0 or higher.");
+			return;
+		}
+
+		if (insuranceFee < 0 || insuranceFee > 100 || directHireFee < 0 || directHireFee > 100) {
 			alert("Fee percentages must be between 0 and 100.");
 			return;
 		}
 
 		setSavingFees(true);
-		const { error } = await updatePlatformFeeSettings(postFee, directHireFee);
+		const { error } = await updatePlatformFeeSettings(insuranceFee, directHireFee, flatPostFee);
 		setSavingFees(false);
 
 		if (error) {
@@ -201,10 +211,14 @@ export default function PaymentsPage() {
 				</p>
 			</div>
 
-			<div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+			<div className="grid grid-cols-1 gap-4 md:grid-cols-4">
 				<div className="rounded-xl border p-4">
-					<p className="text-sm text-muted-foreground">Post Fee Revenue</p>
-					<p className="text-2xl font-semibold">₱{finance.postFeeRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+					<p className="text-sm text-muted-foreground">Flat Post Fee Revenue</p>
+					<p className="text-2xl font-semibold">₱{finance.flatPostFeeRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+				</div>
+				<div className="rounded-xl border p-4">
+					<p className="text-sm text-muted-foreground">Insurance Fee Revenue</p>
+					<p className="text-2xl font-semibold">₱{finance.insuranceFeeRevenue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
 				</div>
 				<div className="rounded-xl border p-4">
 					<p className="text-sm text-muted-foreground">Direct Hire Fee Revenue</p>
@@ -218,17 +232,28 @@ export default function PaymentsPage() {
 
 			<div className="rounded-xl border p-4">
 				<h2 className="text-lg font-semibold">Platform Fee Settings</h2>
-				<p className="mt-1 text-sm text-muted-foreground">Edit the percentage collected by the platform for new transactions.</p>
-				<div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+				<p className="mt-1 text-sm text-muted-foreground">Edit the flat post fee and insurance percentages used for new transactions.</p>
+				<div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
 					<label className="space-y-1">
-						<span className="text-sm font-medium">Job Post Fee (%)</span>
+						<span className="text-sm font-medium">Flat Job Post Fee (PHP)</span>
+						<input
+							type="number"
+							min={0}
+							step={0.01}
+							value={flatPostFeeInput}
+							onChange={(e) => setFlatPostFeeInput(e.target.value)}
+							className="w-full rounded-md border px-3 py-2"
+						/>
+					</label>
+					<label className="space-y-1">
+						<span className="text-sm font-medium">Insurance Fee (%)</span>
 						<input
 							type="number"
 							min={0}
 							max={100}
 							step={0.01}
-							value={postFeeInput}
-							onChange={(e) => setPostFeeInput(e.target.value)}
+							value={insuranceFeeInput}
+							onChange={(e) => setInsuranceFeeInput(e.target.value)}
 							className="w-full rounded-md border px-3 py-2"
 						/>
 					</label>

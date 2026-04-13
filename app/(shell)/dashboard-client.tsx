@@ -18,12 +18,36 @@ type DashboardClientProps = {
 		totalUsers: number;
 		totalJobs: number;
 		totalBookings: number;
+		trends?: {
+			users: number;
+			jobs: number;
+			bookings: number;
+		};
 	};
 	today: string;
 	activities: any[];
+	analytics: {
+		bookingsByWeek: { week: string; bookings: number }[];
+		revenueByWeek: { week: string; revenue: number }[];
+		userDistribution: { label: string; value: number; color: string }[];
+		jobStatusMix: { label: string; value: number }[];
+		jobStatusSummary: { topLabel: string; total: number };
+		rangeLabel: string;
+	};
 };
 
-export default function DashboardClient({ stats, today, activities }: DashboardClientProps) {
+const formatTrend = (value?: number) => {
+	if (value === undefined || value === null) {
+		return undefined;
+	}
+	return {
+		value: `${Math.abs(value).toFixed(1)}%`,
+		isPositive: value >= 0,
+		label: "vs previous 30d",
+	};
+};
+
+export default function DashboardClient({ stats, today, activities, analytics }: DashboardClientProps) {
 	const router = useRouter();
 	const [userName, setUserName] = useState("Admin");
 	const [isLoading, setIsLoading] = useState(true);
@@ -67,34 +91,34 @@ export default function DashboardClient({ stats, today, activities }: DashboardC
 								value={stats.totalUsers}
 								icon={<Users2 className="h-6 w-6" />}
 								iconColor="#e7467b"
-								trend={{ value: "59%", isPositive: true, label: "vs last month" }}
+								trend={formatTrend(stats.trends?.users)}
 							/>
 							<StatSummaryCard
 								title="Jobs"
 								value={stats.totalJobs}
 								icon={<BriefcaseBusiness className="h-6 w-6" />}
 								iconColor="#0f766e"
-								trend={{ value: "59%", isPositive: false, label: "vs last month" }}
+								trend={formatTrend(stats.trends?.jobs)}
 							/>
 							<StatSummaryCard
 								title="Bookings"
 								value={stats.totalBookings}
 								icon={<CalendarCheck className="h-6 w-6" />}
 								iconColor="#6d28d9"
-								trend={{ value: "59%", isPositive: true, label: "vs last month" }}
+								trend={formatTrend(stats.trends?.bookings)}
 							/>
 						</div>
 
 						<div className="grid gap-4 lg:grid-cols-2">
-							<PieChartUsersCard />
-							<RadarChartWithSummary />
+							<PieChartUsersCard data={analytics.userDistribution} />
+							<RadarChartWithSummary data={analytics.jobStatusMix} summary={analytics.jobStatusSummary} />
 						</div>
 
-						<BookingsLineChartCard />
+						<BookingsLineChartCard data={analytics.bookingsByWeek} rangeLabel={analytics.rangeLabel} />
 					</section>
 
 				<aside className="space-y-4">
-					<RevenueBarChartCard />
+					<RevenueBarChartCard data={analytics.revenueByWeek} rangeLabel={analytics.rangeLabel} />
 					<RecentActivitiesCard activities={activities} />
 				</aside>
 				</div>

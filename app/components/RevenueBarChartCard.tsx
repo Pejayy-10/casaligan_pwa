@@ -8,13 +8,10 @@ type ChartDatum = {
   revenue: number;
 };
 
-const chartData: ChartDatum[] = [
-  { week: "W1", revenue: 32000 },
-  { week: "W2", revenue: 61000 },
-  { week: "W3", revenue: 28000 },
-  { week: "W4", revenue: 45000 },
-  { week: "W5", revenue: 72000 },
-];
+type RevenueBarChartCardProps = {
+  data: ChartDatum[];
+  rangeLabel?: string;
+};
 
 const currencyFormatter = new Intl.NumberFormat("en-PH", {
   style: "currency",
@@ -33,8 +30,8 @@ function TooltipContent({ active, payload }: TooltipProps<number, string> & { pa
   );
 }
 
-export function RevenueBarChartCard() {
-  const totalRevenue = chartData.reduce((acc, item) => acc + item.revenue, 0);
+export function RevenueBarChartCard({ data, rangeLabel }: RevenueBarChartCardProps) {
+  const totalRevenue = data.reduce((acc, item) => acc + item.revenue, 0);
 
   return (
     <section className="flex flex-col rounded-2xl border border-border bg-muted p-5 text-card-foreground shadow-sm">
@@ -44,6 +41,7 @@ export function RevenueBarChartCard() {
           <p className="text-3xl font-semibold text-emerald-600">
             {currencyFormatter.format(totalRevenue)}
           </p>
+          <p className="text-xs text-muted-foreground mt-1">{rangeLabel || "Recent weeks"}</p>
         </div>
         <button
           type="button"
@@ -55,7 +53,7 @@ export function RevenueBarChartCard() {
 
       <div className="h-60">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} barSize={28}>
+          <BarChart data={data} barSize={28}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
             <XAxis dataKey="week" tickLine={false} axisLine={false} tickMargin={8} />
             <YAxis
