@@ -269,6 +269,34 @@ export default function JobsPage() {
     }
   }, []);
 
+  const handlePayInsuranceFee = useCallback(async (job: JobPost) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`${API_BASE_URL}/jobs/${job.post_id}/insurance-fee/initiate-payment`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        alert(result.detail || 'Failed to start insurance fee payment');
+        return;
+      }
+
+      if (result.checkout_id) {
+        localStorage.setItem(`job_insurance_fee_checkout_${job.post_id}`, result.checkout_id);
+      }
+
+      window.location.href = result.redirect_url;
+    } catch (error) {
+      console.error('Failed to initiate insurance fee payment:', error);
+      alert('Failed to start insurance fee payment');
+    }
+  }, []);
+
   const handleSkipPostFee = useCallback(async (postId: number) => {
     try {
       const token = localStorage.getItem('access_token');
@@ -307,6 +335,7 @@ export default function JobsPage() {
 
     const postResult = searchParams.get('maya_post_result');
     const postId = searchParams.get('post_id');
+    const insuranceResult = searchParams.get('maya_insurance_result');
     const shortResult = searchParams.get('maya_short_payment_result');
     const shortPostId = searchParams.get('post_id');
     const shortContractId = searchParams.get('contract_id');
@@ -314,11 +343,11 @@ export default function JobsPage() {
     const longPostId = searchParams.get('post_id');
     const longScheduleId = searchParams.get('schedule_id');
 
-    if (!postResult && !shortResult && !longResult) return;
+    if (!postResult && !insuranceResult && !shortResult && !longResult) return;
 
     const clearMayaParams = () => {
       const next = new URLSearchParams(searchParams);
-      ['maya_post_result', 'maya_short_payment_result', 'maya_long_payment_result', 'post_id', 'contract_id', 'schedule_id', 'checkout_id'].forEach((key) => next.delete(key));
+      ['maya_post_result', 'maya_insurance_result', 'maya_short_payment_result', 'maya_long_payment_result', 'post_id', 'contract_id', 'schedule_id', 'checkout_id'].forEach((key) => next.delete(key));
       setSearchParams(next, { replace: true });
     };
 
@@ -357,6 +386,42 @@ export default function JobsPage() {
             } catch (error) {
               console.error('Post fee verify failed:', error);
               alert('Failed to verify post fee payment');
+            }
+          }
+        }
+      }
+
+      if (insuranceResult) {
+        const checkoutKey = `job_insurance_fee_checkout_${postId}`;
+        const checkoutId = checkoutFromUrl || (postId ? localStorage.getItem(checkoutKey) : null);
+        const attemptKey = `jobs_insurance_fee_verify_${postId}_${insuranceResult}_${checkoutId || 'missing'}`;
+
+        if (sessionStorage.getItem(attemptKey) !== '1') {
+          sessionStorage.setItem(attemptKey, '1');
+          if (insuranceResult !== 'success') {
+            alert('Insurance fee payment was not completed. You can try again.');
+          } else if (!postId || !checkoutId) {
+            alert('Unable to verify insurance fee payment. Please retry.');
+          } else {
+            try {
+              const response = await fetch(`${API_BASE_URL}/jobs/${postId}/insurance-fee/verify`, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ checkout_id: checkoutId })
+              });
+              const result = await response.json();
+              if (!response.ok) {
+                alert(result.detail || 'Failed to verify insurance fee payment');
+              } else {
+                alert(result.message || 'Insurance fee paid successfully');
+                localStorage.removeItem(checkoutKey);
+              }
+            } catch (error) {
+              console.error('Insurance fee verify failed:', error);
+              alert('Failed to verify insurance fee payment');
             }
           }
         }
@@ -480,8 +545,8 @@ export default function JobsPage() {
                     </div>
                     
                     <button 
-                        onClick={() => navigate('/jobs/create')}
-                        className="group flex items-center gap-2 px-5 py-2.5 !bg-[#E7467B] !text-white font-bold rounded-xl hover:!bg-[#CC3E71] transition-all shadow-md hover:shadow-lg active:scale-95"
+                      onClick={() => navigate('/jobs/create')}
+                      className="group flex items-center gap-2 px-5 py-2.5 bg-[#E7467B]! text-white! font-bold rounded-xl hover:bg-[#CC3E71]! transition-all shadow-md hover:shadow-lg active:scale-95"
                     >
                         <span className="text-lg leading-none group-hover:rotate-90 transition-transform duration-300">+</span> 
                         <span>New Job</span>
@@ -574,7 +639,7 @@ export default function JobsPage() {
           ) : (
             /* --- HOUSEKEEPER VIEW HEADER --- */
             <div className="flex flex-col gap-4">
-                <div className="flex items-center justify-between sm:flex-row items-center sm:items-center justify-between gap-3">
+                <div className="flex items-center justify-between sm:flex-row gap-3">
                     <div className="flex items-center gap-3">
                         {housekeeperView === 'find' ? (
                             <Briefcase className="w-6 h-6 text-[#4B244A] dark:text-white" />
@@ -588,7 +653,7 @@ export default function JobsPage() {
                     
                         <button
                         onClick={() => setShowPackageManagement(true)}
-                          className="group flex items-center gap-2 px-5 py-2.5 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-md hover:shadow-lg active:scale-95 flex items-center justify-center">
+                          className="group flex items-center justify-center gap-2 px-5 py-2.5 bg-[#EA526F]! text-white! font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-md hover:shadow-lg active:scale-95">
                             <Package className="w-4 h-4 mr-1.5" /> Packages
                         </button>
                     
@@ -814,13 +879,24 @@ export default function JobsPage() {
       
       {/* Applicants List Modal */}
       {showApplicants && (
+        (() => {
+          const insuranceFeeStatus = (showApplicants.post_fee_status || 'paid').toLowerCase();
+          const insuranceFeePaid = insuranceFeeStatus === 'paid';
+          const insuranceFeeMessage = insuranceFeeStatus === 'pending_owner_weekly'
+            ? 'Weekly insurance fee is required before starting the next cycle.'
+            : 'Insurance fee must be paid before accepting housekeepers.';
+          return (
         <ApplicantsListModal
           jobId={showApplicants.post_id}
           jobTitle={showApplicants.title}
           peopleNeeded={showApplicants.people_needed}
+          insuranceFeePaid={insuranceFeePaid}
+          insuranceFeeMessage={insuranceFeeMessage}
           onClose={() => setShowApplicants(null)}
           onJobStarted={() => { setShowApplicants(null); loadJobs(); }}
         />
+          );
+        })()
       )}
       
       {/* Payment Modal */}
@@ -1272,7 +1348,7 @@ function OwnerJobsContent({
         <p className="text-[#4B244A]/70 dark:text-white/70 mb-6">Create your first job post to find housekeepers</p>
         <button 
           onClick={() => navigate('/jobs/create')}
-          className="px-6 py-3 !bg-[#4B244A] !text-white font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg"
+          className="px-6 py-3 bg-[#4B244A]! text-white! font-bold rounded-xl hover:bg-[#d4486a] transition-all shadow-lg"
         >
           Create Your First Job Post
         </button>
@@ -1283,12 +1359,18 @@ function OwnerJobsContent({
   return (
     <div className="space-y-4">
       {paginatedJobs.map((job) => {
-        const isPostFeePending = (job.post_fee_status || 'paid').toLowerCase() !== 'paid';
-        const showPostFeeGate = isPostFeePending && (job.status === 'open' || Boolean(job.is_recurring));
-        const isWeeklyRecurringFeeDue = Boolean(job.is_recurring) && (job.post_fee_status || '').toLowerCase() === 'pending_owner_weekly';
+        const flatFeeAmount = Number(job.flat_post_fee_amount ?? 0);
+        const flatFeeStatus = (job.flat_post_fee_status || 'paid').toLowerCase();
+        const isFlatFeePending = flatFeeAmount > 0 && flatFeeStatus !== 'paid';
+        const showFlatFeeGate = isFlatFeePending && (job.status === 'open' || Boolean(job.is_recurring));
+        const insuranceFeeStatus = (job.post_fee_status || 'paid').toLowerCase();
+        const isInsuranceFeePaid = insuranceFeeStatus === 'paid';
+        const isWeeklyRecurringFeeDue = Boolean(job.is_recurring) && insuranceFeeStatus === 'pending_owner_weekly';
+        const insuranceGateStatuses = new Set(['open', 'in_queue', 'ongoing', 'pending_completion', 'pending_cancellation']);
+        const showInsuranceFeeGate = !showFlatFeeGate && !isInsuranceFeePaid && insuranceGateStatuses.has(job.status);
         return (
         <div key={job.post_id} className={`bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-2xl p-5 border transition-all shadow-sm ${
-          showPostFeeGate
+          showFlatFeeGate
             ? 'border-amber-300 dark:border-amber-500/40 opacity-85'
             : 'border-white/60 dark:border-white/10 hover:border-[#EA526F]/30 dark:hover:border-[#EA526F]/30 hover:shadow-md'
         }`}>
@@ -1313,17 +1395,22 @@ function OwnerJobsContent({
 
             return (
               <>
-          {showPostFeeGate && (
+          {showFlatFeeGate && (
             <div className="mb-3 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 px-3 py-2 text-xs font-semibold">
+              {`Unpublished: pay ₱${flatFeeAmount.toLocaleString()} to publish this post.`}
+            </div>
+          )}
+          {showInsuranceFeeGate && (
+            <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 px-3 py-2 text-xs font-semibold">
               {isWeeklyRecurringFeeDue
-                ? `Weekly recurring fee due: pay ₱${Number(job.post_fee_amount || 0).toLocaleString()} (${Number(job.post_fee_percentage || 7)}%) to continue this week's recurring cycle.`
-                : `Unpublished: pay ₱${Number(job.post_fee_amount || 0).toLocaleString()} (${Number(job.post_fee_percentage || 7)}%) to publish this short-term post.`}
+                ? `Weekly insurance fee due: pay ₱${Number(job.post_fee_amount || 0).toLocaleString()} (${Number(job.post_fee_percentage || 7)}%) to continue this week's recurring cycle.`
+                : `Insurance fee required before accepting housekeepers.`}
             </div>
           )}
           <div className="flex items-start justify-between mb-3 gap-2">
-            <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white break-words min-w-0">{job.title}</h3>
+            <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white wrap-break-word min-w-0">{job.title}</h3>
             <span className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap ${
-              showPostFeeGate ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
+              showFlatFeeGate ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
               job.status === 'open' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-300' : 
               job.status === 'in_queue' ? 'bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' :
               job.status === 'ongoing' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' :
@@ -1332,7 +1419,7 @@ function OwnerJobsContent({
               job.status === 'completed' ? 'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300' : 
               'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-300'
             }`}>
-              {showPostFeeGate ? 'UNPUBLISHED' : 
+              {showFlatFeeGate ? 'UNPUBLISHED' : 
                job.status === 'in_queue' ? '⏳ IN QUEUE' :
                job.status === 'pending_completion' ? 'PENDING APPROVAL' : 
                job.status === 'pending_cancellation' ? 'CANCEL PENDING' :
@@ -1340,7 +1427,7 @@ function OwnerJobsContent({
             </span>
           </div>
           
-          <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 line-clamp-2 text-sm break-words whitespace-normal">{job.description}</p>
+          <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 line-clamp-2 text-sm wrap-break-word whitespace-normal">{job.description}</p>
           
           <div className="flex flex-wrap gap-2 mb-4">
             <span className="px-2.5 py-1 bg-[#EA526F]/10 text-[#EA526F] dark:bg-[#EA526F]/20 dark:text-[#EA526F] rounded-md text-xs font-semibold flex items-center">
@@ -1417,21 +1504,23 @@ function OwnerJobsContent({
              {/* In Queue banner */}
              {job.status === 'in_queue' && (
                <div className="w-full py-2.5 bg-amber-50 dark:bg-amber-500/10 text-amber-800 dark:text-amber-300 text-sm font-semibold rounded-lg border border-amber-200 dark:border-amber-500/30 flex items-center justify-center gap-2">
-                 <Clock className="w-4 h-4 flex-shrink-0" />
-                 <span>Housekeeper hired — job starts automatically on {job.start_date ? new Date(job.start_date).toLocaleDateString() : 'the scheduled date'}</span>
+                 <Clock className="w-4 h-4 shrink-0" />
+                 <span>
+                   Housekeeper hired — job starts automatically on{' '}
+                   {job.start_date ? new Date(job.start_date).toLocaleDateString() : 'the scheduled date'}
+                   {job.start_time ? ` at ${job.start_time}` : ''}
+                 </span>
                </div>
              )}
-             {showPostFeeGate && (
+             {showFlatFeeGate && (
                <button
                 onClick={() => onPayPostFee(job)}
                 className="w-full py-2.5 bg-amber-500 text-white text-sm font-bold rounded-lg hover:bg-amber-600 transition-all shadow-md"
                >
-                {isWeeklyRecurringFeeDue
-                  ? `Pay Weekly Fee (${Number(job.post_fee_percentage ?? 7).toFixed(2).replace(/\.00$/, '')}%) (Maya)`
-                  : `Pay ${Number(job.post_fee_percentage ?? 7).toFixed(2).replace(/\.00$/, '')}% to Publish (Maya)`}
+                {flatFeeAmount > 0 ? `Pay Posting Fee (₱${flatFeeAmount.toLocaleString()}) (Maya)` : 'Pay Posting Fee (Maya)'}
                </button>
              )}
-             {showPostFeeGate && (
+             {showFlatFeeGate && (
                <button
                 onClick={() => onSkipPostFee(job.post_id)}
                 className="w-full py-2 bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg hover:bg-gray-300 transition-all border border-dashed border-gray-400"
@@ -1439,8 +1528,18 @@ function OwnerJobsContent({
                 ⚠️ Skip Payment (Testing Only)
                </button>
              )}
+             {showInsuranceFeeGate && (
+               <button
+                onClick={() => handlePayInsuranceFee(job)}
+                className="w-full py-2.5 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
+               >
+                {isWeeklyRecurringFeeDue
+                  ? `Pay Weekly Insurance Fee (${Number(job.post_fee_percentage ?? 7).toFixed(2).replace(/\.00$/, '')}%) (Maya)`
+                  : `Pay Insurance Fee (${Number(job.post_fee_percentage ?? 7).toFixed(2).replace(/\.00$/, '')}%) (Maya)`}
+               </button>
+             )}
 
-             {job.status === 'open' && !isPostFeePending && job.total_applicants > 0 && (
+             {job.status === 'open' && !isFlatFeePending && job.total_applicants > 0 && (
                 <button onClick={() => onViewApplicants(job)} className="w-full py-2 bg-[#4B244A] text-white text-sm font-bold rounded-lg hover:bg-[#361a35] transition-all">
                     View Applicants ({job.total_applicants})
                 </button>
@@ -1450,7 +1549,7 @@ function OwnerJobsContent({
              {job.status === 'pending_completion' && needsOwnerReviewOrPayment && (
                 <button
                   onClick={() => onShowCompletionReview(job)}
-                  className="w-full py-2.5 !bg-[#EA526F] !text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-lg flex items-center justify-center gap-2 animate-pulse"
+                  className="w-full py-2.5 bg-[#EA526F]! text-white! text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-lg flex items-center justify-center gap-2 animate-pulse"
                 >
                   <CheckCircle className="w-4 h-4" /> Review Completion & Pay
                 </button>
@@ -1531,7 +1630,7 @@ function OwnerJobsContent({
              {job.status === 'pending_cancellation' && job.cancel_requested_by === 'employer' && (
                <div className="rounded-xl border-2 border-orange-300 dark:border-orange-500/40 bg-orange-50 dark:bg-orange-500/10 p-4 space-y-2">
                  <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300 font-bold text-sm">
-                   <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                   <AlertCircle className="w-4 h-4 shrink-0" />
                    Cancellation Request Sent — Awaiting Housekeeper Approval
                  </div>
                  {job.cancel_request_reason && (
@@ -1549,7 +1648,7 @@ function OwnerJobsContent({
              {job.status === 'pending_cancellation' && job.cancel_requested_by === 'worker' && (
                <div className="rounded-xl border-2 border-red-300 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10 p-4 space-y-3">
                  <div className="flex items-center gap-2 text-red-700 dark:text-red-300 font-bold text-sm">
-                   <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                   <AlertTriangle className="w-4 h-4 shrink-0" />
                    Housekeeper Requested Contract Cancellation
                  </div>
                  {job.cancel_request_reason && (
@@ -1667,7 +1766,7 @@ function OwnerJobsContent({
                <button
                  onClick={() => requestRepost(job.post_id, job.title)}
                  disabled={actionLoading === `repost-${job.post_id}`}
-                 className="mt-2 w-full py-2 !bg-[#EA526F] !text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-1"
+                 className="mt-2 w-full py-2 bg-[#EA526F]! text-white! text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md disabled:opacity-50 flex items-center justify-center gap-1"
                >
                  {actionLoading === `repost-${job.post_id}` ? <><Loader2 className="w-4 h-4 animate-spin" /> Reposting...</> : 'Repost Job'}
                </button>
@@ -1703,7 +1802,7 @@ function OwnerJobsContent({
       )}
 
       {cancelModal && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-120 flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 shadow-2xl">
             <div className="p-5 border-b border-gray-200 dark:border-white/10">
               <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Cancel Job</h3>
@@ -1766,9 +1865,9 @@ function OwnerJobsContent({
       )}
 
       {repostModal && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-120 flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 shadow-2xl overflow-hidden">
-            <div className="h-1.5 bg-gradient-to-r from-[#EA526F] via-[#E7467B] to-[#4B244A]" />
+            <div className="h-1.5 bg-linear-to-r from-[#EA526F] via-[#E7467B] to-[#4B244A]" />
             <div className="p-5">
               <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Repost Job</h3>
               <p className="mt-2 text-sm text-[#4B244A]/75 dark:text-white/75">
@@ -1792,7 +1891,7 @@ function OwnerJobsContent({
                   await handleRepost(selectedPostId);
                 }}
                 disabled={actionLoading === `repost-${repostModal.postId}`}
-                className="py-2.5 rounded-lg !bg-[#EA526F] !text-white font-semibold hover:bg-[#d4486a] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                className="py-2.5 rounded-lg bg-[#EA526F]! text-white! font-semibold hover:bg-[#d4486a] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {actionLoading === `repost-${repostModal.postId}` ? <><Loader2 className="w-4 h-4 animate-spin" /> Reposting...</> : 'Yes, Repost'}
               </button>
@@ -1804,7 +1903,7 @@ function OwnerJobsContent({
 
       {/* ── Request Cancellation Modal (Owner initiates) ── */}
       {requestCancelModal && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-120 flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 shadow-2xl">
             <div className="p-5 border-b border-gray-200 dark:border-white/10">
               <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Request Contract Cancellation</h3>
@@ -1862,7 +1961,7 @@ function OwnerJobsContent({
 
       {/* ── Respond to Cancellation Modal (Owner rejects worker's request) ── */}
       {respondCancelModal && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-120 flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 shadow-2xl">
             <div className="p-5 border-b border-gray-200 dark:border-white/10">
               <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Reject Cancellation Request</h3>
@@ -1973,9 +2072,9 @@ function HousekeeperJobsContent({
               </div>
             )}
             <div className="flex items-start justify-between mb-3 gap-2">
-              <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white min-w-0 break-words">{job.title}</h3>
+              <h3 className="text-lg sm:text-xl font-bold text-[#4B244A] dark:text-white min-w-0 wrap-break-word">{job.title}</h3>
               <div className="text-right shrink-0">
-                <span className="px-4 py-2 bg-[#359126/10 dark:bg-[#359126]/20 !text-[#359126] dark:text-[#359126] rounded-full text-md font-bold whitespace-nowrap">
+                <span className="px-4 py-2 bg-[#359126/10 dark:bg-[#359126]/20 text-[#359126]! dark:text-[#359126] rounded-full text-md font-bold whitespace-nowrap">
                   {job.duration_type === 'long_term' && job.payment_schedule
                     ? `₱${job.payment_schedule.payment_amount.toLocaleString()}`
                     : `₱${job.budget}`}
@@ -1988,7 +2087,7 @@ function HousekeeperJobsContent({
               </div>
             </div>
           
-            <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 text-sm sm:text-base break-words whitespace-normal">{job.description}</p>
+            <p className="text-[#4B244A]/70 dark:text-white/70 mb-4 text-sm sm:text-base wrap-break-word whitespace-normal">{job.description}</p>
           
             {/* Display multiple categories */}
             {job.category_names && job.category_names.length > 0 && (
@@ -2026,12 +2125,12 @@ function HousekeeperJobsContent({
           
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="text-xs sm:text-sm text-[#4B244A]/60 dark:text-white/60 space-y-1 font-medium">
-                <p className="break-words"><MapPin className="inline w-4 h-4 mr-1" /> {job.employer_address}</p>
-                <p className="break-words"><Users className="inline w-4 h-4 mr-1" /> {job.employer_name}</p>
+                <p className="wrap-break-word"><MapPin className="inline w-4 h-4 mr-1" /> {job.employer_address}</p>
+                <p className="wrap-break-word"><Users className="inline w-4 h-4 mr-1" /> {job.employer_name}</p>
               </div>
               <button 
                 onClick={() => onSelectJob(job)}
-                className="w-full sm:w-auto px-4 sm:px-6 py-2 !bg-[#4B244A] !text-white text-sm sm:text-base font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-lg flex items-center justify-center gap-2"
+                className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-[#4B244A]! text-white! text-sm sm:text-base font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-lg flex items-center justify-center gap-2"
               >
                 View Details <ChevronRight className="w-4 h-4" />
               </button>

@@ -48,6 +48,8 @@ from app.utils.platform_fees import get_post_fee_percentage
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
+FLAT_POST_FEE_AMOUNT = Decimal("20.00")
+
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
@@ -60,6 +62,28 @@ def _safe_float(value, default: float = 0.0) -> float:
         return default
 
 
+def _get_flat_post_fee_amount(post: ForumPost) -> Decimal:
+    return Decimal(str(getattr(post, "flat_post_fee_amount", 0) or 0))
+
+
+def _get_flat_post_fee_status(post: ForumPost) -> str:
+    return (getattr(post, "flat_post_fee_status", "paid") or "paid").lower()
+
+
+def _is_flat_post_fee_paid(post: ForumPost) -> bool:
+    return _get_flat_post_fee_amount(post) <= 0 or _get_flat_post_fee_status(post) == "paid"
+
+
+def _ensure_flat_post_fee_paid(post: ForumPost, *, action: str) -> None:
+    if _get_flat_post_fee_amount(post) <= 0:
+        return
+    if _get_flat_post_fee_status(post) != "paid":
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=f"Please pay the posting fee before {action}.",
+        )
+
+
 def _is_weekly_recurring_post(post: ForumPost) -> bool:
     if not getattr(post, "is_recurring", False):
         return False
@@ -70,7 +94,7 @@ def _is_weekly_recurring_post(post: ForumPost) -> bool:
 
 def _ensure_current_week_post_fee_status(db: Session, post: ForumPost) -> bool:
     """
-    For active weekly recurring posts, require one owner post-fee payment per ISO week.
+    For active weekly recurring posts, require one owner insurance fee payment per ISO week.
 
     Returns True when post fields were mutated.
     """
@@ -96,7 +120,7 @@ def _ensure_current_week_post_fee_status(db: Session, post: ForumPost) -> bool:
         paid_at = paid_at.replace(tzinfo=timezone.utc)
 
     # If the previous cycle has already been paid out to worker(s), require the
-    # owner's next weekly recurring posting fee before the next cycle proceeds.
+    # owner's next weekly recurring insurance fee before the next cycle proceeds.
     if latest_worker_paid_at and (not paid_at or latest_worker_paid_at > paid_at):
         post.post_fee_status = "pending_owner_weekly"
         post.post_fee_checkout_id = None
@@ -132,6 +156,70 @@ def _extract_post_start_date(post: ForumPost) -> Optional[date]:
     return None
 
 
+def _parse_hhmm_to_minutes(value: Optional[str]) -> Optional[int]:
+    if not value:
+        return None
+    parts = str(value).split(":")
+    if len(parts) < 2:
+        return None
+    try:
+        hour = int(parts[0])
+        minute = int(parts[1])
+    except ValueError:
+        return None
+    if hour < 0 or hour > 23 or minute < 0 or minute > 59:
+        return None
+    return (hour * 60) + minute
+
+
+def _extract_post_start_time(post: ForumPost) -> Optional[str]:
+    raw_time = getattr(post, "daily_start_time", None) or getattr(post, "start_time", None)
+    if raw_time:
+        return str(raw_time)
+
+    if post.content and str(post.content).startswith("{"):
+        try:
+            details = json.loads(post.content)
+        except Exception:
+            details = None
+
+        if isinstance(details, dict):
+            daily_start = details.get("daily_start_time")
+            if daily_start:
+                return str(daily_start)
+            recurring_details = details.get("recurring_schedule")
+            if isinstance(recurring_details, dict):
+                recurring_start = recurring_details.get("start_time")
+                if recurring_start:
+                    return str(recurring_start)
+
+    return None
+
+
+def _is_post_start_time_reached(post: ForumPost) -> bool:
+    start_date = _extract_post_start_date(post)
+    if not start_date:
+        return True
+
+    today_utc = datetime.now(timezone.utc).date()
+    if today_utc < start_date:
+        return False
+    if today_utc > start_date:
+        return True
+
+    start_time = _extract_post_start_time(post)
+    if not start_time:
+        return True
+
+    start_minutes = _parse_hhmm_to_minutes(start_time)
+    if start_minutes is None:
+        return True
+
+    now_local = datetime.now()
+    now_minutes = (now_local.hour * 60) + now_local.minute
+    return now_minutes >= start_minutes
+
+
 def _ensure_post_date_reached(post: ForumPost, *, action: str) -> None:
     start_date = _extract_post_start_date(post)
     if not start_date:
@@ -142,6 +230,27 @@ def _ensure_post_date_reached(post: ForumPost, *, action: str) -> None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Cannot {action} before the scheduled date ({start_date.isoformat()}).",
+        )
+
+    if today_utc > start_date:
+        return
+
+    start_time = _extract_post_start_time(post)
+    if not start_time:
+        return
+
+    start_minutes = _parse_hhmm_to_minutes(start_time)
+    if start_minutes is None:
+        return
+
+    now_local = datetime.now()
+    now_minutes = (now_local.hour * 60) + now_local.minute
+    if now_minutes < start_minutes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Cannot {action} before the scheduled time ({start_time}) "
+                f"on {start_date.isoformat()}.")
         )
 
 
@@ -649,17 +758,13 @@ def _sync_job_activation_state(db: Session, post: ForumPost) -> bool:
     if len(accepted_interests) < people_needed:
         # Still transition in_queue → ongoing if start date has been reached
         if post.status == ForumPostStatus.IN_QUEUE:
-            start_date = _extract_post_start_date(post)
-            today_utc = datetime.now(timezone.utc).date()
-            if not start_date or today_utc >= start_date:
+            if _is_post_start_time_reached(post):
                 post.status = ForumPostStatus.ONGOING
                 has_updates = True
         return has_updates
 
     # Determine target status based on start date
-    start_date = _extract_post_start_date(post)
-    today_utc = datetime.now(timezone.utc).date()
-    job_has_started = (not start_date) or (today_utc >= start_date)
+    job_has_started = _is_post_start_time_reached(post)
 
     if post.status == ForumPostStatus.OPEN:
         post.status = ForumPostStatus.ONGOING if job_has_started else ForumPostStatus.IN_QUEUE
@@ -880,6 +985,8 @@ def create_job_post(
         post_fee_percentage=post_fee_percentage,
         post_fee_amount=_calculate_post_fee(job_data.budget, post_fee_percentage),
         post_fee_status="pending",
+        flat_post_fee_amount=FLAT_POST_FEE_AMOUNT,
+        flat_post_fee_status="pending",
         category_id=job_data.category_ids[0] if job_data.category_ids else job_data.category_id,  # Keep first category for compatibility
         is_longterm=(job_data.duration_type == "long_term"),
         start_date=job_data.start_date.isoformat() if job_data.start_date else None,
@@ -931,13 +1038,15 @@ def get_job_posts(
     # Exclude current user's own posts (they can only be owners posting jobs)
     query = query.filter(ForumPost.user_id != current_user.id)
 
-    # Only show published jobs to housekeepers (posting fee paid).
-    # Legacy rows with null/empty status are treated as already published.
+    # Only show published jobs to housekeepers (flat posting fee paid).
+    # Legacy rows with null/empty status or zero amount are treated as published.
     query = query.filter(
         or_(
-            ForumPost.post_fee_status.is_(None),
-            ForumPost.post_fee_status == "",
-            ForumPost.post_fee_status == "paid",
+            ForumPost.flat_post_fee_amount.is_(None),
+            ForumPost.flat_post_fee_amount <= 0,
+            ForumPost.flat_post_fee_status.is_(None),
+            ForumPost.flat_post_fee_status == "",
+            ForumPost.flat_post_fee_status == "paid",
         )
     )
     
@@ -951,9 +1060,6 @@ def get_job_posts(
     for post in posts:
         if _ensure_current_week_post_fee_status(db, post):
             has_fee_updates = True
-
-        if (getattr(post, 'post_fee_status', 'paid') or 'paid').lower() != 'paid':
-            continue
 
         # Get employer user info
         employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
@@ -1448,6 +1554,7 @@ def get_my_accepted_jobs(
             "edit_notified_at": edit_notified_at,
             "start_date": post.start_date,
             "end_date": post.end_date,
+            "start_time": resolved_start_time,
             "is_longterm": post.is_longterm,
             "accepted_at": interest.created_at.isoformat() if interest.created_at else None,
             "employer": {
@@ -1879,16 +1986,19 @@ def apply_to_job(
             detail="Job post not found or is no longer open"
         )
 
-    if _ensure_current_week_post_fee_status(db, post):
-        db.commit()
-        db.refresh(post)
+    _ensure_flat_post_fee_paid(post, action="applying to this job")
 
-    post_fee_status = (getattr(post, 'post_fee_status', 'paid') or 'paid').lower()
-    if post_fee_status != 'paid':
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="This recurring job is waiting for the owner's weekly posting fee payment."
-        )
+    if _is_weekly_recurring_post(post):
+        if _ensure_current_week_post_fee_status(db, post):
+            db.commit()
+            db.refresh(post)
+
+        post_fee_status = (getattr(post, 'post_fee_status', 'paid') or 'paid').lower()
+        if post_fee_status != 'paid':
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="This recurring job is waiting for the owner's weekly insurance fee payment."
+            )
     
     # Check if already applied
     existing_application = db.query(InterestCheck).filter(
@@ -2505,15 +2615,23 @@ def start_job(
             detail="You can only manage your own job posts"
         )
 
-    if _ensure_current_week_post_fee_status(db, post):
-        db.commit()
-        db.refresh(post)
+    _ensure_flat_post_fee_paid(post, action="starting this job")
+
+    if _is_weekly_recurring_post(post):
+        if _ensure_current_week_post_fee_status(db, post):
+            db.commit()
+            db.refresh(post)
 
     post_fee_status = (getattr(post, 'post_fee_status', 'paid') or 'paid').lower()
     if post_fee_status != 'paid':
+        detail = (
+            "Please pay this week's insurance fee before starting or continuing this recurring job."
+            if _is_weekly_recurring_post(post)
+            else "Please pay the insurance fee before accepting housekeepers."
+        )
         raise HTTPException(
             status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="Please pay this week's posting fee before starting or continuing this recurring job."
+            detail=detail,
         )
 
     # Note: we no longer require today >= start_date for hiring.
@@ -3055,6 +3173,8 @@ def repost_job_post(
         post_fee_percentage=post_fee_percentage,
         post_fee_amount=_calculate_post_fee(float(post.salary or 0), post_fee_percentage),
         post_fee_status="pending",
+        flat_post_fee_amount=FLAT_POST_FEE_AMOUNT,
+        flat_post_fee_status="pending",
         category_id=post.category_id,
         is_longterm=post.is_longterm,
         start_date=post.start_date,
@@ -3122,16 +3242,14 @@ async def initiate_post_fee_payment(
     if not maya_is_configured():
         raise HTTPException(status_code=500, detail="Maya sandbox is not configured on backend")
 
-    current_fee_status = (getattr(post, 'post_fee_status', 'pending') or 'pending').lower()
+    current_fee_status = (getattr(post, 'flat_post_fee_status', 'pending') or 'pending').lower()
     if current_fee_status == 'paid':
         raise HTTPException(status_code=400, detail="Posting fee already paid")
 
-    fee_amount = Decimal(str(getattr(post, 'post_fee_amount', 0) or 0))
+    fee_amount = Decimal(str(getattr(post, 'flat_post_fee_amount', 0) or 0))
     if fee_amount <= 0:
-        post_fee_percentage = get_post_fee_percentage(db)
-        fee_amount = _calculate_post_fee(float(post.salary or 0), post_fee_percentage)
-        post.post_fee_amount = fee_amount
-        post.post_fee_percentage = post_fee_percentage
+        fee_amount = FLAT_POST_FEE_AMOUNT
+        post.flat_post_fee_amount = fee_amount
         db.commit()
         db.refresh(post)
 
@@ -3161,9 +3279,9 @@ async def initiate_post_fee_payment(
     if not checkout_id or not redirect_url:
         raise HTTPException(status_code=502, detail="Invalid Maya checkout response")
 
-    post.post_fee_checkout_id = str(checkout_id)
-    post.post_fee_reference = reference_number
-    post.post_fee_status = "pending"
+    post.flat_post_fee_checkout_id = str(checkout_id)
+    post.flat_post_fee_reference = reference_number
+    post.flat_post_fee_status = "pending"
     db.commit()
 
     return JobPostFeeInitiateResponse(
@@ -3195,9 +3313,9 @@ async def skip_post_fee_for_testing(
     if not employer or employer.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only publish your own posts")
 
-    post.post_fee_status = "paid"
-    post.post_fee_paid_at = func.now()
-    post.post_fee_reference = f"SKIP-TEST-{post.post_id}"
+    post.flat_post_fee_status = "paid"
+    post.flat_post_fee_paid_at = func.now()
+    post.flat_post_fee_reference = f"SKIP-TEST-{post.post_id}"
     db.commit()
 
     return {"message": "Post fee skipped for testing. Job is now published.", "status": "paid"}
@@ -3228,6 +3346,178 @@ async def verify_post_fee_payment(
 
     payment_status = normalize_checkout_status(checkout)
 
+    post.flat_post_fee_checkout_id = payload.checkout_id
+    post.flat_post_fee_reference = checkout.get("requestReferenceNumber") or post.flat_post_fee_reference
+
+    if payment_status == "paid":
+        post.flat_post_fee_status = "paid"
+        post.flat_post_fee_paid_at = func.now()
+        db.commit()
+        return {
+            "message": "Posting fee paid. Job is now published.",
+            "status": "paid"
+        }
+
+    if payment_status in {"failed", "cancelled"}:
+        post.flat_post_fee_status = payment_status
+        db.commit()
+        return {
+            "message": "Posting fee payment was not completed.",
+            "status": payment_status
+        }
+
+    post.flat_post_fee_status = "pending"
+    db.commit()
+    return {
+        "message": "Posting fee payment is still pending.",
+        "status": "pending"
+    }
+
+
+class JobInsuranceFeeInitiateResponse(BaseModel):
+    post_id: int
+    checkout_id: str
+    redirect_url: str
+    insurance_fee_amount: float
+    insurance_fee_percentage: float
+
+
+class JobInsuranceFeeVerifyRequest(BaseModel):
+    checkout_id: str
+
+
+@router.post("/{post_id}/insurance-fee/initiate-payment", response_model=JobInsuranceFeeInitiateResponse)
+async def initiate_insurance_fee_payment(
+    post_id: int,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if not current_user.is_owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only house owners can pay insurance fee")
+
+    post = db.query(ForumPost).filter(
+        ForumPost.post_id == post_id,
+        ForumPost.deleted_at.is_(None)
+    ).first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job post not found")
+
+    employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+    if not employer or employer.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only pay fee for your own posts")
+
+    if not maya_is_configured():
+        raise HTTPException(status_code=500, detail="Maya sandbox is not configured on backend")
+
+    current_fee_status = (getattr(post, 'post_fee_status', 'pending') or 'pending').lower()
+    if current_fee_status == 'paid':
+        raise HTTPException(status_code=400, detail="Insurance fee already paid")
+
+    fee_amount = Decimal(str(getattr(post, 'post_fee_amount', 0) or 0))
+    post_fee_percentage = Decimal(str(getattr(post, 'post_fee_percentage', 0) or 0))
+    if fee_amount <= 0:
+        post_fee_percentage = get_post_fee_percentage(db)
+        fee_amount = _calculate_post_fee(float(post.salary or 0), post_fee_percentage)
+        post.post_fee_amount = fee_amount
+        post.post_fee_percentage = post_fee_percentage
+        db.commit()
+        db.refresh(post)
+
+    frontend_base_url = _resolve_frontend_base_url(request)
+    success_url = f"{frontend_base_url}/jobs?maya_insurance_result=success&post_id={post.post_id}"
+    failure_url = f"{frontend_base_url}/jobs?maya_insurance_result=failure&post_id={post.post_id}"
+    cancel_url = f"{frontend_base_url}/jobs?maya_insurance_result=cancel&post_id={post.post_id}"
+
+    reference_number = f"JIF-{post.post_id}-{int(datetime.utcnow().timestamp())}"
+
+    try:
+        checkout = await create_checkout(
+            amount=fee_amount,
+            reference_number=reference_number,
+            success_url=success_url,
+            failure_url=failure_url,
+            cancel_url=cancel_url,
+            buyer_first_name=current_user.first_name,
+            buyer_last_name=current_user.last_name,
+            buyer_email=current_user.email,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Unable to create Maya checkout: {exc}") from exc
+
+    checkout_id = checkout.get("checkoutId") or checkout.get("id")
+    redirect_url = checkout.get("redirectUrl")
+    if not checkout_id or not redirect_url:
+        raise HTTPException(status_code=502, detail="Invalid Maya checkout response")
+
+    post.post_fee_checkout_id = str(checkout_id)
+    post.post_fee_reference = reference_number
+    post.post_fee_status = "pending"
+    db.commit()
+
+    return JobInsuranceFeeInitiateResponse(
+        post_id=post.post_id,
+        checkout_id=str(checkout_id),
+        redirect_url=str(redirect_url),
+        insurance_fee_amount=float(fee_amount),
+        insurance_fee_percentage=float(post_fee_percentage),
+    )
+
+
+@router.post("/{post_id}/insurance-fee/skip-for-testing")
+async def skip_insurance_fee_for_testing(
+    post_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """⚠️ TESTING ONLY — Marks the insurance fee as paid without any real payment."""
+    if not current_user.is_owner:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only house owners can pay insurance fee")
+
+    post = db.query(ForumPost).filter(
+        ForumPost.post_id == post_id,
+        ForumPost.deleted_at.is_(None)
+    ).first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job post not found")
+
+    employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+    if not employer or employer.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only pay fee for your own posts")
+
+    post.post_fee_status = "paid"
+    post.post_fee_paid_at = func.now()
+    post.post_fee_reference = f"SKIP-INSURANCE-{post.post_id}"
+    db.commit()
+
+    return {"message": "Insurance fee skipped for testing.", "status": "paid"}
+
+
+@router.post("/{post_id}/insurance-fee/verify")
+async def verify_insurance_fee_payment(
+    post_id: int,
+    payload: JobInsuranceFeeVerifyRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    post = db.query(ForumPost).filter(
+        ForumPost.post_id == post_id,
+        ForumPost.deleted_at.is_(None)
+    ).first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Job post not found")
+
+    employer = db.query(Employer).filter(Employer.employer_id == post.employer_id).first()
+    if not employer or employer.user_id != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only verify fee for your own posts")
+
+    try:
+        checkout = await retrieve_checkout(payload.checkout_id)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Unable to verify Maya checkout: {exc}") from exc
+
+    payment_status = normalize_checkout_status(checkout)
+
     post.post_fee_checkout_id = payload.checkout_id
     post.post_fee_reference = checkout.get("requestReferenceNumber") or post.post_fee_reference
 
@@ -3236,7 +3526,7 @@ async def verify_post_fee_payment(
         post.post_fee_paid_at = func.now()
         db.commit()
         return {
-            "message": "Posting fee paid. Job is now published.",
+            "message": "Insurance fee paid. You can now accept housekeepers.",
             "status": "paid"
         }
 
@@ -3244,14 +3534,14 @@ async def verify_post_fee_payment(
         post.post_fee_status = payment_status
         db.commit()
         return {
-            "message": "Posting fee payment was not completed.",
+            "message": "Insurance fee payment was not completed.",
             "status": payment_status
         }
 
     post.post_fee_status = "pending"
     db.commit()
     return {
-        "message": "Posting fee payment is still pending.",
+        "message": "Insurance fee payment is still pending.",
         "status": "pending"
     }
 
@@ -3321,16 +3611,17 @@ def submit_job_completion(
             detail="Long-term jobs are completed automatically when all scheduled payments are confirmed. You don't need to submit a completion proof."
         )
 
-    if _ensure_current_week_post_fee_status(db, post):
-        db.commit()
-        db.refresh(post)
+    if _is_weekly_recurring_post(post):
+        if _ensure_current_week_post_fee_status(db, post):
+            db.commit()
+            db.refresh(post)
 
-    post_fee_status = (getattr(post, 'post_fee_status', 'paid') or 'paid').lower()
-    if post_fee_status != 'paid':
-        raise HTTPException(
-            status_code=status.HTTP_402_PAYMENT_REQUIRED,
-            detail="Cannot submit completion proof yet. The owner must pay this week's recurring posting fee first."
-        )
+        post_fee_status = (getattr(post, 'post_fee_status', 'paid') or 'paid').lower()
+        if post_fee_status != 'paid':
+            raise HTTPException(
+                status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                detail="Cannot submit completion proof yet. The owner must pay this week's insurance fee first."
+            )
     
     # Get this worker's contract for this job
     contract = db.query(Contract).filter(

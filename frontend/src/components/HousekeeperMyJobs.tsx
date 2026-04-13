@@ -24,6 +24,7 @@ interface AcceptedJob {
   edit_notified_at?: string | null;
   start_date: string | null;
   end_date: string | null;
+  start_time?: string | null;
   is_longterm: boolean;
   accepted_at: string | null;
   // Mutual cancellation fields
@@ -510,7 +511,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                   {job.edit_response === 'pending' ? (
                     <div className="mb-4 space-y-3">
                       <div className="py-2 px-3 text-yellow-800 dark:text-yellow-200 font-semibold bg-yellow-100 dark:bg-yellow-500/10 rounded-lg border border-yellow-200 dark:border-yellow-500/30 flex items-center gap-2">
-                        <Clock className="w-4 h-4 flex-shrink-0" />
+                        <Clock className="w-4 h-4 shrink-0" />
                         <span className="text-sm">Job was edited. Please respond to continue.</span>
                       </div>
                       {job.edit_notified_at && (
@@ -536,7 +537,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                               respondToEdit(job, 'accept');
                             }
                           }}
-                          className="w-full py-2 !bg-[#EA526F] !text-white font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
+                          className="w-full py-2 bg-[#EA526F]! text-white! font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
                         >
                           ✓ Continue Application
                         </button>
@@ -569,12 +570,14 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
               {/* In Queue Banner */}
               {myStatus === 'in_queue' && (
                 <div className="mb-4 py-3 px-4 text-amber-800 dark:text-amber-200 font-semibold bg-amber-50 dark:bg-amber-500/10 rounded-lg border border-amber-200 dark:border-amber-500/30 flex items-center gap-2">
-                  <Clock className="w-5 h-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                  <Clock className="w-5 h-5 shrink-0 text-amber-600 dark:text-amber-400" />
                   <div>
                     <p className="text-sm font-bold">You're hired! Job starting soon.</p>
                     {job.start_date && (
                       <p className="text-xs mt-0.5 opacity-80">
-                        This job will automatically start on <span className="font-bold">{new Date(job.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>.
+                        This job will automatically start on{' '}
+                        <span className="font-bold">{new Date(job.start_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</span>
+                        {job.start_time ? ` at ${job.start_time}` : ''}.
                       </p>
                     )}
                   </div>
@@ -707,7 +710,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                     )}
                     {!job.is_longterm && ownerWeeklyFeeDue && (
                       <div className="py-2 text-center text-amber-700 dark:text-amber-300 text-sm bg-amber-100 dark:bg-amber-500/10 rounded-lg font-medium border border-amber-200 dark:border-amber-500/20">
-                        <Clock className="inline w-4 h-4 mr-1" /> Waiting for owner to pay this week's recurring posting fee
+                        <Clock className="inline w-4 h-4 mr-1" /> Waiting for owner to pay this week's insurance fee
                       </div>
                     )}
                     {/* For long-term jobs, show info about auto-completion */}
@@ -737,7 +740,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                     {job.is_longterm && job.cancel_requested_by === 'worker' && (
                       <div className="rounded-xl border-2 border-orange-300 dark:border-orange-500/40 bg-orange-50 dark:bg-orange-500/10 p-3 space-y-1">
                         <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300 font-bold text-sm">
-                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                          <AlertCircle className="w-4 h-4 shrink-0" />
                           Cancellation Requested — Awaiting Owner Approval
                         </div>
                         {job.cancel_request_reason && (
@@ -750,7 +753,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
                     {job.is_longterm && job.cancel_requested_by === 'employer' && (
                       <div className="rounded-xl border-2 border-red-300 dark:border-red-500/40 bg-red-50 dark:bg-red-500/10 p-4 space-y-3">
                         <div className="flex items-center gap-2 text-red-700 dark:text-red-300 font-bold text-sm">
-                          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                          <AlertTriangle className="w-4 h-4 shrink-0" />
                           House Owner Wants to End the Contract
                         </div>
                         {job.cancel_request_reason && (
@@ -933,7 +936,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
 
       {/* ── Request Cancellation Modal (Worker initiates) ── */}
       {requestCancelModal && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-120 flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 shadow-2xl">
             <div className="p-5 border-b border-gray-200 dark:border-white/10">
               <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Request Contract Cancellation</h3>
@@ -992,7 +995,7 @@ export default function HousekeeperMyJobs({ onShowProgress, onSubmitCompletion, 
 
       {/* ── Respond to Cancellation Modal (Worker rejects owner's request) ── */}
       {respondCancelModal && typeof document !== 'undefined' && createPortal(
-        <div className="fixed inset-0 z-[120] flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 backdrop-blur-sm">
+        <div className="fixed inset-0 z-120 flex items-start sm:items-center justify-center p-4 pt-20 sm:pt-4 bg-black/50 backdrop-blur-sm">
           <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-gray-200 dark:border-white/10 shadow-2xl">
             <div className="p-5 border-b border-gray-200 dark:border-white/10">
               <h3 className="text-lg font-bold text-[#4B244A] dark:text-white">Reject Cancellation Request</h3>

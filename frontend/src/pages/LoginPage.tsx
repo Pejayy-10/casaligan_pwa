@@ -212,7 +212,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
+              className="w-full py-3.5 bg-[#EA526F]! text-white! font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
             >
               {loading ? (
                 <div className="flex items-center justify-center">
@@ -310,7 +310,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={forgotLoading}
-                  className="w-full py-3.5 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
+                  className="w-full py-3.5 bg-[#EA526F]! text-white! font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
                 >
                   {forgotLoading ? 'Sending...' : 'Send Reset Code'}
                 </button>
@@ -321,7 +321,7 @@ export default function LoginPage() {
             {forgotStep === 'otp' && (
               <form onSubmit={handleForgotVerifyOtp} className="space-y-5">
                 <div className="text-center mb-2">
-                  <div className="w-16 h-16 mx-auto mb-4 !bg-[#EA526F]/10 rounded-2xl flex items-center justify-center">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-[#EA526F]/10! rounded-2xl flex items-center justify-center">
                     <KeyRound className="w-8 h-8 text-[#EA526F]" />
                   </div>
                   <h2 className="text-xl font-bold text-[#4B244A] dark:text-white">Enter Reset Code</h2>
@@ -356,7 +356,7 @@ export default function LoginPage() {
 
                 <button
                   type="submit"
-                  className="w-full py-3.5 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 transition-all shadow-lg shadow-[#EA526F]/30"
+                  className="w-full py-3.5 bg-[#EA526F]! text-white! font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 transition-all shadow-lg shadow-[#EA526F]/30"
                 >
                   Verify Code
                 </button>
@@ -454,7 +454,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={forgotLoading}
-                  className="w-full py-3.5 !bg-[#EA526F] !text-white font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
+                  className="w-full py-3.5 bg-[#EA526F]! text-white! font-bold rounded-xl hover:bg-[#d4486a] active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-[#EA526F]/30"
                 >
                   {forgotLoading ? 'Resetting...' : 'Reset Password'}
                 </button>
