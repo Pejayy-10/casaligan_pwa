@@ -269,7 +269,7 @@ export default function JobsPage() {
     }
   }, []);
 
-  const handlePayInsuranceFee = useCallback(async (job: JobPost) => {
+  const onPayInsuranceFee = useCallback(async (job: JobPost) => {
     try {
       const token = localStorage.getItem('access_token');
       const response = await fetch(`${API_BASE_URL}/jobs/${job.post_id}/insurance-fee/initiate-payment`, {
@@ -1530,7 +1530,7 @@ function OwnerJobsContent({
              )}
              {showInsuranceFeeGate && (
                <button
-                onClick={() => handlePayInsuranceFee(job)}
+                onClick={() => onPayInsuranceFee(job)}
                 className="w-full py-2.5 bg-[#EA526F] text-white text-sm font-bold rounded-lg hover:bg-[#d4486a] transition-all shadow-md"
                >
                 {isWeeklyRecurringFeeDue
