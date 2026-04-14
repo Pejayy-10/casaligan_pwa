@@ -729,6 +729,7 @@ export default function JobsPage() {
             navigate={navigate} 
             onViewApplicants={setShowApplicants}
             onPayPostFee={handlePayPostFee}
+            onPayInsuranceFee={onPayInsuranceFee}
             onSkipPostFee={handleSkipPostFee}
             onEditJob={setShowEditJob}
             onShowPaymentTracker={setShowPaymentTracker}
@@ -1158,6 +1159,7 @@ function OwnerJobsContent({
   navigate, 
   onViewApplicants,
   onPayPostFee,
+  onPayInsuranceFee,
   onSkipPostFee,
   onShowPaymentTracker,
   onShowProgressTracker,
@@ -1175,6 +1177,7 @@ function OwnerJobsContent({
   navigate: (path: string) => void;
   onViewApplicants: (job: JobPost) => void;
   onPayPostFee: (job: JobPost) => void;
+  onPayInsuranceFee: (job: JobPost) => void;
   onSkipPostFee: (postId: number) => void;
   onShowPaymentTracker: (job: JobPost) => void;
   onShowProgressTracker: (job: JobPost) => void;
