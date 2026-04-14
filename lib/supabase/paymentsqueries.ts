@@ -699,6 +699,9 @@ export async function getPlatformFinanceOverview() {
 
 export async function updatePlatformFeeSettings(insuranceFeePercentage: number, directHireFeePercentage: number, flatPostFeeAmount: number) {
   const supabase = createClient()
+  const isMissingColumnError = (error: any, column: string) => {
+    return error?.code === '42703' && String(error?.message || '').includes(column)
+  }
 
   const payload = {
     id: 1,
@@ -707,12 +710,25 @@ export async function updatePlatformFeeSettings(insuranceFeePercentage: number, 
     flat_post_fee_amount: Number(flatPostFeeAmount.toFixed(2)),
   }
 
-  const { data, error } = await supabase
+  let result = await supabase
     .from('platform_settings')
     .upsert(payload, { onConflict: 'id' })
     .select('post_fee_percentage, direct_hire_fee_percentage, flat_post_fee_amount')
     .single()
 
-  return { data, error }
+  if (isMissingColumnError(result.error, 'flat_post_fee_amount')) {
+    const fallbackPayload = {
+      id: 1,
+      post_fee_percentage: payload.post_fee_percentage,
+      direct_hire_fee_percentage: payload.direct_hire_fee_percentage,
+    }
+    result = await supabase
+      .from('platform_settings')
+      .upsert(fallbackPayload, { onConflict: 'id' })
+      .select('post_fee_percentage, direct_hire_fee_percentage')
+      .single()
+  }
+
+  return { data: result.data, error: result.error }
 }
 
