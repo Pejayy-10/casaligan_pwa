@@ -42,6 +42,11 @@ export interface JobPost {
   post_fee_checkout_id?: string | null;
   post_fee_reference?: string | null;
   post_fee_paid_at?: string | null;
+  flat_post_fee_amount?: number | null;
+  flat_post_fee_status?: string | null;
+  flat_post_fee_checkout_id?: string | null;
+  flat_post_fee_reference?: string | null;
+  flat_post_fee_paid_at?: string | null;
   accepted_workers?: AcceptedWorker[];  // List of accepted housekeepers
   payment_schedule?: {
     frequency: string;
@@ -289,7 +294,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
           {/* Description */}
           <div className="bg-white/50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10">
             <h3 className="text-[#4B244A] dark:text-white font-bold mb-2"><FileText className="inline w-4 h-4 mr-1" /> Description</h3>
-            <p className="text-[#4B244A]/80 dark:text-white/80 whitespace-pre-wrap break-words">{job.description}</p>
+            <p className="text-[#4B244A]/80 dark:text-white/80 whitespace-pre-wrap wrap-break-word">{job.description}</p>
           </div>
 
           {/* Location */}
@@ -346,7 +351,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
             {/* Schedule conflict banner */}
             {scheduleConflict && (
               <div className="mb-4 flex items-start gap-3 bg-red-50 dark:bg-red-500/10 border border-red-300 dark:border-red-500/40 rounded-xl p-4">
-                <AlertTriangle className="w-5 h-5 text-red-500 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="w-5 h-5 text-red-500 dark:text-red-400 shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <p className="font-bold text-red-700 dark:text-red-300 text-sm">Cannot Apply — Schedule Conflict</p>
                   <p className="text-red-600 dark:text-red-400 text-xs mt-0.5">{scheduleConflict}</p>
@@ -392,7 +397,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
                       }
                     }}
                     disabled={isApplying}
-                    className="w-full py-3 bg-gradient-to-r from-[#EA526F] to-[#d4486a] text-white font-bold text-base rounded-xl hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
+                    className="w-full py-3 bg-linear-to-r from-[#EA526F] to-[#d4486a] text-white font-bold text-base rounded-xl hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30"
                   >
                     {isApplying ? 'Re-applying...' : <><RotateCw className="inline w-4 h-4 mr-1" /> Re-apply to this Job</>}
                   </button>
@@ -405,7 +410,7 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
                 className={`w-full py-4 font-bold text-lg rounded-xl transition-all ${
                   scheduleConflict
                     ? 'bg-gray-300 dark:bg-gray-700 text-gray-500 dark:text-gray-400 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-[#EA526F] to-[#d4486a] !text-white hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30'
+                    : 'bg-linear-to-r from-[#EA526F] to-[#d4486a] text-white! hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#EA526F]/30'
                 }`}
               >
                 {scheduleConflict
@@ -418,11 +423,11 @@ export default function JobDetailModal({ job, onClose, onApply, hasApplied = fal
       </div>
 
       {selectedImage && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-transparent" onClick={() => setSelectedImage(null)}>
+        <div className="fixed inset-0 z-70 flex items-center justify-center p-4 bg-transparent" onClick={() => setSelectedImage(null)}>
           <button
             type="button"
             onClick={() => setSelectedImage(null)}
-            className="absolute top-4 right-4 h-12 w-12 rounded-full !bg-[#EA526F] !text-white text-3xl leading-none !border-0 shadow-xl shadow-black/40 hover:brightness-95 transition-all flex items-center justify-center"
+            className="absolute top-4 right-4 h-12 w-12 rounded-full bg-[#EA526F]! text-white! text-3xl leading-none border-0! shadow-xl shadow-black/40 hover:brightness-95 transition-all flex items-center justify-center"
             aria-label="Close image preview"
           >
             ×

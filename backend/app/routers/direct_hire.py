@@ -236,6 +236,27 @@ def _ensure_hire_date_reached(hire: DirectHire, *, action: str) -> None:
             detail=f"Cannot {action} before the scheduled date ({scheduled.isoformat()}).",
         )
 
+    if today_utc > scheduled:
+        return
+
+    scheduled_time = getattr(hire, "scheduled_time", None)
+    if not scheduled_time:
+        return
+
+    start_minutes = _parse_hhmm_to_minutes(str(scheduled_time))
+    if start_minutes is None:
+        return
+
+    now_local = datetime.now()
+    now_minutes = (now_local.hour * 60) + now_local.minute
+    if now_minutes < start_minutes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Cannot {action} before the scheduled time ({scheduled_time}) "
+                f"on {scheduled.isoformat()}.")
+        )
+
 
 def _rollover_recurring_after_paid(*, hire: DirectHire, db: Session) -> Optional[DirectHire]:
     """

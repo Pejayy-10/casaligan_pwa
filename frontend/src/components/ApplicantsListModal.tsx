@@ -23,9 +23,11 @@ interface ApplicantsListModalProps {
   peopleNeeded: number;
   onClose: () => void;
   onJobStarted?: () => void;
+  insuranceFeePaid?: boolean;
+  insuranceFeeMessage?: string;
 }
 
-export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onClose, onJobStarted }: ApplicantsListModalProps) {
+export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onClose, onJobStarted, insuranceFeePaid = true, insuranceFeeMessage }: ApplicantsListModalProps) {
   const navigate = useNavigate();
   const { confirm, confirmDialog } = useConfirmDialog();
   const [applicants, setApplicants] = useState<Applicant[]>([]);
@@ -44,7 +46,7 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
   
   // Total selected = already accepted + newly toggled
   const totalSelected = alreadyAcceptedCount + selectedWorkers.size;
-  const canStartJob = totalSelected === peopleNeeded;
+  const canStartJob = totalSelected === peopleNeeded && insuranceFeePaid;
   const needMoreSelections = totalSelected < peopleNeeded;
 
   const loadApplicants = useCallback(async () => {
@@ -209,6 +211,12 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
               </span>
             )}
           </div>
+
+          {!insuranceFeePaid && (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300 px-3 py-2 text-sm font-semibold">
+              {insuranceFeeMessage || 'Insurance fee must be paid before starting this job.'}
+            </div>
+          )}
 
           {/* Instructions */}
           {needMoreSelections && pendingEditResponsesCount > 0 && (
@@ -413,12 +421,12 @@ export default function ApplicantsListModal({ jobId, jobTitle, peopleNeeded, onC
         </div>
 
         {/* Start Job Button - Only shows when exact number is selected */}
-        {canStartJob && selectedWorkers.size > 0 && (
-          <div className="sticky bottom-0 p-6 bg-gradient-to-t from-[#E8E4E1] dark:from-[#4B244A] to-transparent pt-12">
+        {totalSelected === peopleNeeded && selectedWorkers.size > 0 && (
+          <div className="sticky bottom-0 p-6 bg-linear-to-t from-[#E8E4E1] dark:from-[#4B244A] to-transparent pt-12">
             <button
               onClick={handleStartJob}
-              disabled={startingJob}
-              className="w-full py-4 bg-gradient-to-r from-green-500 to-emerald-600 text-white font-bold text-lg rounded-2xl hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/30 disabled:opacity-50 flex items-center justify-center gap-3 active:scale-95"
+              disabled={startingJob || !insuranceFeePaid}
+              className="w-full py-4 bg-linear-to-r from-green-500 to-emerald-600 text-white font-bold text-lg rounded-2xl hover:from-green-600 hover:to-emerald-700 transition-all shadow-lg shadow-green-500/30 disabled:opacity-50 flex items-center justify-center gap-3 active:scale-95"
             >
               {startingJob ? (
                 <>

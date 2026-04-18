@@ -164,6 +164,11 @@ class JobPostResponse(BaseModel):
     post_fee_checkout_id: Optional[str] = None
     post_fee_reference: Optional[str] = None
     post_fee_paid_at: Optional[str] = None
+    flat_post_fee_amount: float = 0.0
+    flat_post_fee_status: str = "paid"
+    flat_post_fee_checkout_id: Optional[str] = None
+    flat_post_fee_reference: Optional[str] = None
+    flat_post_fee_paid_at: Optional[str] = None
     created_at: str
     is_recurring: bool = False
     day_of_week: Optional[str] = None
@@ -287,6 +292,11 @@ class JobPostResponse(BaseModel):
             post_fee_checkout_id=getattr(post, 'post_fee_checkout_id', None),
             post_fee_reference=getattr(post, 'post_fee_reference', None),
             post_fee_paid_at=(post.post_fee_paid_at.isoformat() if getattr(post, 'post_fee_paid_at', None) else None),
+            flat_post_fee_amount=float(getattr(post, 'flat_post_fee_amount', 0.0) or 0.0),
+            flat_post_fee_status=(getattr(post, 'flat_post_fee_status', None) or 'paid'),
+            flat_post_fee_checkout_id=getattr(post, 'flat_post_fee_checkout_id', None),
+            flat_post_fee_reference=getattr(post, 'flat_post_fee_reference', None),
+            flat_post_fee_paid_at=(post.flat_post_fee_paid_at.isoformat() if getattr(post, 'flat_post_fee_paid_at', None) else None),
             created_at=post.created_at.isoformat() if post.created_at else '',
             is_recurring=inferred_is_recurring,
             day_of_week=day_of_week,

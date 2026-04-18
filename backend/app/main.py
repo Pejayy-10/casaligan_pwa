@@ -74,6 +74,10 @@ if _has_ai_chat:
 @app.on_event("startup")
 async def startup_event():
     """Database already created via SQL - just verify connection and run safe migrations"""
+    # Start background scheduler (promotes in_queue → ongoing at midnight UTC)
+    from app.scheduler import start_scheduler
+    start_scheduler()
+
     try:
         from app.db import engine
         from sqlalchemy import text
@@ -109,6 +113,11 @@ async def startup_event():
             "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS post_fee_checkout_id VARCHAR",
             "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS post_fee_reference VARCHAR",
             "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS post_fee_paid_at TIMESTAMPTZ",
+            "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS flat_post_fee_amount NUMERIC(10,2) DEFAULT 0",
+            "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS flat_post_fee_status VARCHAR(20) DEFAULT 'paid'",
+            "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS flat_post_fee_checkout_id VARCHAR",
+            "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS flat_post_fee_reference VARCHAR",
+            "ALTER TABLE forumposts ADD COLUMN IF NOT EXISTS flat_post_fee_paid_at TIMESTAMPTZ",
             "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS num_days INTEGER DEFAULT 1",
             "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS daily_start_time VARCHAR(10)",
             "ALTER TABLE direct_hires ADD COLUMN IF NOT EXISTS daily_end_time VARCHAR(10)",
@@ -145,6 +154,11 @@ async def startup_event():
     except Exception as e:
         print(f"⚠ Warning: Could not connect to database: {e}")
         print("  The application will start but database operations may fail.")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    from app.scheduler import stop_scheduler
+    stop_scheduler()
 
 @app.get("/")
 def read_root():

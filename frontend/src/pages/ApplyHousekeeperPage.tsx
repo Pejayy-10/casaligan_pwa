@@ -4,8 +4,7 @@ import { authService } from '../services/auth';
 import { API_BASE_URL } from '../config';
 import TabBar from '../components/TabBar';
 import type { User } from '../types';
-import { CheckCircle2 } from 'lucide-react';
-import { useScrollLock } from '../hooks/useScrollLock';
+import { CheckCircle2, ClipboardList } from 'lucide-react';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -130,10 +129,15 @@ export default function ApplyHousekeeperPage() {
   const [submitted, setSubmitted] = useState(false);
   const [approved, setApproved] = useState(false);
 
-  // Lock background scroll when page/modal is open
-  useScrollLock(true);
-
   // ── Guards ─────────────────────────────────────────────────────────────────
+  
+  useEffect(() => {
+  window.scrollTo({ top: 0, behavior: 'instant' });
+}, []);
+
+useEffect(() => {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}, [step]);
 
   useEffect(() => {
     if (!user) navigate('/login');
@@ -382,9 +386,9 @@ export default function ApplyHousekeeperPage() {
   const DocStatusBadge = ({ result }: { result: DocResult }) => {
     if (result.status === 'approved') {
       return (
-        <div className="mt-3 p-3 bg-green-500/20 border border-green-500/40 rounded-xl">
-          <p className="text-green-300 font-semibold text-sm">✅ Document verified successfully!</p>
-          {result.notes && <p className="text-green-200/70 text-xs mt-1">{result.notes}</p>}
+        <div className="mt-3 p-3 bg-green-200/20 border border-green-500/40 rounded-xl">
+          <p className="text-green-500 font-semibold text-sm">Document verified successfully!</p>
+          {result.notes && <p className="text-green-500 text-xs mt-1">{result.notes}</p>}
         </div>
       );
     }
@@ -398,10 +402,10 @@ export default function ApplyHousekeeperPage() {
     }
     // rejected
     return (
-      <div className="mt-3 p-3 bg-red-500/20 border border-red-500/40 rounded-xl">
-        <p className="text-red-300 font-semibold text-sm">❌ Document rejected — please re-upload.</p>
+      <div className="mt-3 p-3 bg-red-200/20 border border-red-500/40 rounded-xl">
+        <p className="text-red-500 font-semibold text-sm">Document rejected.</p>
         {result.rejection_reason && (
-          <p className="text-red-200/70 text-xs mt-1">{result.rejection_reason}</p>
+          <p className="text-red-500 text-xs mt-1">{result.rejection_reason}</p>
         )}
         <p className="text-[#4B244A]/60 dark:text-white/50 text-xs mt-2">Upload a different photo of the same document.</p>
       </div>
@@ -417,7 +421,7 @@ export default function ApplyHousekeeperPage() {
   // ── Already housekeeper or submitted ──────────────────────────────────────
   if (submitted) {
     return (
-      <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 flex items-center justify-center p-4 pb-24 transition-colors duration-300 relative">
+      <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 flex items-center justify-center p-4 overflow-y-auto transition-colors duration-300 relative">
         <div className="fixed inset-0 overflow-hidden pointer-events-none">
           <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-[#EA526F]/20 dark:bg-[#EA526F]/30 rounded-full blur-[100px] animate-blob will-change-transform" />
           <div className="absolute -bottom-[10%] -right-[10%] w-[45%] h-[45%] bg-teal-400/20 dark:bg-teal-500/20 rounded-full blur-[100px] animate-blob animation-delay-4000 will-change-transform" />
@@ -457,7 +461,7 @@ export default function ApplyHousekeeperPage() {
   }
   // ── Main wizard ────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 flex items-center justify-center p-4 pt-16 pb-16 overflow-y-auto transition-colors duration-300 relative">
+    <div className="min-h-screen bg-[#E8E4E1] dark:bg-slate-950 flex items-center justify-center p-4 overflow-y-auto transition-colors duration-300 relative">
       {/* Decorative circles */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] bg-[#EA526F]/20 dark:bg-[#EA526F]/30 rounded-full blur-[100px] animate-blob will-change-transform" />
@@ -755,7 +759,7 @@ export default function ApplyHousekeeperPage() {
               {/* ── Section 1: Credentials ── */}
               <div className="p-4 bg-white/5 border border-white/10 rounded-2xl space-y-3">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-lg">📋</span>
+                  <ClipboardList className="w-5 h-5" />
                   <div>
                     <h4 className="text-[#4B244A] dark:text-white font-bold text-sm">Credentials &amp; Certifications</h4>
                     <p className="text-[#4B244A]/50 dark:text-white/50 text-xs">Certificates, training diplomas, IDs, awards, etc.</p>

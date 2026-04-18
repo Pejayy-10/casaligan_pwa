@@ -80,6 +80,46 @@ interface DirectHire {
   }>;
 }
 
+const parseDateOnly = (value: string) => {
+  if (!value) return null;
+  const parts = value.split('-').map(Number);
+  if (parts.length < 3 || parts.some((part) => Number.isNaN(part))) return null;
+  return new Date(parts[0], parts[1] - 1, parts[2]);
+};
+
+const parseTimeToMinutes = (value: string | null) => {
+  if (!value) return null;
+  const parts = value.split(':').map(Number);
+  if (parts.length < 2 || parts.some((part) => Number.isNaN(part))) return null;
+  return (parts[0] * 60) + parts[1];
+};
+
+const isBeforeScheduledTime = (hire: DirectHire) => {
+  if (!hire.scheduled_date) return false;
+  const scheduledDate = parseDateOnly(hire.scheduled_date);
+  if (!scheduledDate) return false;
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  if (today < scheduledDate) return true;
+  if (today > scheduledDate) return false;
+
+  const scheduledMinutes = parseTimeToMinutes(hire.scheduled_time);
+  if (scheduledMinutes === null) return false;
+
+  const nowMinutes = (now.getHours() * 60) + now.getMinutes();
+  return nowMinutes < scheduledMinutes;
+};
+
+const formatScheduledLabel = (hire: DirectHire) => {
+  if (!hire.scheduled_date) return 'on the scheduled date';
+  const scheduledDate = parseDateOnly(hire.scheduled_date);
+  const dateLabel = scheduledDate ? scheduledDate.toLocaleDateString() : hire.scheduled_date;
+  if (hire.scheduled_time) return `${dateLabel} at ${hire.scheduled_time}`;
+  return dateLabel;
+};
+
 interface Props {
   role: 'owner' | 'housekeeper';
   onClose?: () => void;
@@ -594,7 +634,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
                 <button
                   onClick={() => handleOwnerWeeklyFeePayment(hire)}
                   disabled={processing || verifyingFee}
-                  className="flex-1 px-3 py-1 !bg-[#EA526F] !text-white text-sm rounded-lg hover:bg-[#d64460] font-semibold shadow-sm disabled:opacity-50 flex items-center justify-center gap-1"
+                  className="flex-1 px-3 py-1 bg-[#EA526F]! text-white! text-sm rounded-lg hover:bg-[#d64460] font-semibold shadow-sm disabled:opacity-50 flex items-center justify-center gap-1"
                 >
                   {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Pay Weekly Post Fee
                 </button>
@@ -660,7 +700,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
               <button
                 onClick={() => handlePayment(hire)}
                 disabled={processing}
-                className="flex-1 px-3 py-1 !bg-[#EA526F] !text-white text-sm rounded-lg hover:bg-[#d64460] font-semibold shadow-sm disabled:opacity-50"
+                className="flex-1 px-3 py-1 bg-[#EA526F]! text-white! text-sm rounded-lg hover:bg-[#d64460] font-semibold shadow-sm disabled:opacity-50"
               >
                 Pay (Maya/Cash)
               </button>
@@ -675,7 +715,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
               </div>
               <button
                 onClick={() => setShowReceiptHireId(hire.hire_id)}
-                className="flex-1 px-3 py-1 !bg-[#4B244A] !text-white text-sm rounded-lg hover:bg-[#361a35] font-semibold shadow-sm"
+                className="flex-1 px-3 py-1 bg-[#4B244A]! text-white! text-sm rounded-lg hover:bg-[#361a35] font-semibold shadow-sm"
               >
                 View Receipt
               </button>
@@ -686,7 +726,7 @@ export default function DirectHiresList({ role, onClose }: Props) {
             <div className="grid grid-cols-1 gap-2 w-full">
               <button
                 onClick={() => setShowReceiptHireId(hire.hire_id)}
-                className="w-full px-3 py-1 !bg-[#4B244A] !text-white text-sm rounded-lg hover:bg-[#361a35] font-semibold shadow-sm"
+                className="w-full px-3 py-1 bg-[#4B244A]! text-white! text-sm rounded-lg hover:bg-[#361a35] font-semibold shadow-sm"
               >
                 View Receipt
               </button>
@@ -767,19 +807,26 @@ export default function DirectHiresList({ role, onClose }: Props) {
               </button>
             </div>
           );
-        case 'accepted':
+        case 'accepted': {
+          const startLocked = isBeforeScheduledTime(hire);
           return (
             <div className="flex flex-wrap gap-2 w-full">
               <button
                 onClick={() => handleAction(hire, 'start')}
-                disabled={processing}
+                disabled={processing || startLocked}
                 className="flex-1 px-3 py-1 bg-blue-500 text-white text-sm rounded-lg hover:bg-blue-600 font-semibold shadow-sm disabled:opacity-50 flex items-center justify-center gap-1"
               >
                 {processing ? <Loader2 className="w-3 h-3 animate-spin" /> : null} Start Work
               </button>
               {messageButton && <div className="flex-1 flex">{messageButton}</div>}
+              {startLocked && (
+                <p className="w-full text-center text-xs font-medium text-amber-600 dark:text-amber-300">
+                  Available {formatScheduledLabel(hire)}
+                </p>
+              )}
             </div>
           );
+        }
         case 'in_progress':
           return (
             <div className="flex flex-wrap gap-2 w-full">
