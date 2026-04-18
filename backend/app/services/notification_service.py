@@ -385,7 +385,7 @@ def notify_housekeeper_referral(
     )
 
 
-# Flow 6: Mutual Cancellation Notifications (Long-term contracts)
+# Flow 6: Mutual cancellation notifications
 
 def notify_cancel_request_received(
     db: Session,
@@ -393,17 +393,21 @@ def notify_cancel_request_received(
     requester_name: str,
     job_title: str,
     reason: str,
-    post_id: int
+    post_id: int,
 ):
-    """Notify the other party that a cancellation request was submitted for a long-term job"""
+    """Notify the other party that a cancellation request was submitted."""
+    message = f"{requester_name} requested to cancel '{job_title}'."
+    if reason:
+        message += f" Reason: {reason}"
+
     return notify_user(
         db=db,
         user_id=recipient_user_id,
         notification_type=NotificationType.CANCEL_REQUEST_RECEIVED,
-        title="Cancellation Request Received 🔔",
-        message=f"{requester_name} has requested to end the long-term contract for '{job_title}'. Reason: {reason}. Please approve or reject.",
+        title="Cancellation Request Received",
+        message=message,
         reference_type="job",
-        reference_id=post_id
+        reference_id=post_id,
     )
 
 
@@ -412,17 +416,17 @@ def notify_cancel_request_approved(
     requester_user_id: int,
     approver_name: str,
     job_title: str,
-    post_id: int
+    post_id: int,
 ):
-    """Notify the requester that the other party approved the cancellation"""
+    """Notify the original requester that their cancellation was approved."""
     return notify_user(
         db=db,
         user_id=requester_user_id,
         notification_type=NotificationType.CANCEL_REQUEST_APPROVED,
-        title="Contract Cancelled ✅",
-        message=f"{approver_name} approved your cancellation request for '{job_title}'. The contract has been ended.",
+        title="Cancellation Request Approved",
+        message=f"{approver_name} approved your cancellation request for '{job_title}'.",
         reference_type="job",
-        reference_id=post_id
+        reference_id=post_id,
     )
 
 
@@ -432,15 +436,20 @@ def notify_cancel_request_rejected(
     rejector_name: str,
     job_title: str,
     reject_reason: str,
-    post_id: int
+    post_id: int,
 ):
-    """Notify the requester that the other party rejected the cancellation"""
+    """Notify the original requester that their cancellation was rejected."""
+    message = f"{rejector_name} rejected your cancellation request for '{job_title}'."
+    if reject_reason:
+        message += f" Reason: {reject_reason}"
+
     return notify_user(
         db=db,
         user_id=requester_user_id,
         notification_type=NotificationType.CANCEL_REQUEST_REJECTED,
-        title="Cancellation Request Rejected ❌",
-        message=f"{rejector_name} rejected your cancellation request for '{job_title}'. Reason: {reject_reason}. The contract continues.",
+        title="Cancellation Request Rejected",
+        message=message,
         reference_type="job",
-        reference_id=post_id
+        reference_id=post_id,
     )
+
