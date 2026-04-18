@@ -18,6 +18,15 @@ export default function MatchingAnalyticsPage() {
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
+  // Modal States
+  const [recordToDelete, setRecordToDelete] = useState<MatchingRecord | null>(null);
+  const [alertModal, setAlertModal] = useState<{ show: boolean; title: string; message: string; isError: boolean }>({
+    show: false,
+    title: "",
+    message: "",
+    isError: false,
+  });
+
   useEffect(() => {
     loadMatchingRecords();
   }, []);
@@ -26,13 +35,32 @@ export default function MatchingAnalyticsPage() {
     setPage(1);
   }, [query, filters]);
 
+  // Lock body scroll when any modal is open
+  useEffect(() => {
+    if (recordToDelete || alertModal.show) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [recordToDelete, alertModal.show]);
+
   const loadMatchingRecords = async () => {
     try {
       setIsLoading(true);
       const records = await getMatchingRecords(100, 0);
       setMatchingRecords(records);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error loading matching records:", error);
+      setAlertModal({
+        show: true,
+        title: "Loading Error",
+        message: error.message || "Failed to load matching records.",
+        isError: true,
+      });
     } finally {
       setIsLoading(false);
     }
@@ -98,26 +126,41 @@ export default function MatchingAnalyticsPage() {
     return filtered.slice(start, start + pageSize);
   }, [filtered, page]);
 
-  const handleDelete = async (matchId: number) => {
-    const recordToDelete = matchingRecords.find(r => r.match_id === matchId);
-    const recordName = recordToDelete ? `${recordToDelete.employer_name} - ${recordToDelete.worker_name}` : "this record";
+  // Updated Delete Handlers for Custom Modal
+  const handleDelete = (matchId: number) => {
+    const record = matchingRecords.find(r => r.match_id === matchId);
+    if (record) setRecordToDelete(record);
+  };
+
+  const executeDelete = async () => {
+    if (!recordToDelete) return;
     
-    if (!confirm(`Are you sure you want to delete the match record for ${recordName}?`)) {
-      return;
-    }
+    const recordName = `${recordToDelete.employer_name} - ${recordToDelete.worker_name}`;
 
     try {
-      await deleteMatchingRecord(matchId);
+      await deleteMatchingRecord(recordToDelete.match_id);
       
       // Update state immediately without reloading
       setMatchingRecords(prevRecords => 
-        prevRecords.filter(record => record.match_id !== matchId)
+        prevRecords.filter(record => record.match_id !== recordToDelete.match_id)
       );
       
-      alert(`Successfully deleted match record for ${recordName}!`);
+      setAlertModal({
+        show: true,
+        title: "Success",
+        message: `Successfully deleted match record for ${recordName}!`,
+        isError: false,
+      });
     } catch (error) {
       console.error("Error deleting match record:", error);
-      alert("Failed to delete match record. Please try again.");
+      setAlertModal({
+        show: true,
+        title: "Deletion Error",
+        message: "Failed to delete match record. Please try again.",
+        isError: true,
+      });
+    } finally {
+      setRecordToDelete(null);
     }
   };
 
@@ -181,7 +224,7 @@ export default function MatchingAnalyticsPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Notes/Reason
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
@@ -234,26 +277,19 @@ export default function MatchingAnalyticsPage() {
                       <td className="px-6 py-4 text-sm text-muted-foreground max-w-xs truncate">
                         {record.notes || "-"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm">
-                        <button
-                          onClick={() => handleDelete(record.match_id)}
-                          className="text-red-600 hover:text-red-900 font-medium"
-                          title="Delete"
-                        >
-                          <svg
-                            className="w-5 h-5 inline"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(record.match_id)}
+                            title="Delete Record"
+                            className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-danger/10 text-destructive hover:bg-danger/50 transition-colors"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                          </svg>
-                        </button>
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -294,6 +330,52 @@ export default function MatchingAnalyticsPage() {
           </div>
         </div>
       </div>
+
+      {/* Confirmation Delete Modal */}
+      {recordToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setRecordToDelete(null)}>
+          <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-xl font-semibold mb-2">Confirm Deletion</h2>
+            <p className="text-muted-foreground text-sm mb-6">
+              Are you sure you want to delete the match record for <span className="font-semibold text-foreground">"{recordToDelete.employer_name} & {recordToDelete.worker_name}"</span>? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={() => setRecordToDelete(null)}
+                className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted/50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={executeDelete}
+                className="px-4 py-2 text-sm rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alert Feedback Modal */}
+      {alertModal.show && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setAlertModal({ ...alertModal, show: false })}>
+          <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <h2 className={`text-xl font-semibold mb-2 ${alertModal.isError ? "text-destructive" : ""}`}>
+              {alertModal.title}
+            </h2>
+            <p className="text-muted-foreground text-sm mb-6">{alertModal.message}</p>
+            <div className="flex justify-end">
+              <button 
+                onClick={() => setAlertModal({ ...alertModal, show: false })}
+                className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

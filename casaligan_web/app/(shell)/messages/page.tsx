@@ -12,12 +12,22 @@ export default function MessagesPage() {
 	const [filters, setFilters] = useState<any>({});
 	const [page, setPage] = useState(1);
 	const [count, setCount] = useState(0);
-	const [viewModal, setViewModal] = useState<any>(null);
-	const [showRestrictModal, setShowRestrictModal] = useState(false);
-	const [restrictionReason, setRestrictionReason] = useState("");
-	const [restrictingConversation, setRestrictingConversation] = useState<any>(null);
-	const [processing, setProcessing] = useState(false);
 	const pageSize = 10;
+
+	// Modal States
+	const [viewModal, setViewModal] = useState<any>(null);
+	
+	const [showRestrictModal, setShowRestrictModal] = useState(false);
+	const [restrictingConversation, setRestrictingConversation] = useState<any>(null);
+	const [restrictionReason, setRestrictionReason] = useState("");
+	const [processing, setProcessing] = useState(false);
+	
+	const [convoToUnrestrict, setConvoToUnrestrict] = useState<any>(null);
+	const [convoToDelete, setConvoToDelete] = useState<any>(null);
+	
+	const [alertModal, setAlertModal] = useState<{ show: boolean; title: string; message: string; isError: boolean }>({
+		show: false, title: "", message: "", isError: false,
+	});
 
 	useEffect(() => {
 		loadConversations();
@@ -27,11 +37,25 @@ export default function MessagesPage() {
 		setPage(1);
 	}, [query, filters]);
 
+	// Lock body scroll when any modal is open
+	useEffect(() => {
+		if (viewModal || showRestrictModal || convoToUnrestrict || convoToDelete || alertModal.show) {
+			document.body.style.overflow = "hidden";
+		} else {
+			document.body.style.overflow = "unset";
+		}
+		return () => {
+			document.body.style.overflow = "unset";
+		};
+	}, [viewModal, showRestrictModal, convoToUnrestrict, convoToDelete, alertModal.show]);
+
 	async function loadConversations() {
 		setLoading(true);
 		const { data, error, count: total } = await getConversations(100, 0);
 		
-		if (data) {
+		if (error) {
+			setAlertModal({ show: true, title: "Loading Error", message: error.message, isError: true });
+		} else if (data) {
 			const rows = data.map((convo: any) => {
 				const participants = convo.conversation_participants || [];
 				const employer = participants.find((p: any) => p.users?.active_role === "owner" || p.role === "owner");
@@ -59,7 +83,8 @@ export default function MessagesPage() {
 						...p.users,
 						user_id: p.users?.id,
 						name: p.users ? `${p.users.first_name || ''} ${p.users.last_name || ''}`.trim() : 'N/A',
-						role: p.users?.active_role || p.role
+						role: p.users?.active_role || p.role,
+						email: p.users?.email || 'N/A'
 					})),
 				};
 			});
@@ -76,31 +101,21 @@ export default function MessagesPage() {
 				const hay = `${r.employer} ${r.worker} ${r.lastMessage}`.toLowerCase();
 				if (!hay.includes(search)) return false;
 			}
-
 			if (f?.status) {
 				if (String(r.status).toLowerCase() !== String(f.status).toLowerCase()) return false;
 			}
-
 			if (f?.startDate) {
 				try {
 					const start = new Date(f.startDate);
-					const rd = new Date(r.lastMessageAt);
-					if (rd < start) return false;
-				} catch (e) {
-					// ignore
-				}
+					if (new Date(r.lastMessageAt) < start) return false;
+				} catch (e) { }
 			}
-
 			if (f?.endDate) {
 				try {
 					const end = new Date(f.endDate);
-					const rd = new Date(r.lastMessageAt);
-					if (rd > end) return false;
-				} catch (e) {
-					// ignore
-				}
+					if (new Date(r.lastMessageAt) > end) return false;
+				} catch (e) { }
 			}
-
 			return true;
 		});
 	}
@@ -115,53 +130,30 @@ export default function MessagesPage() {
 			if (data) {
 				setViewModal({
 					...row,
-					participants: data.conversation_participants?.map((p: any) => p.users) || [],
+					participants: data.conversation_participants?.map((p: any) => ({
+						...p.users,
+						role: p.role || p.users?.active_role
+					})) || [],
 				});
 			} else if (error) {
-				alert(`Error loading conversation: ${error.message}`);
+				setAlertModal({ show: true, title: "Error", message: `Error loading conversation: ${error.message}`, isError: true });
 			}
 		} else if (action === "restrict") {
 			setRestrictingConversation(row);
 			setRestrictionReason("");
 			setShowRestrictModal(true);
 		} else if (action === "unrestrict") {
-			if (confirm(`Are you sure you want to unrestrict this conversation?`)) {
-				const { error } = await unrestrictConversation(row.id);
-				
-				if (error) {
-					alert(`Error unrestricting conversation: ${error.message}`);
-				} else {
-					alert(`Conversation has been unrestricted successfully.`);
-					await loadConversations();
-				}
-			}
+			setConvoToUnrestrict(row);
 		} else if (action === "delete") {
-			if (confirm(`Are you sure you want to delete this conversation? This action cannot be undone.`)) {
-				const { error } = await deleteConversation(row.id);
-				
-				if (error) {
-					alert(`Error deleting conversation: ${error.message}`);
-				} else {
-					alert(`Conversation has been deleted successfully.`);
-					await loadConversations();
-				}
-			}
+			setConvoToDelete(row);
 		}
 	};
-
-	const handleFilterChange = useCallback((f: any) => {
-		setFilters(f);
-	}, []);
-
-	const handleSearch = useCallback((v: string) => {
-		setQuery(v);
-	}, []);
 
 	const handleConfirmRestrict = async () => {
 		if (!restrictingConversation) return;
 		
 		if (!restrictionReason.trim()) {
-			alert("Please provide a reason for restricting this conversation.");
+			setAlertModal({ show: true, title: "Missing Information", message: "Please provide a reason for restricting this conversation.", isError: true });
 			return;
 		}
 
@@ -169,17 +161,45 @@ export default function MessagesPage() {
 		const { error } = await restrictConversation(restrictingConversation.id, restrictionReason.trim());
 		
 		if (error) {
-			alert(`Error restricting conversation: ${error.message}`);
-			setProcessing(false);
+			setAlertModal({ show: true, title: "Restriction Error", message: error.message, isError: true });
 		} else {
-			alert(`Conversation has been restricted successfully.`);
+			setAlertModal({ show: true, title: "Success", message: "Conversation has been restricted successfully.", isError: false });
 			setShowRestrictModal(false);
 			setRestrictingConversation(null);
 			setRestrictionReason("");
-			setProcessing(false);
 			await loadConversations();
 		}
+		setProcessing(false);
 	};
+
+	const executeUnrestrict = async () => {
+		if (!convoToUnrestrict) return;
+		const { error } = await unrestrictConversation(convoToUnrestrict.id);
+		
+		if (error) {
+			setAlertModal({ show: true, title: "Error", message: error.message, isError: true });
+		} else {
+			setAlertModal({ show: true, title: "Success", message: "Conversation has been unrestricted successfully.", isError: false });
+			await loadConversations();
+		}
+		setConvoToUnrestrict(null);
+	};
+
+	const executeDelete = async () => {
+		if (!convoToDelete) return;
+		const { error } = await deleteConversation(convoToDelete.id);
+		
+		if (error) {
+			setAlertModal({ show: true, title: "Deletion Error", message: error.message, isError: true });
+		} else {
+			setAlertModal({ show: true, title: "Success", message: "Conversation has been deleted successfully.", isError: false });
+			await loadConversations();
+		}
+		setConvoToDelete(null);
+	};
+
+	const handleFilterChange = useCallback((f: any) => setFilters(f), []);
+	const handleSearch = useCallback((v: string) => setQuery(v), []);
 
 	if (loading) {
 		return (
@@ -199,7 +219,7 @@ export default function MessagesPage() {
 			<div className="rounded-2xl border border-border bg-card/70 p-4 space-y-3">
 				<div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
 					<div className="w-full md:w-80">
-						<SearchBar defaultValue={query} onSearch={handleSearch} />
+						<SearchBar defaultValue={query} onSearch={handleSearch} placeholder="Search messages..." />
 					</div>
 
 					<div className="w-full md:w-auto">
@@ -225,16 +245,14 @@ export default function MessagesPage() {
 							<tbody className="divide-y divide-muted/20">
 								{pagedConversations.map((convo, i) => (
 									<tr key={convo.id} className={`${i % 2 === 0 ? "bg-background" : "bg-background/5"} hover:bg-secondary/20`}>
-										<td className="px-4 py-3 text-sm text-foreground">{convo.employer}</td>
-										<td className="px-4 py-3 text-sm text-foreground">{convo.worker}</td>
+										<td className="px-4 py-3 text-sm text-foreground font-medium">{convo.employer}</td>
+										<td className="px-4 py-3 text-sm text-foreground font-medium">{convo.worker}</td>
 										<td className="px-4 py-3 text-sm">
-											<span
-												className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-													convo.status === 'active' ? 'bg-green-100 text-green-800' :
-													convo.status === 'restricted' ? 'bg-red-100 text-red-800' :
-													'bg-gray-100 text-gray-800'
-												}`}
-											>
+											<span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium uppercase tracking-wider ${
+												convo.status === 'active' ? 'bg-green-100 text-green-800' :
+												convo.status === 'restricted' ? 'bg-red-100 text-red-800' :
+												'bg-gray-100 text-gray-800'
+											}`}>
 												{convo.status}
 											</span>
 										</td>
@@ -244,7 +262,7 @@ export default function MessagesPage() {
 													type="button"
 													onClick={() => handleAction("view", convo)}
 													title="View Conversation"
-													className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-primary hover:bg-primary/30 transition-colors"
+													className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-tertiary/10 text-foreground hover:bg-tertiary/50 transition-colors"
 												>
 													<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -320,17 +338,113 @@ export default function MessagesPage() {
 				</div>
 			</div>
 
-			{/* Restriction Modal */}
+			{/* ==============================================
+			    PRETTIFIED VIEW CONVERSATION MODAL
+			    ============================================== */}
+			{viewModal && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setViewModal(null)}>
+					<div 
+						className="bg-background border border-border rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200" 
+						onClick={(e) => e.stopPropagation()}
+					>
+						{/* Header */}
+						<div className="flex justify-between items-center px-6 py-4 border-b border-border bg-muted/30">
+							<div className="flex items-center gap-3">
+								<div className="p-2 bg-primary/10 text-primary rounded-lg">
+									<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+								</div>
+								<div>
+									<h2 className="text-lg font-semibold leading-tight">Conversation Details</h2>
+									<p className="text-xs text-muted-foreground">ID: {viewModal.id}</p>
+								</div>
+							</div>
+							<button onClick={() => setViewModal(null)} className="text-muted-foreground hover:bg-muted p-2 rounded-full transition-colors leading-none">
+								<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+							</button>
+						</div>
+
+						{/* Scrollable Content Body */}
+						<div className="p-6 overflow-y-auto space-y-6">
+							
+							{/* Participants Section */}
+							<div>
+								<h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-3">Participants</h3>
+								<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+									{viewModal.participants?.map((participant: any, idx: number) => {
+										// Assign specific colors based on role (employer = purple, worker = blue)
+										const isOwner = participant.role === "owner";
+										const iconBg = isOwner ? "bg-purple-100 text-purple-600" : "bg-blue-100 text-blue-600";
+										const badgeBg = isOwner ? "bg-purple-100 text-purple-800" : "bg-blue-100 text-blue-800";
+										
+										return (
+											<div key={idx} className="bg-muted/10 border border-border rounded-xl p-4 flex items-start gap-4">
+												<div className={`p-2.5 rounded-full mt-1 ${iconBg}`}>
+													<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+													</svg>
+												</div>
+												<div className="flex-1">
+													<div className="flex items-center justify-between mb-1">
+														<p className="font-medium text-foreground">{participant.first_name ? `${participant.first_name} ${participant.last_name}` : "N/A"}</p>
+														<span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${badgeBg}`}>
+															{participant.role || "User"}
+														</span>
+													</div>
+													<p className="text-sm text-muted-foreground">{participant.email || "No email provided"}</p>
+												</div>
+											</div>
+										);
+									})}
+								</div>
+							</div>
+
+							{/* Message Status Section */}
+							<div className="bg-card border border-border rounded-xl p-5 shadow-sm">
+								<div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-4 pb-4 border-b border-border/50">
+									<div>
+										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Conversation Status</p>
+										<span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide ${
+											viewModal.status === 'active' ? 'bg-green-100 text-green-800' :
+											viewModal.status === 'restricted' ? 'bg-red-100 text-red-800' :
+											'bg-gray-100 text-gray-800'
+										}`}>
+											{viewModal.status}
+										</span>
+									</div>
+									<div className="text-left sm:text-right">
+										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Last Activity</p>
+										<p className="text-sm font-medium text-foreground">
+											{new Date(viewModal.lastMessageAt).toLocaleString(undefined, { 
+												weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' 
+											})}
+										</p>
+									</div>
+								</div>
+								
+								<div>
+									<p className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Last Message Snapshot</p>
+									<div className="bg-muted/30 p-4 rounded-lg border border-border/50 italic text-foreground/80">
+										"{viewModal.lastMessage}"
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
+			{/* ============================================== */}
+
+			{/* Restrict Modal */}
 			{showRestrictModal && restrictingConversation && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => {
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => {
 					if (!processing) {
 						setShowRestrictModal(false);
 						setRestrictingConversation(null);
 						setRestrictionReason("");
 					}
 				}}>
-					<div className="bg-background border border-border rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-						<div className="flex justify-between items-center mb-4">
+					<div className="bg-background border border-border rounded-2xl max-w-2xl w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+						<div className="flex justify-between items-center px-6 py-4 border-b border-border">
 							<h2 className="text-xl font-semibold">Restrict Conversation</h2>
 							<button 
 								onClick={() => {
@@ -341,21 +455,21 @@ export default function MessagesPage() {
 									}
 								}} 
 								disabled={processing}
-								className="text-muted-foreground hover:text-foreground text-2xl leading-none disabled:opacity-50"
+								className="text-muted-foreground hover:bg-muted p-2 rounded-full transition-colors leading-none disabled:opacity-50"
 							>
-								✕
+								<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
 							</button>
 						</div>
 
-						<div className="space-y-4 mb-6">
-							<div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-								<p className="text-sm text-yellow-800">
-									<strong>Warning:</strong> You are about to restrict a conversation between <strong>{restrictingConversation.employer}</strong> and <strong>{restrictingConversation.worker}</strong>. This will prevent further messages in this conversation.
+						<div className="p-6 space-y-4">
+							<div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4">
+								<p className="text-sm text-orange-700 dark:text-orange-500 leading-relaxed">
+									<strong>Warning:</strong> You are about to restrict a conversation between <strong>{restrictingConversation.employer}</strong> and <strong>{restrictingConversation.worker}</strong>. This will prevent further messages from being sent in this thread.
 								</p>
 							</div>
 
 							<div>
-								<label htmlFor="restriction-reason" className="block text-sm font-medium text-foreground mb-2">
+								<label htmlFor="restriction-reason" className="block text-sm font-semibold text-foreground mb-2">
 									Reason for Restriction <span className="text-red-500">*</span>
 								</label>
 								<textarea
@@ -363,23 +477,16 @@ export default function MessagesPage() {
 									value={restrictionReason}
 									onChange={(e) => setRestrictionReason(e.target.value)}
 									placeholder="Please provide a detailed reason for restricting this conversation..."
-									className="w-full min-h-[120px] px-3 py-2 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent resize-y"
+									className="w-full min-h-[120px] px-3 py-2 border border-border rounded-xl bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-y"
 									disabled={processing}
 								/>
-								<p className="mt-1 text-xs text-muted-foreground">
-									This reason will be recorded for administrative purposes.
+								<p className="mt-2 text-xs text-muted-foreground">
+									This reason will be recorded for administrative and moderation purposes.
 								</p>
 							</div>
 						</div>
 
-						<div className="flex justify-end gap-2">
-							<button
-								onClick={handleConfirmRestrict}
-								disabled={processing || !restrictionReason.trim()}
-								className="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								{processing ? "Processing..." : "Confirm Restriction"}
-							</button>
+						<div className="flex justify-end gap-3 px-6 py-4 border-t border-border bg-muted/10 rounded-b-2xl">
 							<button
 								onClick={() => {
 									if (!processing) {
@@ -389,78 +496,62 @@ export default function MessagesPage() {
 									}
 								}}
 								disabled={processing}
-								className="px-4 py-2 bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors disabled:opacity-50"
+								className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted/50 transition-colors disabled:opacity-50"
 							>
 								Cancel
+							</button>
+							<button
+								onClick={handleConfirmRestrict}
+								disabled={processing || !restrictionReason.trim()}
+								className="px-4 py-2 text-sm rounded-md bg-orange-600 text-white hover:bg-orange-700 transition-colors disabled:opacity-50 flex items-center justify-center min-w-[140px]"
+							>
+								{processing ? "Processing..." : "Confirm Restriction"}
 							</button>
 						</div>
 					</div>
 				</div>
 			)}
 
-			{/* View Modal */}
-			{viewModal && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setViewModal(null)}>
-					<div className="bg-background border border-border rounded-lg p-6 max-w-2xl w-full mx-4" onClick={(e) => e.stopPropagation()}>
-						<div className="flex items-center justify-between mb-4">
-							<h3 className="text-lg font-semibold">Conversation Details</h3>
-							<button
-								type="button"
-								onClick={() => setViewModal(null)}
-								className="text-muted-foreground hover:text-foreground"
-							>
-								<svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-								</svg>
-							</button>
+			{/* Unrestrict Confirm Modal */}
+			{convoToUnrestrict && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setConvoToUnrestrict(null)}>
+					<div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+						<h2 className="text-xl font-semibold mb-2">Confirm Action</h2>
+						<p className="text-muted-foreground text-sm mb-6">
+							Are you sure you want to <strong>unrestrict</strong> this conversation? The users will be able to message each other again.
+						</p>
+						<div className="flex justify-end gap-3">
+							<button onClick={() => setConvoToUnrestrict(null)} className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted/50 transition-colors">Cancel</button>
+							<button onClick={executeUnrestrict} className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors">Unrestrict</button>
 						</div>
+					</div>
+				</div>
+			)}
 
-						<div className="space-y-4">
-							<div>
-								<label className="text-sm font-medium text-muted-foreground">Participants</label>
-								<div className="mt-1 space-y-2">
-									{viewModal.participants?.map((participant: any) => (
-										<div key={participant.user_id} className="flex items-center justify-between p-2 bg-muted rounded-md">
-											<div>
-												<p className="text-sm font-medium">{participant.name}</p>
-												<p className="text-xs text-muted-foreground">{participant.email}</p>
-											</div>
-											<span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full">
-												{participant.role}
-											</span>
-										</div>
-									))}
-								</div>
-							</div>
+			{/* Delete Confirm Modal */}
+			{convoToDelete && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setConvoToDelete(null)}>
+					<div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+						<h2 className="text-xl font-semibold mb-2">Confirm Deletion</h2>
+						<p className="text-muted-foreground text-sm mb-6">
+							Are you sure you want to delete this conversation completely? This action cannot be undone.
+						</p>
+						<div className="flex justify-end gap-3">
+							<button onClick={() => setConvoToDelete(null)} className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted/50 transition-colors">Cancel</button>
+							<button onClick={executeDelete} className="px-4 py-2 text-sm rounded-md bg-danger text-destructive-foreground hover:bg-danger/90 transition-colors">Delete</button>
+						</div>
+					</div>
+				</div>
+			)}
 
-							<div>
-								<label className="text-sm font-medium text-muted-foreground">Last Message</label>
-								<p className="mt-1 text-sm p-3 bg-muted rounded-md">
-									{viewModal.lastMessage}
-								</p>
-							</div>
-
-							<div>
-								<label className="text-sm font-medium text-muted-foreground">Status</label>
-								<p className="mt-1 text-sm">
-									<span
-										className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-											viewModal.status === 'active' ? 'bg-green-100 text-green-800' :
-											viewModal.status === 'restricted' ? 'bg-red-100 text-red-800' :
-											'bg-gray-100 text-gray-800'
-										}`}
-									>
-										{viewModal.status}
-									</span>
-								</p>
-							</div>
-
-							<div>
-								<label className="text-sm font-medium text-muted-foreground">Last Activity</label>
-								<p className="mt-1 text-sm text-muted-foreground">
-									{new Date(viewModal.lastMessageAt).toLocaleString()}
-								</p>
-							</div>
+			{/* Alert Feedback Modal */}
+			{alertModal.show && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setAlertModal({ ...alertModal, show: false })}>
+					<div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+						<h2 className={`text-xl font-semibold mb-2 ${alertModal.isError ? "text-destructive" : ""}`}>{alertModal.title}</h2>
+						<p className="text-muted-foreground text-sm mb-6">{alertModal.message}</p>
+						<div className="flex justify-end">
+							<button onClick={() => setAlertModal({ ...alertModal, show: false })} className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">Close</button>
 						</div>
 					</div>
 				</div>

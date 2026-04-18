@@ -8,6 +8,19 @@ export default function PaymentsPage() {
 	const [payments, setPayments] = useState<any[]>([]);
 	const [count, setCount] = useState(0);
 	const [loading, setLoading] = useState(true);
+	const [finance, setFinance] = useState({
+		flatPostFeeRevenue: 0,
+		insuranceFeeRevenue: 0,
+		directHireFeeRevenue: 0,
+		totalPlatformWallet: 0,
+		flatPostFeeAmount: 20,
+		insuranceFeePercentage: 7,
+		directHireFeePercentage: 7,
+	});
+	const [flatPostFeeInput, setFlatPostFeeInput] = useState("20.00");
+	const [insuranceFeeInput, setInsuranceFeeInput] = useState("7.00");
+	const [directHireFeeInput, setDirectHireFeeInput] = useState("7.00");
+	const [savingFees, setSavingFees] = useState(false);
 
 	useEffect(() => {
 		loadPayments();
@@ -18,7 +31,7 @@ export default function PaymentsPage() {
 		const { data, count: total, error } = await getPayments(50, 0);
 		if (error) {
 			console.error("Error loading payments:", error);
-			alert(`Error loading payments: ${error.message}`);
+			setAlertModal({ show: true, title: "Loading Error", message: `Error loading payments: ${error.message}`, isError: true });
 		} else {
 			setPayments(data || []);
 			setCount(total || 0);
@@ -35,17 +48,12 @@ export default function PaymentsPage() {
 		const paymentMethod = payment.payment_methods || {};
 		const booking = payment.bookings || {};
 		
-		// Get employer name (the one who employed the job)
 		const employerName = employerUser.name || "N/A";
-		
-		// Get worker name (the one getting paid)
 		const workerName = workerUser.name || "N/A";
 		
-		// Format amount with currency symbol (no decimals, with commas)
 		const amount = parseFloat(payment.amount || 0);
-		const amountFormatted = `P${Math.round(amount).toLocaleString('en-US')}`;
+		const amountFormatted = `₱${Math.round(amount).toLocaleString('en-US')}`;
 		
-		// Get date - use booking_date (when job was accepted) or payment_date as fallback
 		const dateValue = booking.booking_date || payment.payment_date || new Date().toISOString();
 		const dateObj = new Date(dateValue);
 		const month = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -53,7 +61,6 @@ export default function PaymentsPage() {
 		const year = dateObj.getFullYear();
 		const dateFormatted = `${month}-${day}-${year}`;
 		
-		// Determine status - check if overdue (pending and past due date)
 		let status = payment.status || "pending";
 		if (status.toLowerCase() === "pending") {
 			const paymentDate = payment.payment_date ? new Date(payment.payment_date) : null;
@@ -65,9 +72,7 @@ export default function PaymentsPage() {
 			}
 		}
 		
-		// Get transaction method (how payment was handled)
 		const transactionMethod = paymentMethod.provider_name || "-";
-		// Format transaction method - handle common cases like "gcash" -> "Gcash", "bank transfer" -> "Bank Transfer"
 		let transaction = "-";
 		if (transactionMethod !== "-") {
 			const method = transactionMethod.toLowerCase();
@@ -76,8 +81,9 @@ export default function PaymentsPage() {
 			} else if (method.includes("bank") || method.includes("transfer")) {
 				transaction = "Bank Transfer";
 			} else {
+<<<<<<< Updated upstream
 				// Capitalize first letter of each word
-				transaction = transactionMethod.split(' ').map(word => 
+				transaction = transactionMethod.split(' ').map((word: string) => 
 					word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
 				).join(' ');
 			}
@@ -85,13 +91,13 @@ export default function PaymentsPage() {
 
 		return {
 			id: payment.payment_id,
-			userId: payment.payment_id, // Use the unique prefixed ID directly
+			userId: payment.payment_id, 
 			payment_id: payment.payment_id,
 			employer_name: employerName,
 			amount_formatted: amountFormatted,
 			paid_to: workerName,
 			date_formatted: dateFormatted,
-			date: dateValue, // Keep original for filtering
+			date: dateValue, 
 			status: status,
 			transaction: transaction,
 			amount: payment.amount || 0,
@@ -104,6 +110,7 @@ export default function PaymentsPage() {
 
 	const handleAction = async (action: "view" | "ban" | "restrict" | "unban" | "unrestrict", row: any) => {
 		if (action === "view") {
+<<<<<<< Updated upstream
 			// Handle view action - you can add a modal here
 			const payment = payments.find(p => p.payment_id === row.payment_id);
 			if (payment) {
@@ -137,7 +144,49 @@ export default function PaymentsPage() {
 					loadPayments(); // Reload data
 				}
 			}
+=======
+			const paymentData = payments.find(p => p.payment_id === row.payment_id);
+			if (paymentData) {
+				setViewPayment({ ...row, rawData: paymentData });
+			}
+		} else if (action === "ban") {
+			// Map "ban" to Delete Action
+			setPaymentToDelete(row);
+		} else if (action === "restrict") {
+			// Map "restrict" to Mark Completed Action
+			setPaymentToComplete(row);
+>>>>>>> Stashed changes
 		}
+	};
+
+	const executeDelete = async () => {
+		if (!paymentToDelete) return;
+		setProcessing(true);
+		const { error } = await deletePayment(paymentToDelete.payment_id);
+		
+		if (error) {
+			setAlertModal({ show: true, title: "Deletion Error", message: error.message, isError: true });
+		} else {
+			setAlertModal({ show: true, title: "Success", message: "Payment has been deleted successfully.", isError: false });
+			await loadPayments();
+		}
+		setProcessing(false);
+		setPaymentToDelete(null);
+	};
+
+	const executeComplete = async () => {
+		if (!paymentToComplete) return;
+		setProcessing(true);
+		const { error } = await updatePaymentStatus(paymentToComplete.payment_id, "completed");
+		
+		if (error) {
+			setAlertModal({ show: true, title: "Update Error", message: error.message, isError: true });
+		} else {
+			setAlertModal({ show: true, title: "Success", message: "Payment has been marked as completed successfully.", isError: false });
+			await loadPayments();
+		}
+		setProcessing(false);
+		setPaymentToComplete(null);
 	};
 
 	return (
@@ -150,7 +199,7 @@ export default function PaymentsPage() {
 			</div>
 
 			{loading ? (
-				<div className="text-center py-8">Loading payments...</div>
+				<div className="text-center py-12 text-muted-foreground">Loading payments...</div>
 			) : (
 				<TableShell 
 					rows={rows} 
@@ -161,8 +210,170 @@ export default function PaymentsPage() {
 					actionType="payments"
 				/>
 			)}
+
+			{/* ==============================================
+			    PRETTIFIED PAYMENT DETAILS MODAL
+			    ============================================== */}
+			{viewPayment && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setViewPayment(null)}>
+					<div 
+						className="bg-background border border-border rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200" 
+						onClick={(e) => e.stopPropagation()}
+					>
+						{/* Header */}
+						<div className="flex justify-between items-center px-6 py-4 border-b border-border bg-muted/30">
+							<div className="flex items-center gap-3">
+								<div className="p-2 bg-primary/10 text-primary rounded-lg">
+									<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+									</svg>
+								</div>
+								<div>
+									<h2 className="text-lg font-semibold leading-tight">Payment Details</h2>
+									<p className="text-xs text-muted-foreground">ID: {viewPayment.payment_id}</p>
+								</div>
+							</div>
+							<button onClick={() => setViewPayment(null)} className="text-muted-foreground hover:bg-muted p-2 rounded-full transition-colors leading-none">
+								<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+							</button>
+						</div>
+
+						{/* Scrollable Content Body */}
+						<div className="p-6 overflow-y-auto space-y-6">
+							
+							{/* Transaction Summary Card */}
+							<div className="bg-card border border-border rounded-xl p-5 shadow-sm text-center">
+								<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Total Amount</p>
+								<h3 className="text-4xl font-bold text-foreground mb-3">{viewPayment.amount_formatted}</h3>
+								<span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
+									viewPayment.status === 'completed' ? 'bg-green-100 text-green-800' :
+									viewPayment.status === 'overdue' ? 'bg-danger/10 text-danger' :
+									viewPayment.status === 'cancelled' ? 'bg-muted text-muted-foreground' :
+									'bg-yellow-100 text-yellow-800'
+								}`}>
+									{viewPayment.status}
+								</span>
+							</div>
+
+							{/* People Involved */}
+							<div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+								<div className="bg-muted/10 border border-border rounded-xl p-4 flex items-start gap-4">
+									<div className="bg-purple-100 text-purple-600 p-2.5 rounded-full mt-1">
+										<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+									</div>
+									<div>
+										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">From (Employer)</p>
+										<p className="font-medium text-foreground">{viewPayment.employer_name}</p>
+									</div>
+								</div>
+
+								<div className="bg-muted/10 border border-border rounded-xl p-4 flex items-start gap-4">
+									<div className="bg-blue-100 text-blue-600 p-2.5 rounded-full mt-1">
+										<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+									</div>
+									<div>
+										<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">To (Worker)</p>
+										<p className="font-medium text-foreground">{viewPayment.paid_to}</p>
+									</div>
+								</div>
+							</div>
+
+							{/* Metadata */}
+							<div className="grid grid-cols-2 gap-4 bg-muted/10 border border-border rounded-xl p-4">
+								<div>
+									<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Payment Method</p>
+									<p className="font-medium text-foreground">{viewPayment.transaction}</p>
+								</div>
+								<div>
+									<p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Date Logged</p>
+									<p className="font-medium text-foreground">
+										{new Date(viewPayment.date).toLocaleString(undefined, { 
+											month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: 'numeric' 
+										})}
+									</p>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
+			{/* ============================================== */}
+
+			{/* Confirm Mark as Completed Modal */}
+			{paymentToComplete && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => !processing && setPaymentToComplete(null)}>
+					<div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+						<h2 className="text-xl font-semibold mb-2">Mark as Completed?</h2>
+						<p className="text-muted-foreground text-sm mb-6">
+							Are you sure you want to mark the payment for <span className="font-semibold text-foreground">"{paymentToComplete.employer_name}"</span> as completed? This implies the transaction was successfully verified.
+						</p>
+						<div className="flex justify-end gap-3">
+							<button 
+								disabled={processing}
+								onClick={() => setPaymentToComplete(null)} 
+								className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted/50 transition-colors disabled:opacity-50"
+							>
+								Cancel
+							</button>
+							<button 
+								disabled={processing}
+								onClick={executeComplete} 
+								className="px-4 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50"
+							>
+								{processing ? "Processing..." : "Complete Payment"}
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Confirm Delete Modal (Using Danger instead of Destructive) */}
+			{paymentToDelete && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => !processing && setPaymentToDelete(null)}>
+					<div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+						<h2 className="text-xl font-semibold mb-2">Confirm Deletion</h2>
+						<p className="text-muted-foreground text-sm mb-6">
+							Are you sure you want to delete this payment record completely? This action cannot be undone.
+						</p>
+						<div className="flex justify-end gap-3">
+							<button 
+								disabled={processing}
+								onClick={() => setPaymentToDelete(null)} 
+								className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted/50 transition-colors disabled:opacity-50"
+							>
+								Cancel
+							</button>
+							<button 
+								disabled={processing}
+								onClick={executeDelete} 
+								className="px-4 py-2 text-sm rounded-md bg-danger text-white hover:bg-danger/90 transition-colors disabled:opacity-50"
+							>
+								{processing ? "Processing..." : "Delete"}
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Alert Feedback Modal (Using Danger instead of Destructive for errors) */}
+			{alertModal.show && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setAlertModal({ ...alertModal, show: false })}>
+					<div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+						<h2 className={`text-xl font-semibold mb-2 ${alertModal.isError ? "text-danger" : ""}`}>
+							{alertModal.title}
+						</h2>
+						<p className="text-muted-foreground text-sm mb-6">{alertModal.message}</p>
+						<div className="flex justify-end">
+							<button 
+								onClick={() => setAlertModal({ ...alertModal, show: false })} 
+								className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+							>
+								Close
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }
-
-

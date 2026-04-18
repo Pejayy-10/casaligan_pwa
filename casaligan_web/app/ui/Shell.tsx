@@ -83,11 +83,11 @@ export default function Shell({ children }: ShellProps) {
       ],
     },
     { key: "payments", label: "Payments", href: "/payments", icon: DollarSign },
-    { key: "matching-analytics", label: "Matching Analytics", href: "/matching-analytics", icon: TrendingUp },
+    // { key: "matching-analytics", label: "Matching Analytics", href: "/matching-analytics", icon: TrendingUp },
     { key: "messages", label: "Messages", href: "/messages", icon: MessageSquare },
     { key: "reviews", label: "Reviews", href: "/reviews", icon: Star },
     { key: "activity-log", label: "Activity Log", href: "/activity-log", icon: Activity },
-    { key: "security", label: "Security", href: "/security", icon: Shield },
+    // { key: "security", label: "Security", href: "/security", icon: Shield },
     { key: "reports", label: "Reports", href: "/reports", icon: AlertTriangle },
     { key: "settings", label: "Settings", href: "/settings", icon: Settings },
   ];
@@ -111,7 +111,7 @@ export default function Shell({ children }: ShellProps) {
 
   return (
     <>
-      <header className="fixed top-0 right-0 h-12 z-50 border-b border-border bg-muted text-foreground flex items-center justify-between px-3" style={{ left: sidebarWidth }}>
+      {/* <header className="fixed top-0 right-0 h-12 z-50 border-b border-border bg-muted text-foreground flex items-center justify-between px-3" style={{ left: sidebarWidth }}>
         <div className="flex items-center gap-3">
         </div>
         <div className="flex items-center gap-3">
@@ -125,14 +125,14 @@ export default function Shell({ children }: ShellProps) {
             </div>
           </Link>
         </div>
-      </header>
+      </header> */}
 
       <aside
         className="fixed top-0 left-0 h-screen overflow-hidden border-r border-border bg-muted text-foreground p-3 z-50 flex flex-col"
         style={{ width: sidebarWidth }}
       >
         <div className="mb-6 flex items-center gap-2 h-14">
-          <div className="h-8 w-8 rounded-full bg-primary/90" aria-label="Logo placeholder"></div>
+          <Image src="/logo.png" alt="Logo" width={24} height={20} />
           <Link href="/" aria-label="Go to home">
             <Image className="logo-dark-invert" src="/Casaligan.svg" alt="Casaligan" width={90} height={100} priority />
           </Link>
@@ -150,7 +150,7 @@ export default function Shell({ children }: ShellProps) {
         <div className="mb-5">
           <h2 className="font-heading text-[13px]">Menu</h2>
         </div>
-        <nav className="flex-1 overflow-y-auto">
+        <nav className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <ul className="space-y-2">
             {menu.map((item) => (
               <li key={item.key}>
@@ -235,10 +235,10 @@ export default function Shell({ children }: ShellProps) {
       </aside>
 
       <main
-        className="pt-12 min-h-screen bg-background text-foreground transition-[margin] duration-200 ease-in-out"
+        className="min-h-screen bg-background text-foreground transition-[margin] duration-200 ease-in-out"
         style={{ marginLeft: sidebarWidth }}
       >
-        <div className="p-4 sm:p-6 lg:p-8">
+        <div className="py-8">
           {children}
         </div>
       </main>
