@@ -46,6 +46,8 @@ export async function getEmployers(limit = 50, offset = 0) {
   return { data: employersWithUsers, count: count || 0, error: null }
 }
 
+
+
 // Ban an employer (set status to banned and soft delete)
 export async function banEmployer(userId: number) {
   const supabase = createClient()

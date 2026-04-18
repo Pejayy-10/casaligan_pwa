@@ -23,6 +23,8 @@ const MetricCard: React.FC<MetricCardProps> = ({ title, value, icon, bgColorVar 
   </div>
 );
 
+
+
 const COLORS = [
   "var(--color-primary)",
   "var(--color-secondary)",
@@ -90,8 +92,8 @@ const Reports: React.FC = () => {
         />
       </div>
 
-      <div className="bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg p-4 w-full lg:w-1/2 h-80 shadow-sm flex flex-col items-center justify-center">
-        <h3 className="text-lg font-semibold text-[var(--color-foreground)]/80 mb-4">
+      <div className="bg-[var(--color-muted)] border border-[var(--color-border)] rounded-lg p-4 w-full lg:w-1/2 h-80 shadow-sm flex flex-col">
+        <h3 className="text-lg font-semibold text-[var(--color-foreground)]/80 mb-2">
           Report Distribution
         </h3>
         <ResponsiveContainer width="100%" height="100%">
@@ -118,10 +120,12 @@ const Reports: React.FC = () => {
             />
             <Legend
               verticalAlign="bottom"
-              height={36}
               wrapperStyle={{
                 color: "var(--color-foreground)",
-                fontSize: "0.85rem",
+                fontSize: "0.7rem",
+                whiteSpace: "normal",
+                lineHeight: "1.4",
+                paddingTop: "4px",
               }}
             />
           </PieChart>

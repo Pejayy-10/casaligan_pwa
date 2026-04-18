@@ -14,15 +14,28 @@ export default function ReviewsPage() {
 	const [filters, setFilters] = useState<any>({});
 	const [page, setPage] = useState(1);
 	const [count, setCount] = useState(0);
+	const pageSize = 10;
+	const supabase = createClient();
+
+	// Form Modal States
 	const [showRestrictModal, setShowRestrictModal] = useState(false);
 	const [restrictionReason, setRestrictionReason] = useState("");
 	const [restrictingReview, setRestrictingReview] = useState<any>(null);
+	
 	const [showWarnModal, setShowWarnModal] = useState(false);
 	const [warnReason, setWarnReason] = useState("");
 	const [warningReview, setWarningReview] = useState<any>(null);
+	
+	// Confirmation Modal States
+	const [reviewToHide, setReviewToHide] = useState<any>(null);
+	const [reviewToUnhide, setReviewToUnhide] = useState<any>(null);
+	const [reviewToUnrestrict, setReviewToUnrestrict] = useState<any>(null);
+	const [reviewToDelete, setReviewToDelete] = useState<any>(null);
+
 	const [processing, setProcessing] = useState(false);
-	const pageSize = 10;
-	const supabase = createClient();
+	const [alertModal, setAlertModal] = useState<{ show: boolean; title: string; message: string; isError: boolean }>({
+		show: false, title: "", message: "", isError: false,
+	});
 
 	useEffect(() => {
 		loadReviews();
@@ -32,11 +45,29 @@ export default function ReviewsPage() {
 		setPage(1);
 	}, [query, filters]);
 
+	// Lock body scroll when any modal is open
+	useEffect(() => {
+		if (
+			showRestrictModal || showWarnModal || 
+			reviewToHide || reviewToUnhide || 
+			reviewToUnrestrict || reviewToDelete || alertModal.show
+		) {
+			document.body.style.overflow = "hidden";
+		} else {
+			document.body.style.overflow = "unset";
+		}
+		return () => {
+			document.body.style.overflow = "unset";
+		};
+	}, [showRestrictModal, showWarnModal, reviewToHide, reviewToUnhide, reviewToUnrestrict, reviewToDelete, alertModal.show]);
+
 	async function loadReviews() {
 		setLoading(true);
 		const { data, error, count: total } = await getReviews(100, 0);
 		
-		if (data) {
+		if (error) {
+			setAlertModal({ show: true, title: "Loading Error", message: error.message, isError: true });
+		} else if (data) {
 			const rows = data.map((review: any) => ({
 				id: review.review_id,
 				reviewer: review.reviewer?.name || "N/A",
@@ -67,31 +98,21 @@ export default function ReviewsPage() {
 				const hay = `${r.reviewer} ${r.target} ${r.feedback}`.toLowerCase();
 				if (!hay.includes(search)) return false;
 			}
-
 			if (f?.status) {
 				if (String(r.status).toLowerCase() !== String(f.status).toLowerCase()) return false;
 			}
-
 			if (f?.startDate) {
 				try {
 					const start = new Date(f.startDate);
-					const rd = new Date(r.date);
-					if (rd < start) return false;
-				} catch (e) {
-					// ignore
-				}
+					if (new Date(r.date) < start) return false;
+				} catch (e) { }
 			}
-
 			if (f?.endDate) {
 				try {
 					const end = new Date(f.endDate);
-					const rd = new Date(r.date);
-					if (rd > end) return false;
-				} catch (e) {
-					// ignore
-				}
+					if (new Date(r.date) > end) return false;
+				} catch (e) { }
 			}
-
 			return true;
 		});
 	}
@@ -100,29 +121,11 @@ export default function ReviewsPage() {
 	const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
 	const pagedReviews = filtered.slice((page - 1) * pageSize, page * pageSize);
 
-	const handleAction = async (action: "hide" | "unhide" | "warn" | "restrict" | "unrestrict" | "delete", row: any) => {
+	const handleAction = (action: "hide" | "unhide" | "warn" | "restrict" | "unrestrict" | "delete", row: any) => {
 		if (action === "hide") {
-			if (confirm(`Are you sure you want to hide this review?`)) {
-				const { error } = await hideReview(row.id);
-				
-				if (error) {
-					alert(`Error hiding review: ${error.message}`);
-				} else {
-					alert(`Review has been hidden successfully.`);
-					await loadReviews();
-				}
-			}
+			setReviewToHide(row);
 		} else if (action === "unhide") {
-			if (confirm(`Are you sure you want to unhide this review?`)) {
-				const { error } = await unhideReview(row.id);
-				
-				if (error) {
-					alert(`Error unhiding review: ${error.message}`);
-				} else {
-					alert(`Review has been unhidden successfully.`);
-					await loadReviews();
-				}
-			}
+			setReviewToUnhide(row);
 		} else if (action === "warn") {
 			setWarningReview(row);
 			setWarnReason("");
@@ -132,85 +135,112 @@ export default function ReviewsPage() {
 			setRestrictionReason("");
 			setShowRestrictModal(true);
 		} else if (action === "unrestrict") {
-			if (confirm(`Are you sure you want to unrestrict ${row.reviewer}? This will restore their account access.`)) {
-				const { error } = await unrestrictReviewer(row.id, row.reviewerId);
-				
-				if (error) {
-					alert(`Error unrestricting reviewer: ${error.message}`);
-				} else {
-					alert(`${row.reviewer} has been unrestricted successfully.`);
-					await loadReviews();
-				}
-			}
+			setReviewToUnrestrict(row);
 		} else if (action === "delete") {
-			if (confirm(`Are you sure you want to delete this review? This action cannot be undone.`)) {
-				const { error } = await deleteReview(row.id);
-				
-				if (error) {
-					alert(`Error deleting review: ${error.message}`);
-				} else {
-					alert(`Review has been deleted successfully.`);
-					await loadReviews();
-				}
-			}
+			setReviewToDelete(row);
 		}
 	};
 
-	const handleFilterChange = useCallback((f: any) => {
-		setFilters(f);
-	}, []);
+	const executeHide = async () => {
+		if (!reviewToHide) return;
+		setProcessing(true);
+		const { error } = await hideReview(reviewToHide.id);
+		if (error) {
+			setAlertModal({ show: true, title: "Error", message: error.message, isError: true });
+		} else {
+			setAlertModal({ show: true, title: "Success", message: "Review has been hidden successfully.", isError: false });
+			await loadReviews();
+		}
+		setProcessing(false);
+		setReviewToHide(null);
+	};
 
-	const handleSearch = useCallback((v: string) => {
-		setQuery(v);
-	}, []);
+	const executeUnhide = async () => {
+		if (!reviewToUnhide) return;
+		setProcessing(true);
+		const { error } = await unhideReview(reviewToUnhide.id);
+		if (error) {
+			setAlertModal({ show: true, title: "Error", message: error.message, isError: true });
+		} else {
+			setAlertModal({ show: true, title: "Success", message: "Review has been unhidden successfully.", isError: false });
+			await loadReviews();
+		}
+		setProcessing(false);
+		setReviewToUnhide(null);
+	};
+
+	const executeUnrestrict = async () => {
+		if (!reviewToUnrestrict) return;
+		setProcessing(true);
+		const { error } = await unrestrictReviewer(reviewToUnrestrict.id, reviewToUnrestrict.reviewerId);
+		if (error) {
+			setAlertModal({ show: true, title: "Error", message: error.message, isError: true });
+		} else {
+			setAlertModal({ show: true, title: "Success", message: `${reviewToUnrestrict.reviewer} has been unrestricted successfully.`, isError: false });
+			await loadReviews();
+		}
+		setProcessing(false);
+		setReviewToUnrestrict(null);
+	};
+
+	const executeDelete = async () => {
+		if (!reviewToDelete) return;
+		setProcessing(true);
+		const { error } = await deleteReview(reviewToDelete.id);
+		if (error) {
+			setAlertModal({ show: true, title: "Error", message: error.message, isError: true });
+		} else {
+			setAlertModal({ show: true, title: "Success", message: "Review has been deleted successfully.", isError: false });
+			await loadReviews();
+		}
+		setProcessing(false);
+		setReviewToDelete(null);
+	};
 
 	const handleConfirmWarn = async () => {
 		if (!warningReview) return;
-		
 		if (!warnReason.trim()) {
-			alert("Please provide a reason for warning this reviewer.");
+			setAlertModal({ show: true, title: "Missing Information", message: "Please provide a reason for warning this reviewer.", isError: true });
 			return;
 		}
 
 		setProcessing(true);
 		const { error } = await warnReviewer(warningReview.id, warnReason.trim());
-		
 		if (error) {
-			alert(`Error warning reviewer: ${error.message}`);
-			setProcessing(false);
+			setAlertModal({ show: true, title: "Warning Error", message: error.message, isError: true });
 		} else {
-			alert(`${warningReview.reviewer} has been warned successfully.`);
+			setAlertModal({ show: true, title: "Success", message: `${warningReview.reviewer} has been warned successfully.`, isError: false });
 			setShowWarnModal(false);
 			setWarningReview(null);
 			setWarnReason("");
-			setProcessing(false);
 			await loadReviews();
 		}
+		setProcessing(false);
 	};
 
 	const handleConfirmRestrict = async () => {
 		if (!restrictingReview) return;
-		
 		if (!restrictionReason.trim()) {
-			alert("Please provide a reason for restricting this reviewer.");
+			setAlertModal({ show: true, title: "Missing Information", message: "Please provide a reason for restricting this reviewer.", isError: true });
 			return;
 		}
 
 		setProcessing(true);
 		const { error } = await restrictReviewer(restrictingReview.id, restrictingReview.reviewerId, restrictionReason.trim());
-		
 		if (error) {
-			alert(`Error restricting reviewer: ${error.message}`);
-			setProcessing(false);
+			setAlertModal({ show: true, title: "Restriction Error", message: error.message, isError: true });
 		} else {
-			alert(`${restrictingReview.reviewer} has been restricted successfully.`);
+			setAlertModal({ show: true, title: "Success", message: `${restrictingReview.reviewer} has been restricted successfully.`, isError: false });
 			setShowRestrictModal(false);
 			setRestrictingReview(null);
 			setRestrictionReason("");
-			setProcessing(false);
 			await loadReviews();
 		}
+		setProcessing(false);
 	};
+
+	const handleFilterChange = useCallback((f: any) => setFilters(f), []);
+	const handleSearch = useCallback((v: string) => setQuery(v), []);
 
 	const renderStars = (rating: number) => {
 		return (
@@ -327,30 +357,30 @@ export default function ReviewsPage() {
 														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
 													</svg>
 												</button>
-											{review.reviewerStatus === 'restricted' ? (
+												{review.reviewerStatus === 'restricted' ? (
+													<button
+														type="button"
+														onClick={() => handleAction("unrestrict", review)}
+														title="Unrestrict Reviewer"
+														className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-blue-500/10 text-blue-600 hover:bg-blue-500/30 transition-colors"
+													>
+														<ShieldAlert className="h-4 w-4" />
+													</button>
+												) : (
+													<button
+														type="button"
+														onClick={() => handleAction("restrict", review)}
+														title="Restrict Reviewer"
+														className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/30 transition-colors"
+													>
+														<ShieldAlert className="h-4 w-4" />
+													</button>
+												)}
 												<button
-													type="button"
-													onClick={() => handleAction("unrestrict", review)}
-													title="Unrestrict Reviewer"
-													className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-blue-500/10 text-blue-600 hover:bg-blue-500/30 transition-colors"
-												>
-													<ShieldAlert className="h-4 w-4" />
-												</button>
-											) : (
-												<button
-													type="button"
-													onClick={() => handleAction("restrict", review)}
-													title="Restrict Reviewer"
-													className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-yellow-500/10 text-yellow-600 hover:bg-yellow-500/30 transition-colors"
-												>
-													<ShieldAlert className="h-4 w-4" />
-												</button>
-											)}
-											<button
 													type="button"
 													onClick={() => handleAction("delete", review)}
 													title="Delete Review"
-													className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-danger/10 text-destructive hover:bg-danger/50 transition-colors"
+													className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-danger/10 text-danger hover:bg-danger/30 transition-colors"
 												>
 													<svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 														<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -392,17 +422,21 @@ export default function ReviewsPage() {
 				</div>
 			</div>
 
+			{/* ==============================================
+			    PRETTIFIED FORM MODALS
+			    ============================================== */}
+
 			{/* Warn Modal */}
 			{showWarnModal && warningReview && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => {
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => {
 					if (!processing) {
 						setShowWarnModal(false);
 						setWarningReview(null);
 						setWarnReason("");
 					}
 				}}>
-					<div className="bg-background border border-border rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-						<div className="flex justify-between items-center mb-4">
+					<div className="bg-background border border-border rounded-2xl max-w-2xl w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+						<div className="flex justify-between items-center px-6 py-4 border-b border-border">
 							<h2 className="text-xl font-semibold">Warn Reviewer</h2>
 							<button 
 								onClick={() => {
@@ -413,55 +447,49 @@ export default function ReviewsPage() {
 									}
 								}} 
 								disabled={processing}
-								className="text-muted-foreground hover:text-foreground text-2xl leading-none disabled:opacity-50"
+								className="text-muted-foreground hover:bg-muted p-2 rounded-full transition-colors leading-none disabled:opacity-50"
 							>
-								✕
+								<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
 							</button>
 						</div>
 
-						<div className="space-y-4 mb-6">
-							<div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-								<p className="text-sm text-yellow-800">
-									<strong>Warning:</strong> You are about to send a warning to <strong>{warningReview.reviewer}</strong> (Reviewer). This will notify them about the violation in their review.
+						<div className="p-6 space-y-4">
+							<div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4">
+								<p className="text-sm text-yellow-700 dark:text-yellow-500 leading-relaxed">
+									<strong>Warning:</strong> You are about to send a warning to <strong>{warningReview.reviewer}</strong>. This will notify them about the violation in their review.
 								</p>
 							</div>
 
-							<div className="bg-muted/50 border border-border rounded-lg p-4">
-								<p className="text-sm font-medium text-foreground mb-2">Review Details:</p>
-								<div className="space-y-1 text-sm text-muted-foreground">
-									<p><strong>Reviewer:</strong> {warningReview.reviewer}</p>
+							<div className="bg-muted/30 border border-border/50 rounded-xl p-4">
+								<p className="text-sm font-semibold text-foreground mb-3">Review Snapshot</p>
+								<div className="space-y-2 text-sm text-muted-foreground">
 									<p><strong>Target:</strong> {warningReview.target}</p>
 									<p><strong>Rating:</strong> {warningReview.rating}/5</p>
-									<p><strong>Feedback:</strong> {warningReview.feedback}</p>
+									<div className="bg-background border border-border/50 p-3 rounded-md mt-2 italic">
+										"{warningReview.feedback}"
+									</div>
 								</div>
 							</div>
 
 							<div>
-								<label htmlFor="warn-reason" className="block text-sm font-medium text-foreground mb-2">
-									Warning Reason <span className="text-red-500">*</span>
+								<label htmlFor="warn-reason" className="block text-sm font-semibold text-foreground mb-2">
+									Warning Reason <span className="text-danger">*</span>
 								</label>
 								<textarea
 									id="warn-reason"
 									value={warnReason}
 									onChange={(e) => setWarnReason(e.target.value)}
 									placeholder="Please provide a detailed reason for warning this reviewer..."
-									className="w-full min-h-[120px] px-3 py-2 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent resize-y"
+									className="w-full min-h-[120px] px-3 py-2 border border-border rounded-xl bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-y"
 									disabled={processing}
 								/>
-								<p className="mt-1 text-xs text-muted-foreground">
-									This reason will be included in the warning notification sent to the reviewer and recorded with the review.
+								<p className="mt-2 text-xs text-muted-foreground">
+									This reason will be included in the notification sent to the reviewer.
 								</p>
 							</div>
 						</div>
 
-						<div className="flex justify-end gap-2">
-							<button
-								onClick={handleConfirmWarn}
-								disabled={processing || !warnReason.trim()}
-								className="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								{processing ? "Processing..." : "Send Warning"}
-							</button>
+						<div className="flex justify-end gap-3 px-6 py-4 border-t border-border bg-muted/10 rounded-b-2xl">
 							<button
 								onClick={() => {
 									if (!processing) {
@@ -471,26 +499,33 @@ export default function ReviewsPage() {
 									}
 								}}
 								disabled={processing}
-								className="px-4 py-2 bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors disabled:opacity-50"
+								className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted/50 transition-colors disabled:opacity-50"
 							>
 								Cancel
+							</button>
+							<button
+								onClick={handleConfirmWarn}
+								disabled={processing || !warnReason.trim()}
+								className="px-4 py-2 text-sm rounded-md bg-yellow-600 text-white hover:bg-yellow-700 transition-colors disabled:opacity-50 min-w-[140px]"
+							>
+								{processing ? "Processing..." : "Send Warning"}
 							</button>
 						</div>
 					</div>
 				</div>
 			)}
 
-			{/* Restriction Modal */}
+			{/* Restrict Modal */}
 			{showRestrictModal && restrictingReview && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => {
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => {
 					if (!processing) {
 						setShowRestrictModal(false);
 						setRestrictingReview(null);
 						setRestrictionReason("");
 					}
 				}}>
-					<div className="bg-background border border-border rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-						<div className="flex justify-between items-center mb-4">
+					<div className="bg-background border border-border rounded-2xl max-w-2xl w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+						<div className="flex justify-between items-center px-6 py-4 border-b border-border">
 							<h2 className="text-xl font-semibold">Restrict Reviewer</h2>
 							<button 
 								onClick={() => {
@@ -501,55 +536,49 @@ export default function ReviewsPage() {
 									}
 								}} 
 								disabled={processing}
-								className="text-muted-foreground hover:text-foreground text-2xl leading-none disabled:opacity-50"
+								className="text-muted-foreground hover:bg-muted p-2 rounded-full transition-colors leading-none disabled:opacity-50"
 							>
-								✕
+								<svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
 							</button>
 						</div>
 
-						<div className="space-y-4 mb-6">
-							<div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-								<p className="text-sm text-yellow-800">
-									<strong>Warning:</strong> You are about to restrict <strong>{restrictingReview.reviewer}</strong> (Reviewer). This will limit their account access and mark this review as the reason for restriction.
+						<div className="p-6 space-y-4">
+							<div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4">
+								<p className="text-sm text-orange-700 dark:text-orange-500 leading-relaxed">
+									<strong>Warning:</strong> You are about to restrict <strong>{restrictingReview.reviewer}</strong>. This will limit their account access and mark this review as the reason for restriction.
 								</p>
 							</div>
 
-							<div className="bg-muted/50 border border-border rounded-lg p-4">
-								<p className="text-sm font-medium text-foreground mb-2">Review Details:</p>
-								<div className="space-y-1 text-sm text-muted-foreground">
-									<p><strong>Reviewer:</strong> {restrictingReview.reviewer}</p>
+							<div className="bg-muted/30 border border-border/50 rounded-xl p-4">
+								<p className="text-sm font-semibold text-foreground mb-3">Review Snapshot</p>
+								<div className="space-y-2 text-sm text-muted-foreground">
 									<p><strong>Target:</strong> {restrictingReview.target}</p>
 									<p><strong>Rating:</strong> {restrictingReview.rating}/5</p>
-									<p><strong>Feedback:</strong> {restrictingReview.feedback}</p>
+									<div className="bg-background border border-border/50 p-3 rounded-md mt-2 italic">
+										"{restrictingReview.feedback}"
+									</div>
 								</div>
 							</div>
 
 							<div>
-								<label htmlFor="restriction-reason" className="block text-sm font-medium text-foreground mb-2">
-									Reason for Restriction <span className="text-red-500">*</span>
+								<label htmlFor="restriction-reason" className="block text-sm font-semibold text-foreground mb-2">
+									Reason for Restriction <span className="text-danger">*</span>
 								</label>
 								<textarea
 									id="restriction-reason"
 									value={restrictionReason}
 									onChange={(e) => setRestrictionReason(e.target.value)}
 									placeholder="Please provide a detailed reason for restricting this reviewer..."
-									className="w-full min-h-[120px] px-3 py-2 border border-border rounded-md bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-accent focus:border-transparent resize-y"
+									className="w-full min-h-[120px] px-3 py-2 border border-border rounded-xl bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-y"
 									disabled={processing}
 								/>
-								<p className="mt-1 text-xs text-muted-foreground">
+								<p className="mt-2 text-xs text-muted-foreground">
 									This reason will be recorded for administrative purposes and stored with the user's account.
 								</p>
 							</div>
 						</div>
 
-						<div className="flex justify-end gap-2">
-							<button
-								onClick={handleConfirmRestrict}
-								disabled={processing || !restrictionReason.trim()}
-								className="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-							>
-								{processing ? "Processing..." : "Confirm Restriction"}
-							</button>
+						<div className="flex justify-end gap-3 px-6 py-4 border-t border-border bg-muted/10 rounded-b-2xl">
 							<button
 								onClick={() => {
 									if (!processing) {
@@ -559,10 +588,100 @@ export default function ReviewsPage() {
 									}
 								}}
 								disabled={processing}
-								className="px-4 py-2 bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors disabled:opacity-50"
+								className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted/50 transition-colors disabled:opacity-50"
 							>
 								Cancel
 							</button>
+							<button
+								onClick={handleConfirmRestrict}
+								disabled={processing || !restrictionReason.trim()}
+								className="px-4 py-2 text-sm rounded-md bg-orange-600 text-white hover:bg-orange-700 transition-colors disabled:opacity-50 min-w-[140px]"
+							>
+								{processing ? "Processing..." : "Confirm Restriction"}
+							</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* ==============================================
+			    CONFIRMATION MODALS
+			    ============================================== */}
+
+			{/* Hide Modal */}
+			{reviewToHide && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => !processing && setReviewToHide(null)}>
+					<div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+						<h2 className="text-xl font-semibold mb-2">Hide Review</h2>
+						<p className="text-muted-foreground text-sm mb-6">
+							Are you sure you want to hide this review from the public platform?
+						</p>
+						<div className="flex justify-end gap-3">
+							<button disabled={processing} onClick={() => setReviewToHide(null)} className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted/50 transition-colors">Cancel</button>
+							<button disabled={processing} onClick={executeHide} className="px-4 py-2 text-sm rounded-md bg-gray-600 text-white hover:bg-gray-700 transition-colors">Hide Review</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Unhide Modal */}
+			{reviewToUnhide && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => !processing && setReviewToUnhide(null)}>
+					<div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+						<h2 className="text-xl font-semibold mb-2">Unhide Review</h2>
+						<p className="text-muted-foreground text-sm mb-6">
+							Are you sure you want to unhide this review? It will be visible on the platform again.
+						</p>
+						<div className="flex justify-end gap-3">
+							<button disabled={processing} onClick={() => setReviewToUnhide(null)} className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted/50 transition-colors">Cancel</button>
+							<button disabled={processing} onClick={executeUnhide} className="px-4 py-2 text-sm rounded-md bg-green-600 text-white hover:bg-green-700 transition-colors">Unhide Review</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Unrestrict Reviewer Modal */}
+			{reviewToUnrestrict && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => !processing && setReviewToUnrestrict(null)}>
+					<div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+						<h2 className="text-xl font-semibold mb-2">Unrestrict Reviewer</h2>
+						<p className="text-muted-foreground text-sm mb-6">
+							Are you sure you want to unrestrict <strong>{reviewToUnrestrict.reviewer}</strong>? This will restore their account access.
+						</p>
+						<div className="flex justify-end gap-3">
+							<button disabled={processing} onClick={() => setReviewToUnrestrict(null)} className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted/50 transition-colors">Cancel</button>
+							<button disabled={processing} onClick={executeUnrestrict} className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors">Unrestrict</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Delete Modal (Danger styling) */}
+			{reviewToDelete && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => !processing && setReviewToDelete(null)}>
+					<div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+						<h2 className="text-xl font-semibold mb-2">Confirm Deletion</h2>
+						<p className="text-muted-foreground text-sm mb-6">
+							Are you sure you want to delete this review completely? This action cannot be undone.
+						</p>
+						<div className="flex justify-end gap-3">
+							<button disabled={processing} onClick={() => setReviewToDelete(null)} className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted/50 transition-colors">Cancel</button>
+							<button disabled={processing} onClick={executeDelete} className="px-4 py-2 text-sm rounded-md bg-danger text-white hover:bg-danger/90 transition-colors">Delete Review</button>
+						</div>
+					</div>
+				</div>
+			)}
+
+			{/* Alert Feedback Modal (Danger for errors) */}
+			{alertModal.show && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setAlertModal({ ...alertModal, show: false })}>
+					<div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+						<h2 className={`text-xl font-semibold mb-2 ${alertModal.isError ? "text-danger" : ""}`}>
+							{alertModal.title}
+						</h2>
+						<p className="text-muted-foreground text-sm mb-6">{alertModal.message}</p>
+						<div className="flex justify-end">
+							<button onClick={() => setAlertModal({ ...alertModal, show: false })} className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">Close</button>
 						</div>
 					</div>
 				</div>
