@@ -116,10 +116,10 @@ export default function DashboardClient({ stats, today, activities, analytics }:
 			<div className="mx-auto w-full max-w-[1400px] space-y-6 px-4 sm:px-6 lg:px-8">
 				<header className="flex flex-col gap-4 rounded-2xl border border-border bg-muted p-5 shadow-sm backdrop-blur md:flex-row md:items-center md:justify-between">
 					<div className="space-y-1">
-						<p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+						<p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground dark:text-white">
 							Welcome, {userName}
 						</p>
-						<h1 className="text-xl font-semibold text-foreground">Today is {today}</h1>
+						<h1 className="text-xl font-semibold text-foreground dark:text-white">Today is {today}</h1>
 					</div>
 					<SearchBar className="max-w-md md:w-80" placeholder="Search..." />
 				</header>

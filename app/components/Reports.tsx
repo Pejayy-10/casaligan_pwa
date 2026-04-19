@@ -114,9 +114,14 @@ const Reports: React.FC = () => {
             </Pie>
             <Tooltip
               contentStyle={{
-                backgroundColor: "var(--color-muted)",
-                color: "var(--color-foreground)",
+                backgroundColor: "rgba(12, 12, 15, 0.95)",
+                color: "#EEEAE6",
+                border: "1px solid rgba(238, 234, 230, 0.2)",
+                borderRadius: "8px",
+                padding: "8px",
               }}
+              labelStyle={{ color: "#EEEAE6" }}
+              itemStyle={{ color: "#EEEAE6" }}
             />
             <Legend
               verticalAlign="bottom"

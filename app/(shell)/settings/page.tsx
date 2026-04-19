@@ -163,16 +163,16 @@ export default function SettingsPage() {
   return (
     <div className="mx-auto w-full max-w-[1400px] space-y-6 px-4 sm:px-6 lg:px-8">
       <div>
-        <h2 className="text-lg font-semibold">Settings</h2>
-        <p className="text-sm text-muted-foreground">Manage platform configuration and service categories</p>
+        <h2 className="text-lg font-semibold dark:text-white">Settings</h2>
+        <p className="text-sm text-muted-foreground dark:text-white">Manage platform configuration and service categories</p>
       </div>
 
       <div className="rounded-2xl border border-border bg-card/70 p-4 space-y-4">
         {/* Header Section */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/50">
           <div>
-            <h3 className="text-base font-semibold text-foreground">Package Categories</h3>
-            <p className="text-sm text-muted-foreground">Add, edit, or remove categories available for service packages</p>
+            <h3 className="text-base font-semibold text-foreground dark:text-white">Package Categories</h3>
+            <p className="text-sm text-muted-foreground dark:text-white">Add, edit, or remove categories available for service packages</p>
           </div>
           <button
             onClick={handleAddNew}
@@ -191,8 +191,8 @@ export default function SettingsPage() {
         ) : categories.length === 0 ? (
           <div className="text-center py-12 rounded-xl bg-muted/10 border border-border/50">
             <div className="text-4xl mb-3">📁</div>
-            <p className="text-foreground font-medium">No categories yet</p>
-            <p className="text-sm text-muted-foreground mt-1">Create your first category to organize packages</p>
+            <p className="text-foreground font-medium dark:text-white">No categories yet</p>
+            <p className="text-sm text-muted-foreground dark:text-white mt-1">Create your first category to organize packages</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -201,28 +201,28 @@ export default function SettingsPage() {
                 key={category.category_id}
                 className={`flex flex-col justify-between p-5 border rounded-xl transition-all ${
                   category.is_active 
-                    ? 'border-border bg-white shadow-sm hover:border-primary/50' 
-                    : 'border-border/50 bg-white opacity-75'
+                    ? 'border-border bg-white dark:bg-muted shadow-sm hover:border-primary/50' 
+                    : 'border-border/50 bg-white dark:bg-muted opacity-75'
                 }`}
               >
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 className="font-semibold text-foreground text-lg leading-tight break-words">{category.name}</h3>
+                    <h3 className="font-semibold text-foreground dark:text-white text-lg leading-tight break-words">{category.name}</h3>
                     <span className={`shrink-0 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
-                      category.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-600'
+                      category.is_active ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100' : 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
                     }`}>
                       {category.is_active ? "Active" : "Inactive"}
                     </span>
                   </div>
                   {category.description ? (
-                    <p className="text-sm text-muted-foreground line-clamp-2">{category.description}</p>
+                    <p className="text-sm text-muted-foreground dark:text-white line-clamp-2">{category.description}</p>
                   ) : (
-                    <p className="text-sm text-muted-foreground italic opacity-50">No description provided</p>
+                    <p className="text-sm text-muted-foreground dark:text-white italic opacity-50">No description provided</p>
                   )}
                 </div>
                 
                 <div className="flex items-center justify-between mt-4 pt-4 border-t border-border/50">
-                  <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+                  <p className="text-[11px] font-medium text-muted-foreground dark:text-white uppercase tracking-wider">
                     Added: {new Date(category.created_at).toLocaleDateString()}
                   </p>
                   <div className="flex gap-2 shrink-0">
@@ -255,13 +255,13 @@ export default function SettingsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => !submitting && resetForm()}>
           <div className="bg-background border border-border rounded-2xl max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center px-6 py-4 border-b border-border">
-              <h2 className="text-xl font-semibold text-foreground">
+              <h2 className="text-xl font-semibold text-foreground dark:text-white">
                 {editingCategory ? 'Edit Category' : 'New Category'}
               </h2>
               <button 
                 onClick={resetForm}
                 disabled={submitting}
-                className="text-muted-foreground hover:bg-muted p-2 rounded-full transition-colors leading-none disabled:opacity-50"
+                className="text-muted-foreground dark:text-white hover:bg-muted p-2 rounded-full transition-colors leading-none disabled:opacity-50"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -270,7 +270,7 @@ export default function SettingsPage() {
             <form onSubmit={handleSubmit}>
               <div className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-foreground mb-2">
+                  <label className="block text-sm font-semibold text-foreground dark:text-white mb-2">
                     Category Name <span className="text-danger">*</span>
                   </label>
                   <input
@@ -280,12 +280,12 @@ export default function SettingsPage() {
                     placeholder="e.g., General Cleaning, Deep Cleaning"
                     required
                     disabled={submitting}
-                    className="w-full px-3 py-2 border border-border rounded-xl bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                    className="w-full px-3 py-2 border border-border rounded-xl bg-background text-foreground dark:text-white placeholder:text-muted-foreground dark:placeholder:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-foreground mb-2">
+                  <label className="block text-sm font-semibold text-foreground dark:text-white mb-2">
                     Description
                   </label>
                   <textarea
@@ -294,11 +294,11 @@ export default function SettingsPage() {
                     placeholder="Brief description of this category..."
                     rows={3}
                     disabled={submitting}
-                    className="w-full px-3 py-2 border border-border rounded-xl bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-y"
+                    className="w-full px-3 py-2 border border-border rounded-xl bg-background text-foreground dark:text-white placeholder:text-muted-foreground dark:placeholder:text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-y"
                   />
                 </div>
 
-                <div className="flex items-center gap-3 bg-muted/20 p-3 rounded-xl border border-border/50">
+            <div className="flex items-center gap-3 bg-muted/20 dark:bg-muted/40 p-3 rounded-xl border border-border/50">
                   <div className="relative flex items-start">
                     <div className="flex h-6 items-center">
                       <input
@@ -311,21 +311,21 @@ export default function SettingsPage() {
                       />
                     </div>
                     <div className="ml-3 text-sm leading-6">
-                      <label htmlFor="isActive" className="font-medium text-foreground cursor-pointer">
+                      <label htmlFor="isActive" className="font-medium text-foreground dark:text-white cursor-pointer">
                         Active Status
                       </label>
-                      <p className="text-muted-foreground text-xs">If active, this category will be visible to housekeepers when creating packages.</p>
+                      <p className="text-muted-foreground dark:text-white text-xs">If active, this category will be visible to housekeepers when creating packages.</p>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 px-6 py-4 border-t border-border bg-muted/10 rounded-b-2xl">
+              <div className="flex justify-end gap-3 px-6 py-4 border-t border-border bg-muted/5 dark:bg-muted/10 rounded-b-2xl">
                 <button
                   type="button"
                   onClick={resetForm}
                   disabled={submitting}
-                  className="px-4 py-2 text-sm font-medium rounded-md border border-border hover:bg-muted/50 transition-colors disabled:opacity-50"
+                  className="px-4 py-2 text-sm font-medium rounded-md border border-border text-foreground dark:text-white hover:bg-muted/50 transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
@@ -355,12 +355,12 @@ export default function SettingsPage() {
       {categoryToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => !submitting && setCategoryToDelete(null)}>
           <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
-            <h2 className="text-xl font-semibold mb-2">Confirm Deletion</h2>
-            <p className="text-muted-foreground text-sm mb-4">
-              Are you sure you want to delete the category <span className="font-semibold text-foreground">"{categoryToDelete.name}"</span>?
+            <h2 className="text-xl font-semibold dark:text-white mb-2">Confirm Deletion</h2>
+            <p className="text-muted-foreground dark:text-white text-sm mb-4">
+              Are you sure you want to delete the category <span className="font-semibold text-foreground dark:text-white">"{categoryToDelete.name}"</span>?
             </p>
-            <div className="bg-danger/10 border border-danger/20 rounded-lg p-3 mb-6">
-              <p className="text-xs text-danger leading-relaxed">
+            <div className="bg-danger/10 dark:bg-danger/20 border border-danger/20 dark:border-danger/30 rounded-lg p-3 mb-6">
+              <p className="text-xs text-danger dark:text-danger leading-relaxed">
                 <strong>Warning:</strong> This action cannot be undone. If any active service packages are currently using this category, the deletion will fail.
               </p>
             </div>
@@ -368,7 +368,7 @@ export default function SettingsPage() {
               <button 
                 disabled={submitting} 
                 onClick={() => setCategoryToDelete(null)} 
-                className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted/50 transition-colors disabled:opacity-50"
+                className="px-4 py-2 text-sm rounded-md border border-border text-foreground dark:text-white hover:bg-muted/50 transition-colors disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -388,14 +388,14 @@ export default function SettingsPage() {
       {alertModal.show && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setAlertModal({ ...alertModal, show: false })}>
           <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
-            <h2 className={`text-xl font-semibold mb-2 ${alertModal.isError ? "text-danger" : ""}`}>
+            <h2 className={`text-xl font-semibold mb-2 dark:text-white ${alertModal.isError ? "text-danger" : ""}`}>
               {alertModal.title}
             </h2>
-            <p className="text-muted-foreground text-sm mb-6">{alertModal.message}</p>
+            <p className="text-muted-foreground dark:text-white text-sm mb-6">{alertModal.message}</p>
             <div className="flex justify-end">
               <button 
                 onClick={() => setAlertModal({ ...alertModal, show: false })} 
-                className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground dark:text-white hover:bg-primary/90 transition-colors"
               >
                 Close
               </button>

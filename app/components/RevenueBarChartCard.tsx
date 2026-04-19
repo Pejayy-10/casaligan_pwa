@@ -28,9 +28,9 @@ function TooltipContent({ active, payload }: TooltipProps<number, string> & { pa
   if (!active || !payload?.length) return null;
   const { category, revenue } = payload[0].payload as ChartDatum;
   return (
-    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-popover-foreground shadow-sm">
-      <p className="text-sm font-semibold">{category}</p>
-      <p className="text-xs text-muted-foreground mt-1">{currencyFormatter.format(revenue)}</p>
+    <div className="rounded-lg border border-border bg-popover px-3 py-2 text-popover-foreground shadow-sm dark:bg-muted dark:border-border">
+      <p className="text-sm font-semibold dark:text-white">{category}</p>
+      <p className="text-xs text-muted-foreground dark:text-white mt-1">{currencyFormatter.format(revenue)}</p>
     </div>
   );
 }
@@ -50,32 +50,32 @@ export function RevenueBarChartCard({
     <section className="flex flex-col rounded-2xl border border-border bg-muted p-5 text-card-foreground shadow-sm">
       <header className="mb-4 flex items-start justify-between gap-3">
         <div>
-          <p className="text-m font-semibold text-muted-foreground">Revenue</p>
+          <p className="text-m font-semibold text-muted-foreground dark:text-white">Revenue</p>
           <p className="text-3xl font-semibold text-emerald-600">
             {currencyFormatter.format(totalRevenue)}
           </p>
-          <p className="text-xs text-muted-foreground mt-1">{rangeLabel || "Recent weeks"}</p>
+          <p className="text-xs text-muted-foreground dark:text-white mt-1">{rangeLabel || "Recent weeks"}</p>
         </div>
         <div className="flex flex-col gap-2">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Date Range</p>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground dark:text-white">Date Range</p>
           <div className="flex items-center gap-2">
             <input
               type="date"
               value={startDate || ""}
               onChange={(e) => onStartDateChange?.(e.target.value)}
-              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground dark:bg-background dark:text-white"
             />
-            <span className="text-xs text-muted-foreground">to</span>
+            <span className="text-xs text-muted-foreground dark:text-white">to</span>
             <input
               type="date"
               value={endDate || ""}
               onChange={(e) => onEndDateChange?.(e.target.value)}
-              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground"
+              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground dark:bg-background dark:text-white"
             />
             <button
               type="button"
               onClick={onResetDates}
-              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground hover:bg-muted/40"
+              className="rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground dark:text-white hover:bg-muted/40"
             >
               Reset
             </button>
