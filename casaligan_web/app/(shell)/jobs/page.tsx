@@ -43,31 +43,6 @@ export default function JobsPage() {
             `)
             .order("created_at", { ascending: false });
 
-<<<<<<< Updated upstream:app/(shell)/jobs/page.tsx
-		if (data) {
-			const rows = data.map((job: any) => ({
-				id: job.post_id,
-				title: job.title || "Untitled",
-				postedBy: job.employers?.users?.name || "N/A",
-				postedByEmail: job.employers?.users?.email || "N/A",
-				date: job.created_at,
-				status: job.status || "open",
-				description: job.description || "No description provided",
-				category: job.category || "N/A",
-			}));
-			setJobs(rows);
-		}
-		setLoading(false);
-	}
-
-	function filterRows(rows: any[], q: string, f: any) {
-		const search = (q || "").trim().toLowerCase();
-		return rows.filter((r) => {
-			if (search) {
-				const hay = `${r.title} ${r.postedBy}`.toLowerCase();
-				if (!hay.includes(search)) return false;
-			}
-=======
         if (data) {
             const rows = data.map((job: any) => ({
                 id: job.post_id,
@@ -91,7 +66,6 @@ export default function JobsPage() {
                 const hay = `${r.title} ${r.postedBy}`.toLowerCase();
                 if (!hay.includes(search)) return false;
             }
->>>>>>> Stashed changes:casaligan_web/app/(shell)/jobs/page.tsx
 
             if (f?.status) {
                 if (String(r.status).toLowerCase() !== String(f.status).toLowerCase()) return false;

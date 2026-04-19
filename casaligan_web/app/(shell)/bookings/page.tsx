@@ -490,7 +490,7 @@ export default function BookingsPage() {
 
 			{/* Confirmation Delete Modal */}
 			{bookingToDelete && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setBookingToDelete(null)}>
+				<div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/50" onClick={() => setBookingToDelete(null)}>
 					<div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
 						<h2 className="text-xl font-semibold mb-2">Confirm Deletion</h2>
 						<p className="text-muted-foreground text-sm mb-6">
@@ -498,7 +498,7 @@ export default function BookingsPage() {
 						</p>
 						<div className="flex justify-end gap-3">
 							<button onClick={() => setBookingToDelete(null)} className="px-4 py-2 text-sm rounded-md border border-border hover:bg-muted/50 transition-colors">Cancel</button>
-							<button onClick={executeDelete} className="px-4 py-2 text-sm rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors">Delete</button>
+							<button onClick={executeDelete} className="px-4 py-2 text-sm rounded-md bg-danger text-destructive-foreground hover:bg-danger/90 transition-colors">Delete</button>
 						</div>
 					</div>
 				</div>
