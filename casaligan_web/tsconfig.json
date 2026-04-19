@@ -1,5 +1,9 @@
 {
   "compilerOptions": {
+    "baseUrl": ".", // Tells TS to start looking from the root
+    "paths": {
+      "@/*": ["./*"] // Maps the @ prefix to your root directory
+    },
     "target": "ES2017",
     "lib": [
       "dom",
