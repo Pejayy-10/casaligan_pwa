@@ -28,7 +28,7 @@ export async function getEmployers(limit = 50, offset = 0) {
   const userIds = employers.map(e => e.user_id).filter(Boolean)
   const { data: users, error: usersError } = await supabase
     .from('users')
-    .select('user_id, name, email, phone_number, status, created_at, profile_picture')
+    .select('user_id, name, email, phone_number, status, created_at, profile_picture, restricted_at, deleted_at')
     .in('user_id', userIds)
 
   if (usersError) {
@@ -48,14 +48,13 @@ export async function getEmployers(limit = 50, offset = 0) {
 
 
 
-// Ban an employer (set status to banned and soft delete)
+// Ban an employer (soft delete by setting deleted_at)
 export async function banEmployer(userId: number) {
   const supabase = createClient()
   
   const { data, error } = await supabase
     .from('users')
     .update({ 
-      status: 'banned',
       deleted_at: new Date().toISOString()
     })
     .eq('user_id', userId)
@@ -64,14 +63,13 @@ export async function banEmployer(userId: number) {
   return { data, error }
 }
 
-// Unban an employer (set status to active and clear deleted_at)
+// Unban an employer (clear deleted_at)
 export async function unbanEmployer(userId: number) {
   const supabase = createClient()
   
   const { data, error } = await supabase
     .from('users')
     .update({ 
-      status: 'active',
       deleted_at: null
     })
     .eq('user_id', userId)
@@ -80,7 +78,7 @@ export async function unbanEmployer(userId: number) {
   return { data, error }
 }
 
-// Restrict an employer (set status to restricted)
+// Restrict an employer (set restriction tracking fields)
 // Requires: Run the migration script add-restriction-reason-to-users.sql to add the restriction_reason field
 export async function restrictEmployer(userId: number, reason?: string) {
   const supabase = createClient()
@@ -94,7 +92,6 @@ export async function restrictEmployer(userId: number, reason?: string) {
   }
 
   const updateData: any = { 
-    status: 'restricted',
     restricted_at: new Date().toISOString(),
     restricted_by_admin_id: admin_id
   };
@@ -113,14 +110,13 @@ export async function restrictEmployer(userId: number, reason?: string) {
   return { data, error }
 }
 
-// Unrestrict an employer (set status to active and clear restriction data)
+// Unrestrict an employer (clear restriction data)
 export async function unrestrictEmployer(userId: number) {
   const supabase = createClient()
   
   const { data, error } = await supabase
     .from('users')
     .update({ 
-      status: 'active',
       restriction_reason: null,
       restricted_at: null,
       restricted_by_admin_id: null
@@ -154,7 +150,7 @@ export async function getEmployerAnalytics(newAccountsStartDate?: Date, newAccou
   // Get all employers with their user status
   const { data: employers, error: employersError } = await supabase
     .from('employers')
-    .select('employer_id, user_id, users(user_id, status, created_at)')
+    .select('employer_id, user_id, users(user_id, status, created_at, restricted_at, deleted_at)')
   
   if (employersError) {
     console.error('Error fetching employer analytics:', employersError)
@@ -168,20 +164,18 @@ export async function getEmployerAnalytics(newAccountsStartDate?: Date, newAccou
   }
 
   // Calculate activity statistics (Active vs Inactive)
-  // Note: banned and restricted users are counted as inactive
-  const activeCount = employers?.filter((e: any) => e.users?.status === 'active').length || 0
-  const inactiveCount = employers?.filter((e: any) => 
-    e.users?.status === 'inactive' || e.users?.status === 'banned' || e.users?.status === 'restricted'
-  ).length || 0
+  // Note: banned (deleted_at) and restricted (restricted_at) users are counted as inactive
+  const activeCount = employers?.filter((e: any) => !e.users?.deleted_at && !e.users?.restricted_at).length || 0
+  const inactiveCount = employers?.filter((e: any) => Boolean(e.users?.deleted_at || e.users?.restricted_at)).length || 0
   
   const activityData = [
     { name: "Active", value: activeCount },
     { name: "Inactive", value: inactiveCount },
   ]
 
-  // Calculate restricted/banned statistics
-  const restrictedCount = employers?.filter((e: any) => e.users?.status === 'restricted').length || 0
-  const bannedCount = employers?.filter((e: any) => e.users?.status === 'banned').length || 0
+  // Calculate restricted/banned statistics using restriction/deletion fields
+  const restrictedCount = employers?.filter((e: any) => Boolean(e.users?.restricted_at)).length || 0
+  const bannedCount = employers?.filter((e: any) => Boolean(e.users?.deleted_at)).length || 0
   
   const restrictedData = [
     { name: "Restricted", value: restrictedCount },

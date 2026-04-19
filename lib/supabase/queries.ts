@@ -118,39 +118,26 @@ export async function getDashboardAnalytics() {
   const weekBuckets = buildWeekBuckets(WEEK_BUCKETS)
   const rangeStart = weekBuckets[0]?.start?.toISOString() ?? new Date().toISOString()
 
-  const [contractsResult, directHiresResult, directHireFeesResult, statusResult, workersResult, employersResult] = await Promise.all([
+  const [contractsResult, directHiresResult, directHireFeesResult, paymentTransactionsResult, statusResult, workersResult, employersResult] = await Promise.all([
     supabase.from('contracts').select('created_at').gte('created_at', rangeStart),
     supabase.from('direct_hires').select('created_at, paid_at, platform_fee_amount, platform_fee_status').gte('created_at', rangeStart),
     supabase
       .from('direct_hires')
-      .select('paid_at, created_at, platform_fee_amount, platform_fee_status')
+      .select('paid_at, created_at, platform_fee_amount, platform_fee_status, payment_method')
       .gte('created_at', rangeStart),
+    supabase
+      .from('payment_transactions')
+      .select('paid_at, amount_paid, payment_method')
+      .gte('paid_at', rangeStart),
     supabase.from('forumposts').select('status'),
     supabase.from('workers').select('*', { count: 'exact', head: true }),
     supabase.from('employers').select('*', { count: 'exact', head: true }),
   ])
 
-  let postFeesResult = await supabase
-    .from('forumposts')
-    .select('created_at, status, post_fee_amount, post_fee_status, post_fee_paid_at, flat_post_fee_amount, flat_post_fee_status, flat_post_fee_paid_at')
-    .gte('created_at', rangeStart)
-
-  if (
-    isMissingColumnError(postFeesResult.error, 'flat_post_fee_amount') ||
-    isMissingColumnError(postFeesResult.error, 'flat_post_fee_status') ||
-    isMissingColumnError(postFeesResult.error, 'flat_post_fee_paid_at')
-  ) {
-    postFeesResult = await supabase
-      .from('forumposts')
-      .select('created_at, status, post_fee_amount, post_fee_status, post_fee_paid_at')
-      .gte('created_at', rangeStart)
-  }
-
   const bookingsByWeek: Record<string, number> = {}
-  const revenueByWeek: Record<string, number> = {}
+  const revenueByCategory: Record<string, number> = {}
   weekBuckets.forEach((bucket) => {
     bookingsByWeek[bucket.key] = 0
-    revenueByWeek[bucket.key] = 0
   })
 
   ;(contractsResult.data || []).forEach((contract: { created_at?: string }) => {
@@ -167,28 +154,20 @@ export async function getDashboardAnalytics() {
     }
   })
 
-  const addRevenue = (dateValue: string | null | undefined, amount: number) => {
-    const key = getWeekKey(dateValue || undefined)
-    if (key && key in revenueByWeek) {
-      revenueByWeek[key] += amount
-    }
+  const addRevenueByCategory = (method: unknown, amount: number) => {
+    const raw = String(method || '').trim()
+    const key = !raw || raw.toLowerCase() === 'unknown' ? 'Others' : raw
+    revenueByCategory[key] = (revenueByCategory[key] || 0) + amount
   }
 
-  ;(postFeesResult.data || []).forEach((post: any) => {
-    const flatStatus = String(post.flat_post_fee_status || '').toLowerCase()
-    const insuranceStatus = String(post.post_fee_status || '').toLowerCase()
-    if (flatStatus === 'paid') {
-      addRevenue(post.flat_post_fee_paid_at || post.created_at, toNumber(post.flat_post_fee_amount))
-    }
-    if (insuranceStatus === 'paid') {
-      addRevenue(post.post_fee_paid_at || post.created_at, toNumber(post.post_fee_amount))
-    }
+  ;(paymentTransactionsResult.data || []).forEach((payment: any) => {
+    addRevenueByCategory(payment.payment_method, toNumber(payment.amount_paid))
   })
 
   ;(directHireFeesResult.data || []).forEach((hire: any) => {
     const status = String(hire.platform_fee_status || '').toLowerCase()
     if (status === 'paid') {
-      addRevenue(hire.paid_at || hire.created_at, toNumber(hire.platform_fee_amount))
+      addRevenueByCategory(hire.payment_method, toNumber(hire.platform_fee_amount))
     }
   })
 
@@ -197,10 +176,12 @@ export async function getDashboardAnalytics() {
     bookings: bookingsByWeek[bucket.key] ?? 0,
   }))
 
-  const revenueSeries = weekBuckets.map((bucket) => ({
-    week: bucket.label,
-    revenue: Number((revenueByWeek[bucket.key] ?? 0).toFixed(2)),
-  }))
+  const revenueSeries = Object.entries(revenueByCategory)
+    .map(([category, total]) => ({
+      category,
+      revenue: Number(total.toFixed(2)),
+    }))
+    .sort((a, b) => b.revenue - a.revenue)
 
   const workerCount = workersResult.count || 0
   const employerCount = employersResult.count || 0
@@ -243,7 +224,7 @@ export async function getDashboardAnalytics() {
     ? `${weekBuckets[0].start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${weekBuckets[weekBuckets.length - 1].end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
     : ''
 
-  const error = contractsResult.error || directHiresResult.error || postFeesResult.error || directHireFeesResult.error || statusResult.error || workersResult.error || employersResult.error || null
+  const error = contractsResult.error || directHiresResult.error || directHireFeesResult.error || paymentTransactionsResult.error || statusResult.error || workersResult.error || employersResult.error || null
 
   if (error) {
     console.error('Error loading dashboard analytics:', error)

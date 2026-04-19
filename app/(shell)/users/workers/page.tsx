@@ -202,12 +202,17 @@ export default function WorkersPage() {
 
     const rows = workers.map((w: any) => {
         const u = w.users || {};
+        const isBanned = Boolean(u.deleted_at);
+        const isRestricted = Boolean(u.restricted_at);
+        const effectiveStatus = isBanned ? "banned" : isRestricted ? "restricted" : (u.status || "active");
         return {
             id: w.worker_id,
             user_id: w.user_id,
             name: u.name || "N/A",
             email: u.email || "N/A",
-            status: u.status || "active",
+            status: effectiveStatus,
+            is_restricted: isRestricted,
+            is_banned: isBanned,
             date: u.created_at || new Date().toISOString(),
             phone: u.phone_number || "N/A",
             profile_picture: u.profile_picture || null,
@@ -224,7 +229,15 @@ export default function WorkersPage() {
         setWorkers(prev =>
             prev.map(w =>
                 w.user_id === userId
-                    ? { ...w, users: { ...w.users, status } }
+                    ? {
+                        ...w,
+                        users: {
+                            ...w.users,
+                            status,
+                            deleted_at: status === "banned" ? new Date().toISOString() : null,
+                            restricted_at: status === "restricted" ? new Date().toISOString() : null,
+                        }
+                    }
                     : w
             )
         );

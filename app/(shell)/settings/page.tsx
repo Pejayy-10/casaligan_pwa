@@ -201,8 +201,8 @@ export default function SettingsPage() {
                 key={category.category_id}
                 className={`flex flex-col justify-between p-5 border rounded-xl transition-all ${
                   category.is_active 
-                    ? 'border-border bg-background shadow-sm hover:border-primary/50' 
-                    : 'border-border/50 bg-muted/10 opacity-75'
+                    ? 'border-border bg-white shadow-sm hover:border-primary/50' 
+                    : 'border-border/50 bg-white opacity-75'
                 }`}
               >
                 <div>

@@ -322,10 +322,10 @@ export default function ActionTable({ rows, onAction, className = "", actionType
                           {/* For Workers/Employers pages - check users.status */}
                           {(() => {
                             // Get the user status for this specific row
-                            const userStatus = row.users?.status || row.status || 'active';
+                            const userStatus = row.status || row.users?.status || 'active';
                             const normalizedStatus = String(userStatus).toLowerCase().trim();
-                            
-                            return normalizedStatus === 'banned';
+
+                            return normalizedStatus === 'banned' || Boolean(row.users?.deleted_at) || Boolean(row.deleted_at) || Boolean(row.is_banned);
                           })() ? (
                             <button
                               type="button"
@@ -346,9 +346,9 @@ export default function ActionTable({ rows, onAction, className = "", actionType
                             </button>
                           )}
                           {(() => {
-                            // Check is_restricted field for this specific row
-                            const isRestricted = row.users?.is_restricted === true || row.is_restricted === true;
-                            
+                            // Check is_restricted field or restriction timestamp for this specific row
+                            const isRestricted = row.users?.is_restricted === true || row.is_restricted === true || Boolean(row.users?.restricted_at) || Boolean(row.restricted_at) || String(row.status || '').toLowerCase() === 'restricted';
+
                             return isRestricted;
                           })() ? (
                             <button

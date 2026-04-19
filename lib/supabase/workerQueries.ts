@@ -28,7 +28,7 @@ export async function getWorkers(limit = 50, offset = 0) {
   const userIds = workers.map(w => w.user_id).filter(Boolean)
   const { data: users, error: usersError } = await supabase
     .from('users')
-    .select('user_id, name, email, phone_number, status, created_at, profile_picture')
+    .select('user_id, name, email, phone_number, status, created_at, profile_picture, restricted_at, deleted_at')
     .in('user_id', userIds)
 
   if (usersError) {
@@ -115,14 +115,13 @@ export async function getWorkerLanguages(workerId: number) {
   return { data: data?.map(wl => wl.languages).filter(Boolean) || [], error: null }
 }
 
-// Ban a worker (set status to banned and soft delete)
+// Ban a worker (soft delete by setting deleted_at)
 export async function banWorker(userId: number) {
   const supabase = createClient()
   
   const { data, error } = await supabase
     .from('users')
     .update({ 
-      status: 'banned',
       deleted_at: new Date().toISOString()
     })
     .eq('user_id', userId)
@@ -131,14 +130,13 @@ export async function banWorker(userId: number) {
   return { data, error }
 }
 
-// Unban a worker (set status to active and clear deleted_at)
+// Unban a worker (clear deleted_at)
 export async function unbanWorker(userId: number) {
   const supabase = createClient()
   
   const { data, error } = await supabase
     .from('users')
     .update({ 
-      status: 'active',
       deleted_at: null
     })
     .eq('user_id', userId)
@@ -147,7 +145,7 @@ export async function unbanWorker(userId: number) {
   return { data, error }
 }
 
-// Restrict a worker (set status to restricted)
+// Restrict a worker (set restriction tracking fields)
 // Requires: Run the migration script add-restriction-reason-to-users.sql to add the restriction_reason field
 export async function restrictWorker(userId: number, reason?: string) {
   const supabase = createClient()
@@ -161,7 +159,6 @@ export async function restrictWorker(userId: number, reason?: string) {
   }
 
   const updateData: Record<string, string | number | null> = { 
-    status: 'restricted',
     restricted_at: new Date().toISOString(),
     restricted_by_admin_id: admin_id
   };
@@ -180,14 +177,13 @@ export async function restrictWorker(userId: number, reason?: string) {
   return { data, error }
 }
 
-// Unrestrict a worker (set status to active and clear restriction data)
+// Unrestrict a worker (clear restriction data)
 export async function unrestrictWorker(userId: number) {
   const supabase = createClient()
   
   const { data, error } = await supabase
     .from('users')
     .update({ 
-      status: 'active',
       restriction_reason: null,
       restricted_at: null,
       restricted_by_admin_id: null
@@ -221,7 +217,7 @@ export async function getWorkerAnalytics(newAccountsStartDate?: Date, newAccount
   // Get all workers with their user status
   const { data: workers, error: workersError } = await supabase
     .from('workers')
-    .select('worker_id, user_id, users(user_id, status, created_at)')
+    .select('worker_id, user_id, users(user_id, status, created_at, restricted_at, deleted_at)')
   
   if (workersError) {
     console.error('Error fetching worker analytics:', workersError)
@@ -235,20 +231,18 @@ export async function getWorkerAnalytics(newAccountsStartDate?: Date, newAccount
   }
 
   // Calculate activity statistics (Active vs Inactive)
-  // Note: banned and restricted users are counted as inactive
-  const activeCount = workers?.filter((w: { users?: { status?: string } }) => w.users?.status === 'active').length || 0
-  const inactiveCount = workers?.filter((w: { users?: { status?: string } }) => 
-    w.users?.status === 'inactive' || w.users?.status === 'banned' || w.users?.status === 'restricted'
-  ).length || 0
+  // Note: banned (deleted_at) and restricted (restricted_at) users are counted as inactive
+  const activeCount = workers?.filter((w: { users?: { deleted_at?: string | null; restricted_at?: string | null } }) => !w.users?.deleted_at && !w.users?.restricted_at).length || 0
+  const inactiveCount = workers?.filter((w: { users?: { deleted_at?: string | null; restricted_at?: string | null } }) => Boolean(w.users?.deleted_at || w.users?.restricted_at)).length || 0
   
   const activityData = [
     { name: "Active", value: activeCount },
     { name: "Inactive", value: inactiveCount },
   ]
 
-  // Calculate restricted/banned statistics
-  const restrictedCount = workers?.filter((w: { users?: { status?: string } }) => w.users?.status === 'restricted').length || 0
-  const bannedCount = workers?.filter((w: { users?: { status?: string } }) => w.users?.status === 'banned').length || 0
+  // Calculate restricted/banned statistics using restriction/deletion fields
+  const restrictedCount = workers?.filter((w: { users?: { restricted_at?: string | null } }) => Boolean(w.users?.restricted_at)).length || 0
+  const bannedCount = workers?.filter((w: { users?: { deleted_at?: string | null } }) => Boolean(w.users?.deleted_at)).length || 0
   
   const restrictedData = [
     { name: "Restricted", value: restrictedCount },

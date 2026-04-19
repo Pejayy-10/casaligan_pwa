@@ -28,7 +28,7 @@ type DashboardClientProps = {
 	activities: any[];
 	analytics: {
 		bookingsByWeek: { week: string; bookings: number }[];
-		revenueByWeek: { week: string; revenue: number }[];
+		revenueByWeek: { category: string; revenue: number }[];
 		userDistribution: { label: string; value: number; color: string }[];
 		jobStatusMix: { label: string; value: number }[];
 		jobStatusSummary: { topLabel: string; total: number };
@@ -47,10 +47,22 @@ const formatTrend = (value?: number) => {
 	};
 };
 
+const getDefaultRevenueStartDate = () => {
+	const start = new Date();
+	start.setDate(start.getDate() - 30);
+	return start.toISOString().split("T")[0];
+};
+
+const getDefaultRevenueEndDate = () => new Date().toISOString().split("T")[0];
+
 export default function DashboardClient({ stats, today, activities, analytics }: DashboardClientProps) {
 	const router = useRouter();
 	const [userName, setUserName] = useState("Admin");
 	const [isLoading, setIsLoading] = useState(true);
+	const [revenueByCategory, setRevenueByCategory] = useState(analytics.revenueByWeek);
+	const [revenueRangeLabel, setRevenueRangeLabel] = useState(analytics.rangeLabel);
+	const [revenueStartDate, setRevenueStartDate] = useState(getDefaultRevenueStartDate);
+	const [revenueEndDate, setRevenueEndDate] = useState(getDefaultRevenueEndDate);
 
 	useEffect(() => {
 		const user = getCurrentUser();
@@ -61,6 +73,35 @@ export default function DashboardClient({ stats, today, activities, analytics }:
 		setUserName(user.name || user.email?.split("@")[0] || "Admin");
 		setIsLoading(false);
 	}, [router]);
+
+	useEffect(() => {
+		const loadRevenueCategories = async () => {
+			try {
+				const params = new URLSearchParams({
+					startDate: revenueStartDate,
+					endDate: revenueEndDate,
+				});
+				const response = await fetch(`/api/dashboard/revenue-categories?${params.toString()}`, { cache: 'no-store' });
+				if (!response.ok) return;
+				const payload = await response.json();
+				if (Array.isArray(payload?.data)) {
+					setRevenueByCategory(payload.data);
+					const startLabel = new Date(`${revenueStartDate}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+					const endLabel = new Date(`${revenueEndDate}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+					setRevenueRangeLabel(`${startLabel} - ${endLabel}`);
+				}
+			} catch {
+				// Keep server-provided analytics as fallback if API fetch fails.
+			}
+		};
+
+		loadRevenueCategories();
+	}, [revenueStartDate, revenueEndDate]);
+
+	const resetRevenueDates = () => {
+		setRevenueStartDate(getDefaultRevenueStartDate());
+		setRevenueEndDate(getDefaultRevenueEndDate());
+	};
 
 	if (isLoading) {
 		return (
@@ -118,7 +159,15 @@ export default function DashboardClient({ stats, today, activities, analytics }:
 					</section>
 
 				<aside className="space-y-4">
-					<RevenueBarChartCard data={analytics.revenueByWeek} rangeLabel={analytics.rangeLabel} />
+					<RevenueBarChartCard
+						data={revenueByCategory}
+						rangeLabel={revenueRangeLabel}
+						startDate={revenueStartDate}
+						endDate={revenueEndDate}
+						onStartDateChange={setRevenueStartDate}
+						onEndDateChange={setRevenueEndDate}
+						onResetDates={resetRevenueDates}
+					/>
 					<RecentActivitiesCard activities={activities} />
 				</aside>
 				</div>

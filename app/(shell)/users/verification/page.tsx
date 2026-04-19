@@ -3,17 +3,8 @@
 import { useEffect, useState } from "react";
 import Verification from "@/app/components/Verification";
 import TableShell from "@/app/components/TableShell";
-<<<<<<< Updated upstream:app/(shell)/users/verification/page.tsx
-import {
-	getVerifications,
-	approveVerification,
-	rejectVerification,
-	approveVerificationByUserId,
-	rejectVerificationByUserId,
-} from "@/lib/supabase/verficationQueries";
-=======
 import { getVerifications, approveVerification, rejectVerification } from "@/lib/supabase/verficationQueries";
-import { CheckCircle2, XCircle, FileText } from "lucide-react";
+import { CheckCircle2, XCircle, FileText, AlertTriangle } from "lucide-react";
 
 type ModalAction = "view" | "approve" | "reject" | null;
 
@@ -27,8 +18,8 @@ const ModalWrapper = ({ children, onClose, maxWidth = "max-w-md" }: { children: 
     </div>
 );
 
-const ModalHeader = ({ title, onClose, processing, icon }: { title: string; onClose: () => void; processing: boolean, icon?: React.ReactNode }) => (
-    <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-muted/30">
+const ModalHeader = ({ title, onClose, processing, icon }: { title: string; onClose: () => void; processing: boolean; icon?: React.ReactNode }) => (
+    <div className="flex justify-between items-center px-6 py-4 border-b border-border bg-muted/30 shrink-0">
         <div className="flex items-center gap-3">
             {icon && (
                 <div className="p-2 bg-primary/10 text-primary rounded-lg">
@@ -48,7 +39,6 @@ const ModalHeader = ({ title, onClose, processing, icon }: { title: string; onCl
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
->>>>>>> Stashed changes:casaligan_web/app/(shell)/users/verification/page.tsx
 
 export default function VerificationPage() {
     const [verifications, setVerifications] = useState<any[]>([]);
@@ -60,6 +50,7 @@ export default function VerificationPage() {
     const [selectedVerification, setSelectedVerification] = useState<any>(null);
     const [modalAction, setModalAction] = useState<ModalAction>(null);
     const [processing, setProcessing] = useState(false);
+    const [rejectReason, setRejectReason] = useState("");
     
     const [alertModal, setAlertModal] = useState<{ show: boolean; title: string; message: string; isError: boolean }>({
         show: false, title: "", message: "", isError: false,
@@ -69,6 +60,7 @@ export default function VerificationPage() {
         loadVerifications();
     }, []);
     
+    // Lock body scroll when any modal is open
     useEffect(() => {
       if (showModal || alertModal.show) {
         document.body.style.overflow = "hidden";
@@ -93,39 +85,6 @@ export default function VerificationPage() {
         setLoading(false);
     }
 
-<<<<<<< Updated upstream:app/(shell)/users/verification/page.tsx
-	const rows = verifications.map((verification: any) => {
-		const user = verification.users || {};
-		const applicationDate = verification.submitted_at || new Date().toISOString();
-		const applicationDateObj = new Date(applicationDate);
-		const month = String(applicationDateObj.getMonth() + 1).padStart(2, "0");
-		const day = String(applicationDateObj.getDate()).padStart(2, "0");
-		const year = applicationDateObj.getFullYear();
-		const applicationDateFormatted = `${month}-${day}-${year}`;
-
-		return {
-			id: verification.application_id || verification.verification_id,
-			verification_id: verification.verification_id,
-			application_id: verification.application_id || verification.verification_id,
-			document_id: verification.document_id || null,
-			has_document: verification.has_document === true,
-			worker_id: verification.worker_id,
-			name: user.name || "N/A",
-			email: user.email || "N/A",
-			role: "Housekeeper Applicant",
-			status: verification.status || "pending",
-			application_date: applicationDate,
-			application_date_formatted: applicationDateFormatted,
-			date: applicationDate,
-			document_type: verification.document_type || "N/A",
-			document_number: verification.document_number || "N/A",
-			rejection_reason: verification.rejection_reason || "",
-			notes: verification.notes || "",
-			submitted_at: verification.submitted_at,
-			reviewed_at: verification.reviewed_at,
-		};
-	});
-=======
     const rows = verifications.map((verification: any) => {
         const user = verification.users || {};
         const applicationDate = verification.submitted_at || new Date().toISOString();
@@ -135,10 +94,10 @@ export default function VerificationPage() {
         const year = applicationDateObj.getFullYear();
         const applicationDateFormatted = `${month}-${day}-${year}`;
         const role = user.role || "worker";
->>>>>>> Stashed changes:casaligan_web/app/(shell)/users/verification/page.tsx
 
         return {
             id: verification.verification_id,
+            userId: verification.verification_id, // Added to ensure table actions bind correctly
             verification_id: verification.verification_id,
             worker_id: verification.worker_id,
             name: user.name || "N/A",
@@ -157,61 +116,10 @@ export default function VerificationPage() {
         };
     });
 
-<<<<<<< Updated upstream:app/(shell)/users/verification/page.tsx
-	const handleApprove = async () => {
-		if (!selectedVerification) return;
-		
-		setProcessing(true);
-		const adminId = 1; // TODO: Get from auth session
-		const { error } = selectedVerification.document_id
-			? await approveVerification(selectedVerification.document_id, adminId)
-			: await approveVerificationByUserId(selectedVerification.application_user_id, adminId);
-		
-		if (error) {
-			alert(`Error approving verification: ${error.message}`);
-			setProcessing(false);
-		} else {
-			alert(`Verification for ${selectedVerification.users?.name || selectedVerification.name} has been approved successfully.`);
-			setShowModal(false);
-			setSelectedVerification(null);
-			setModalAction(null);
-			setProcessing(false);
-			loadVerifications(); // Reload data
-		}
-	};
-
-	const handleReject = async () => {
-		if (!selectedVerification) return;
-		
-		setProcessing(true);
-		const adminId = 1; // TODO: Get from auth session
-		const { error } = selectedVerification.document_id
-			? await rejectVerification(selectedVerification.document_id, adminId)
-			: await rejectVerificationByUserId(selectedVerification.application_user_id, adminId);
-		
-		if (error) {
-			alert(`Error rejecting verification: ${error.message}`);
-			setProcessing(false);
-		} else {
-			alert(`Verification for ${selectedVerification.users?.name || selectedVerification.name} has been rejected.`);
-			setShowModal(false);
-			setSelectedVerification(null);
-			setModalAction(null);
-			setProcessing(false);
-			loadVerifications(); // Reload data
-		}
-	};
-
-	return (
-		<div className="mx-auto w-full max-w-[1400px] space-y-6 px-4 sm:px-6 lg:px-8">
-			<div>
-				<h1 className="heading">Housekeeper Application Verification</h1>
-				<p className="text-muted-foreground">Review uploaded documents and process housekeeper applications.</p>
-			</div>
-=======
     const openModal = (action: ModalAction, verification: any) => {
         setSelectedVerification(verification);
         setModalAction(action);
+        setRejectReason("");
         setShowModal(true);
     };
 
@@ -220,23 +128,24 @@ export default function VerificationPage() {
         setShowModal(false);
         setSelectedVerification(null);
         setModalAction(null);
+        setRejectReason("");
     };
 
-    const handleAction = async (action: "view" | "ban" | "restrict" | "unban" | "unrestrict", row: any) => {
-        const verification = verifications.find(v => v.verification_id === row.verification_id) || row;
+    const handleAction = async (action: string, row: any) => {
+        // Bulletproof lookup: Forces string comparison so we find the original data 
+        // even if the table component modified the ID type.
+        const targetId = String(row.verification_id || row.id || row.userId);
+        const verification = verifications.find(v => String(v.verification_id) === targetId) || row;
         
-        // Mapping generic table actions to verification-specific actions
-        if (action === "view") {
+        const act = action.toLowerCase();
+        if (act === "view") {
             openModal("view", verification);
-        } else if (action === "ban") {
-            // Ban mapped to Approve in TableShell based on previous implementation
+        } else if (act === "approve" || act === "ban") { 
             openModal("approve", verification);
-        } else if (action === "restrict") {
-            // Restrict mapped to Reject
+        } else if (act === "reject" || act === "restrict") {
             openModal("reject", verification);
         }
     };
->>>>>>> Stashed changes:casaligan_web/app/(shell)/users/verification/page.tsx
 
     const handleApprove = async () => {
         if (!selectedVerification) return;
@@ -256,30 +165,18 @@ export default function VerificationPage() {
         }
     };
 
-<<<<<<< Updated upstream:app/(shell)/users/verification/page.tsx
-			{loading ? (
-				<div className="text-center py-8">Loading verifications...</div>
-			) : (
-				<TableShell 
-					rows={rows} 
-					title="Housekeeper Applications" 
-					description="Pending and processed housekeeper verification requests." 
-					onAction={handleAction}
-					actionType="verification"
-					statusOptions={[
-						{ value: "pending", label: "Pending" },
-						{ value: "approved", label: "Approved" },
-						{ value: "rejected", label: "Rejected" },
-					]}
-				/>
-			)}
-=======
     const handleReject = async () => {
         if (!selectedVerification) return;
+        
+        if (!rejectReason.trim()) {
+            setAlertModal({ show: true, title: "Missing Information", message: "Please provide a reason for rejection so the user can correct their submission.", isError: true });
+            return;
+        }
+
         setProcessing(true);
         
         const adminId = 1; // TODO: Get from auth session
-        const { error } = await rejectVerification(selectedVerification.verification_id, adminId);
+        const { error } = await rejectVerification(selectedVerification.verification_id, adminId, rejectReason.trim());
         
         if (error) {
             setAlertModal({ show: true, title: "Rejection Error", message: error.message, isError: true });
@@ -291,9 +188,24 @@ export default function VerificationPage() {
             setProcessing(false);
         }
     };
->>>>>>> Stashed changes:casaligan_web/app/(shell)/users/verification/page.tsx
 
     const userName = selectedVerification?.users?.name || selectedVerification?.name || "N/A";
+
+    // Helper to safely extract the URL string (in case the DB returns an array)
+    const getFileUrl = (path: any) => {
+        if (!path) return "";
+        if (Array.isArray(path)) return path[0] || "";
+        return String(path);
+    };
+
+    // Helper to safely check if file is an image (ignoring query parameters in the URL)
+    const isImageFile = (filePath: string) => {
+        if (!filePath) return false;
+        const cleanPath = filePath.split('?')[0]; 
+        return /\.(jpg|jpeg|png|gif|webp)$/i.test(cleanPath);
+    };
+
+    const fileUrl = getFileUrl(selectedVerification?.file_path);
 
     // Shared verification detail sections rendered inside modals
     const VerificationDetails = () => (
@@ -301,12 +213,12 @@ export default function VerificationPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* User Card */}
                 <div className="bg-muted/10 border border-border rounded-xl p-4 flex items-start gap-4">
-                    <div className="bg-blue-100 text-blue-600 p-2.5 rounded-full mt-1">
+                    <div className="bg-blue-100 text-blue-600 p-2.5 rounded-full mt-1 shrink-0">
                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
                     </div>
-                    <div className="flex-1 overflow-hidden">
+                    <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
                             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Applicant</p>
                             <span className={`shrink-0 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wide ${
@@ -324,92 +236,6 @@ export default function VerificationPage() {
                     </div>
                 </div>
 
-<<<<<<< Updated upstream:app/(shell)/users/verification/page.tsx
-						{/* Verification Information */}
-						<div className="space-y-4 mb-6">
-							<h3 className="text-lg font-semibold border-b pb-2">Verification Information</h3>
-							<div className="grid grid-cols-2 gap-4">
-								<div>
-									<p className="text-sm text-muted-foreground">Application ID</p>
-									<p className="font-medium">{selectedVerification.application_id || "N/A"}</p>
-								</div>
-								<div>
-									<p className="text-sm text-muted-foreground">Document Uploaded</p>
-									<p className="font-medium">{selectedVerification.document_id ? "Yes" : "No"}</p>
-								</div>
-								<div>
-									<p className="text-sm text-muted-foreground">Status</p>
-									<span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${
-										selectedVerification.status === 'approved' ? 'bg-green-100 text-green-800' :
-										selectedVerification.status === 'rejected' ? 'bg-red-100 text-red-800' :
-										selectedVerification.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-										'bg-gray-100 text-gray-800'
-									}`}>
-										{selectedVerification.status || "pending"}
-									</span>
-								</div>
-								<div>
-									<p className="text-sm text-muted-foreground">Document Type</p>
-									<p className="font-medium">{selectedVerification.document_type || "N/A"}</p>
-								</div>
-								<div>
-									<p className="text-sm text-muted-foreground">Document Number</p>
-									<p className="font-medium">{selectedVerification.document_number || "N/A"}</p>
-								</div>
-								<div>
-									<p className="text-sm text-muted-foreground">Submitted At</p>
-									<p className="font-medium">
-										{selectedVerification.submitted_at 
-											? new Date(selectedVerification.submitted_at).toLocaleString() 
-											: "N/A"}
-									</p>
-								</div>
-								<div>
-									<p className="text-sm text-muted-foreground">Reviewed At</p>
-									<p className="font-medium">
-										{selectedVerification.reviewed_at 
-											? new Date(selectedVerification.reviewed_at).toLocaleString() 
-											: "Not reviewed yet"}
-									</p>
-								</div>
-								<div className="col-span-2">
-									<p className="text-sm text-muted-foreground">Rejection Reason</p>
-									<p className="font-medium">
-										{selectedVerification.rejection_reason || "N/A"}
-									</p>
-								</div>
-							</div>
-						</div>
-
-						{/* Document File */}
-						{selectedVerification.file_path && (
-							<div className="space-y-4 mb-6">
-								<h3 className="text-lg font-semibold border-b pb-2">Document</h3>
-								<div className="border border-border rounded-lg p-4 bg-muted/50">
-									{selectedVerification.file_path.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-										<div className="w-full h-64 rounded-lg overflow-hidden border border-border bg-black/10 flex items-center justify-center">
-											<img
-												src={selectedVerification.file_path}
-												alt="Verification Document"
-												className="max-h-full max-w-full object-contain"
-											/>
-										</div>
-									) : (
-										<div className="flex items-center gap-2">
-											<a 
-												href={selectedVerification.file_path} 
-												target="_blank" 
-												rel="noopener noreferrer"
-												className="text-accent hover:underline"
-											>
-												View Document
-											</a>
-										</div>
-									)}
-								</div>
-							</div>
-						)}
-=======
                 {/* Status Card */}
                 <div className="bg-card border border-border rounded-xl p-4 shadow-sm">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Request Status</p>
@@ -455,19 +281,18 @@ export default function VerificationPage() {
                         <p className="font-medium text-sm">{selectedVerification?.document_number || "N/A"}</p>
                     </div>
                 </div>
->>>>>>> Stashed changes:casaligan_web/app/(shell)/users/verification/page.tsx
 
-                {selectedVerification?.file_path && (
+                {fileUrl && (
                     <div className="mt-4">
                         <p className="text-xs text-muted-foreground uppercase tracking-wider mb-2">Attached File</p>
                         <div className="border border-border rounded-lg p-2 bg-background">
-                            {selectedVerification.file_path.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
+                            {isImageFile(fileUrl) ? (
                                 <div className="relative w-full h-48 sm:h-64 rounded-md overflow-hidden bg-muted/20">
-                                    <Image
-                                        src={selectedVerification.file_path}
+                                    {/* Using a native HTML img tag prevents Next.js <Image> hard crashes on unconfigured external domains */}
+                                    <img
+                                        src={fileUrl}
                                         alt="Verification Document"
-                                        fill
-                                        className="object-contain"
+                                        className="w-full h-full object-contain"
                                     />
                                 </div>
                             ) : (
@@ -477,7 +302,7 @@ export default function VerificationPage() {
                                         <span className="text-sm font-medium truncate max-w-[200px]">Document File</span>
                                     </div>
                                     <a
-                                        href={selectedVerification.file_path}
+                                        href={fileUrl}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         className="text-xs font-medium text-primary hover:underline px-3 py-1.5 bg-primary/10 rounded-md"
@@ -516,7 +341,7 @@ export default function VerificationPage() {
 
             {/* View Modal */}
             {showModal && selectedVerification && modalAction === "view" && (
-                <ModalWrapper onClose={closeModal} maxWidth="max-w-2xl">
+                <ModalWrapper onClose={closeModal} maxWidth="max-w-3xl">
                     <ModalHeader 
                         title="Verification Details" 
                         onClose={closeModal} 
@@ -526,87 +351,123 @@ export default function VerificationPage() {
                     <div className="p-6 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                         <VerificationDetails />
                     </div>
-                    <div className="px-6 py-4 border-t border-border bg-muted/10 flex justify-end rounded-b-2xl">
-                        <button onClick={closeModal} className="px-4 py-2 text-sm font-medium bg-muted text-foreground rounded-md hover:bg-muted/80 transition-colors">
+                    <div className="px-6 py-4 border-t border-border bg-muted/10 flex justify-end gap-3 rounded-b-2xl">
+                        {/* Quick action buttons directly inside the View modal if still pending */}
+                        {selectedVerification.status === 'pending' && (
+                            <>
+                                <button 
+                                    onClick={() => setModalAction("reject")} 
+                                    className="px-4 py-2 text-sm font-medium bg-danger/10 text-danger rounded-md hover:bg-danger/20 transition-colors"
+                                >
+                                    Reject
+                                </button>
+                                <button 
+                                    onClick={() => setModalAction("approve")} 
+                                    className="px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+                                >
+                                    Approve
+                                </button>
+                            </>
+                        )}
+                        <button 
+                            onClick={closeModal} 
+                            className="px-4 py-2 text-sm font-medium bg-background border border-border text-foreground rounded-md hover:bg-muted/50 transition-colors"
+                        >
                             Close
                         </button>
                     </div>
                 </ModalWrapper>
             )}
 
-            {/* Approve Modal */}
+            {/* Approve Modal (Confirmation) */}
             {showModal && selectedVerification && modalAction === "approve" && (
-                <ModalWrapper onClose={closeModal} maxWidth="max-w-2xl">
+                <ModalWrapper onClose={() => setModalAction("view")} maxWidth="max-w-lg">
                     <ModalHeader 
-                        title="Approve Verification" 
-                        onClose={closeModal} 
+                        title="Confirm Approval" 
+                        onClose={() => setModalAction("view")} 
                         processing={processing}
-                        icon={<CheckCircle2 className="w-5 h-5" />} 
+                        icon={<CheckCircle2 className="w-5 h-5 text-green-600" />} 
                     />
                     <div className="p-6 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
+                        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
                             <p className="text-sm text-green-800 leading-relaxed">
-                                <strong>Confirm Approval:</strong> You are about to approve the verification request for <strong>{userName}</strong>. This will grant them a verified badge and full platform access.
+                                You are about to approve the verification request for <strong>{userName}</strong>. This will grant them a verified badge and full platform access.
                             </p>
                         </div>
-                        <VerificationDetails />
                     </div>
                     <div className="px-6 py-4 border-t border-border bg-muted/10 flex justify-end gap-3 rounded-b-2xl">
                         <button
-                            onClick={closeModal}
+                            onClick={() => setModalAction("view")}
                             disabled={processing}
                             className="px-4 py-2 text-sm font-medium rounded-md border border-border hover:bg-muted/50 transition-colors disabled:opacity-50"
                         >
-                            Cancel
+                            Go Back
                         </button>
                         <button
                             onClick={handleApprove}
                             disabled={processing}
                             className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors disabled:opacity-50 min-w-[140px]"
                         >
-                            {processing ? "Processing..." : "Approve Request"}
+                            {processing ? "Processing..." : "Confirm Approval"}
                         </button>
                     </div>
                 </ModalWrapper>
             )}
 
-            {/* Reject Modal */}
+            {/* Reject Modal (Confirmation with Reason) */}
             {showModal && selectedVerification && modalAction === "reject" && (
-                <ModalWrapper onClose={closeModal} maxWidth="max-w-2xl">
+                <ModalWrapper onClose={() => setModalAction("view")} maxWidth="max-w-xl">
                     <ModalHeader 
-                        title="Reject Verification" 
-                        onClose={closeModal} 
+                        title="Confirm Rejection" 
+                        onClose={() => setModalAction("view")} 
                         processing={processing}
-                        icon={<XCircle className="w-5 h-5" />}
+                        icon={<AlertTriangle className="w-5 h-5 text-danger" />}
                     />
-                    <div className="p-6 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                        <div className="bg-danger/10 border border-danger/20 rounded-xl p-4 mb-6">
+                    <div className="p-6 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] space-y-4">
+                        <div className="bg-danger/10 border border-danger/20 rounded-xl p-4">
                             <p className="text-sm text-danger leading-relaxed">
-                                <strong>Warning:</strong> You are about to reject the verification request for <strong>{userName}</strong>. The user will be notified and required to resubmit valid documentation.
+                                You are about to reject the verification request for <strong>{userName}</strong>. They will be required to resubmit valid documentation.
                             </p>
                         </div>
-                        <VerificationDetails />
+                        
+                        {/* Rejection Reason Input */}
+                        <div>
+                            <label htmlFor="reject-reason" className="block text-sm font-semibold text-foreground mb-2">
+                                Reason for Rejection <span className="text-danger">*</span>
+                            </label>
+                            <textarea
+                                id="reject-reason"
+                                value={rejectReason}
+                                onChange={(e) => setRejectReason(e.target.value)}
+                                placeholder="e.g., Image is blurry, ID is expired, Document does not match profile..."
+                                className="w-full min-h-[100px] px-3 py-2 border border-border rounded-xl bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-y"
+                                disabled={processing}
+                            />
+                            <p className="mt-2 text-xs text-muted-foreground">
+                                This feedback will be sent to the user so they can correct their submission.
+                            </p>
+                        </div>
                     </div>
                     <div className="px-6 py-4 border-t border-border bg-muted/10 flex justify-end gap-3 rounded-b-2xl">
                         <button
-                            onClick={closeModal}
+                            onClick={() => setModalAction("view")}
                             disabled={processing}
                             className="px-4 py-2 text-sm font-medium rounded-md border border-border hover:bg-muted/50 transition-colors disabled:opacity-50"
                         >
-                            Cancel
+                            Go Back
                         </button>
                         <button
                             onClick={handleReject}
-                            disabled={processing}
+                            disabled={processing || !rejectReason.trim()}
                             className="flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium bg-danger text-white rounded-md hover:bg-danger/90 transition-colors disabled:opacity-50 min-w-[140px]"
                         >
-                            {processing ? "Processing..." : "Reject Request"}
+                            {processing ? "Processing..." : "Confirm Rejection"}
                         </button>
                     </div>
                 </ModalWrapper>
             )}
 
-            {/* Alert Feedback Modal */}
+            {/* Alert Feedback Modal (Danger for errors) */}
             {alertModal.show && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" onClick={() => setAlertModal({ ...alertModal, show: false })}>
                     <div className="bg-background border border-border rounded-2xl max-w-md w-full mx-4 shadow-2xl animate-in fade-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>

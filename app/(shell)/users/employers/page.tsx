@@ -153,12 +153,17 @@ export default function EmployersPage() {
 
     const rows = employers.map((employer: any) => {
         const user = employer.users || {};
+        const isBanned = Boolean(user.deleted_at);
+        const isRestricted = Boolean(user.restricted_at);
+        const effectiveStatus = isBanned ? "banned" : isRestricted ? "restricted" : (user.status || "active");
         return {
             id: employer.employer_id,
             user_id: employer.user_id,
             name: user.name || "N/A",
             email: user.email || "N/A",
-            status: user.status || "active",
+            status: effectiveStatus,
+            is_restricted: isRestricted,
+            is_banned: isBanned,
             date: user.created_at || new Date().toISOString(),
             phone: user.phone_number || "N/A",
             profile_picture: user.profile_picture || null,
@@ -172,7 +177,15 @@ export default function EmployersPage() {
         setEmployers(prevEmployers =>
             prevEmployers.map(emp => {
                 if (emp.user_id === userId && emp.users) {
-                    return { ...emp, users: { ...emp.users, status: newStatus } };
+                    return {
+                        ...emp,
+                        users: {
+                            ...emp.users,
+                            status: newStatus,
+                            deleted_at: newStatus === "banned" ? new Date().toISOString() : null,
+                            restricted_at: newStatus === "restricted" ? new Date().toISOString() : null,
+                        }
+                    };
                 }
                 return emp;
             })
