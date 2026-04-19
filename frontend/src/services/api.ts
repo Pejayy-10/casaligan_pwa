@@ -26,6 +26,14 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    const requestUrl = String(error.config?.url || '');
+    const isAuthEndpoint = [
+      '/auth/login',
+      '/auth/register',
+      '/auth/forgot-password',
+      '/auth/reset-password',
+    ].some((path) => requestUrl.includes(path));
+
     // Check if user is restricted (403 error with restriction header or detail)
     if (error.response?.status === 403) {
       const accountStatus = error.response.headers['x-account-status'];
@@ -57,10 +65,18 @@ apiClient.interceptors.response.use(
     }
     
     if (error.response?.status === 401) {
-      // Unauthorized - clear token and redirect to login
+      // For expected auth failures (like invalid login), let the caller handle the error.
+      if (isAuthEndpoint) {
+        return Promise.reject(error);
+      }
+
+      // Unauthorized - clear token and redirect to login for protected routes.
       localStorage.removeItem('access_token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   }
