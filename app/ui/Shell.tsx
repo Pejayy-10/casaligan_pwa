@@ -63,7 +63,18 @@ export default function Shell({ children }: ShellProps) {
     );
   }
 
-  const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+  // UPDATED: Strict exact match to prevent overlapping highlights
+  const isActive = (href: string) => {
+      // If it's the exact path, it's active
+      if (pathname === href) return true;
+      
+      // If it's the home page, ONLY highlight on exact match
+      if (href === "/") return false;
+      
+      // For groups (like checking if a parent should be open based on children)
+      // Check if the pathname starts with the href + "/" 
+      return pathname.startsWith(href + "/");
+  };
 
   const menu: Array<
     | { key: string; label: string; href: string; icon: React.ComponentType<{ className?: string }> }
@@ -119,44 +130,28 @@ export default function Shell({ children }: ShellProps) {
 
   return (
     <>
-      {/* <header className="fixed top-0 right-0 h-12 z-50 border-b border-border bg-muted text-foreground flex items-center justify-between px-3" style={{ left: sidebarWidth }}>
-        <div className="flex items-center gap-3">
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/notifications" aria-label="Notifications" className="relative rounded-md p-2 hover:bg-muted/50">
-            <Bell className="h-5 w-5" />
-            <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-danger"></span>
-          </Link>
-          <Link href="/profile" aria-label="Profile">
-            <div className="h-8 w-8 rounded-full bg-primary/90 ring-2 ring-border flex items-center justify-center">
-              <User className="h-4 w-4 text-white" />
-            </div>
-          </Link>
-        </div>
-      </header> */}
-
       <aside
         className="fixed top-0 left-0 h-screen overflow-hidden border-r border-border bg-muted text-foreground p-3 z-50 flex flex-col"
         style={{ width: sidebarWidth }}
       >
         <div className="mb-6 flex items-center gap-2 h-14">
-          <Image src="/logo.png" alt="Logo" width={24} height={20} />
-          <Link href="/" aria-label="Go to home">
-            <Image className="logo-dark-invert" src="/Casaligan.svg" alt="Casaligan" width={90} height={100} priority />
-          </Link>
-        </div>
+  <Image src="/logo.png" alt="Logo" width={24} height={20} />
+  <Link href="/" aria-label="Go to home">
+    <Image className="logo-dark-invert" src="/Casaligan.svg" alt="Casaligan" width={90} height={100} priority />
+  </Link>
+</div>
         <div className="mb-6">
           <Link href="/profile" className="w-full flex items-center gap-4 rounded-lg p-2 bg-border">
             <div className="h-8 w-8 rounded-full bg-primary/90 ring-2 ring-border flex items-center justify-center" aria-label="Profile picture">
               <User className="h-4 w-4 text-white" />
             </div>
             <div className="leading-tight">
-              <p className="font-sans text-[13px]">{profile?.users?.name || "Admin"}</p>
+              <p className="font-sans text-[13px] truncate w-[120px]">{profile?.users?.name || "Admin"}</p>
             </div>
           </Link>
         </div>
         <div className="mb-5">
-          <h2 className="font-heading text-[13px]">Menu</h2>
+          <h2 className="font-heading text-[13px] text-muted-foreground uppercase tracking-wider ml-2">Menu</h2>
         </div>
         <nav className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           <ul className="space-y-2">
@@ -165,9 +160,9 @@ export default function Shell({ children }: ShellProps) {
                 {"href" in item ? (
                   <Link
                     href={item.href}
-                    aria-current={isActive(item.href) ? "page" : undefined}
+                    aria-current={pathname === item.href ? "page" : undefined} // Explicitly use pathname === item.href for the root items
                     className={`flex items-center gap-3 rounded-md px-2.5 py-2 transition-colors ${
-                      isActive(item.href)
+                      pathname === item.href
                         ? "bg-tertiary/90 text-accent font-semibold"
                         : "hover:bg-tertiary/70 hover:text-accent"
                     }`}
@@ -178,7 +173,8 @@ export default function Shell({ children }: ShellProps) {
                 ) : (
                   <>
                     {(() => {
-                      const groupActive = item.children.some((child) => isActive(child.href));
+                      // Only open the group if the exact child path matches the current pathname
+                      const groupActive = item.children.some((child) => pathname === child.href);
                       return (
                         <>
                     <button
@@ -208,9 +204,9 @@ export default function Shell({ children }: ShellProps) {
                         <li key={child.key}>
                           <Link
                             href={child.href}
-                            aria-current={isActive(child.href) ? "page" : undefined}
+                            aria-current={pathname === child.href ? "page" : undefined}
                                 className={`flex items-center gap-2 rounded-md px-2.5 py-1.5 transition-colors ${
-                              isActive(child.href)
+                              pathname === child.href // Strict match required here
                                 ? "bg-tertiary/90 text-accent font-semibold"
                                 : "hover:bg-tertiary/70 hover:text-accent"
                             }`}
@@ -232,7 +228,7 @@ export default function Shell({ children }: ShellProps) {
               <button
                 onClick={handleLogout}
                 disabled={isLoggingOut}
-                className="w-full flex items-center gap-3 rounded-md px-2.5 py-2 transition-colors hover:bg-destructive/20 hover:text-destructive disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex items-center gap-3 rounded-md px-2.5 py-2 transition-colors hover:bg-danger/20 hover:text-danger disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <LogOut className="h-4 w-4" />
                 <span className="block text-[13px]">{isLoggingOut ? "Logging out..." : "Logout"}</span>
@@ -253,5 +249,3 @@ export default function Shell({ children }: ShellProps) {
     </>
   );
 }
-
-
