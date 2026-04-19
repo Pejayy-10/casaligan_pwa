@@ -19,7 +19,6 @@ export default function SettingsPage() {
   
   // Modal States
   const [showFormModal, setShowFormModal] = useState(false);
-  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [alertModal, setAlertModal] = useState<{ show: boolean; title: string; message: string; isError: boolean }>({
     show: false, title: "", message: "", isError: false,
   });
@@ -137,16 +136,7 @@ export default function SettingsPage() {
     }
   };
 
-<<<<<<< Updated upstream:app/(shell)/settings/page.tsx
-  const showDeleteModalForCategory = (category: Category) => {
-    setCategoryToDelete(category);
-    setShowDeleteModal(true);
-  };
-
-  const handleDeleteConfirmed = async () => {
-=======
   const executeDelete = async () => {
->>>>>>> Stashed changes:casaligan_web/app/(shell)/settings/page.tsx
     if (!categoryToDelete) return;
 
     try {
@@ -158,13 +148,8 @@ export default function SettingsPage() {
         .eq('category_id', categoryToDelete.category_id);
 
       if (error) throw error;
-<<<<<<< Updated upstream:app/(shell)/settings/page.tsx
-      setShowDeleteModal(false);
-      setCategoryToDelete(null);
-=======
       
       setAlertModal({ show: true, title: "Success", message: "Category deleted successfully.", isError: false });
->>>>>>> Stashed changes:casaligan_web/app/(shell)/settings/page.tsx
       loadCategories();
     } catch (error: any) {
       console.error('Delete error:', error);
@@ -176,32 +161,6 @@ export default function SettingsPage() {
   };
 
   return (
-<<<<<<< Updated upstream:app/(shell)/settings/page.tsx
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground">Settings</h1>
-        <p className="text-foreground/70 mt-2">Manage platform configuration and categories</p>
-      </div>
-
-      <div className="bg-muted rounded-lg shadow-md ring-1 ring-border">
-        <div className="border-b border-border p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-foreground">Package Categories</h2>
-              <p className="text-sm text-foreground/70 mt-1">
-                Manage categories for service packages
-              </p>
-            </div>
-            {!showForm && (
-              <button
-                onClick={() => setShowForm(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/90 transition-colors"
-              >
-                <Plus className="w-4 h-4" />
-                Add Category
-              </button>
-            )}
-=======
     <div className="mx-auto w-full max-w-[1400px] space-y-6 px-4 sm:px-6 lg:px-8">
       <div>
         <h2 className="text-lg font-semibold">Settings</h2>
@@ -214,7 +173,6 @@ export default function SettingsPage() {
           <div>
             <h3 className="text-base font-semibold text-foreground">Package Categories</h3>
             <p className="text-sm text-muted-foreground">Add, edit, or remove categories available for service packages</p>
->>>>>>> Stashed changes:casaligan_web/app/(shell)/settings/page.tsx
           </div>
           <button
             onClick={handleAddNew}
@@ -225,28 +183,6 @@ export default function SettingsPage() {
           </button>
         </div>
 
-<<<<<<< Updated upstream:app/(shell)/settings/page.tsx
-        <div className="p-6">
-          {showForm && (
-            <form onSubmit={handleSubmit} className="mb-6 p-6 bg-background rounded-lg ring-1 ring-border">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-foreground">
-                  {editingCategory ? 'Edit Category' : 'New Category'}
-                </h3>
-                <button
-                  type="button"
-                  onClick={resetForm}
-                  className="text-foreground/70 hover:text-foreground transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground/70 mb-2">
-                    Category Name *
-=======
         {/* Categories List */}
         {loading ? (
           <div className="flex justify-center py-12">
@@ -336,7 +272,6 @@ export default function SettingsPage() {
                 <div>
                   <label className="block text-sm font-semibold text-foreground mb-2">
                     Category Name <span className="text-danger">*</span>
->>>>>>> Stashed changes:casaligan_web/app/(shell)/settings/page.tsx
                   </label>
                   <input
                     type="text"
@@ -344,21 +279,13 @@ export default function SettingsPage() {
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g., General Cleaning, Deep Cleaning"
                     required
-<<<<<<< Updated upstream:app/(shell)/settings/page.tsx
-                    className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary placeholder:text-foreground/50"
-=======
                     disabled={submitting}
                     className="w-full px-3 py-2 border border-border rounded-xl bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
->>>>>>> Stashed changes:casaligan_web/app/(shell)/settings/page.tsx
                   />
                 </div>
 
                 <div>
-<<<<<<< Updated upstream:app/(shell)/settings/page.tsx
-                  <label className="block text-sm font-medium text-foreground/70 mb-2">
-=======
                   <label className="block text-sm font-semibold text-foreground mb-2">
->>>>>>> Stashed changes:casaligan_web/app/(shell)/settings/page.tsx
                     Description
                   </label>
                   <textarea
@@ -366,103 +293,11 @@ export default function SettingsPage() {
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="Brief description of this category..."
                     rows={3}
-<<<<<<< Updated upstream:app/(shell)/settings/page.tsx
-                    className="w-full px-4 py-2 bg-background text-foreground border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-secondary placeholder:text-foreground/50"
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="isActive"
-                    checked={isActive}
-                    onChange={(e) => setIsActive(e.target.checked)}
-                    className="w-4 h-4 text-secondary border-border rounded focus:ring-secondary"
-                  />
-                  <label htmlFor="isActive" className="text-sm font-medium text-foreground/70">
-                    Active (visible to housekeepers)
-                  </label>
-                </div>
-
-                <div className="flex gap-3 pt-4">
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="flex items-center gap-2 px-6 py-2 bg-secondary text-white rounded-lg hover:bg-secondary/90 transition-colors disabled:opacity-50"
-                  >
-                    <Check className="w-4 h-4" />
-                    {submitting ? 'Saving...' : editingCategory ? 'Update Category' : 'Create Category'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="px-6 py-2 border border-border text-foreground hover:bg-background/80 rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-=======
                     disabled={submitting}
                     className="w-full px-3 py-2 border border-border rounded-xl bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-y"
                   />
->>>>>>> Stashed changes:casaligan_web/app/(shell)/settings/page.tsx
                 </div>
 
-<<<<<<< Updated upstream:app/(shell)/settings/page.tsx
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-secondary"></div>
-            </div>
-          ) : categories.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="text-4xl mb-4">📁</div>
-              <p className="text-foreground/70">No categories yet</p>
-              <p className="text-sm text-foreground/60 mt-1">Create your first category to organize packages</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {categories.map((category) => (
-                <div
-                  key={category.category_id}
-                  className={`p-4 border rounded-lg transition-all ${
-                    category.is_active
-                      ? 'border-border bg-background'
-                      : 'border-border bg-muted/70 opacity-80'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-foreground">{category.name}</h3>
-                        {!category.is_active && (
-                          <span className="px-2 py-0.5 bg-border text-foreground/70 text-xs rounded-full">
-                            Inactive
-                          </span>
-                        )}
-                      </div>
-                      {category.description && (
-                        <p className="text-sm text-foreground/70 mt-1">{category.description}</p>
-                      )}
-                      <p className="text-xs text-foreground/60 mt-2">
-                        Created: {new Date(category.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-
-                    <div className="flex gap-2 ml-4">
-                      <button
-                        onClick={() => handleEdit(category)}
-                        className="p-2 text-primary hover:bg-primary/10 rounded-lg transition-colors"
-                        title="Edit"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => showDeleteModalForCategory(category)}
-                        className="p-2 text-danger hover:bg-danger/10 rounded-lg transition-colors"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-=======
                 <div className="flex items-center gap-3 bg-muted/20 p-3 rounded-xl border border-border/50">
                   <div className="relative flex items-start">
                     <div className="flex h-6 items-center">
@@ -480,7 +315,6 @@ export default function SettingsPage() {
                         Active Status
                       </label>
                       <p className="text-muted-foreground text-xs">If active, this category will be visible to housekeepers when creating packages.</p>
->>>>>>> Stashed changes:casaligan_web/app/(shell)/settings/page.tsx
                     </div>
                   </div>
                 </div>
@@ -511,50 +345,6 @@ export default function SettingsPage() {
             </form>
           </div>
         </div>
-<<<<<<< Updated upstream:app/(shell)/settings/page.tsx
-      </div>
-
-      {showDeleteModal && categoryToDelete && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-          onClick={() => setShowDeleteModal(false)}
-        >
-          <div
-            className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-xl font-semibold text-foreground">Delete category?</h2>
-                <p className="text-sm text-foreground/70 mt-1">
-                  This will fail if any packages are using it.
-                  Are you sure you want to continue?
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowDeleteModal(false)}
-                className="text-muted-foreground hover:text-foreground text-2xl leading-none"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 rounded-lg border border-border text-foreground hover:bg-muted/50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleDeleteConfirmed}
-                className="px-4 py-2 rounded-lg bg-danger text-white hover:bg-danger/90"
-              >
-                Delete
-=======
       )}
 
       {/* ==============================================
@@ -608,7 +398,6 @@ export default function SettingsPage() {
                 className="px-4 py-2 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
               >
                 Close
->>>>>>> Stashed changes:casaligan_web/app/(shell)/settings/page.tsx
               </button>
             </div>
           </div>
@@ -616,9 +405,4 @@ export default function SettingsPage() {
       )}
     </div>
   );
-<<<<<<< Updated upstream:app/(shell)/settings/page.tsx
 }
-
-=======
-}
->>>>>>> Stashed changes:casaligan_web/app/(shell)/settings/page.tsx
