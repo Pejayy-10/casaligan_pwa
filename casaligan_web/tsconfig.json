@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "baseUrl": ".", // Tells TS to start looking from the root
     "paths": {
       "@/*": ["./*"] // Maps the @ prefix to your root directory
     },
@@ -13,11 +12,12 @@
     "allowJs": true,
     "skipLibCheck": true,
     "strict": false,
+    "ignoreDeprecations": "6.0",
     "noEmit": true,
     "incremental": true,
     "module": "esnext",
     "esModuleInterop": true,
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",

@@ -27,6 +27,7 @@ import ReferHousekeeperModal from '../components/ReferHousekeeperModal';
 import apiClient from '../services/api';
 import type { User } from '../types';
 import { useScrollLock } from '../hooks/useScrollLock';
+import { ListSkeleton } from '../components/Skeleton';
 
 export default function JobsPage() {
   const navigate = useNavigate();
@@ -713,16 +714,10 @@ export default function JobsPage() {
 
       {/* Main Content */}
       <main className="relative z-10 max-w-7xl mx-auto px-4 py-6">
-        {user.active_role === 'owner' && loading ? (
-          <div className="text-center py-20">
-            <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#EA526F]"></div>
-            <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading your job posts...</p>
-          </div>
+        {user.active_role === 'owner' && (loading || jobsFilterLoading) ? (
+          <ListSkeleton rows={4} />
         ) : loading && housekeeperView === 'find' ? (
-          <div className="text-center py-20">
-            <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-[#EA526F]"></div>
-            <p className="text-[#4B244A]/70 dark:text-white/70 mt-4 font-medium">Loading jobs...</p>
-          </div>
+          <ListSkeleton rows={4} />
         ) : user.active_role === 'owner' ? (
           <OwnerJobsContent 
             jobs={jobs} 
@@ -1724,7 +1719,12 @@ function OwnerJobsContent({
              {/* Rate & Report buttons for completed jobs */}
              {job.status === 'completed' && job.accepted_workers && job.accepted_workers.length > 0 && (
                <div className="space-y-2 mt-2">
-                 {job.accepted_workers.map((worker) => (
+                 {job.accepted_workers.map((worker) => {
+                   const workerUserId = worker.worker_user_id ?? worker.user_id ?? null;
+                   const reportKey = workerUserId ? `${job.post_id}-${workerUserId}` : null;
+                   const hasReportedWorker = reportKey ? reportedUsers.has(reportKey) : false;
+
+                   return (
                    <div key={`rate-${worker.worker_id}`}>
                      <div className="flex gap-2">
                        {ratedContracts.has(worker.contract_id) ? (
@@ -1741,13 +1741,29 @@ function OwnerJobsContent({
                            Rate {worker.name}
                          </button>
                        )}
-                       {!reportedUsers.has(`${job.post_id}-${worker.worker_user_id}`) && (
+                       {hasReportedWorker ? (
                          <button
-                           onClick={() => onReportWorker(job, worker)}
-                           className="py-2 px-3 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-1 bg-gray-100 text-gray-500 hover:bg-red-50 hover:text-red-500 dark:bg-white/5 dark:text-white/40 dark:hover:bg-red-900/20 dark:hover:text-red-400 shadow-sm"
+                           disabled
+                           className="py-2 px-3 text-sm font-bold rounded-lg flex items-center justify-center gap-1 bg-green-50 text-green-600 dark:bg-green-500/10 dark:text-green-400 border border-green-200 dark:border-green-500/20"
+                           title={`${worker.name} has already been reported`}
+                         >
+                           <CheckCircle className="w-4 h-4" />
+                           Reported
+                         </button>
+                       ) : (
+                         <button
+                           onClick={() => {
+                             if (!workerUserId) {
+                               alert('Unable to report this worker right now. Please refresh and try again.');
+                               return;
+                             }
+                             onReportWorker(job, { ...worker, worker_user_id: workerUserId });
+                           }}
+                           className="py-2 px-3 text-sm font-bold rounded-lg transition-all flex items-center justify-center gap-1 bg-gray-100 text-gray-600 hover:bg-red-50 hover:text-red-500 dark:bg-white/5 dark:text-white/60 dark:hover:bg-red-900/20 dark:hover:text-red-400 shadow-sm"
                            title={`Report ${worker.name}`}
                          >
                            <AlertTriangle className="w-4 h-4" />
+                           Report
                          </button>
                        )}
                      </div>
@@ -1760,7 +1776,8 @@ function OwnerJobsContent({
                        Refer {worker.name}
                      </button>
                    </div>
-                 ))}
+                   );
+                 })}
                </div>
              )}
 

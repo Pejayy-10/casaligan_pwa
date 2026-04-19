@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { MessageCircle } from 'lucide-react';
 import apiClient from '../services/api';
+import { Skeleton } from '../components/Skeleton';
 
 interface Message {
   message_id: number;
@@ -320,8 +321,15 @@ export default function ChatPage() {
         className="flex-1 overflow-y-auto p-4 min-h-0 bg-[#F8F9FA] dark:bg-slate-950"
       >
         {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="w-8 h-8 border-4 border-[#EA526F] border-t-transparent rounded-full animate-spin" />
+          <div className="space-y-4 max-w-3xl mx-auto py-2">
+            {Array.from({ length: 6 }).map((_, index) => (
+              <div key={`chat-skeleton-${index}`} className={`flex ${index % 2 === 0 ? 'justify-start' : 'justify-end'}`}>
+                <div className="max-w-[78%] space-y-2">
+                  <Skeleton className="h-3 w-16 rounded-md" />
+                  <Skeleton className={`h-10 rounded-2xl ${index % 3 === 0 ? 'w-64' : 'w-48'}`} />
+                </div>
+              </div>
+            ))}
           </div>
         ) : error ? (
           <div className="flex items-center justify-center h-full text-red-600 dark:text-red-400">
