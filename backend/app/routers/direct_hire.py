@@ -1890,164 +1890,190 @@ def browse_workers(
     from app.models_v2.rating import Rating
     from sqlalchemy import func
     from sqlalchemy.orm import joinedload
+
+    def _enum_or_str(value):
+        if value is None:
+            return None
+        return value.value if hasattr(value, "value") else str(value)
     
-    # Get all active registered housekeepers.
-    # Do not hard-require a housekeeper_applications row because some valid
-    # worker accounts were created/approved through legacy flows.
-    # Only return workers who have set themselves as available (is_available=True).
-    # Inactive workers are hidden from browse/search entirely.
-    query = db.query(Worker).join(
-        User, Worker.user_id == User.id
-    ).filter(
-        User.is_housekeeper == True,
-        User.id != current_user.id,  # Exclude current user from browse results
-        Worker.is_available == True   # Only show workers who are active/available
-    )
-    
-    workers = query.all()
+    # Build a resilient worker source query that can fall back for legacy DB states.
+    # Some environments may have inconsistent data or partially applied schema updates.
+    worker_rows: List[Any] = []
+    has_availability_info = True
+    try:
+        worker_rows = db.query(
+            Worker.worker_id.label("worker_id"),
+            Worker.user_id.label("user_id"),
+            Worker.is_available.label("is_available"),
+        ).join(
+            User, Worker.user_id == User.id
+        ).filter(
+            User.is_housekeeper == True,
+            User.id != current_user.id,
+            Worker.is_available == True,
+        ).all()
+    except Exception:
+        db.rollback()
+        has_availability_info = False
+        logger.exception("browse_workers: failed to query with availability filter, falling back without it")
+        worker_rows = db.query(
+            Worker.worker_id.label("worker_id"),
+            Worker.user_id.label("user_id"),
+        ).join(
+            User, Worker.user_id == User.id
+        ).filter(
+            User.is_housekeeper == True,
+            User.id != current_user.id,
+        ).all()
     
     result = []
-    for worker in workers:
-        user = db.query(User).filter(User.id == worker.user_id).first()
-        address = db.query(Address).filter(Address.user_id == worker.user_id).first()
-
-        # Filter by sex if specified
-        if sex:
-            user_gender = user.gender.value if getattr(user, "gender", None) else None
-            if not user_gender or user_gender.lower() != sex.strip().lower():
+    for worker in worker_rows:
+        try:
+            user = db.query(User).filter(User.id == worker.user_id).first()
+            if not user:
                 continue
+            address = db.query(Address).filter(Address.user_id == worker.user_id).first()
 
-        # Filter by relationship status if specified
-        if relationship_status:
-            user_relationship = (getattr(user, "relationship_status", None) or "").strip().lower()
-            if not user_relationship or user_relationship != relationship_status.strip().lower():
-                continue
-        
-        # Filter by city if specified
-        if city and address and address.city_name and address.city_name.lower() != city.lower():
-            continue
-
-        # Filter by name if specified (first name, last name, or full name)
-        if name:
-            full_name = f"{user.first_name or ''} {user.last_name or ''}".strip().lower()
-            name_lower = name.strip().lower()
-            if name_lower not in full_name and \
-               name_lower not in (user.first_name or '').lower() and \
-               name_lower not in (user.last_name or '').lower():
-                continue
-        
-        # Get rating summary for this worker
-        ratings = db.query(Rating).filter(Rating.target_user_id == user.id).all()
-        avg_rating = round(sum(r.rating for r in ratings) / len(ratings), 1) if ratings else 0.0
-        total_ratings = len(ratings)
-        
-        # Filter by minimum rating if specified
-        if min_rating and avg_rating < min_rating:
-            continue
-        
-        # Get active packages
-        packages = db.query(WorkerPackage).options(
-            joinedload(WorkerPackage.categories)
-        ).filter(
-            WorkerPackage.worker_id == worker.worker_id,
-            WorkerPackage.is_active == True
-        ).all()
-        
-        # Calculate proximity/distance
-        proximity_score = 999  # Default: far away
-        proximity_label = None
-        distance_km = None
-        
-        # GPS-based distance calculation (takes priority)
-        if employer_latitude is not None and employer_longitude is not None:
-            if address and address.latitude is not None and address.longitude is not None:
-                distance_km = calculate_distance_km(
-                    employer_latitude,
-                    employer_longitude,
-                    address.latitude,
-                    address.longitude
-                )
-                
-                # Filter by max distance if specified
-                if max_distance_km is not None and distance_km > max_distance_km:
+            # Filter by sex if specified
+            if sex:
+                user_gender = _enum_or_str(getattr(user, "gender", None))
+                if not user_gender or user_gender.lower() != sex.strip().lower():
                     continue
-                
-                # Use distance as proximity score (lower is closer)
-                proximity_score = distance_km
-                proximity_label = "gps_distance"
-            else:
-                # Worker doesn't have GPS coordinates - still include them but with lower priority
-                # They'll be sorted after workers with GPS coordinates
-                proximity_score = 9999  # Very high score so they appear last
-                proximity_label = "no_gps_coordinates"
+
+            # Filter by relationship status if specified
+            if relationship_status:
+                user_relationship = str(getattr(user, "relationship_status", None) or "").strip().lower()
+                if not user_relationship or user_relationship != relationship_status.strip().lower():
+                    continue
         
-        # Address-based proximity calculation (fallback or when GPS not available)
-        if proximity_label is None and address and address.city_name:
-            # Check barangay first (most specific)
-            if employer_barangay and address.barangay_name:
-                employer_barangay_lower = employer_barangay.lower()
-                worker_barangay_lower = address.barangay_name.lower()
-                
-                if employer_barangay_lower == worker_barangay_lower:
-                    proximity_score = 0  # Same barangay - highest priority
-                    proximity_label = "same_barangay"
-            
-            # Check city if not same barangay
-            if proximity_label is None and employer_city:
-                employer_city_lower = employer_city.lower()
-                worker_city_lower = address.city_name.lower()
-                
-                if employer_city_lower == worker_city_lower:
-                    proximity_score = 1  # Same city - second priority
-                    proximity_label = "same_city"
-            
-            # Check province if not same city
-            if proximity_label is None and employer_province and address.province_name:
-                employer_province_lower = employer_province.lower()
-                worker_province_lower = address.province_name.lower()
-                
-                if employer_province_lower == worker_province_lower:
-                    proximity_score = 2  # Same province - third priority
-                    proximity_label = "same_province"
+            # Filter by city if specified
+            if city and address and address.city_name and address.city_name.lower() != city.lower():
+                continue
+
+            # Filter by name if specified (first name, last name, or full name)
+            if name:
+                full_name = f"{user.first_name or ''} {user.last_name or ''}".strip().lower()
+                name_lower = name.strip().lower()
+                if name_lower not in full_name and \
+                   name_lower not in (user.first_name or '').lower() and \
+                   name_lower not in (user.last_name or '').lower():
+                    continue
+        
+            # Get rating summary for this worker
+            ratings = db.query(Rating).filter(Rating.target_user_id == user.id).all()
+            avg_rating = round(sum(r.rating for r in ratings) / len(ratings), 1) if ratings else 0.0
+            total_ratings = len(ratings)
+        
+            # Filter by minimum rating if specified
+            if min_rating and avg_rating < min_rating:
+                continue
+        
+            # Get active packages
+            packages = db.query(WorkerPackage).options(
+                joinedload(WorkerPackage.categories)
+            ).filter(
+                WorkerPackage.worker_id == worker.worker_id,
+                WorkerPackage.is_active == True
+            ).all()
+        
+            # Calculate proximity/distance
+            proximity_score = 999  # Default: far away
+            proximity_label = None
+            distance_km = None
+        
+            # GPS-based distance calculation (takes priority)
+            if employer_latitude is not None and employer_longitude is not None:
+                if address and address.latitude is not None and address.longitude is not None:
+                    distance_km = calculate_distance_km(
+                        employer_latitude,
+                        employer_longitude,
+                        address.latitude,
+                        address.longitude
+                    )
+                    
+                    # Filter by max distance if specified
+                    if max_distance_km is not None and distance_km > max_distance_km:
+                        continue
+                    
+                    # Use distance as proximity score (lower is closer)
+                    proximity_score = distance_km
+                    proximity_label = "gps_distance"
                 else:
-                    proximity_score = 3  # Different province
-                    proximity_label = "different_province"
-            elif proximity_label is None:
-                proximity_score = 3  # Different city, no province info
-                proximity_label = "different_city"
-        elif not address:
-            proximity_score = 4  # No address info
-            proximity_label = "no_address"
+                    # Worker doesn't have GPS coordinates - still include them but with lower priority
+                    # They'll be sorted after workers with GPS coordinates
+                    proximity_score = 9999  # Very high score so they appear last
+                    proximity_label = "no_gps_coordinates"
         
-        result.append({
-            "worker_id": worker.worker_id,
-            "user_id": worker.user_id,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "gender": user.gender.value if getattr(user, "gender", None) else None,
-            "relationship_status": user.relationship_status,
-            "city": address.city_name if address else None,
-            "barangay": address.barangay_name if address else None,
-            "province": address.province_name if address else None,
-            "package_count": len(packages),
-            "average_rating": avg_rating,
-            "total_ratings": total_ratings,
-            "proximity_score": proximity_score,
-            "proximity_label": proximity_label,
-            "distance_km": distance_km,  # Distance in kilometers (only for GPS-based search)
-            "is_available": getattr(worker, 'is_available', True) if getattr(worker, 'is_available', True) is not None else True,
-            "packages": [
-                {
-                    "package_id": p.package_id,
-                    "name": p.name,
-                    "price": float(p.price),
-                    "duration_hours": p.duration_hours,
-                    "category_ids": [cat.category_id for cat in p.categories],
-                    "category_names": [cat.name for cat in p.categories]
-                }
-                for p in packages
-            ]
-        })
+            # Address-based proximity calculation (fallback or when GPS not available)
+            if proximity_label is None and address and address.city_name:
+                # Check barangay first (most specific)
+                if employer_barangay and address.barangay_name:
+                    employer_barangay_lower = employer_barangay.lower()
+                    worker_barangay_lower = address.barangay_name.lower()
+                    
+                    if employer_barangay_lower == worker_barangay_lower:
+                        proximity_score = 0  # Same barangay - highest priority
+                        proximity_label = "same_barangay"
+                
+                # Check city if not same barangay
+                if proximity_label is None and employer_city:
+                    employer_city_lower = employer_city.lower()
+                    worker_city_lower = address.city_name.lower()
+                    
+                    if employer_city_lower == worker_city_lower:
+                        proximity_score = 1  # Same city - second priority
+                        proximity_label = "same_city"
+                
+                # Check province if not same city
+                if proximity_label is None and employer_province and address.province_name:
+                    employer_province_lower = employer_province.lower()
+                    worker_province_lower = address.province_name.lower()
+                    
+                    if employer_province_lower == worker_province_lower:
+                        proximity_score = 2  # Same province - third priority
+                        proximity_label = "same_province"
+                    else:
+                        proximity_score = 3  # Different province
+                        proximity_label = "different_province"
+                else:
+                    proximity_score = 3  # Different city, no province info
+                    proximity_label = "different_city"
+            elif not address:
+                proximity_score = 4  # No address info
+                proximity_label = "no_address"
+            
+            result.append({
+                "worker_id": worker.worker_id,
+                "user_id": worker.user_id,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "gender": _enum_or_str(getattr(user, "gender", None)),
+                "relationship_status": user.relationship_status,
+                "city": address.city_name if address else None,
+                "barangay": address.barangay_name if address else None,
+                "province": address.province_name if address else None,
+                "package_count": len(packages),
+                "average_rating": avg_rating,
+                "total_ratings": total_ratings,
+                "proximity_score": proximity_score,
+                "proximity_label": proximity_label,
+                "distance_km": distance_km,  # Distance in kilometers (only for GPS-based search)
+                "is_available": bool(getattr(worker, "is_available", True)) if has_availability_info else True,
+                "packages": [
+                    {
+                        "package_id": p.package_id,
+                        "name": p.name,
+                        "price": float(p.price),
+                        "duration_hours": p.duration_hours,
+                        "category_ids": [cat.category_id for cat in p.categories],
+                        "category_names": [cat.name for cat in p.categories]
+                    }
+                    for p in packages
+                ]
+            })
+        except Exception:
+            logger.exception("browse_workers: skipping worker_id=%s due to data error", getattr(worker, "worker_id", None))
+            continue
     
     # Sort results
     if sort_by == "rating":

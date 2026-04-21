@@ -366,14 +366,29 @@ export default function BrowseWorkersPage() {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
       });
+      const rawBody = await response.text();
+      let parsedBody: any = null;
+      if (rawBody) {
+        try {
+          parsedBody = JSON.parse(rawBody);
+        } catch {
+          parsedBody = null;
+        }
+      }
+
       if (response.ok) {
-        const data = await response.json();
-        setWorkers(data);
-        setFilteredWorkers(data);
+        if (Array.isArray(parsedBody)) {
+          setWorkers(parsedBody);
+          setFilteredWorkers(parsedBody);
+          setGpsError(null);
+        } else {
+          console.error('Failed to load workers: unexpected response payload', rawBody);
+          setGpsError('Failed to load workers. Server returned an unexpected response.');
+        }
       } else {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Failed to load workers:', response.status, errorData);
-        setGpsError(`Failed to load workers: ${response.status} ${errorData.detail || ''}`);
+        const detail = parsedBody?.detail || rawBody || '';
+        console.error('Failed to load workers:', response.status, detail);
+        setGpsError(`Failed to load workers: ${response.status} ${String(detail).trim()}`);
       }
     } catch (error) {
       console.error('Failed to load workers:', error);
