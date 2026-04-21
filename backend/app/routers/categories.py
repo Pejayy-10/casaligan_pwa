@@ -203,6 +203,7 @@ def get_all_categories(
 @router.get("/my-categories", response_model=List[CategoryResponse])
 def get_my_categories(
     active_only: bool = True,
+    include_all_active: bool = False,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -211,15 +212,20 @@ def get_my_categories(
     _ensure_custom_category_table(db)
     _migrate_legacy_custom_markers(db)
 
-    all_custom_ids = _get_custom_category_ids(db)
-    my_custom_ids = _get_custom_category_ids(db, current_user.id)
-    all_owner_custom_ids = _get_owner_custom_category_ids(db)
-
     query = db.query(PackageCategory)
     if active_only:
         query = query.filter(PackageCategory.is_active == True)
 
     all_categories = query.order_by(PackageCategory.name).all()
+
+    # Package management expects every active admin-visible category.
+    if include_all_active:
+        return [_to_category_response(cat) for cat in all_categories]
+
+    all_custom_ids = _get_custom_category_ids(db)
+    my_custom_ids = _get_custom_category_ids(db, current_user.id)
+    all_owner_custom_ids = _get_owner_custom_category_ids(db)
+
     visible_categories = []
     for category in all_categories:
         cat_id = category.category_id

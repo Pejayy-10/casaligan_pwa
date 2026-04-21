@@ -33,6 +33,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
   const { confirm, confirmDialog } = useConfirmDialog();
   const [packages, setPackages] = useState<Package[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingPackage, setEditingPackage] = useState<Package | null>(null);
@@ -45,6 +46,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
   const [numDays, setNumDays] = useState('1');
   const [services, setServices] = useState('');
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<number[]>([]);
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [customCategoryName, setCustomCategoryName] = useState('');
   const [customCategoryDescription, setCustomCategoryDescription] = useState('');
@@ -57,8 +59,9 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
 
   const loadCategories = async () => {
     try {
+      setCategoriesLoading(true);
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`${API_BASE_URL}/categories/my-categories?active_only=true`, {
+      const response = await fetch(`${API_BASE_URL}/categories/my-categories?active_only=true&include_all_active=true`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
@@ -67,6 +70,8 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
       }
     } catch (error) {
       console.error('Failed to load categories:', error);
+    } finally {
+      setCategoriesLoading(false);
     }
   };
 
@@ -97,11 +102,13 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
     setNumDays('1');
     setServices('');
     setSelectedCategoryIds([]);
+    setSubmitAttempted(false);
     setEditingPackage(null);
     setShowForm(false);
   };
 
   const handleEdit = (pkg: Package) => {
+    setSubmitAttempted(false);
     setEditingPackage(pkg);
     setName(pkg.name);
     setDescription(pkg.description || '');
@@ -114,6 +121,7 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
   };
 
   const handleSubmit = async () => {
+    setSubmitAttempted(true);
     if (!name.trim() || !price || selectedCategoryIds.length === 0) {
       alert('Please fill in package name, price, and at least one category');
       return;
@@ -338,10 +346,13 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
             </label>
           ))}
         </div>
-        {categories.length === 0 && (
+        {categoriesLoading && (
+          <p className="text-[#4B244A]/60 dark:text-white/60 text-xs mt-1">Loading categories...</p>
+        )}
+        {!categoriesLoading && categories.length === 0 && (
           <p className="text-yellow-600 dark:text-yellow-300 text-xs mt-1 flex items-center gap-1"><AlertTriangle className="w-4 h-4" /> No categories available. Contact admin to add categories.</p>
         )}
-        {selectedCategoryIds.length === 0 && (
+        {submitAttempted && selectedCategoryIds.length === 0 && (
           <p className="text-red-500 dark:text-red-400 text-xs mt-1">Please select at least one category</p>
         )}
       </div>
@@ -438,7 +449,10 @@ export default function PackageManagement({ onClose, embedded = false }: Props) 
   const packageList = (
     <div className="space-y-4">
       <button
-        onClick={() => setShowForm(true)}
+        onClick={() => {
+          setSubmitAttempted(false);
+          setShowForm(true);
+        }}
         className="w-full py-4 border-2 border-dashed border-gray-300 dark:border-white/30 rounded-xl text-[#4B244A]/70 dark:text-white/70 hover:border-[#EA526F] hover:text-[#EA526F] transition-all font-medium bg-white/50 dark:bg-white/5"
       >
         <Plus className="inline w-4 h-4 mr-1" /> Add New Package
